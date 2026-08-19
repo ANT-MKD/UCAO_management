@@ -1,0 +1,155 @@
+import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
+import { Plus, Eye, Pencil, Users, X } from "lucide-react";
+import { PageHeader } from "@/components/admin/PageHeader";
+import { KPICard } from "@/components/admin/KPICard";
+import { DataTable, Column } from "@/components/admin/DataTable";
+import { UserAvatar } from "@/components/admin/UserAvatar";
+import { ENSEIGNANTS } from "@/data/mockData";
+import { formatCFA } from "@/lib/utils";
+
+type Enseignant = typeof ENSEIGNANTS[0];
+
+const GRADE_COLORS: Record<string, { bg: string; text: string }> = {
+  Permanent: { bg: "#ecfdf5", text: "#10b981" },
+  Vacataire: { bg: "#fffbeb", text: "#f59e0b" },
+  Contractuel: { bg: "#eff6ff", text: "#3b82f6" },
+};
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
+      {label}
+      <button onClick={onRemove} className="hover:text-red-500 transition-colors ml-0.5"><X size={10} /></button>
+    </span>
+  );
+}
+
+export default function TeachersPage() {
+  const [, setLocation] = useLocation();
+  const [gradeFilter, setGradeFilter] = useState("");
+  const [specialiteFilter, setSpecialiteFilter] = useState("");
+  const [tauxMin, setTauxMin] = useState("");
+  const [tauxMax, setTauxMax] = useState("");
+
+  const specialites = useMemo(() => [...new Set(ENSEIGNANTS.map((e) => e.specialite))], []);
+
+  const filteredData = useMemo(() => {
+    return ENSEIGNANTS.filter((e) => {
+      if (gradeFilter && e.grade !== gradeFilter) return false;
+      if (specialiteFilter && e.specialite !== specialiteFilter) return false;
+      if (tauxMin && e.tauxHoraire < parseInt(tauxMin)) return false;
+      if (tauxMax && e.tauxHoraire > parseInt(tauxMax)) return false;
+      return true;
+    });
+  }, [gradeFilter, specialiteFilter, tauxMin, tauxMax]);
+
+  const permanents = ENSEIGNANTS.filter((e) => e.grade === "Permanent").length;
+  const vacataires = ENSEIGNANTS.filter((e) => e.grade === "Vacataire").length;
+  const activeFiltersCount = [gradeFilter, specialiteFilter, tauxMin, tauxMax].filter(Boolean).length;
+
+  const columns: Column<Enseignant>[] = [
+    {
+      key: "nom",
+      header: "Enseignant",
+      sortable: true,
+      render: (r) => (
+        <div className="flex items-center gap-2.5">
+          <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" />
+          <div>
+            <div className="font-medium text-foreground text-sm">{r.prenom} {r.nom}</div>
+            <div className="text-[10px] text-muted-foreground">{r.specialite}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: "matricule", header: "Matricule", render: (r) => <span className="font-mono text-xs text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.matricule}</span> },
+    {
+      key: "grade",
+      header: "Grade",
+      render: (r) => {
+        const style = GRADE_COLORS[r.grade] ?? { bg: "#f8fafc", text: "#64748b" };
+        return <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: style.bg, color: style.text }}>{r.grade}</span>;
+      },
+    },
+    { key: "modulesAssignes", header: "Modules", sortable: true, render: (r) => <span className="font-bold text-foreground">{r.modulesAssignes}</span> },
+    { key: "heuresMois", header: "H/mois", sortable: true, render: (r) => <span className="text-sm text-muted-foreground">{r.heuresMois}h</span> },
+    { key: "tauxHoraire", header: "Taux/h", sortable: true, render: (r) => <span className="font-medium text-emerald-600">{formatCFA(r.tauxHoraire)}</span> },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (r) => (
+        <div className="flex items-center gap-1">
+          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/teachers/${r.id}`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Eye size={14} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/teachers/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+        </div>
+      ),
+    },
+  ];
+
+  const inputClass = "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+  return (
+    <div>
+      <PageHeader
+        breadcrumb={[{ label: "Admin" }, { label: "Utilisateurs" }, { label: "Enseignants" }]}
+        title="Enseignants"
+        subtitle={`${filteredData.length} enseignant(s) affiché(s)`}
+        actions={
+          <button onClick={() => setLocation("/admin/teachers/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+            <Plus size={15} /> Ajouter un Enseignant
+          </button>
+        }
+      />
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <KPICard icon={Users} label="Total Enseignants" value={ENSEIGNANTS.length} accentColor="#4f46e5" />
+        <KPICard icon={Users} label="Permanents" value={permanents} accentColor="#10b981" />
+        <KPICard icon={Users} label="Vacataires" value={vacataires} accentColor="#f59e0b" />
+      </div>
+      <DataTable
+        columns={columns}
+        data={filteredData as unknown as Record<string, unknown>[]}
+        searchable
+        searchPlaceholder="Rechercher un enseignant..."
+        activeFiltersCount={activeFiltersCount}
+        onClearFilters={() => { setGradeFilter(""); setSpecialiteFilter(""); setTauxMin(""); setTauxMax(""); }}
+        filterPanel={
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Grade</label>
+              <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className={inputClass}>
+                <option value="">Tous</option>
+                <option value="Permanent">Permanent</option>
+                <option value="Vacataire">Vacataire</option>
+                <option value="Contractuel">Contractuel</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
+              <select value={specialiteFilter} onChange={(e) => setSpecialiteFilter(e.target.value)} className={inputClass}>
+                <option value="">Toutes</option>
+                {specialites.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux min (FCFA)</label>
+              <input type="number" value={tauxMin} onChange={(e) => setTauxMin(e.target.value)} className={inputClass} placeholder="8000" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux max (FCFA)</label>
+              <input type="number" value={tauxMax} onChange={(e) => setTauxMax(e.target.value)} className={inputClass} placeholder="20000" />
+            </div>
+            {activeFiltersCount > 0 && (
+              <div className="col-span-full flex flex-wrap gap-2">
+                {gradeFilter && <FilterChip label={`Grade: ${gradeFilter}`} onRemove={() => setGradeFilter("")} />}
+                {specialiteFilter && <FilterChip label={`Spécialité: ${specialiteFilter}`} onRemove={() => setSpecialiteFilter("")} />}
+                {tauxMin && <FilterChip label={`Min: ${formatCFA(parseInt(tauxMin))}`} onRemove={() => setTauxMin("")} />}
+                {tauxMax && <FilterChip label={`Max: ${formatCFA(parseInt(tauxMax))}`} onRemove={() => setTauxMax("")} />}
+              </div>
+            )}
+          </div>
+        }
+      />
+    </div>
+  );
+}

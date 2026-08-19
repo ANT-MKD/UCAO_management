@@ -1,0 +1,935 @@
+# PROMPT LOVABLE — EduManage v2.0
+## Plateforme SaaS de Gestion Universitaire pour l'Afrique Francophone
+
+---
+
+> **INSTRUCTION GÉNÉRALE**
+> Tu vas construire **EduManage**, un SaaS de gestion universitaire complet, moderne et responsive, conçu spécifiquement pour les universités privées au Sénégal et en Afrique francophone. L'application repose sur **3 rôles interconnectés** (Administrateur, Enseignant, Étudiant) qui communiquent en temps réel via une base de données Supabase partagée. Ce qui est saisi par l'admin est visible par l'enseignant et l'étudiant concerné, et vice versa.
+>
+> **Stack technique :** React + TypeScript + Tailwind CSS + Supabase (auth + database + storage) + React Router + Recharts (graphiques) + React Hook Form + Zod (validation)
+>
+> **Construis l'application phase par phase**, dans l'ordre exact ci-dessous. Ne passe pas à la phase suivante avant que la précédente soit validée.
+
+---
+
+## 🎨 DESIGN SYSTEM — À appliquer sur TOUTES les pages
+
+### Palette de couleurs
+```css
+--primary: #4f46e5;          /* Indigo — actions principales */
+--primary-hover: #4338ca;
+--secondary: #10b981;        /* Emerald — validations, succès */
+--accent: #f59e0b;           /* Amber — alertes, vacataires */
+--danger: #ef4444;           /* Rouge — erreurs, suppression */
+--warning: #f59e0b;
+--bg-color: #ffffff;         /* Light mode background */
+--bg-alt: #f8fafc;           /* Sections alternées */
+--card-bg: #ffffff;
+--text-main: #0f172a;
+--text-light: #64748b;
+--border-color: #e2e8f0;
+/* Dark mode */
+--bg-color-dark: #0f111a;
+--bg-alt-dark: #161b22;
+--card-bg-dark: #1e293b;
+--border-dark: #334155;
+```
+
+### Typographie
+- **Titres :** `Outfit` (700–800)
+- **Corps :** `Inter` (400–600)
+- Import Google Fonts dans le head global
+
+### Composants partagés
+- **Cards :** `border-radius: 16px`, `border: 1px solid var(--border-color)`, `box-shadow: var(--shadow-sm)`, padding 1.5rem
+- **Boutons primaires :** fond `--primary`, `border-radius: 8px`, hover = translateY(-2px) + shadow renforcé
+- **Badges de statut :** fond coloré à 10% d'opacité + texte coloré (ex: vert pour "Validé", orange pour "En attente", rouge pour "Bloqué")
+- **Tableaux admin :** header fond `--bg-alt`, lignes alternées, hover ligne subtil, actions alignées à droite
+- **Formulaires :** labels en `0.85rem font-weight:600`, inputs avec `padding: 0.9rem`, focus ring `--primary` à 20%
+- **KPI Cards :** icône dans un carré arrondi coloré à gauche, chiffre en `2rem font-weight:800`, label en `--text-light`
+- **Dark mode :** toggle dans toutes les interfaces, persisté dans `localStorage`
+- **Animations :** transitions CSS `0.2s–0.3s ease`, pas d'animations lourdes dans les dashboards (performance)
+- **Responsive :** toutes les pages sont responsive. Sidebar admin se replie en icônes sur mobile. Sidebar étudiant devient hamburger menu.
+
+---
+
+## 📋 MODÈLE DE DONNÉES SUPABASE
+
+Crée les tables suivantes avec Row Level Security (RLS) activé :
+
+```sql
+-- UTILISATEURS & RÔLES
+users (id, email, role ENUM['admin','teacher','student'], full_name, avatar_url, created_at)
+profiles (id → users.id, phone, address, birth_date, birth_place, nationality, id_number, gender)
+
+-- STRUCTURE ACADÉMIQUE
+filieres (id, code, nom, responsable_id→users, description, statut ENUM['active','inactive'])
+niveaux (id, nom, alias, cycle ENUM['Licence','Master','Doctorat'], filiere_id)
+semestres (id, nom, alias, niveau_id, date_debut, date_fin, statut ENUM['futur','actif','clos'])
+classes (id, nom, annee_academique, filiere_id, niveau_id, effectif_max, delegue_id→users)
+salles (id, nom, type, capacite, batiment, equipements JSONB, statut)
+ues (id, code, libelle, credits_ects, filiere_id, niveau_id, semestre_id, type ENUM['fondamentale','transversale','optionnelle'])
+ecs (id, code, libelle, ue_id, coefficient, credits, volume_cm, volume_td, responsable_id→users)
+schedule (id, classe_id, ec_id, salle_id, teacher_id→users, jour, heure_debut, heure_fin, type ENUM['CM','TD','TP','EX'], recurrent BOOLEAN)
+
+-- UTILISATEURS MÉTIER
+etudiants (id→users, matricule UNIQUE, classe_id, statut ENUM['inscrit','suspendu','diplome'])
+enseignants (id→users, matricule UNIQUE, specialite, grade, taux_horaire NUMERIC)
+
+-- ÉVALUATIONS
+notes (id, etudiant_id, ec_id, type_eval ENUM['CC','EF','Projet','Rattrapage'], note NUMERIC, coefficient, saisie_par→users, date_parution, statut ENUM['brouillon','publie'])
+absences (id, etudiant_id, schedule_id, date, motif, justifiee BOOLEAN, teacher_id→users)
+
+-- FINANCES
+frais_config (id, filiere_id, niveau_id, annee_academique, type_frais, montant NUMERIC, echeances JSONB)
+paiements (id, etudiant_id, frais_config_id, montant_verse NUMERIC, moyen ENUM['Wave','OrangeMoney','FreeMoney','Virement','Especes','Cheque'], reference, statut ENUM['partiel','complet','retard'], receipt_url, created_by→users)
+vacations (id, enseignant_id, ec_id, mois, heures_cm, heures_td, taux_horaire, montant_total, statut ENUM['brouillon','valide','paye'], created_by→users)
+transactions (id, type ENUM['recette','depense'], categorie, beneficiaire, libelle, montant NUMERIC, moyen, reference, date_op, created_by→users)
+
+-- PÉDAGOGIE
+cahier_texte (id, ec_id, schedule_id, titre, contenu, travail_a_faire, teacher_id→users, created_at)
+ressources (id, ec_id, nom, type ENUM['PDF','Video','Lien','Autre'], url, taille, uploaded_by→users)
+```
+
+---
+
+## 🔐 PHASE 1 — AUTHENTIFICATION & ROUTING
+
+### Pages à créer
+1. **Landing Page** (`/`) — Site vitrine EduManage
+2. **Login** (`/login`) — Page de connexion
+3. **Routing protégé** — Redirection selon le rôle après login
+
+### 1.1 — Landing Page (`/`)
+
+**Layout :** Navbar fixe + sections verticales + footer
+
+**Navbar :**
+- Logo `EduManage` (icône mortier + texte, span coloré pour "Manage")
+- Liens : Fonctionnalités | Paiements (Wave/OM) | Solutions | Tarifs
+- Actions : bouton "Se Connecter" (outline) + "Demander une Démo" (primary)
+- Background : `var(--nav-bg)` avec `backdrop-filter: blur(12px)` au scroll
+
+**Section Hero :**
+- Titre H1 : *"Gérez votre université privée avec excellence."* — mot "excellence" en gradient indigo→violet
+- Sous-titre : description ciblée universités sénégalaises + Wave/OM
+- Boutons : "Commencer gratuitement" (primary) + "Voir la vidéo" (secondary avec play icon)
+- Partie droite : carte dashboard avec screenshot, + 2 floating cards animées (paiement reçu + nouvel inscrit) — animation `float` CSS infinite
+- Fond : radial-gradient subtil indigo en haut à droite + emerald en bas à gauche
+
+**Section Trusted By :**
+- Bandeau marquee (animation scroll infini gauche→droite) : UCAO | SupDeco | ISM Group | BEM Dakar | AFI L'Université (dupliqués pour l'effet loop)
+
+**Section Fonctionnalités (3 cards) :**
+- Gestion Académique LMD (icône livre, fond indigo léger)
+- Finance & Scolarités (icône coins, fond emerald léger)
+- Gestion des Vacataires (icône chalkboard, fond amber léger)
+
+**Section Finance/Highlight :**
+- 2 colonnes : image gauche + texte droite
+- 4 bullet points avec checkmark emerald : intégration Wave/OM, réconciliation auto, reçu email, SMS rappel
+
+**Section CTA :**
+- Fond gradient indigo→violet
+- Titre + bouton "Programmer une Démo Gratuite" (fond blanc, texte primary)
+
+**Footer 4 colonnes :**
+- Brand + description + liens sociaux
+- Produit / Ressources / Entreprise
+- Copyright
+
+---
+
+### 1.2 — Page Login (`/login`)
+
+**Layout 2 colonnes (50/50) :**
+
+**Colonne gauche (fond sombre #1e293b) :**
+- Image de fond Unsplash en overlay 10% opacity
+- Logo EduManage blanc
+- Titre h2 : *"Gérez votre université avec excellence."*
+- Sous-titre descriptif
+- Lien retour accueil en haut
+- Copyright en bas
+
+**Colonne droite (fond blanc) :**
+- Titre : *"Content de vous revoir 👋"*
+- Champ Email / Matricule (avec icône envelope)
+- Champ Mot de passe (avec icône lock + toggle visibilité)
+- Checkbox "Se souvenir de moi" + lien "Mot de passe oublié ?"
+- Bouton submit pill-shaped (border-radius: 50px) bleu #3b82f6
+- Bloc démo credentials (fond indigo 5%, border dashed) : admin@edumanage.com / prof@edumanage.com / etu@edumanage.com — tous avec mdp "demo123"
+- Message d'erreur animé si mauvaises credentials
+
+**Logique d'authentification (Supabase Auth) :**
+- Login avec email + password via `supabase.auth.signInWithPassword()`
+- Après login, lire `role` dans la table `users`
+- Redirection : `admin` → `/admin/dashboard` | `teacher` → `/teacher/dashboard` | `student` → `/student/dashboard`
+- Routes protégées avec guard composant `<ProtectedRoute role="admin" />`
+
+---
+
+## 🏛️ PHASE 2 — PORTAIL ADMINISTRATEUR
+
+### Layout global Admin
+- **Topbar fixe** (hauteur 80px) : Logo gauche | Nav centrale (dropdowns hover) | User droite (toggle theme + cloche notifs badge + avatar dropdown)
+- **Pas de sidebar** — tout est dans la topbar horizontale
+- **Main content** : `padding-top: 80px`, fond `--bg-alt`, padding 2rem
+- **Composant `<AdminNav />`** réutilisé sur toutes les pages admin
+
+**Menu Topbar (dropdowns au hover) :**
+```
+Dashboard | Académiques ▾ | Utilisateurs ▾ | Évaluations ▾ | Finances ▾
+```
+
+**Dropdown Académiques :** Filières | Niveaux | Semestres | Classes | Salles | UE | EC | Emplois du temps
+
+**Dropdown Utilisateurs :** Étudiants | Professeurs
+
+**Dropdown Évaluations :** Notes | Moyennes | Relevés de notes
+
+**Dropdown Finances :** Config. des Frais | Paiements Étudiants | Paiements Professeurs (Vacations) | Journal & Transactions
+
+---
+
+### 2.1 — Dashboard Admin (`/admin/dashboard`)
+
+**En-tête :** "Bonjour, [Prénom] 👋 — Tableau de bord — [date du jour]"
+
+**KPI Row (4 cards) :**
+| KPI | Couleur icône | Valeur | Tendance |
+|---|---|---|---|
+| Étudiants inscrits | Indigo | 847 | +12 ce mois |
+| Revenus du mois (FCFA) | Emerald | 14 250 000 | vs mois précédent |
+| Impayés actifs | Rouge | 38 étudiants | Voir liste |
+| Taux de réussite moyen | Amber | 76% | vs semestre préc. |
+
+**Graphique Revenus (Recharts BarChart) :**
+- 10 mois sur l'axe X (Sept → Juin)
+- Sélecteur type : Bar / Line (via `<select>`)
+- Tooltip personnalisé avec fond card, valeur en FCFA formatée
+
+**Graphique Taux de Réussite par Filière (Recharts DoughnutChart) :**
+- 4 filières avec couleurs distinctes (indigo, amber, emerald, pink)
+- Légende à droite
+- Sélecteur type : Donut / Bar / Pie
+
+**Section activité récente (2 colonnes) :**
+- Colonne gauche : 5 derniers paiements reçus (avatar étudiant + nom + montant + badge moyen paiement + heure)
+- Colonne droite : 5 derniers inscrits + alertes urgentes (impayés > 30j, notes non saisies)
+
+**Raccourcis actions rapides (row de boutons) :**
+Inscrire Étudiant | Enregistrer Paiement | Saisir Notes | Créer Classe
+
+---
+
+### 2.2 — Gestion des Filières (`/admin/filieres`)
+
+**En-tête :** titre + bouton "+ Nouvelle Filière" → `/admin/add-filiere`
+
+**KPI (3 cards) :** Total Filières | Filières Actives | Filières Inactives
+
+**Tableau :**
+| Nom de la Filière | Code (badge indigo) | Responsable | Nb Classes | Nb Étudiants | Statut | Actions |
+|---|---|---|---|---|---|---|
+
+- Filtre : search bar + filtre statut (select)
+- Actions : bouton Modifier (→ formulaire en mode edit) + bouton Supprimer (confirm dialog)
+- Tri colonnes cliquable
+
+**Sous-page Formulaire** (`/admin/add-filiere`) :
+- Champs : Code filière* | Nom complet* | Responsable (select users enseignants) | Statut (select) | Description (textarea)
+- Boutons : Annuler (retour liste) + Créer / Modifier
+
+---
+
+### 2.3 — Gestion des Niveaux (`/admin/niveaux`)
+
+**Tableau :**
+| Nom | Alias (L1, M2...) | Cycle LMD | Filière | Actions |
+|---|---|---|---|---|
+
+**Formulaire** (`/admin/add-niveau`) :
+- Nom complet* | Alias* | Cycle (select: Licence/Master/Doctorat) | Filière de rattachement* (select dynamique depuis BDD) | Description (optionnel)
+
+---
+
+### 2.4 — Gestion des Semestres (`/admin/semestres`)
+
+**Tableau avec statut coloré :**
+- Statut `À venir` (badge gris) | `En cours` (badge vert pulsant) | `Clôturé` (badge rouge)
+- Action "Clôturer" → dialog de confirmation avec avertissement
+
+**Formulaire** (`/admin/add-semestre`) :
+- Nom* | Alias (S1, S2...)* | Niveau rattaché* | Date début | Date fin | Statut initial
+
+---
+
+### 2.5 — Gestion des Classes (`/admin/classes`)
+
+**KPI :** Total Classes | Effectif total | Taux de remplissage moyen
+
+**Tableau :**
+| Nom classe | Filière | Niveau | Année acad. | Inscrits / Max | Délégué | Actions |
+|---|---|---|---|---|---|---|
+- Barre de progression `inscrits/max` dans la colonne effectif
+
+**Formulaire** (`/admin/add-classe`) :
+- Nom* | Année académique* | Filière* (select) | Niveau* (select filtré par filière) | Effectif max* | Délégué (select étudiants)
+
+---
+
+### 2.6 — Gestion des Salles (`/admin/salles`)
+
+**Tableau avec badge type de salle :**
+| Nom / Amphi | Type | Capacité | Bâtiment | Équipements (icônes) | Statut | Actions |
+|---|---|---|---|---|---|---|
+
+**Formulaire** (`/admin/add-salle`) :
+- Nom* | Type* (select: Salle standard / Amphithéâtre / Labo Info / Réunion / Atelier) | Capacité* | Bâtiment/Étage* | Équipements (checkboxes: Vidéoprojecteur, Clim, Wi-Fi, Tableau interactif) | Statut initial
+
+---
+
+### 2.7 — Gestion des UE (`/admin/ues`)
+
+**Tableau :**
+| Code | Libellé | Crédits ECTS | Filière | Niveau | Semestre | Type | Nb EC | Actions |
+|---|---|---|---|---|---|---|---|---|
+
+**Formulaire** (`/admin/add-ue`) :
+- Libellé* | Code* | Crédits ECTS* | Filière* | Niveau* | Semestre* | Type (Fondamentale/Transversale/Optionnelle)
+
+---
+
+### 2.8 — Gestion des EC / Modules (`/admin/ecs`)
+
+**Tableau :**
+| Code | Libellé | UE Parente | Coeff. | Crédits | Vol. CM | Vol. TD | Prof. Responsable | Actions |
+|---|---|---|---|---|---|---|---|---|
+
+**Formulaire** (`/admin/add-ec`) :
+- Libellé* | Code* | UE Parente* (select) | Coefficient* | Crédits | Volume CM | Volume TD/TP | Professeur responsable (select)
+
+---
+
+### 2.9 — Emplois du Temps (`/admin/schedule`)
+
+**Vue calendrier hebdomadaire :**
+- Grille : 6 colonnes (Lun→Sam) × axe horaire 8h–19h (80px/heure)
+- Events colorés par type : CM (bleu) | TD (vert) | TP (violet) | EX (rouge)
+- Chaque event : nom EC + horaire + salle + prof (icône user-tie)
+- Filtre par classe (select en haut)
+- Navigation semaine (← →) + bouton "Aujourd'hui"
+- Indicateur heure courante (ligne rouge avec point)
+
+**Formulaire** (`/admin/add-schedule`) :
+- Classe* | EC/Module* | Jour* | Type séance* | Heure début* | Heure fin* | Salle* | Professeur* | Option récurrence hebdomadaire (checkbox)
+- Validation : vérification conflits salle + prof (même créneau) → message d'erreur inline
+
+---
+
+### 2.10 — Gestion des Étudiants (`/admin/students`)
+
+**KPI (4 cards) :** Total Inscrits | Nouveaux ce mois | Impayés | Suspendus
+
+**Filtres :** Search (nom/matricule) | Filière | Classe | Statut | Année académique
+
+**Tableau :**
+| Avatar + Nom | Matricule | Classe | Filière | Statut | Solde scolarité | Actions |
+|---|---|---|---|---|---|---|
+- Badge statut : Inscrit (vert) | Suspendu (orange) | Diplômé (bleu) | Bloqué impayé (rouge)
+- Colonne Solde : montant restant dû en rouge si > 0
+- Actions : Voir Dossier (→ page détail) | Modifier | Réinscrire (niveau sup.) | Suspendre/Bloquer
+
+**Formulaire Inscription** (`/admin/add-student`) :
+Sections :
+1. **État civil :** Prénom* | Nom* | Sexe* | Date naissance* | Lieu naissance* | Pays* | Nationalité* | N° CNI*
+2. **Inscriptions :** Filière* | Niveau* | Classe* | Année académique* | Matricule (auto-généré, affichage readonly)
+3. **Contact :** Email* | Téléphone | Adresse résidentielle
+4. **Contact urgence/Tuteur :** Nom tuteur | Téléphone tuteur | Email tuteur
+5. **Photo :** Upload avatar (stocké Supabase Storage)
+
+**Page Dossier Étudiant** (`/admin/students/:id`) :
+- Banner profil (avatar + nom + matricule + filière + statut badge)
+- Onglets : Informations | Notes | Paiements | Absences | Documents
+  - **Notes :** tableau UE/EC avec notes, moyennes calculées, statut validé/ajourné
+  - **Paiements :** historique chronologique, solde restant, bouton "Enregistrer paiement"
+  - **Absences :** liste avec motif + statut justifiée/non-justifiée
+  - **Documents :** relevés générés, attestations
+
+---
+
+### 2.11 — Gestion des Enseignants (`/admin/teachers`)
+
+**Tableau :**
+| Avatar + Nom | Matricule | Spécialité | Grade | Modules assignés | Heures/mois | Actions |
+|---|---|---|---|---|---|---|
+
+**Formulaire** (`/admin/add-teacher`) :
+1. **État civil :** Même champs que étudiant (Prénom, Nom, Sexe, Naissance, Nationalité, CNI)
+2. **Profil académique :** Spécialité* | Grade (Vacataire/Permanent/Contractuel) | Taux horaire (FCFA/h)*
+3. **Contact :** Email pro* | Téléphone | Adresse
+4. **Affectation :** Modules enseignés (multi-select EC)
+
+---
+
+### 2.12 — Saisie des Notes (`/admin/notes`)
+
+**Filtre en cascade :** Filière → Classe → Semestre → EC/Module → Type d'évaluation
+
+**Tableau de saisie :**
+- Colonnes : Rang | Matricule | Nom Étudiant | Champ input note (/20) | Statut (Admis ≥ 10 en vert, Ajourné en rouge)
+- Input note avec validation min:0 max:20, step:0.25
+- Bouton "Soumettre et Publier" → met à jour `notes.statut = 'publie'` → visible par l'étudiant
+- Bouton "Enregistrer brouillon" → statut 'brouillon', invisible pour l'étudiant
+
+**Communication inter-rôles :**
+→ Quand l'admin publie les notes d'un EC, l'enseignant responsable voit le statut "Publié" dans sa page Modules, et l'étudiant voit la note dans son portail "Mes Évaluations"
+
+---
+
+### 2.13 — Moyennes & Délibérations (`/admin/moyennes`)
+
+**KPI :** Moyenne générale promo | % Admis | % Ajournés | Mention Très Bien
+
+**Tableau de délibération :**
+| Rang | Nom Étudiant | Moyenne UE1 | Moyenne UE2 | ... | Moyenne Générale | Crédits validés | Mention | Statut |
+|---|---|---|---|---|---|---|---|---|
+- Mentions : Très Bien ≥16 | Bien ≥14 | Assez Bien ≥12 | Passable ≥10 | Ajourné <10
+- Bouton "Générer PV de Délibération" (export PDF)
+- Filtre : Classe + Semestre
+
+---
+
+### 2.14 — Relevés de Notes (`/admin/releves`)
+
+**Liste des relevés générés :**
+| Étudiant | Classe | Semestre | Date génération | Actions |
+|---|---|---|---|---|
+- Action : Télécharger PDF | Envoyer par email à l'étudiant
+
+**Générateur :**
+- Select Filière + Classe + Semestre → bouton "Générer pour la promotion" → crée un relevé PDF pour chaque étudiant (Supabase Storage) et notifie par email
+
+---
+
+### 2.15 — Configuration des Frais (`/admin/frais`)
+
+**Tableau par filière/niveau :**
+| Filière | Niveau | Inscription | Scolarité S1 | Scolarité S2 | Frais divers | Actions |
+|---|---|---|---|---|---|---|
+
+**Formulaire** (`/admin/add-frais`) :
+- Filière* | Niveau* | Année académique* | Type de frais (Inscription / Scolarité S1 / S2 / Frais divers)* | Montant (FCFA)* | Écheancier (dates + montants partiels en JSON dynamique)
+
+---
+
+### 2.16 — Paiements Étudiants (`/admin/paiements`)
+
+**KPI (4 cards) :** Total collecté ce mois | Paiements du jour | Impayés | Taux de recouvrement %
+
+**Filtres :** Search étudiant | Période | Moyen de paiement | Statut
+
+**Tableau :**
+| Date | Étudiant (avatar+nom) | Classe | Rubrique | Montant | Moyen (badge coloré) | Référence | Solde restant | Actions |
+|---|---|---|---|---|---|---|---|---|
+- Badge moyen : Wave (bleu nuit) | Orange Money (orange) | Espèces (vert) | Virement (indigo)
+- Actions : Voir reçu | Télécharger PDF reçu | Annuler (si erreur)
+
+**Formulaire Paiement** (`/admin/add-paiement`) :
+- Étape 1 — Recherche étudiant : searchbar autocomplete → affiche dossier étudiant + solde restant
+- Étape 2 — Détails paiement :
+  - Rubrique/Échéance (select depuis frais_config)
+  - Montant versé (FCFA)* 
+  - Moyen de paiement* (radio: Wave | Orange Money | Free Money | Virement | Espèces | Chèque)
+  - Référence transaction (conditionnellement visible si Wave/OM/Virement)
+  - Date de paiement (défaut = aujourd'hui)
+- Étape 3 — Confirmation : résumé + bouton "Valider et Générer Reçu"
+- Après validation : génère automatiquement un reçu PDF + envoie email à l'étudiant
+
+**Communication inter-rôles :**
+→ Après enregistrement paiement, l'étudiant voit son nouveau solde et l'historique mis à jour dans son portail "Mes Finances"
+
+---
+
+### 2.17 — Vacations / Paiements Professeurs (`/admin/vacations`)
+
+**KPI :** Total à payer ce mois | Heures déclarées | Professeurs actifs | Montant moyen/prof
+
+**Tableau :**
+| Mois | Enseignant (avatar+nom) | Module | Heures CM | Heures TD | Taux/h | Montant total | Statut | Actions |
+|---|---|---|---|---|---|---|---|---|
+- Statut : Brouillon | Validé | Payé
+
+**Formulaire Vacations** (`/admin/add-vacation`) :
+- Étape 1 — Recherche professeur (autocomplete)
+- Étape 2 — Déclaration :
+  - Mois concerné*
+  - Par ligne EC : heures CM + heures TD (tableau dynamique ajout de lignes)
+  - Taux horaire (pré-rempli depuis profil prof, modifiable)
+  - Calcul automatique du montant total
+- Moyen de paiement + référence
+- Bouton "Valider la vacation"
+
+**Communication inter-rôles :**
+→ L'enseignant voit ses vacations validées et payées dans son portail "Mes Vacations"
+
+---
+
+### 2.18 — Journal & Transactions (`/admin/transactions`)
+
+**KPI (4 cards) :** Recettes | Dépenses | Solde net | Marge
+
+**Tableau chronologique :**
+| Date | Type (badge Recette vert / Dépense rouge) | Catégorie | Bénéficiaire | Libellé | Montant | Moyen | Actions |
+|---|---|---|---|---|---|---|---|
+- Boutons export : PDF (rouge) | Excel (vert)
+
+**Formulaire Dépense** (`/admin/add-transaction`) :
+- Date opération* | Catégorie (Fournitures / Entretien / Salaires / Autre)* | Bénéficiaire* | Libellé* | Montant* | Moyen paiement* | Référence
+
+---
+
+### 2.19 — Paramètres Globaux (`/admin/settings`)
+
+**Sections :**
+1. **Université :** Nom établissement | Logo (upload) | Adresse | Téléphone | Email officiel | Site web
+2. **Académique :** Année académique courante | Activation/désactivation saisie des notes | Seuil de validation (défaut 10/20)
+3. **Notifications :** Activer/désactiver SMS rappels paiements | Délai rappel (48h avant) | Template message SMS
+4. **Sécurité :** Politique mot de passe | Durée session | 2FA obligatoire (toggle)
+5. **Intégrations :** API Wave (champ API Key) | API Orange Money | Webhook URLs
+
+---
+
+## 👨‍🏫 PHASE 3 — PORTAIL ENSEIGNANT
+
+### Layout global Enseignant
+- **Sidebar verticale gauche** (280px) — même design que portail étudiant mais avec couleur `--teacher-primary: #8b5cf6` (violet)
+- **Fond principal :** `#f8fafc` avec gradient radial violet très subtil en arrière-plan
+
+**Menu Sidebar :**
+```
+Accueil (Dashboard)
+Mon Profil
+── ENSEIGNEMENT ──
+Mes Modules
+Mon Planning
+Feuille d'Appel
+Cahier de Texte
+── ÉVALUATIONS ──
+Saisie des Notes
+── FINANCES ──
+Mes Vacations
+```
+
+---
+
+### 3.1 — Dashboard Enseignant (`/teacher/dashboard`)
+
+**En-tête :** "Bonjour Prof. [Nom] 👋" — sous-titre : modules assignés ce semestre
+
+**KPI Row (4 cards, violet) :**
+| Modules assignés | Heures enseignées ce mois | Étudiants total | Vacations en attente |
+
+**Widget Planning de la semaine (mini calendrier) :**
+- Vue 5 jours avec créneaux du jour en surbrillance
+- Prochain cours : card spéciale avec compte à rebours
+
+**Widget Dernières notes saisies :**
+- Table : EC | Classe | Nb notes saisies | Statut (Brouillon/Publié) | Action "Continuer"
+
+**Widget Absences récentes :**
+- 5 dernières absences signalées par l'enseignant lui-même
+
+---
+
+### 3.2 — Mes Modules (`/teacher/courses`)
+
+**Grid de cards (3 colonnes → 2 → 1 selon breakpoint) :**
+
+Chaque card module :
+- Bandeau couleur en haut (couleur unique par matière)
+- Badge UE + Badge ECTS
+- Titre du module (Outfit 700)
+- Avatar + nom prof (confirmé = soi-même, peut y avoir co-enseignants)
+- Barre de progression syllabus (% avancement du cahier de texte vs volume horaire total)
+- Footer avec 3 actions : Syllabus | Ressources (nb fichiers en badge) | Cahier de Texte
+
+**Communication inter-rôles :**
+→ Les modules visibles ici sont ceux assignés par l'admin via la table `ecs.responsable_id = currentUser.id`
+
+---
+
+### 3.3 — Mon Planning (`/teacher/planning`)
+
+**Identique au planning admin mais filtré sur `teacher_id = currentUser.id`**
+
+- Vue semaine (même grille 80px/heure)
+- Sur chaque créneau : boutons d'action rapide : 🗸 Faire l'appel | 📖 Cahier de texte
+- Cliquer "Faire l'appel" → redirige vers `/teacher/attendance?schedule_id=XXX`
+- Cliquer "Cahier de texte" → redirige vers `/teacher/logbook?ec_id=XXX`
+
+---
+
+### 3.4 — Feuille d'Appel (`/teacher/attendance`)
+
+**En-tête :** Module | Classe | Date (défaut = aujourd'hui) | Créneau
+
+**Tableau d'appel :**
+| # | Matricule | Nom & Prénom | Photo | Présent ✓ / Absent ✗ / Retard ⚡ | Motif (si absent) |
+|---|---|---|---|---|---|
+- Toggle rapide sur chaque ligne (1 clic = présent, 2 clics = absent, 3 clics = retard)
+- Bouton "Valider l'appel" → enregistre dans table `absences`
+
+**Communication inter-rôles :**
+→ Les absences signalées apparaissent dans le portail étudiant ("Assiduité & Retards") et dans le dossier étudiant côté admin
+
+---
+
+### 3.5 — Cahier de Texte (`/teacher/logbook`)
+
+**Filtre :** Module (select) | Période (mois)
+
+**Timeline chronologique :**
+Chaque entrée :
+- Badge date + horaire
+- Card : En-tête (matière + salle + auteur) | Titre de séance | Contenu du cours | Bloc "Travail à faire" (fond amber léger, icône exclamation) | Footer (liens vers ressources attachées)
+
+**Bouton "+ Nouvelle Entrée" :**
+- Modal ou page dédiée :
+  - Sélection séance (depuis planning)
+  - Titre du chapitre*
+  - Contenu (textarea rich text ou markdown simple)
+  - Travail à faire (textarea)
+  - Fichiers joints (upload PDF/images → Supabase Storage)
+
+**Communication inter-rôles :**
+→ Les entrées du cahier de texte sont visibles par les étudiants de la classe concernée dans leur portail "Cahier de Texte"
+
+---
+
+### 3.6 — Saisie des Notes (`/teacher/grades`)
+
+**Identique à la page admin notes mais filtré sur les ECs dont `responsable_id = currentUser.id`**
+
+- L'enseignant peut saisir en brouillon et soumettre à validation admin
+- Statut "Soumis" → admin voit la demande et peut publier
+- L'enseignant NE peut pas publier directement (validation admin requise)
+
+**Communication inter-rôles :**
+→ Notes soumises par l'enseignant apparaissent côté admin en statut "À valider" avec badge d'alerte
+
+---
+
+### 3.7 — Mes Vacations (`/teacher/vacations`)
+
+**Tableau de ses propres vacations :**
+| Mois | Modules | Heures CM | Heures TD | Montant | Statut (Brouillon/Validé/Payé) | Date paiement |
+|---|---|---|---|---|---|---|
+
+**Cards récapitulatif :** Total gagné ce semestre | Heures totales | Dernier paiement
+
+**Pas de formulaire** — la déclaration est faite par l'admin. L'enseignant peut voir et télécharger ses fiches de paie en PDF.
+
+---
+
+### 3.8 — Mon Profil Enseignant (`/teacher/profile`)
+
+- Banner : avatar (upload) + nom + grade + spécialité
+- Informations personnelles (readonly pour la plupart, éditable : téléphone, adresse, email secondaire)
+- Statistiques : heures enseignées total | modules actifs | étudiants encadrés
+- Sécurité : changement mot de passe + toggle 2FA
+
+---
+
+## 👨‍🎓 PHASE 4 — PORTAIL ÉTUDIANT
+
+### Layout global Étudiant
+- **Sidebar verticale gauche fixe** (280px) avec toggle collapse (icônes seules en 80px)
+- Couleur sidebar : `--primary: #4f46e5`
+- Toggle collapse → bouton hamburger en haut de la sidebar
+
+**Menu Sidebar :**
+```
+Accueil
+Mon Profil
+── PÉDAGOGIE ──
+Mes Cours
+Ressources Pédago.
+Cahier de Texte
+Emploi du Temps
+── DOSSIER & RÉSULTATS ──
+Évaluations & Notes
+Bulletins / Relevés
+Assiduité & Retards
+── SCOLARITÉ ──
+Mes Finances
+```
+
+---
+
+### 4.1 — Dashboard Étudiant (`/student/dashboard`)
+
+**En-tête personnalisé :** "Bonjour, [Prénom] 👋" | Sous-titre : filière + classe + semestre en cours
+
+**KPI Row (4 cards) :**
+| Cours inscrits | Moyenne générale | Absences ce mois | Solde scolarité |
+- Solde en rouge si > 0, vert si soldé
+
+**Prochains cours (card agenda) :**
+- 3 prochains créneaux du planning avec : matière + heure + salle + prof + type (badge CM/TD/TP)
+
+**Dernières notes publiées (table compacte) :**
+- EC | Note | Date publication | Badge Admis/Ajourné
+
+**Alertes importantes (si applicable) :**
+- 🔴 Solde impayé : "Votre solde est de X FCFA. Paiement requis avant le [date]."
+- 🟠 Absences : "Vous avez X absences non justifiées."
+
+---
+
+### 4.2 — Mes Cours (`/student/courses`)
+
+**Onglets :** Semestre actuel | Semestres validés | Tous les cours
+
+**Grid de cards (3 → 2 → 1 colonnes) :**
+
+Chaque card :
+- Bandeau couleur unique par matière (bleu/violet/rouge/vert/orange)
+- Badge UE + Badge ECTS
+- Titre du module
+- Avatar + Nom du prof + rôle
+- Barre de progression syllabus (basée sur nb entrées cahier de texte / volume horaire)
+- Footer : Syllabus | Ressources (nb) | Cahier de Texte
+
+**Communication inter-rôles :**
+→ Les cours affichés sont ceux liés à la classe de l'étudiant (`classe_id = student.classe_id`), via la table `ecs` → `ues` → `classes`
+
+---
+
+### 4.3 — Ressources Pédagogiques (`/student/resources`)
+
+**Filtres :** Matière (select) | Type (PDF/Vidéo/Lien/Autre)
+
+**Grid de cards ressources :**
+Chaque card :
+- Icône type fichier (PDF = rouge, vidéo = bleu, lien = vert)
+- Nom du fichier
+- EC + UE de rattachement
+- Taille + Date de mise en ligne
+- Badge prof ayant uploadé
+- Bouton Télécharger / Ouvrir le lien
+
+**Communication inter-rôles :**
+→ Les ressources visibles sont celles uploadées par les enseignants des ECs de la classe de l'étudiant
+
+---
+
+### 4.4 — Cahier de Texte (`/student/logbook`)
+
+**Filtres :** Matière | Période (mois)
+
+**Timeline chronologique :** (readonly, même structure que la version enseignant)
+
+Chaque entrée :
+- Date badge + horaire
+- Card : Matière + Salle + "Saisi par [Prof]" | Titre chapitre | Contenu cours | Bloc "Travail à faire" (fond amber) | Fichiers téléchargeables
+
+**Communication inter-rôles :**
+→ Données provenant de `cahier_texte` filtré par ECs de la classe de l'étudiant, saisi par les enseignants
+
+---
+
+### 4.5 — Emploi du Temps (`/student/schedule`)
+
+**Vue calendrier semaine (identique à admin/teacher mais en readonly) :**
+- Grille 6 jours × 80px/heure
+- Events colorés par matière (pas par type)
+- Indicateur heure courante (ligne rouge animée)
+- Navigation semaine ← →
+- Bouton "Aujourd'hui"
+- Sur chaque event : matière + horaire + salle + prof + type CM/TD/TP
+
+**Communication inter-rôles :**
+→ Données depuis `schedule` filtré sur `classe_id = student.classe_id`
+
+---
+
+### 4.6 — Évaluations & Notes (`/student/notes`)
+
+**Filtres :** Période académique (Semestre 1 / Semestre 2 / Année) | Type (Tous / EF / CC)
+
+**Layout :** Une section par UE
+
+Chaque section UE :
+- En-tête : Nom UE + ECTS + Statut (VALIDÉ ✓ en vert / EN COURS en orange / AJOURNÉ en rouge)
+- Tableau EC :
+  | EC | Type éval | Date publication | Note /20 | Statut |
+  |---|---|---|---|---|
+  - Note affichée si `statut = 'publie'`, sinon `--` (en attente)
+  - Badge note coloré : ≥16 = vert foncé | ≥12 = vert | ≥10 = amber | <10 = rouge
+- Ligne récapitulative : Moyenne de l'UE (calculée côté client)
+
+**Communication inter-rôles :**
+→ Notes visibles uniquement si `notes.statut = 'publie'` ET `etudiant_id = currentUser.id`
+
+---
+
+### 4.7 — Bulletins & Relevés (`/student/bulletins`)
+
+**Liste des documents disponibles :**
+| Semestre | Date génération | Type (Bulletin / Relevé officiel) | Actions |
+|---|---|---|---|
+
+**Aperçu in-page du bulletin :**
+- En-tête université (logo + nom + adresse)
+- Informations étudiant (nom, matricule, classe, année)
+- Tableau LMD complet (UE → EC → notes → moyennes → mentions)
+- Cachet "Confidentiel" en overlay
+- Bouton "Télécharger PDF" (fichier stocké dans Supabase Storage)
+
+---
+
+### 4.8 — Assiduité & Retards (`/student/absences`)
+
+**KPI (3 cards) :** Total séances | Absences | Taux présence %
+
+**Tableau :**
+| Date | Matière | Type séance | Statut (Présent/Absent/Retard) | Justifiée ? | Billet |
+|---|---|---|---|---|---|
+- Absences non justifiées en rouge
+- Bouton "Générer Billet d'Entrée" (pour absence justifiée, PDF avec motif)
+
+**Communication inter-rôles :**
+→ Données depuis `absences` filtré sur `etudiant_id = currentUser.id`, saisies par les enseignants
+
+---
+
+### 4.9 — Mes Finances (`/student/finances`)
+
+**KPI (3 cards) :**
+| Total scolarité annuelle | Montant payé | Solde restant (rouge si > 0) |
+
+**Timeline des paiements :**
+Chaque entrée :
+- Date | Rubrique | Montant | Moyen (badge coloré Wave/OM/Espèces) | Référence | Bouton "Reçu PDF"
+
+**Échéancier (tableau à venir) :**
+| Rubrique | Montant | Date limite | Statut (Payé ✓ / En attente ⏳ / En retard 🔴) |
+|---|---|---|---|
+
+**Communication inter-rôles :**
+→ Données depuis `paiements` filtré sur `etudiant_id = currentUser.id`, enregistrés par l'admin
+
+---
+
+### 4.10 — Mon Profil (`/student/profile`)
+
+**Layout 2 colonnes + banner :**
+
+**Banner :**
+- Avatar (ui-avatars ou upload) + Nom complet + Filière + Niveau
+- QR Code dynamique encodant le matricule (bibliothèque `qrcode.react`)
+- Label "Scan Carte ID"
+
+**Colonne gauche (readonly) :**
+- État civil : date/lieu naissance, sexe, nationalité
+- Parcours académique : matricule, filière, date 1ère inscription, statut
+
+**Colonne droite (partiellement éditable) :**
+- Coordonnées : email (readonly), téléphone (éditable), adresse (éditable)
+- Contact urgence/tuteur : nom tuteur, téléphone tuteur
+- Sécurité : changement mot de passe + toggle 2FA
+
+---
+
+## 🔔 PHASE 5 — FONCTIONNALITÉS TRANSVERSALES
+
+### 5.1 — Système de Notifications (Supabase Realtime)
+
+**Admin peut envoyer :**
+- Notification à toute la promo : "La saisie des notes est ouverte"
+- Notification individuelle étudiant : "Votre paiement est en retard"
+- Notification enseignant : "Vos vacations de Mars ont été validées"
+
+**Affichage :**
+- Cloche dans toutes les topbars/headers avec badge de compte non-lus
+- Dropdown notifications : liste des 10 dernières + lien "Voir tout"
+- Notifications marquées comme lues au clic
+
+### 5.2 — Export PDF
+
+Utiliser la bibliothèque **`@react-pdf/renderer`** pour générer :
+- Reçu de paiement (admin/paiements)
+- Relevé de notes officiel (admin/releves + student/bulletins)
+- PV de délibération (admin/moyennes)
+- Fiche de paie vacataires (admin/vacations)
+- Billet d'entrée (student/absences)
+
+Chaque PDF inclut : en-tête université + logo + contenu + date de génération + cachet
+
+### 5.3 — Recherche Globale
+
+Barre de recherche dans la topbar admin :
+- Recherche étudiants (par nom/matricule)
+- Recherche enseignants
+- Résultats avec shortcut (cliquer = aller au dossier)
+
+### 5.4 — Mode sombre
+
+- Toggle dans toutes les interfaces
+- Persisté `localStorage.setItem('theme', 'dark')`
+- Transition CSS `0.3s ease` sur background + color
+- Variables dark définies dans `:root.dark-theme { ... }`
+
+---
+
+## 🌐 PHASE 6 — PAGES PUBLIQUES (Site vitrine)
+
+### 6.1 — Solutions (`/solutions`)
+- Header page avec badge "Tout-en-un"
+- 2 blocs alternés (image + texte) :
+  1. Gestion Pédagogique LMD (image cours + checklist fonctionnalités)
+  2. Comptabilité & Paiements Mobiles (image finance + checklist)
+- CTA en bas
+
+### 6.2 — Tarifs (`/pricing`)
+- Header page
+- Grid 3 pricing cards :
+  - **Starter** : 75 000 FCFA/mois — < 500 étudiants — sans API Wave/OM
+  - **Professionnel** ⭐ (badge "Le Plus Choisi", scale 1.05) : 150 000 FCFA/mois — complet
+  - **Institution** : Sur-Mesure — multi-sites, serveur dédié, account manager 24/7
+- Features avec ✓ et ✗ barré
+
+---
+
+## ⚙️ ORDRE DE CONSTRUCTION — PHASES
+
+```
+Phase 1  →  Auth + Routing + Landing + Login
+Phase 2  →  Portail Admin (dashboard + structure académique)
+Phase 2b →  Portail Admin (utilisateurs + évaluations + finances)
+Phase 3  →  Portail Enseignant (complet)
+Phase 4  →  Portail Étudiant (complet)
+Phase 5  →  Notifications + PDF + Recherche globale
+Phase 6  →  Pages publiques (Solutions + Pricing)
+```
+
+**Commence par la Phase 1.** Dis-moi "Phase 1 terminée" quand tu veux passer à la suivante.
+
+---
+
+## 🚀 CONTRAINTES TECHNIQUES IMPORTANTES
+
+1. **Pas de mock data statique** — tout vient de Supabase. Utilise des états de chargement (`Skeleton` loading) pendant les fetches.
+2. **Composants réutilisables** : `<KPICard>`, `<DataTable>`, `<PageHeader>`, `<StatusBadge>`, `<AdminNav>`, `<StudentSidebar>`, `<TeacherSidebar>`, `<ConfirmDialog>`, `<FormModal>`
+3. **Validation formulaires** : React Hook Form + Zod sur tous les formulaires
+4. **Gestion erreurs** : toast notifications (succès en vert, erreur en rouge) via une lib légère (`react-hot-toast`)
+5. **RLS Supabase** : chaque rôle ne voit que ses données. L'étudiant ne peut jamais accéder aux routes admin/teacher.
+6. **Performance** : pagination côté serveur sur tous les tableaux (20 lignes/page). Pas de `select *` — sélectionne uniquement les colonnes nécessaires.
+7. **Responsive** : breakpoints Tailwind `sm:` `md:` `lg:` `xl:` sur tous les composants. Tester sur mobile 375px.
+8. **Encodage** : tout le fichier en UTF-8. Pas de caractères cassés (éviter les copier-collers depuis Word).
+
+---
+
+*Prompt rédigé sur base d'une analyse complète du prototype EduManage existant (30+ pages HTML/CSS/JS). Ce prompt décrit la version production de l'application avec architecture React + Supabase.*

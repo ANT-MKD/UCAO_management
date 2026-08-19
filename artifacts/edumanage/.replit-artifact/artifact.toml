@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "EduManage"
+version = "1.0.0"
+id = "artifacts/edumanage"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20185
+
+[services.development]
+run = "pnpm --filter @workspace/edumanage run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/edumanage", "run", "build" ]
+publicDir = "artifacts/edumanage/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20185"
+BASE_PATH = "/"

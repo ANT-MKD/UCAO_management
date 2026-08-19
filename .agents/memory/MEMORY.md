@@ -1,0 +1,2 @@
+- [Wouter v3 nested routing](wouter-v3-nested-routing.md) — routes 3+ segments deviennent blanches si nested dans un outer Route wildcard; toujours utiliser un Switch plat.
+- [Form pages zodResolver](form-pages-no-zodresolver.md) — ne jamais utiliser zodResolver/@hookform/resolvers dans ce projet; toujours utiliser validation native react-hook-form.
