@@ -74,6 +74,7 @@ const TransactionsPage = lazy(() => import("@/pages/admin/TransactionsPage"));
 
 // Paramètres
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
+const AuditTrailPage = lazy(() => import("@/pages/admin/AuditTrailPage"));
 const MessagesPage = lazy(() => import("@/pages/admin/MessagesPage"));
 const RequestsPage = lazy(() => import("@/pages/admin/RequestsPage"));
 const StudentDashboardPage = lazy(() => import("@/pages/student/StudentDashboardPage"));
@@ -310,6 +311,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/settings">
         <Admin><SettingsPage /></Admin>
+      </Route>
+      <Route path="/admin/audit">
+        <Admin><AuditTrailPage /></Admin>
       </Route>
       <Route path="/admin/messages">
         <Admin><MessagesPage /></Admin>

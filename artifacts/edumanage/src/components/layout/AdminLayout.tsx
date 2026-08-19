@@ -68,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: "Journal des Transactions", href: "/admin/transactions" },
     ],
   },
+  { label: "Audit trail", href: "/admin/audit", icon: Settings },
 ];
 
 function NavDropdown({ item }: { item: NavItem }) {

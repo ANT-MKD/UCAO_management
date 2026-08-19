@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useSeances, useNotes, usePaiements } from "@/hooks/useStudentStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { formatCFA, formatDate } from "@/lib/utils";
+import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -198,7 +199,16 @@ export function StudentPaymentsPage() {
               {mine.map((p) => (
                 <tr key={p.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3">{formatDate(p.date)}</td>
-                  <td className="px-4 py-3">{p.rubrique}</td>
+                  <td className="px-4 py-3">
+                    <div>
+                      <div className="text-sm text-foreground">{p.rubrique}</div>
+                      {p.lignes && p.lignes.length > 1 && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {p.lignes.map((l) => l.label).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 font-bold text-emerald-600">{formatCFA(p.montant)}</td>
                   <td className="px-4 py-3 font-mono text-xs">{p.numeroRecu || p.reference}</td>
                   <td className="px-4 py-3"><span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{p.statut}</span></td>
@@ -240,6 +250,25 @@ export function StudentProfilePage() {
           <span className="font-medium">{value}</span>
         </div>
       ))}
+
+      {(student.documentsFournis?.length ?? 0) > 0 && (
+        <div className="pt-3 border-t border-border">
+          <h3 className="text-sm font-semibold text-foreground mb-2" style={{ fontFamily: "Outfit, sans-serif" }}>
+            Pièces justificatives déposées
+          </h3>
+          <ul className="space-y-1 text-sm">
+            {student.documentsFournis!.map((docId) => {
+              const label = DOCUMENTS_INSCRIPTION.find((d) => d.id === docId)?.label ?? docId;
+              return (
+                <li key={docId} className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">{docId}</span>
+                  <span className="text-foreground font-medium">{label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
