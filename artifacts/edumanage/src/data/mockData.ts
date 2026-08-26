@@ -1,4 +1,6 @@
 export const ANNEES_ACADEMIQUES = [
+  { id: "aa0", libelle: "2021-2022", actuelle: false },
+  { id: "aa0b", libelle: "2022-2023", actuelle: false },
   { id: "aa1", libelle: "2023-2024", actuelle: false },
   { id: "aa2", libelle: "2024-2025", actuelle: false },
   { id: "aa3", libelle: "2025-2026", actuelle: true },
@@ -109,14 +111,14 @@ export const ETUDIANTS = [
 ];
 
 export const ENSEIGNANTS = [
-  { id: "en1", prenom: "Pr. Cheikh", nom: "FALL", matricule: "ENS-2020-001", specialite: "Algorithmique & IA", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 3, heuresMois: 48 },
-  { id: "en2", prenom: "Dr. Aminata", nom: "DIALLO", matricule: "ENS-2021-002", specialite: "Économie & Gestion", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 2, heuresMois: 32 },
-  { id: "en3", prenom: "Dr. Moussa", nom: "SY", matricule: "ENS-2019-003", specialite: "Développement Logiciel", grade: "Contractuel", tauxHoraire: 12000, modulesAssignes: 2, heuresMois: 40 },
-  { id: "en4", prenom: "Dr. Fatou", nom: "NDIAYE", matricule: "ENS-2022-004", specialite: "Bases de Données", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 2, heuresMois: 36 },
-  { id: "en5", prenom: "M. Ibrahima", nom: "DIOP", matricule: "ENS-2023-005", specialite: "Architecture & Réseaux", grade: "Vacataire", tauxHoraire: 8000, modulesAssignes: 2, heuresMois: 24 },
-  { id: "en6", prenom: "Me. Rokhaya", nom: "BA", matricule: "ENS-2021-006", specialite: "Droit des Affaires", grade: "Vacataire", tauxHoraire: 10000, modulesAssignes: 2, heuresMois: 28 },
-  { id: "en7", prenom: "Dr. Abdoulaye", nom: "NIANG", matricule: "ENS-2020-007", specialite: "Finance & Comptabilité", grade: "Contractuel", tauxHoraire: 12000, modulesAssignes: 3, heuresMois: 44 },
-  { id: "en8", prenom: "Pr. Mariama", nom: "TOURE", matricule: "ENS-2018-008", specialite: "Mathématiques Appliquées", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 4, heuresMois: 52 },
+  { id: "en1", prenom: "Pr. Cheikh", nom: "FALL", matricule: "ENS-2020-001", telephone: "+221771234567", specialite: "Algorithmique & IA", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 3, heuresMois: 48 },
+  { id: "en2", prenom: "Dr. Aminata", nom: "DIALLO", matricule: "ENS-2021-002", telephone: "+221762345678", specialite: "Économie & Gestion", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 2, heuresMois: 32 },
+  { id: "en3", prenom: "Dr. Moussa", nom: "SY", matricule: "ENS-2019-003", telephone: "+221703456789", specialite: "Développement Logiciel", grade: "Contractuel", tauxHoraire: 12000, modulesAssignes: 2, heuresMois: 40 },
+  { id: "en4", prenom: "Dr. Fatou", nom: "NDIAYE", matricule: "ENS-2022-004", telephone: "+221784567890", specialite: "Bases de Données", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 2, heuresMois: 36 },
+  { id: "en5", prenom: "M. Ibrahima", nom: "DIOP", matricule: "ENS-2023-005", telephone: "+221775678901", specialite: "Architecture & Réseaux", grade: "Vacataire", tauxHoraire: 8000, modulesAssignes: 2, heuresMois: 24 },
+  { id: "en6", prenom: "Me. Rokhaya", nom: "BA", matricule: "ENS-2021-006", telephone: "+221766789012", specialite: "Droit des Affaires", grade: "Vacataire", tauxHoraire: 10000, modulesAssignes: 2, heuresMois: 28 },
+  { id: "en7", prenom: "Dr. Abdoulaye", nom: "NIANG", matricule: "ENS-2020-007", telephone: "+221707890123", specialite: "Finance & Comptabilité", grade: "Contractuel", tauxHoraire: 12000, modulesAssignes: 3, heuresMois: 44 },
+  { id: "en8", prenom: "Pr. Mariama", nom: "TOURE", matricule: "ENS-2018-008", telephone: "+221778901234", specialite: "Mathématiques Appliquées", grade: "Permanent", tauxHoraire: 15000, modulesAssignes: 4, heuresMois: 52 },
 ];
 
 export const NOTES = [

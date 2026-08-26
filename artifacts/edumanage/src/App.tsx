@@ -51,9 +51,19 @@ const StudentsPage = lazy(() => import("@/pages/admin/StudentsPage"));
 const StudentDossierPage = lazy(() => import("@/pages/admin/StudentDossierPage"));
 const AddStudentPage = lazy(() => import("@/pages/admin/AddStudentPage"));
 const ReinscriptionPage = lazy(() => import("@/pages/admin/ReinscriptionPage"));
+const StudentsAccessPage = lazy(() => import("@/pages/admin/StudentsAccessPage"));
+const StudentCardPage = lazy(() => import("@/pages/admin/StudentCardPage"));
 
 // Enseignants
 const TeachersPage = lazy(() => import("@/pages/admin/TeachersPage"));
+const TeacherCoursesPage = lazy(() => import("@/pages/admin/TeacherCoursesPage"));
+const TeacherPlanningPage = lazy(() => import("@/pages/admin/TeacherPlanningPage"));
+const TeacherPlanningFormPage = lazy(() => import("@/pages/admin/TeacherPlanningFormPage"));
+const TeacherRatePage = lazy(() => import("@/pages/admin/TeacherRatePage"));
+const TeacherVolumePage = lazy(() => import("@/pages/admin/TeacherVolumePage"));
+const TeacherCourseStatusPage = lazy(() => import("@/pages/admin/TeacherCourseStatusPage"));
+const TeacherPointageFormPage = lazy(() => import("@/pages/admin/TeacherPointageFormPage"));
+const TeacherPointageTraitementPage = lazy(() => import("@/pages/admin/TeacherPointageTraitementPage"));
 const TeacherDossierPage = lazy(() => import("@/pages/admin/TeacherDossierPage"));
 const TeacherFormPage = lazy(() => import("@/pages/admin/TeacherFormPage"));
 
@@ -75,6 +85,7 @@ const TransactionsPage = lazy(() => import("@/pages/admin/TransactionsPage"));
 // Paramètres
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
 const AuditTrailPage = lazy(() => import("@/pages/admin/AuditTrailPage"));
+const AdminComingSoonPage = lazy(() => import("@/pages/admin/AdminComingSoonPage"));
 const MessagesPage = lazy(() => import("@/pages/admin/MessagesPage"));
 const RequestsPage = lazy(() => import("@/pages/admin/RequestsPage"));
 const StudentDashboardPage = lazy(() => import("@/pages/student/StudentDashboardPage"));
@@ -204,6 +215,12 @@ function AppRouter() {
       <Route path="/admin/students/reinscription">
         <Admin><ReinscriptionPage /></Admin>
       </Route>
+      <Route path="/admin/students/access">
+        <Admin><StudentsAccessPage /></Admin>
+      </Route>
+      <Route path="/admin/students/card">
+        <Admin><StudentCardPage /></Admin>
+      </Route>
       <Route path="/admin/students/:id">
         {(p) => <Admin><StudentDossierPage id={p.id} /></Admin>}
       </Route>
@@ -211,6 +228,30 @@ function AppRouter() {
       {/* Enseignants */}
       <Route path="/admin/teachers/new">
         <Admin><TeacherFormPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/courses">
+        <Admin><TeacherCoursesPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/planning/new">
+        <Admin><TeacherPlanningFormPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/planning">
+        <Admin><TeacherPlanningPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/rates">
+        <Admin><TeacherRatePage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/volumes">
+        <Admin><TeacherVolumePage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/course-status">
+        <Admin><TeacherCourseStatusPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/pointage/new">
+        <Admin><TeacherPointageFormPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/pointage">
+        <Admin><TeacherPointageTraitementPage /></Admin>
       </Route>
       <Route path="/admin/teachers/:id/edit">
         {(p) => <Admin><TeacherFormPage id={p.id} /></Admin>}
@@ -314,6 +355,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/audit">
         <Admin><AuditTrailPage /></Admin>
+      </Route>
+      <Route path="/admin/wip/:pageId">
+        {(p) => <Admin><AdminComingSoonPage pageId={p.pageId} /></Admin>}
       </Route>
       <Route path="/admin/messages">
         <Admin><MessagesPage /></Admin>

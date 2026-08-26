@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard } from "lucide-react";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { formatCFA, formatDate, getMention } from "@/lib/utils";
@@ -93,7 +93,10 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
             </div>
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap">
+          <button onClick={() => setLocation(`/admin/students/card?id=${encodeURIComponent(student.id)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors">
+            <IdCard size={13} /> Carte étudiant
+          </button>
           <button onClick={() => setLocation(`/admin/students/reinscription?matricule=${encodeURIComponent(student.matricule)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-indigo-300 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-50 transition-colors">
             <History size={13} /> Réinscrire
           </button>

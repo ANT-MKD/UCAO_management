@@ -84,7 +84,18 @@ export default function StudentsPage() {
       sortable: true,
       render: (r) => (
         <div className="flex items-center gap-2.5">
-          <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLocation(`/admin/students/${r.id}`);
+            }}
+            className="rounded-full cursor-pointer hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-shadow"
+            title={`Ouvrir le dossier de ${r.prenom} ${r.nom}`}
+            aria-label={`Dossier ${r.prenom} ${r.nom}`}
+          >
+            <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" />
+          </button>
           <div>
             <div className="font-medium text-foreground text-sm">{r.prenom} {r.nom}</div>
             <div className="text-[10px] text-muted-foreground">{r.email}</div>

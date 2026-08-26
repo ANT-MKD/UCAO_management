@@ -1,129 +1,126 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  GraduationCap, ChevronDown, Bell, Moon, Sun, Search, LogOut, Settings,
-  LayoutDashboard, BookOpen, Users, FileText, DollarSign, X
+  GraduationCap, ChevronDown, ChevronRight, Bell, Moon, Sun, Search, LogOut, Settings,
+  Menu, X, ArrowLeft,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { NOTIFICATIONS } from "@/data/mockData";
 import { cn } from "@/lib/utils";
+import {
+  ADMIN_NAV_SECTIONS,
+  resolveNavFromLocation,
+  hasChildren,
+  type AdminNavNode,
+  type AdminNavSection,
+} from "@/lib/adminNavConfig";
 
-interface NavItem {
-  label: string;
-  href?: string;
-  icon?: React.ElementType;
-  children?: { label: string; href: string }[];
+const TOPBAR_H = "h-16";
+const SIDEBAR_W = "w-[88px]";
+const SUBNAV_W = "w-60";
+
+function isHrefActive(location: string, href?: string): boolean {
+  if (!href) return false;
+  if (location === href) return true;
+  return location.startsWith(href + "/");
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  {
-    label: "Académiques", icon: BookOpen,
-    children: [
-      { label: "Filières", href: "/admin/filieres" },
-      { label: "Niveaux", href: "/admin/niveaux" },
-      { label: "Semestres", href: "/admin/semestres" },
-      { label: "Classes", href: "/admin/classes" },
-      { label: "Salles", href: "/admin/salles" },
-      { label: "Unités d'Ens. (UE)", href: "/admin/ues" },
-      { label: "Éléments Const. (EC)", href: "/admin/ecs" },
-      { label: "Emploi du Temps", href: "/admin/schedule" },
-      { label: "Cahiers de séance", href: "/admin/cahiers" },
-      { label: "Années Académiques", href: "/admin/annees" },
-    ],
-  },
-  {
-    label: "Utilisateurs", icon: Users,
-    children: [
-      { label: "Étudiants", href: "/admin/students" },
-      { label: "Enseignants", href: "/admin/teachers" },
-      { label: "Comptes & Rôles", href: "/admin/users" },
-    ],
-  },
-  {
-    label: "Évaluations", icon: FileText,
-    children: [
-      { label: "Saisie des Notes", href: "/admin/notes" },
-      { label: "Moyennes", href: "/admin/moyennes" },
-      { label: "Délibérations", href: "/admin/deliberations" },
-      { label: "Relevés & Bulletins", href: "/admin/releves" },
-      { label: "Attestations", href: "/admin/attestations" },
-    ],
-  },
-  {
-    label: "Messages", icon: Bell,
-    children: [
-      { label: "Messagerie", href: "/admin/messages" },
-      { label: "Demandes", href: "/admin/requests" },
-    ],
-  },
-  {
-    label: "Finances", icon: DollarSign,
-    children: [
-      { label: "Config. Frais Scolarité", href: "/admin/frais" },
-      { label: "Paiements Étudiants", href: "/admin/paiements" },
-      { label: "Vacations Enseignants", href: "/admin/vacations" },
-      { label: "Journal des Transactions", href: "/admin/transactions" },
-    ],
-  },
-  { label: "Audit trail", href: "/admin/audit", icon: Settings },
-];
-
-function NavDropdown({ item }: { item: NavItem }) {
-  const [open, setOpen] = useState(false);
-  const [location] = useLocation();
-  const ref = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const isActive = item.children?.some((c) => location.startsWith(c.href));
-
-  const handleMouseEnter = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setOpen(true);
-  };
-
-  const handleMouseLeave = () => {
-    timerRef.current = setTimeout(() => setOpen(false), 120);
-  };
-
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+function SubNavPanel({
+  section,
+  panelStack,
+  onDrill,
+  onBack,
+  location,
+  onNavigate,
+}: {
+  section: AdminNavSection;
+  panelStack: AdminNavNode[];
+  onDrill: (node: AdminNavNode) => void;
+  onBack: () => void;
+  location: string;
+  onNavigate?: () => void;
+}) {
+  const currentParent = panelStack[panelStack.length - 1];
+  const items = currentParent?.children ?? section.children ?? [];
+  const title = currentParent?.label ?? section.label;
+  const backLabel = panelStack.length > 1
+    ? panelStack[panelStack.length - 2]?.label
+    : panelStack.length === 1
+      ? section.label
+      : null;
 
   return (
-    <div ref={ref} className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <button
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-          isActive
-            ? "text-primary bg-primary/10"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted"
-        )}
-        data-testid={`nav-dropdown-${item.label}`}
-      >
-        {item.label}
-        <ChevronDown size={14} className={cn("transition-transform duration-200", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 min-w-52 bg-popover border border-border rounded-xl shadow-lg z-50 py-1 animate-in fade-in-0 slide-in-from-top-2 duration-150">
-          {item.children?.map((child) => (
-            <Link
-              key={child.href}
-              href={child.href}
-              className={cn(
-                "block px-4 py-2 text-sm transition-colors",
-                location === child.href
-                  ? "text-primary bg-primary/5 font-medium"
-                  : "text-foreground hover:bg-muted"
-              )}
-              onClick={() => setOpen(false)}
-              data-testid={`nav-link-${child.label}`}
-            >
-              {child.label}
-            </Link>
-          ))}
-        </div>
-      )}
+    <div className="flex flex-col h-full">
+      <div className="px-3 py-3 border-b border-border flex-shrink-0">
+        {panelStack.length > 0 ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mb-1.5"
+          >
+            <ArrowLeft size={13} />
+            {backLabel ?? section.label}
+          </button>
+        ) : null}
+        <h2
+          className="text-sm font-bold text-foreground truncate"
+          style={{ fontFamily: "Outfit, sans-serif" }}
+        >
+          {title}
+        </h2>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        {items.map((item) => {
+          const nested = hasChildren(item);
+          const active = isHrefActive(location, item.href);
+
+          if (nested) {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onDrill(item)}
+                className={cn(
+                  "w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm text-left transition-colors",
+                  "text-foreground hover:bg-muted",
+                )}
+              >
+                <span className="truncate font-medium">{item.label}</span>
+                <ChevronRight size={14} className="flex-shrink-0 text-muted-foreground" />
+              </button>
+            );
+          }
+
+          if (item.href) {
+            const isWip = item.href.startsWith("/admin/wip/");
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-foreground hover:bg-muted",
+                )}
+              >
+                <span className="truncate">{item.label}</span>
+                {isWip && (
+                  <span className="text-[9px] uppercase tracking-wide flex-shrink-0 text-amber-600 dark:text-amber-400 opacity-80">
+                    WIP
+                  </span>
+                )}
+              </Link>
+            );
+          }
+
+          return null;
+        })}
+      </nav>
     </div>
   );
 }
@@ -131,11 +128,35 @@ function NavDropdown({ item }: { item: NavItem }) {
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const { currentUser, logout } = useAuth();
-  const [, setLocation] = useLocation();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<"primary" | "secondary">("primary");
+
+  const resolved = useMemo(() => resolveNavFromLocation(location), [location]);
+
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(
+    () => resolved.section?.id ?? "dashboard",
+  );
+  const [panelStack, setPanelStack] = useState<AdminNavNode[]>([]);
+
+  // Synchronise section + profondeur du panneau avec l'URL
+  useEffect(() => {
+    if (!resolved.section) return;
+    setActiveSectionId(resolved.section.id);
+    const trail = resolved.trail;
+    if (trail.length <= 1) {
+      setPanelStack([]);
+    } else {
+      setPanelStack(trail.slice(0, -1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync on location change only
+  }, [location]);
+
+  const activeSection = ADMIN_NAV_SECTIONS.find((s) => s.id === activeSectionId) ?? null;
+  const showSubnav = !!(activeSection && activeSection.children && activeSection.children.length > 0);
 
   const unreadCount = NOTIFICATIONS.filter((n) => !n.lue).length;
 
@@ -144,61 +165,79 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     setLocation("/login");
   };
 
+  const selectSection = (section: AdminNavSection) => {
+    setActiveSectionId(section.id);
+    setPanelStack([]);
+    if (section.href && !section.children) {
+      setLocation(section.href);
+      setMobileOpen(false);
+      setMobileView("primary");
+      return;
+    }
+    setMobileView("secondary");
+  };
+
+  const drill = (node: AdminNavNode) => {
+    setPanelStack((prev) => [...prev, node]);
+  };
+
+  const goBack = () => {
+    setPanelStack((prev) => prev.slice(0, -1));
+  };
+
+  const closeMobile = () => {
+    setMobileOpen(false);
+    setMobileView("primary");
+  };
+
   return (
     <div className="min-h-screen bg-[var(--bg-alt)]">
-      {/* Topbar */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-20 bg-card border-b border-border flex items-center px-6" style={{ boxShadow: "var(--shadow-sm)" }}>
-        {/* Logo */}
-        <Link href="/admin/dashboard" className="flex items-center gap-2 mr-8 flex-shrink-0">
+      {/* —— Topbar (sans navigation métier) —— */}
+      <header
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 bg-card border-b border-border flex items-center px-3 md:px-5",
+          TOPBAR_H,
+        )}
+        style={{ boxShadow: "var(--shadow-sm)" }}
+      >
+        <button
+          type="button"
+          className="lg:hidden p-2 rounded-lg hover:bg-muted text-muted-foreground mr-1"
+          onClick={() => { setMobileOpen(true); setMobileView("primary"); }}
+          aria-label="Ouvrir le menu"
+          data-testid="topbar-menu"
+        >
+          <Menu size={20} />
+        </button>
+
+        <Link href="/admin/dashboard" className="flex items-center gap-2 mr-4 flex-shrink-0">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <GraduationCap size={18} className="text-white" />
           </div>
-          <span className="font-bold text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>
+          <span className="font-bold text-lg hidden sm:inline" style={{ fontFamily: "Outfit, sans-serif" }}>
             Edu<span className="text-primary">Manage</span>
           </span>
         </Link>
 
-        {/* Nav */}
-        <nav className="hidden lg:flex items-center gap-1 flex-1">
-          {NAV_ITEMS.map((item) =>
-            item.href ? (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                  location === item.href || location.startsWith(item.href + "/")
-                    ? "text-primary bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
-                data-testid={`nav-link-${item.label}`}
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <NavDropdown key={item.label} item={item} />
-            )
-          )}
-        </nav>
+        <div className="flex-1" />
 
-        {/* Right actions */}
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Search */}
+        <div className="flex items-center gap-1 md:gap-2">
           <div className="relative">
             {searchOpen ? (
               <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
                 <Search size={15} className="text-muted-foreground" />
                 <input
                   autoFocus
-                  className="bg-transparent text-sm outline-none w-40 placeholder:text-muted-foreground"
+                  className="bg-transparent text-sm outline-none w-28 sm:w-40 placeholder:text-muted-foreground"
                   placeholder="Rechercher..."
                 />
-                <button onClick={() => setSearchOpen(false)}>
+                <button type="button" onClick={() => setSearchOpen(false)}>
                   <X size={14} className="text-muted-foreground" />
                 </button>
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setSearchOpen(true)}
                 className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
                 data-testid="topbar-search"
@@ -208,9 +247,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Notifications */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => { setNotifOpen((o) => !o); setAvatarOpen(false); }}
               className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
               data-testid="topbar-notifications"
@@ -231,7 +270,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 {NOTIFICATIONS.map((n) => (
                   <div
                     key={n.id}
-                    className={cn("px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors", !n.lue && "bg-primary/[0.03]")}
+                    className={cn(
+                      "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
+                      !n.lue && "bg-primary/[0.03]",
+                    )}
                   >
                     <div className="flex gap-2">
                       {!n.lue && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
@@ -246,8 +288,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Dark mode */}
           <button
+            type="button"
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
             data-testid="topbar-theme-toggle"
@@ -255,11 +297,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          {/* Avatar */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => { setAvatarOpen((o) => !o); setNotifOpen(false); }}
-              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
+              className="flex items-center gap-2 pl-2 pr-2 md:pr-3 py-1.5 rounded-xl hover:bg-muted transition-colors"
               data-testid="topbar-avatar"
             >
               <UserAvatar name={currentUser?.name || "Admin"} size="sm" />
@@ -267,7 +309,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 <div className="text-xs font-semibold text-foreground leading-tight">{currentUser?.name}</div>
                 <div className="text-[10px] text-muted-foreground">Administrateur</div>
               </div>
-              <ChevronDown size={14} className="text-muted-foreground" />
+              <ChevronDown size={14} className="text-muted-foreground hidden sm:block" />
             </button>
             {avatarOpen && (
               <div className="absolute right-0 top-full mt-2 w-52 bg-popover border border-border rounded-xl shadow-xl z-50 py-1 overflow-hidden">
@@ -284,6 +326,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   Paramètres
                 </Link>
                 <button
+                  type="button"
                   onClick={handleLogout}
                   className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                   data-testid="topbar-logout"
@@ -297,14 +340,144 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="pt-20 min-h-screen">
-        <div className="p-6 md:p-8 max-w-[1400px] mx-auto">
-          {children}
-        </div>
-      </main>
+      {/* —— Corps : Sidebar + Subnav + Contenu —— */}
+      <div className={cn("pt-16 flex min-h-screen")}>
+        {/* Sidebar principal (desktop) */}
+        <aside
+          className={cn(
+            "hidden lg:flex flex-col fixed left-0 top-16 bottom-0 z-30",
+            "bg-card border-r border-border",
+            SIDEBAR_W,
+          )}
+        >
+          <nav className="flex-1 overflow-y-auto py-3 px-1.5 space-y-1">
+            {ADMIN_NAV_SECTIONS.map((section) => {
+              const Icon = section.icon;
+              const active = activeSectionId === section.id;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => selectSection(section)}
+                  title={section.label}
+                  className={cn(
+                    "w-full flex flex-col items-center gap-1 px-1 py-2.5 rounded-xl text-[10px] font-medium transition-colors",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  )}
+                  data-testid={`sidebar-${section.id}`}
+                >
+                  <Icon size={20} className="flex-shrink-0" />
+                  <span className="leading-tight text-center line-clamp-2 px-0.5">{section.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-      {/* Overlay for dropdowns */}
+        {/* Panneau sous-navigation (desktop) */}
+        <aside
+          className={cn(
+            "hidden lg:flex flex-col fixed top-16 bottom-0 z-20",
+            "bg-card border-r border-border transition-all duration-200 ease-out",
+            "left-[88px]",
+            showSubnav ? cn(SUBNAV_W, "opacity-100") : "w-0 opacity-0 overflow-hidden border-0",
+          )}
+        >
+          {showSubnav && activeSection && (
+            <SubNavPanel
+              section={activeSection}
+              panelStack={panelStack}
+              onDrill={drill}
+              onBack={goBack}
+              location={location}
+            />
+          )}
+        </aside>
+
+        {/* Contenu principal */}
+        <main
+          className={cn(
+            "flex-1 min-w-0 min-h-[calc(100vh-4rem)] transition-[margin] duration-200 ease-out",
+            "lg:ml-[88px]",
+            showSubnav && "lg:ml-[calc(88px+15rem)]",
+          )}
+        >
+          <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* —— Navigation mobile / tablette —— */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-black/40" onClick={closeMobile} />
+          <div className="absolute inset-y-0 left-0 w-[min(100%,320px)] bg-card border-r border-border shadow-xl flex flex-col animate-in slide-in-from-left-4 duration-200">
+            <div className="h-14 px-4 border-b border-border flex items-center justify-between flex-shrink-0">
+              {mobileView === "secondary" && showSubnav ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (panelStack.length > 0) goBack();
+                    else setMobileView("primary");
+                  }}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft size={16} />
+                  {panelStack.length > 0 ? (panelStack[panelStack.length - 1]?.label ?? "Retour") : "Menu"}
+                </button>
+              ) : (
+                <span className="font-bold text-sm" style={{ fontFamily: "Outfit, sans-serif" }}>
+                  Navigation
+                </span>
+              )}
+              <button type="button" onClick={closeMobile} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
+                <X size={18} />
+              </button>
+            </div>
+
+            {mobileView === "primary" || !showSubnav ? (
+              <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                {ADMIN_NAV_SECTIONS.map((section) => {
+                  const Icon = section.icon;
+                  const active = activeSectionId === section.id;
+                  const hasSub = !!(section.children && section.children.length > 0);
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => selectSection(section)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors",
+                        active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
+                      )}
+                    >
+                      <Icon size={18} className="flex-shrink-0" />
+                      <span className="flex-1 text-left">{section.label}</span>
+                      {hasSub && <ChevronRight size={16} className="text-muted-foreground" />}
+                    </button>
+                  );
+                })}
+              </nav>
+            ) : activeSection ? (
+              <SubNavPanel
+                section={activeSection}
+                panelStack={panelStack}
+                onDrill={drill}
+                onBack={() => {
+                  if (panelStack.length > 0) goBack();
+                  else setMobileView("primary");
+                }}
+                location={location}
+                onNavigate={closeMobile}
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {(notifOpen || avatarOpen) && (
         <div
           className="fixed inset-0 z-40"

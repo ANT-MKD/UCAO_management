@@ -1100,6 +1100,34 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
   return paiement;
 }
 
+/**
+ * Autorise ou interdit l'accès portail des étudiants.
+ * Interdit → statut `suspendu` (déjà utilisé dans le store / réinscription).
+ * Autorisé → restaure `inscrit` si l'étudiant était suspendu.
+ */
+export function setEtudiantsAccess(
+  etudiantIds: string[],
+  access: "autorise" | "interdit",
+): number {
+  const ids = new Set(etudiantIds);
+  let count = 0;
+  for (const e of store.etudiants) {
+    if (!ids.has(e.id)) continue;
+    if (access === "interdit") {
+      if (e.statut === "suspendu") continue;
+      e.statut = "suspendu";
+    } else {
+      if (e.statut !== "suspendu") continue;
+      e.statut = "inscrit";
+    }
+    const ins = store.inscriptions.find((i) => i.etudiantId === e.id && i.annee === e.annee);
+    if (ins) ins.statut = e.statut;
+    count++;
+  }
+  if (count > 0) persist();
+  return count;
+}
+
 /** Affecte l'étudiant à une classe pédagogique après paiement confirmé */
 export function assignEtudiantToClasse(etudiantId: string, classeId: string) {
   const etudiant = getEtudiantById(etudiantId);
