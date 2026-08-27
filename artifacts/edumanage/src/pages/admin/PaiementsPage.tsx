@@ -1,332 +1,254 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Eye, Download, TrendingUp, AlertTriangle, CreditCard, X } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Plus, Eye, Download, TrendingUp, AlertTriangle, CreditCard } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
-import { DataTable, Column } from "@/components/admin/DataTable";
-import { UserAvatar } from "@/components/admin/UserAvatar";
 import { usePaiements, useStudentStore } from "@/hooks/useStudentStore";
 import type { PaiementRecord } from "@/data/studentStore";
-import { formatCFA, formatShortDate } from "@/lib/utils";
+import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
-type Paiement = PaiementRecord;
+type Statut = "Payé" | "Acompte" | "Annulé";
 
-const MOYEN_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  Wave: { label: "Wave", bg: "#eff6ff", text: "#2563eb" },
-  OrangeMoney: { label: "Orange Money", bg: "#fff7ed", text: "#ea580c" },
-  Especes: { label: "Espèces", bg: "#f0fdf4", text: "#16a34a" },
-  Virement: { label: "Virement", bg: "#eef2ff", text: "#4f46e5" },
-  Cheque: { label: "Chèque", bg: "#f8fafc", text: "#64748b" },
+const STATUT_CLS: Record<Statut, string> = {
+  Payé: "bg-emerald-50 text-emerald-700",
+  Acompte: "bg-amber-50 text-amber-700",
+  Annulé: "bg-red-50 text-red-700",
 };
 
-const MOYENS = Object.keys(MOYEN_STYLES);
-
-function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
-      {label}
-      <button onClick={onRemove} className="hover:text-red-500 transition-colors ml-0.5">
-        <X size={10} />
-      </button>
-    </span>
-  );
+export function montantQuittance(p: PaiementRecord): number {
+  return p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
 }
+
+export function statutQuittance(p: PaiementRecord): Statut {
+  if (p.statut === "annule") return "Annulé";
+  return p.montant >= montantQuittance(p) ? "Payé" : "Acompte";
+}
+
+interface ColFilters {
+  numero: string;
+  emise: string;
+  limite: string;
+  adresse: string;
+  montantQuittance: string;
+  montantPaye: string;
+  statut: string;
+}
+
+const EMPTY_FILTERS: ColFilters = {
+  numero: "",
+  emise: "",
+  limite: "",
+  adresse: "",
+  montantQuittance: "",
+  montantPaye: "",
+  statut: "",
+};
+
+const filterInputClass =
+  "w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 export default function PaiementsPage() {
   const [, setLocation] = useLocation();
   const paiements = usePaiements();
   const etudiants = useStudentStore();
-  const RUBRIQUES = useMemo(() => [...new Set(paiements.map((p) => p.rubrique))], [paiements]);
+  const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
 
-  // Filters
-  const [moyenFilter, setMoyenFilter] = useState("");
-  const [rubriqueFilter, setRubriqueFilter] = useState("");
-  const [dateDebut, setDateDebut] = useState("");
-  const [dateFin, setDateFin] = useState("");
-  const [montantMin, setMontantMin] = useState("");
-  const [montantMax, setMontantMax] = useState("");
-  const [soldeDuOnly, setSoldeDuOnly] = useState(false);
-
-  const filteredData = useMemo(() => {
-    return paiements.filter((p) => {
-      if (moyenFilter && p.moyen !== moyenFilter) return false;
-      if (rubriqueFilter && p.rubrique !== rubriqueFilter) return false;
-      if (dateDebut && p.date < dateDebut) return false;
-      if (dateFin && p.date > dateFin) return false;
-      if (montantMin && p.montant < parseInt(montantMin)) return false;
-      if (montantMax && p.montant > parseInt(montantMax)) return false;
-      if (soldeDuOnly && p.soldeRestant === 0) return false;
-      return true;
-    });
-  }, [paiements, moyenFilter, rubriqueFilter, dateDebut, dateFin, montantMin, montantMax, soldeDuOnly]);
-
-  const totalMois = filteredData.reduce((sum, p) => sum + p.montant, 0);
-  const impayés = etudiants.filter((e) => e.soldeDu > 0).length;
-  const tauxRecouvrement = etudiants.length > 0
-    ? Math.round((etudiants.filter((e) => e.soldeDu === 0).length / etudiants.length) * 100)
-    : 0;
-
-  const activeFiltersCount = [moyenFilter, rubriqueFilter, dateDebut, dateFin, montantMin, montantMax, soldeDuOnly].filter(Boolean).length;
-
-  const clearFilters = () => {
-    setMoyenFilter("");
-    setRubriqueFilter("");
-    setDateDebut("");
-    setDateFin("");
-    setMontantMin("");
-    setMontantMax("");
-    setSoldeDuOnly(false);
-  };
-
-  const columns: Column<Paiement>[] = [
-    { key: "date", header: "Date", sortable: true, render: (r) => <span className="text-xs text-muted-foreground">{formatShortDate(r.date)}</span> },
-    {
-      key: "etudiant",
-      header: "Étudiant",
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <UserAvatar name={r.etudiant} size="xs" />
-          <div>
-            <div className="text-sm font-medium text-foreground">{r.etudiant}</div>
-            <div className="text-[10px] text-muted-foreground">{r.classe}</div>
-          </div>
-        </div>
-      ),
-    },
-    { key: "rubrique", header: "Rubrique", sortable: true, render: (r) => (
-      <div>
-        <span className="text-sm text-foreground">{r.rubrique}</span>
-        {r.lignes && r.lignes.length > 1 && (
-          <div className="text-[10px] text-muted-foreground mt-0.5">
-            {r.lignes.map((l) => l.label).join(" · ")}
-          </div>
-        )}
-      </div>
-    ) },
-    {
-      key: "montant",
-      header: "Montant",
-      sortable: true,
-      render: (r) => <span className="font-bold text-foreground">{formatCFA(r.montant)}</span>,
-    },
-    {
-      key: "moyen",
-      header: "Moyen",
-      render: (r) => {
-        const s = MOYEN_STYLES[r.moyen] ?? { label: r.moyen, bg: "#f1f5f9", text: "#64748b" };
-        return (
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: s.bg, color: s.text }}>
-            {s.label}
-          </span>
-        );
-      },
-    },
-    {
-      key: "reference",
-      header: "Référence",
-      render: (r) => <span className="text-xs font-mono text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.reference || "—"}</span>,
-    },
-    {
-      key: "soldeRestant",
-      header: "Solde restant",
-      sortable: true,
-      render: (r) => (
-        <span className={r.soldeRestant > 0 ? "text-red-500 font-semibold text-sm" : "text-emerald-600 text-sm"}>
-          {r.soldeRestant > 0 ? formatCFA(r.soldeRestant) : "Soldé ✓"}
-        </span>
-      ),
-    },
-    {
-      key: "actions",
-      header: "",
-      render: () => (
-        <button className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors">
-          <Eye size={14} />
-        </button>
-      ),
-    },
-  ];
-
-  const filterPanel = (
-    <div className="p-4 space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {/* Moyen de paiement */}
-        <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Moyen de paiement</label>
-          <select
-            value={moyenFilter}
-            onChange={(e) => setMoyenFilter(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="filter-moyen"
-          >
-            <option value="">Tous les moyens</option>
-            {MOYENS.map((m) => <option key={m} value={m}>{MOYEN_STYLES[m]?.label ?? m}</option>)}
-          </select>
-        </div>
-
-        {/* Rubrique */}
-        <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Rubrique</label>
-          <select
-            value={rubriqueFilter}
-            onChange={(e) => setRubriqueFilter(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="filter-rubrique"
-          >
-            <option value="">Toutes les rubriques</option>
-            {RUBRIQUES.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-
-        {/* Date début */}
-        <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de début</label>
-          <input
-            type="date"
-            value={dateDebut}
-            onChange={(e) => setDateDebut(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="filter-date-debut"
-          />
-        </div>
-
-        {/* Date fin */}
-        <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de fin</label>
-          <input
-            type="date"
-            value={dateFin}
-            onChange={(e) => setDateFin(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="filter-date-fin"
-          />
-        </div>
-
-        {/* Montant min */}
-        <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant min (FCFA)</label>
-          <input
-            type="number"
-            value={montantMin}
-            onChange={(e) => setMontantMin(e.target.value)}
-            placeholder="0"
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="filter-montant-min"
-          />
-        </div>
-
-        {/* Montant max */}
-        <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant max (FCFA)</label>
-          <input
-            type="number"
-            value={montantMax}
-            onChange={(e) => setMontantMax(e.target.value)}
-            placeholder="Sans limite"
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="filter-montant-max"
-          />
-        </div>
-
-        {/* Solde restant */}
-        <div className="flex flex-col justify-between">
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Impayés</label>
-          <button
-            onClick={() => setSoldeDuOnly((v) => !v)}
-            className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-lg font-medium transition-all ${
-              soldeDuOnly
-                ? "bg-red-50 border-red-300 text-red-600 dark:bg-red-950 dark:border-red-700 dark:text-red-300"
-                : "border-border text-muted-foreground hover:bg-muted"
-            }`}
-            data-testid="filter-solde-du"
-          >
-            <span className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${soldeDuOnly ? "bg-red-500 border-red-500" : "border-border"}`}>
-              {soldeDuOnly && <span className="text-white text-[10px]">✓</span>}
-            </span>
-            Avec solde restant
-          </button>
-        </div>
-      </div>
-
-      {/* Moyen de paiement quick-select chips */}
-      <div>
-        <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Sélection rapide du moyen</label>
-        <div className="flex flex-wrap gap-2">
-          {MOYENS.map((m) => {
-            const s = MOYEN_STYLES[m];
-            const count = paiements.filter((p) => p.moyen === m).length;
-            const isActive = moyenFilter === m;
-            return (
-              <button
-                key={m}
-                onClick={() => setMoyenFilter(isActive ? "" : m)}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition-all"
-                style={isActive ? { background: s.bg, color: s.text, borderColor: s.text } : { borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }}
-              >
-                <span className="w-2 h-2 rounded-full" style={{ background: s.text }} />
-                {s.label}
-                <span className="opacity-60">({count})</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Active chips */}
-      {activeFiltersCount > 0 && (
-        <div className="flex flex-wrap gap-2 pt-1 border-t border-border">
-          {moyenFilter && <FilterChip label={`Moyen : ${MOYEN_STYLES[moyenFilter]?.label}`} onRemove={() => setMoyenFilter("")} />}
-          {rubriqueFilter && <FilterChip label={`Rubrique : ${rubriqueFilter}`} onRemove={() => setRubriqueFilter("")} />}
-          {dateDebut && <FilterChip label={`Depuis : ${dateDebut}`} onRemove={() => setDateDebut("")} />}
-          {dateFin && <FilterChip label={`Jusqu'au : ${dateFin}`} onRemove={() => setDateFin("")} />}
-          {montantMin && <FilterChip label={`Min : ${formatCFA(parseInt(montantMin))}`} onRemove={() => setMontantMin("")} />}
-          {montantMax && <FilterChip label={`Max : ${formatCFA(parseInt(montantMax))}`} onRemove={() => setMontantMax("")} />}
-          {soldeDuOnly && <FilterChip label="Solde restant uniquement" onRemove={() => setSoldeDuOnly(false)} />}
-        </div>
-      )}
-    </div>
+  const rows = useMemo(
+    () =>
+      paiements.map((p) => {
+        const etu = etudiants.find((e) => e.id === p.etudiantId);
+        return {
+          record: p,
+          matricule: etu?.matricule ?? "",
+          montantQuittance: montantQuittance(p),
+          montantPaye: p.montant,
+          statut: statutQuittance(p),
+        };
+      }),
+    [paiements, etudiants],
   );
+
+  const filtered = useMemo(() => {
+    const f = filters;
+    return rows
+      .filter((r) => {
+        if (f.numero && !r.record.numeroRecu.toLowerCase().includes(f.numero.toLowerCase())) return false;
+        if (f.emise && !formatShortDate(r.record.date).includes(f.emise)) return false;
+        if (f.limite) {
+          const limite = r.record.dateLimite ? formatShortDate(r.record.dateLimite) : "";
+          if (!limite.includes(f.limite)) return false;
+        }
+        if (f.adresse) {
+          const haystack = `${r.matricule} ${r.record.etudiant}`.toLowerCase();
+          if (!haystack.includes(f.adresse.toLowerCase())) return false;
+        }
+        if (f.montantQuittance && !String(r.montantQuittance).includes(f.montantQuittance)) return false;
+        if (f.montantPaye && !String(r.montantPaye).includes(f.montantPaye)) return false;
+        if (f.statut && !r.statut.toLowerCase().includes(f.statut.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => b.record.date.localeCompare(a.record.date));
+  }, [rows, filters]);
+
+  const totalQuittance = filtered.reduce((sum, r) => sum + r.montantQuittance, 0);
+  const nbAcompte = filtered.filter((r) => r.statut === "Acompte").length;
+  const impayés = etudiants.filter((e) => e.soldeDu > 0).length;
+  const tauxRecouvrement =
+    etudiants.length > 0
+      ? Math.round((etudiants.filter((e) => e.soldeDu === 0).length / etudiants.length) * 100)
+      : 0;
+
+  const patchFilter = (patch: Partial<ColFilters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  const exportExcel = () => {
+    const sheetRows = filtered.map((r) => ({
+      "N° quittance": r.record.numeroRecu,
+      "Émise le": formatShortDate(r.record.date),
+      "Date Limite": r.record.dateLimite ? formatShortDate(r.record.dateLimite) : "",
+      "Adressée à": `${r.matricule} - ${r.record.etudiant}`,
+      "Mt quittancé": r.montantQuittance,
+      "Mt payé": r.montantPaye,
+      Statut: r.statut,
+    }));
+    const ws = XLSX.utils.json_to_sheet(sheetRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Quittances");
+    XLSX.writeFile(wb, `quittances-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   return (
     <div>
       <PageHeader
-        breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Paiements Étudiants" }]}
-        title="Paiements Étudiants"
-        subtitle={`${paiements.length} paiements enregistrés cette année`}
+        breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Les quittances" }]}
+        title="Les quittances"
+        subtitle={`${paiements.length} quittances enregistrées cette année`}
         actions={
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground">
-              <Download size={13} /> Exporter
+            <button
+              onClick={exportExcel}
+              className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
+              data-testid="btn-export-excel"
+            >
+              <Download size={14} /> Export excel
             </button>
             <button
               onClick={() => setLocation("/admin/paiements/new")}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
               data-testid="btn-new-paiement"
             >
-              <Plus size={15} /> Enregistrer Paiement
+              <Plus size={15} /> Nouvelle quittance
             </button>
           </div>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KPICard icon={TrendingUp} label="Total filtré" value={formatCFA(totalMois)} accentColor="#10b981" />
-        <KPICard icon={CreditCard} label="Nb paiements" value={filteredData.length} accentColor="#4f46e5" />
-        <KPICard icon={AlertTriangle} label="Étudiants impayés" value={impayés} accentColor="#ef4444" onClick={() => setSoldeDuOnly(true)} />
-        <KPICard icon={TrendingUp} label="Taux recouvrement" value={`${tauxRecouvrement}%`} trend="+6% vs mois dernier" trendDirection="up" accentColor="#f59e0b" />
+        <KPICard icon={TrendingUp} label="Total quittancé" value={formatCFA(totalQuittance)} accentColor="#10b981" />
+        <KPICard icon={CreditCard} label="Nb quittances" value={filtered.length} accentColor="#4f46e5" />
+        <KPICard icon={AlertTriangle} label="Acomptes en cours" value={nbAcompte} accentColor="#f59e0b" />
+        <KPICard
+          icon={TrendingUp}
+          label="Taux recouvrement"
+          value={`${tauxRecouvrement}%`}
+          trend={`${impayés} étudiant(s) avec solde dû`}
+          trendDirection={impayés > 0 ? "down" : "up"}
+          accentColor="#ef4444"
+        />
       </div>
 
-      <DataTable
-        columns={columns as unknown as Column<Record<string, unknown>>[]}
-        data={filteredData as unknown as Record<string, unknown>[]}
-        searchable
-        searchPlaceholder="Rechercher un étudiant, référence, rubrique..."
-        filterPanel={filterPanel}
-        activeFiltersCount={activeFiltersCount}
-        onClearFilters={clearFilters}
-        emptyMessage="Aucun paiement ne correspond aux filtres sélectionnés"
-        pageSize={10}
-      />
+      <div className="bg-card border border-border rounded-xl overflow-x-auto" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <table className="w-full min-w-[1080px] text-sm">
+          <thead>
+            <tr className="bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <th className="text-left px-4 py-3">N° quittance</th>
+              <th className="text-left px-4 py-3">Émise le</th>
+              <th className="text-left px-4 py-3">Date Limite</th>
+              <th className="text-left px-4 py-3">Adressée à</th>
+              <th className="text-right px-4 py-3">Mt quittancé</th>
+              <th className="text-right px-4 py-3">Mt payé</th>
+              <th className="text-center px-4 py-3">Statut</th>
+              <th className="text-right px-4 py-3 w-14" />
+            </tr>
+            <tr className="border-b border-border bg-card">
+              <th className="px-3 py-2">
+                <input value={filters.numero} onChange={(e) => patchFilter({ numero: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+              </th>
+              <th className="px-3 py-2">
+                <input value={filters.emise} onChange={(e) => patchFilter({ emise: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+              </th>
+              <th className="px-3 py-2">
+                <input value={filters.limite} onChange={(e) => patchFilter({ limite: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+              </th>
+              <th className="px-3 py-2">
+                <input value={filters.adresse} onChange={(e) => patchFilter({ adresse: e.target.value })} className={filterInputClass} placeholder="Nom, matricule…" />
+              </th>
+              <th className="px-3 py-2">
+                <input value={filters.montantQuittance} onChange={(e) => patchFilter({ montantQuittance: e.target.value })} className={filterInputClass} placeholder="Montant" />
+              </th>
+              <th className="px-3 py-2">
+                <input value={filters.montantPaye} onChange={(e) => patchFilter({ montantPaye: e.target.value })} className={filterInputClass} placeholder="Montant" />
+              </th>
+              <th className="px-3 py-2">
+                <input value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass} placeholder="Statut" />
+              </th>
+              <th className="px-3 py-2">
+                {(Object.values(filters).some(Boolean)) && (
+                  <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap">
+                    Réinit.
+                  </button>
+                )}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
+                  Aucune quittance ne correspond aux critères sélectionnés.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((r) => (
+                <tr
+                  key={r.record.id}
+                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                  onClick={() => setLocation(`/admin/paiements/${r.record.id}`)}
+                  data-testid={`quittance-row-${r.record.id}`}
+                >
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">{r.record.numeroRecu}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(r.record.date)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                    {r.record.dateLimite ? formatShortDate(r.record.dateLimite) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs text-muted-foreground">{r.matricule}</span>{" "}
+                    <span className="font-medium">{r.record.etudiant}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCFA(r.montantQuittance)}</td>
+                  <td className="px-4 py-3 text-right">{formatCFA(r.montantPaye)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_CLS[r.statut])}>{r.statut}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLocation(`/admin/paiements/${r.record.id}`);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                      aria-label="Voir la quittance"
+                      data-testid={`quittance-view-${r.record.id}`}
+                    >
+                      <Eye size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

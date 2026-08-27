@@ -87,6 +87,7 @@ const FraisFormPage = lazy(() => import("@/pages/admin/FraisFormPage"));
 const FinanceParametragePage = lazy(() => import("@/pages/admin/FinanceParametragePage"));
 const PaiementsPage = lazy(() => import("@/pages/admin/PaiementsPage"));
 const AddPaiementPage = lazy(() => import("@/pages/admin/AddPaiementPage"));
+const PaiementDetailPage = lazy(() => import("@/pages/admin/PaiementDetailPage"));
 const VacationsPage = lazy(() => import("@/pages/admin/VacationsPage"));
 const VacationFormPage = lazy(() => import("@/pages/admin/VacationFormPage"));
 const TransactionsPage = lazy(() => import("@/pages/admin/TransactionsPage"));
@@ -310,6 +311,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/paiements/new">
         <Admin><AddPaiementPage /></Admin>
+      </Route>
+      <Route path="/admin/paiements/:id">
+        {(p) => <Admin><PaiementDetailPage id={p.id} /></Admin>}
       </Route>
       <Route path="/admin/vacations/new">
         <Admin><VacationFormPage /></Admin>

@@ -56,6 +56,11 @@ export default function AddPaiementPage() {
   const [selectedRubriques, setSelectedRubriques] = useState<string[]>(["inscription"]);
   const [montantVerse, setMontantVerse] = useState("");
   const [dateOperation, setDateOperation] = useState(new Date().toISOString().split("T")[0]);
+  const [dateLimite, setDateLimite] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split("T")[0];
+  });
   const [statutPaiement, setStatutPaiement] = useState("paye");
   const [reference, setReference] = useState("");
   const [classeId, setClasseId] = useState("");
@@ -95,6 +100,7 @@ export default function AddPaiementPage() {
       statut: statutPaiement,
       lignes,
       classeId: classeId || undefined,
+      dateLimite: dateLimite || undefined,
     });
     setSubmitted(true);
     setTimeout(() => setLocation(`/admin/students/${selectedStudent.id}`), 1500);
@@ -249,7 +255,7 @@ export default function AddPaiementPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
                 <input
@@ -260,10 +266,17 @@ export default function AddPaiementPage() {
                   className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
                   data-testid="input-montant"
                 />
+                {Number(montantVerse) > 0 && Number(montantVerse) < totalFacture && (
+                  <p className="text-[11px] text-amber-600 mt-1">Versement partiel — la quittance restera en statut Acompte.</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
                 <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date limite</label>
+                <input type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
             </div>
 

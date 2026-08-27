@@ -76,6 +76,8 @@ export interface PaiementRecord {
   numeroRecu: string;
   soldeRestant: number;
   statut: "paye" | "annule" | string;
+  /** Date limite de règlement de la quittance */
+  dateLimite?: string;
 }
 
 export interface AnneeAcademiqueRecord {
@@ -997,6 +999,8 @@ export interface RegisterPaiementPayload {
   classeId?: string;
   /** Lignes de la facture unique */
   lignes?: PaiementLigne[];
+  /** Date limite de règlement de la quittance */
+  dateLimite?: string;
 }
 
 export function registerPaiement(payload: RegisterPaiementPayload): PaiementRecord {
@@ -1040,6 +1044,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
     numeroRecu,
     soldeRestant,
     statut,
+    dateLimite: payload.dateLimite || undefined,
   };
 
   store.paiements.unshift(paiement);
@@ -1098,6 +1103,16 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
 
   persist();
   return paiement;
+}
+
+/** Annule une quittance déjà enregistrée (n'ajuste pas rétroactivement le solde élève). */
+export function cancelPaiement(id: string): void {
+  const idx = store.paiements.findIndex((p) => p.id === id);
+  if (idx < 0) return;
+  // Nouvelle référence de tableau : useSyncExternalStore compare par Object.is
+  // et ne re-rend pas si getPaiements() renvoie la même référence.
+  store.paiements = store.paiements.map((p) => (p.id === id ? { ...p, statut: "annule" } : p));
+  persist();
 }
 
 /**
