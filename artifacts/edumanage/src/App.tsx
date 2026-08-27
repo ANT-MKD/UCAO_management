@@ -106,6 +106,7 @@ const TeacherSchedulePage = lazy(() => import("@/pages/teacher/TeacherPortalPage
 const TeacherModulesPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherModulesPage })));
 const TeacherGradesPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherGradesPage })));
 const TeacherRallongePage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherRallongePage })));
+const TeacherContractPortalPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherContractPage })));
 const TeacherCahierPage = lazy(() => import("@/pages/teacher/TeacherCahierPage"));
 const StudentSchedulePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentSchedulePage })));
 const StudentGradesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentGradesPage })));
@@ -425,6 +426,9 @@ function AppRouter() {
       </Route>
       <Route path="/teacher/rallonge">
         <Teacher><TeacherRallongePage /></Teacher>
+      </Route>
+      <Route path="/teacher/contract">
+        <Teacher><TeacherContractPortalPage /></Teacher>
       </Route>
       <Route path="/teacher">
         <Redirect to="/teacher/dashboard" />

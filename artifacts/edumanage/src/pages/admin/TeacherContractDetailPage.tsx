@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { FileEdit, Ban } from "lucide-react";
+import { FileEdit, Ban, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS } from "@/data/mockData";
@@ -9,6 +9,7 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { montantTotal, contractStatut, resilierContract, type ContractLigne } from "@/data/teacherContractStore";
 import { useTeacherContracts } from "@/hooks/useTeacherContractStore";
 import { type EnseignantRecord } from "@/lib/teacherUtils";
+import { printContract } from "@/lib/contractPrint";
 import { formatCFA, formatShortDate, formatDate, cn } from "@/lib/utils";
 
 const MODE_LABEL: Record<ContractLigne["modePaiement"], string> = {
@@ -47,6 +48,21 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
   const teacher = teachers.find((t) => t.id === contract.teacherId);
   const statut = contractStatut(contract);
 
+  const printRows = useMemo(
+    () =>
+      contract.lignes.map((l) => {
+        const ec = ecs.find((e) => e.id === l.ecId);
+        const classe = classes.find((c) => c.id === l.classeId);
+        return {
+          coursLabel: ec ? `${ec.code} — ${ec.libelle}` : l.ecId,
+          classeLabel: classe?.nom ?? l.classeId,
+          modeLabel: MODE_LABEL[l.modePaiement],
+          montant: l.montant,
+        };
+      }),
+    [contract.lignes, ecs, classes],
+  );
+
   const handleResilier = () => {
     if (!motifResiliation.trim()) {
       toast.error("Indiquez un motif de résiliation");
@@ -68,25 +84,35 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
         ]}
         title={`Contrat ${contract.id}`}
         actions={
-          !contract.resilie && (
-            <div className="flex gap-2">
-              <Link
-                href={`/admin/teachers/contracts/${contract.id}/avenant`}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
-                data-testid="contract-nouvel-avenant"
-              >
-                <FileEdit size={15} /> Nouvel avenant
-              </Link>
-              <button
-                type="button"
-                onClick={() => setResilierOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
-                data-testid="contract-resilier"
-              >
-                <Ban size={15} /> Résilier
-              </button>
-            </div>
-          )
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => printContract(contract, teacher, printRows, statut)}
+              className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors"
+              data-testid="contract-export-pdf"
+            >
+              <Printer size={15} /> Exporter en PDF
+            </button>
+            {!contract.resilie && (
+              <>
+                <Link
+                  href={`/admin/teachers/contracts/${contract.id}/avenant`}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+                  data-testid="contract-nouvel-avenant"
+                >
+                  <FileEdit size={15} /> Nouvel avenant
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setResilierOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
+                  data-testid="contract-resilier"
+                >
+                  <Ban size={15} /> Résilier
+                </button>
+              </>
+            )}
+          </div>
         }
       />
 

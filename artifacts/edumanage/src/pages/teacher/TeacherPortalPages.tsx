@@ -9,8 +9,12 @@ import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
 import { addRallonge, type RallongeStatut } from "@/data/rallongeStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
+import { montantTotal, contractStatut, type ContractLigne } from "@/data/teacherContractStore";
+import { useTeacherContracts } from "@/hooks/useTeacherContractStore";
+import { printContract } from "@/lib/contractPrint";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Printer } from "lucide-react";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -424,6 +428,112 @@ export function TeacherRallongePage() {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+const CONTRACT_MODE_LABEL: Record<ContractLigne["modePaiement"], string> = {
+  taux_horaire: "Volume horaire",
+  forfait: "Forfait",
+};
+
+const CONTRACT_STATUT_LABEL: Record<"actif" | "expire" | "resilie", string> = {
+  actif: "Actif",
+  expire: "Expiré",
+  resilie: "Résilié",
+};
+
+const CONTRACT_STATUT_CLS: Record<"actif" | "expire" | "resilie", string> = {
+  actif: "bg-emerald-50 text-emerald-700",
+  expire: "bg-slate-100 text-slate-600",
+  resilie: "bg-red-50 text-red-700",
+};
+
+export function TeacherContractPage() {
+  const { currentUser } = useAuth();
+  const contracts = useTeacherContracts();
+  const ecs = useEcs();
+  const classes = useClasses();
+
+  const myTeacher = ENSEIGNANTS.find((t) => t.id === currentUser?.linkedId) ?? null;
+  const mine = contracts
+    .filter((c) => c.teacherId === currentUser?.linkedId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>
+          Mon contrat
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">Historique de vos contrats d&apos;enseignement</p>
+      </div>
+
+      {mine.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+          Aucun contrat n&apos;a encore été enregistré pour vous.
+        </div>
+      ) : (
+        mine.map((c) => {
+          const statut = contractStatut(c);
+          const rows = c.lignes.map((l) => {
+            const ec = ecs.find((e) => e.id === l.ecId);
+            const classe = classes.find((cl) => cl.id === l.classeId);
+            return {
+              coursLabel: ec ? `${ec.code} — ${ec.libelle}` : l.ecId,
+              classeLabel: classe?.nom ?? l.classeId,
+              modeLabel: CONTRACT_MODE_LABEL[l.modePaiement],
+              montant: l.montant,
+            };
+          });
+          return (
+            <div key={c.id} className="rounded-2xl border border-border bg-card overflow-hidden">
+              <div className="p-5 flex flex-wrap items-center justify-between gap-3 border-b border-border">
+                <div>
+                  <p className="font-bold text-sm">{c.id}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {c.annee} · {c.dateDebut} → {c.dateFin}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", CONTRACT_STATUT_CLS[statut])}>
+                    {CONTRACT_STATUT_LABEL[statut]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => printContract(c, myTeacher ?? undefined, rows, statut)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted"
+                  >
+                    <Printer size={12} /> Imprimer / PDF
+                  </button>
+                </div>
+              </div>
+              <div className="p-5">
+                {c.lignes.map((l, i) => {
+                  const ec = ecs.find((e) => e.id === l.ecId);
+                  const classe = classes.find((cl) => cl.id === l.classeId);
+                  return (
+                    <div key={i} className="flex justify-between items-center text-sm border-b border-border py-2 last:border-0">
+                      <span>
+                        {ec ? `${ec.code} — ${ec.libelle}` : l.ecId}
+                        <span className="text-xs text-muted-foreground"> · {classe?.nom ?? l.classeId}</span>
+                      </span>
+                      <span className="font-medium">{l.montant.toLocaleString("fr-FR")} F CFA</span>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between items-center text-sm pt-3 font-semibold">
+                  <span>Montant total</span>
+                  <span>{montantTotal(c).toLocaleString("fr-FR")} F CFA</span>
+                </div>
+                {c.avenants.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">{c.avenants.length} avenant{c.avenants.length > 1 ? "s" : ""}</p>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

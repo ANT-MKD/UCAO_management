@@ -7,6 +7,7 @@ import {
   ClipboardList,
   NotebookPen,
   Clock3,
+  FileText,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -22,6 +23,7 @@ const NAV = [
   { to: "/teacher/grades", icon: ClipboardList, label: "Saisie notes" },
   { to: "/teacher/cahier", icon: NotebookPen, label: "Cahier de séance" },
   { to: "/teacher/rallonge", icon: Clock3, label: "Demande de rallonge" },
+  { to: "/teacher/contract", icon: FileText, label: "Mon contrat" },
 ];
 
 export function TeacherLayout({ children }: { children: React.ReactNode }) {
