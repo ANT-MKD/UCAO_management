@@ -1178,6 +1178,64 @@ export function cancelQuittanceEmise(id: string): void {
   persist();
 }
 
+export interface PayerQuittancePayload {
+  id: string;
+  montant: number;
+  moyen: string;
+  reference: string;
+  date: string;
+}
+
+/** Encaisse un règlement (total ou partiel) sur une quittance déjà émise (Impayé/Acompte). */
+export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord | undefined {
+  const p = store.paiements.find((pp) => pp.id === payload.id);
+  if (!p || p.statut === "annule") return undefined;
+
+  const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
+  const nouveauMontantPaye = Math.min(montantFacture, p.montant + Math.max(0, payload.montant));
+  const diff = nouveauMontantPaye - p.montant;
+
+  const etudiant = getEtudiantById(p.etudiantId);
+  if (etudiant && diff > 0) {
+    etudiant.soldeDu = Math.max(0, etudiant.soldeDu - diff);
+    const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
+    if (ins) ins.soldeDu = etudiant.soldeDu;
+    const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
+    if (studentUser) {
+      pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} (${nouveauMontantPaye} FCFA au total)`);
+    }
+  }
+
+  const updated: PaiementRecord = {
+    ...p,
+    montant: nouveauMontantPaye,
+    moyen: payload.moyen || p.moyen,
+    reference: payload.reference || p.reference,
+    date: payload.date || p.date,
+  };
+  store.paiements = store.paiements.map((pp) => (pp.id === payload.id ? updated : pp));
+  persist();
+  return updated;
+}
+
+/** Pousse une notification de relance au portail étudiant pour chaque quittance non soldée et non annulée. Renvoie le nombre de relances envoyées. */
+export function relancerQuittances(ids: string[]): number {
+  let count = 0;
+  for (const id of ids) {
+    const p = store.paiements.find((pp) => pp.id === id);
+    if (!p || p.statut === "annule") continue;
+    const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
+    if (p.montant >= montantFacture) continue;
+    const studentUser = store.users.find((u) => u.linkedId === p.etudiantId && u.role === "student");
+    if (!studentUser) continue;
+    const limite = p.dateLimite ? ` (date limite : ${p.dateLimite})` : "";
+    pushNotification(studentUser.id, `Rappel — quittance ${p.numeroRecu} en attente de règlement${limite}`);
+    count++;
+  }
+  if (count > 0) persist();
+  return count;
+}
+
 /**
  * Autorise ou interdit l'accès portail des étudiants.
  * Interdit → statut `suspendu` (déjà utilisé dans le store / réinscription).

@@ -1,23 +1,27 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, ArrowRight, Check, Search, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Search, ClipboardCheck, ReceiptText } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useStudentStore } from "@/hooks/useStudentStore";
-import { registerPaiement } from "@/data/studentStore";
-import type { EtudiantRecord, PaiementLigne } from "@/data/studentStore";
+import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
+import { registerPaiement, payerQuittance } from "@/data/studentStore";
+import type { EtudiantRecord, PaiementLigne, PaiementRecord } from "@/data/studentStore";
 import { FRAIS_CONFIG } from "@/data/mockData";
-import { MODES_PAIEMENT, STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
+import { STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
+import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { formatCFA, cn } from "@/lib/utils";
+import { montantQuittance } from "@/pages/admin/PaiementsPage";
+import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
-const MOYEN_COLORS: Record<string, { color: string; bg: string }> = {
-  Wave: { color: "#2563eb", bg: "#eff6ff" },
-  OrangeMoney: { color: "#ea580c", bg: "#fff7ed" },
-  Virement: { color: "#4f46e5", bg: "#eef2ff" },
-  Especes: { color: "#16a34a", bg: "#f0fdf4" },
-  Cheque: { color: "#64748b", bg: "#f8fafc" },
-};
+function moyenColors(label: string): { color: string; bg: string } {
+  const l = label.toLowerCase();
+  if (l.includes("wave")) return { color: "#2563eb", bg: "#eff6ff" };
+  if (l.includes("orange")) return { color: "#ea580c", bg: "#fff7ed" };
+  if (l.includes("vir")) return { color: "#4f46e5", bg: "#eef2ff" };
+  if (l.includes("esp")) return { color: "#16a34a", bg: "#f0fdf4" };
+  if (l.includes("ch")) return { color: "#64748b", bg: "#f8fafc" };
+  return { color: "#64748b", bg: "#f8fafc" };
+}
 
 type RubriqueOpt = { value: string; label: string; montant: number };
 
@@ -49,9 +53,13 @@ export default function AddPaiementPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const classes = useClasses();
+  const paiements = usePaiements();
+  const modesPaiement = useModesPaiementFinance();
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<EtudiantRecord | null>(null);
+  const [payMode, setPayMode] = useState<"nouvelle" | "existante">("nouvelle");
+  const [selectedQuittance, setSelectedQuittance] = useState<PaiementRecord | null>(null);
   const [selectedMoyen, setSelectedMoyen] = useState("Wave");
   const [selectedRubriques, setSelectedRubriques] = useState<string[]>(["inscription"]);
   const [montantVerse, setMontantVerse] = useState("");
@@ -67,6 +75,23 @@ export default function AddPaiementPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const rubriques = selectedStudent ? getRubriquesForStudent(selectedStudent) : [];
+
+  const pendingQuittances = useMemo(() => {
+    if (!selectedStudent) return [];
+    return paiements
+      .filter((p) => p.etudiantId === selectedStudent.id && p.statut !== "annule" && p.montant < montantQuittance(p))
+      .sort((a, b) => (a.dateLimite ?? a.date).localeCompare(b.dateLimite ?? b.date));
+  }, [paiements, selectedStudent]);
+
+  const pickQuittance = (q: PaiementRecord) => {
+    setSelectedQuittance(q);
+    setPayMode("existante");
+    const reste = montantQuittance(q) - q.montant;
+    setMontantVerse(String(reste));
+    setDateOperation(new Date().toISOString().split("T")[0]);
+    setReference("");
+    setStep(2);
+  };
 
   const lignes: PaiementLigne[] = useMemo(
     () =>
@@ -88,7 +113,21 @@ export default function AddPaiementPage() {
     : [];
 
   const handleSubmit = () => {
-    if (!selectedStudent || lignes.length === 0) return;
+    if (!selectedStudent) return;
+    if (payMode === "existante") {
+      if (!selectedQuittance) return;
+      payerQuittance({
+        id: selectedQuittance.id,
+        montant: Number(montantVerse) || 0,
+        moyen: selectedMoyen,
+        reference,
+        date: dateOperation,
+      });
+      setSubmitted(true);
+      setTimeout(() => setLocation(`/admin/paiements/${selectedQuittance.id}`), 1500);
+      return;
+    }
+    if (lignes.length === 0) return;
     const verse = Number(montantVerse) || totalFacture;
     registerPaiement({
       etudiantId: selectedStudent.id,
@@ -106,7 +145,9 @@ export default function AddPaiementPage() {
     setTimeout(() => setLocation(`/admin/students/${selectedStudent.id}`), 1500);
   };
 
-  const canConfirmStep2 = lignes.length > 0 && (!needsClasse || !!classeId);
+  const restantQuittance = selectedQuittance ? montantQuittance(selectedQuittance) - selectedQuittance.montant : 0;
+  const canConfirmStep2Existante = !!selectedQuittance && Number(montantVerse) > 0;
+  const canConfirmStep2 = payMode === "existante" ? canConfirmStep2Existante : lignes.length > 0 && (!needsClasse || !!classeId);
 
   return (
     <div>
@@ -183,10 +224,42 @@ export default function AddPaiementPage() {
             {searchQuery.length > 1 && filteredStudents.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">Aucun étudiant trouvé</p>
             )}
+
+            {selectedStudent && pendingQuittances.length > 0 && (
+              <div className="mt-4 border border-amber-200 bg-amber-50/60 rounded-xl p-4">
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <ReceiptText size={13} /> Quittances en attente de règlement
+                </p>
+                <div className="space-y-2">
+                  {pendingQuittances.map((q) => (
+                    <div key={q.id} className="flex items-center justify-between gap-3 bg-card border border-border rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium">{q.numeroRecu}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Reste {formatCFA(montantQuittance(q) - q.montant)}
+                          {q.dateLimite && ` — limite ${formatShortDate(q.dateLimite)}`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => pickQuittance(q)}
+                        className="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                        data-testid={`btn-payer-quittance-${q.id}`}
+                      >
+                        Régler
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={() => {
                 if (selectedStudent) {
                   const rubs = getRubriquesForStudent(selectedStudent);
+                  setPayMode("nouvelle");
+                  setSelectedQuittance(null);
                   setSelectedRubriques([rubs[0]?.value ?? "inscription"]);
                   setMontantVerse(String(rubs[0]?.montant ?? ""));
                   setClasseId(selectedStudent.classeId && !selectedStudent.classe.includes("attente") ? "" : "");
@@ -197,12 +270,114 @@ export default function AddPaiementPage() {
               className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors mt-4 flex items-center justify-center gap-2"
               data-testid="btn-next-step1"
             >
-              Suivant <ArrowRight size={16} />
+              Nouvelle facture <ArrowRight size={16} />
             </button>
           </div>
         )}
 
-        {step === 2 && selectedStudent && (
+        {step === 2 && selectedStudent && payMode === "existante" && selectedQuittance && (
+          <div className="bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+            <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border">
+              <UserAvatar name={`${selectedStudent.prenom} ${selectedStudent.nom}`} size="sm" />
+              <div>
+                <div className="font-semibold text-foreground text-sm">{selectedStudent.prenom} {selectedStudent.nom}</div>
+                <div className="text-xs text-muted-foreground">Règlement de la quittance {selectedQuittance.numeroRecu}</div>
+              </div>
+            </div>
+
+            <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-2">
+              {(selectedQuittance.lignes && selectedQuittance.lignes.length > 0
+                ? selectedQuittance.lignes
+                : [{ label: selectedQuittance.rubrique, montant: selectedQuittance.montant }]
+              ).map((l, i) => (
+                <div key={i} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{l.label}</span>
+                  <span>{formatCFA(l.montant)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm border-t border-border pt-2 font-semibold">
+                <span>Déjà payé</span>
+                <span>{formatCFA(selectedQuittance.montant)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold text-primary">
+                <span>Reste à payer</span>
+                <span>{formatCFA(restantQuittance)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
+                <input
+                  type="number"
+                  value={montantVerse}
+                  onChange={(e) => setMontantVerse(e.target.value)}
+                  max={restantQuittance}
+                  className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                  data-testid="input-montant"
+                />
+                {Number(montantVerse) > 0 && Number(montantVerse) < restantQuittance && (
+                  <p className="text-[11px] text-amber-600 mt-1">Versement partiel — la quittance restera en statut Acompte.</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
+                <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-3">Mode de paiement *</label>
+              <div className="grid grid-cols-3 gap-2">
+                {modesPaiement.map((m) => {
+                  const colors = moyenColors(m.intitule);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedMoyen(m.intitule)}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-xs font-semibold",
+                        selectedMoyen === m.intitule ? "border-current" : "border-border hover:border-muted-foreground",
+                      )}
+                      style={selectedMoyen === m.intitule ? { background: colors.bg, color: colors.color, borderColor: colors.color } : {}}
+                      data-testid={`moyen-${m.code}`}
+                    >
+                      <div className="w-5 h-5 rounded-full" style={{ background: colors.color }} />
+                      {m.intitule}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° reçu / Référence</label>
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Auto si vide"
+                className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(1)} className="flex items-center gap-2 flex-1 justify-center py-3 border border-border rounded-xl font-medium hover:bg-muted transition-colors">
+                <ArrowLeft size={16} /> Retour
+              </button>
+              <button
+                onClick={() => canConfirmStep2 && setStep(3)}
+                disabled={!canConfirmStep2}
+                className="flex items-center gap-2 flex-1 justify-center py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Confirmer <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && selectedStudent && payMode === "nouvelle" && (
           <div className="bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border">
               <UserAvatar name={`${selectedStudent.prenom} ${selectedStudent.nom}`} size="sm" />
@@ -290,22 +465,22 @@ export default function AddPaiementPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-3">Mode de paiement *</label>
               <div className="grid grid-cols-3 gap-2">
-                {MODES_PAIEMENT.map((m) => {
-                  const colors = MOYEN_COLORS[m.key] ?? { color: "#64748b", bg: "#f8fafc" };
+                {modesPaiement.map((m) => {
+                  const colors = moyenColors(m.intitule);
                   return (
                   <button
-                    key={m.key}
+                    key={m.id}
                     type="button"
-                    onClick={() => setSelectedMoyen(m.key)}
+                    onClick={() => setSelectedMoyen(m.intitule)}
                     className={cn(
                       "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-xs font-semibold",
-                      selectedMoyen === m.key ? "border-current" : "border-border hover:border-muted-foreground"
+                      selectedMoyen === m.intitule ? "border-current" : "border-border hover:border-muted-foreground"
                     )}
-                    style={selectedMoyen === m.key ? { background: colors.bg, color: colors.color, borderColor: colors.color } : {}}
-                    data-testid={`moyen-${m.key}`}
+                    style={selectedMoyen === m.intitule ? { background: colors.bg, color: colors.color, borderColor: colors.color } : {}}
+                    data-testid={`moyen-${m.code}`}
                   >
                     <div className="w-5 h-5 rounded-full" style={{ background: colors.color }} />
-                    {m.label}
+                    {m.intitule}
                   </button>
                 );})}
               </div>
@@ -364,7 +539,59 @@ export default function AddPaiementPage() {
           </div>
         )}
 
-        {step === 3 && selectedStudent && (
+        {step === 3 && selectedStudent && payMode === "existante" && selectedQuittance && (
+          <div className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
+            {submitted ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Check size={28} className="text-emerald-600" />
+                </div>
+                <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Règlement enregistré</h3>
+                <p className="text-sm text-muted-foreground mt-1">Quittance mise à jour — redirection...</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-6">
+                  <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <ClipboardCheck size={24} className="text-primary" />
+                  </div>
+                  <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Confirmation — règlement de quittance</h3>
+                </div>
+                <div className="bg-muted/30 rounded-xl border border-border p-4 space-y-3 mb-6">
+                  {[
+                    { label: "Étudiant", value: `${selectedStudent.prenom} ${selectedStudent.nom}` },
+                    { label: "Quittance", value: selectedQuittance.numeroRecu, mono: true },
+                    { label: "Montant versé", value: formatCFA(parseInt(montantVerse || "0", 10)), primary: true },
+                    {
+                      label: "Reste après ce règlement",
+                      value: formatCFA(Math.max(0, restantQuittance - (parseInt(montantVerse || "0", 10)))),
+                    },
+                    { label: "Date", value: dateOperation },
+                    { label: "Moyen", value: selectedMoyen },
+                    ...(reference ? [{ label: "Référence", value: reference, mono: true }] : []),
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between text-sm border-b border-border last:border-0 pb-2 last:pb-0">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className={cn("font-medium text-foreground", "mono" in row && row.mono && "font-mono text-xs", "primary" in row && row.primary && "text-primary font-bold text-base")}>
+                        {row.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setStep(2)} className="flex items-center gap-2 flex-1 justify-center py-3 border border-border rounded-xl font-medium hover:bg-muted transition-colors">
+                    <ArrowLeft size={16} /> Retour
+                  </button>
+                  <button onClick={handleSubmit} className="flex items-center gap-2 flex-1 justify-center py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors">
+                    <Check size={16} /> Valider le règlement
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {step === 3 && selectedStudent && payMode === "nouvelle" && (
           <div className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
             {submitted ? (
               <div className="text-center py-8">
@@ -400,7 +627,7 @@ export default function AddPaiementPage() {
                     { label: "Montant versé", value: formatCFA(parseInt(montantVerse || "0", 10)), primary: true },
                     { label: "Date", value: dateOperation },
                     { label: "Statut", value: STATUTS_PAIEMENT.find((s) => s.value === statutPaiement)?.label },
-                    { label: "Moyen", value: MODES_PAIEMENT.find((m) => m.key === selectedMoyen)?.label },
+                    { label: "Moyen", value: selectedMoyen },
                     ...(classeId
                       ? [{ label: "Classe", value: classes.find((c) => c.id === classeId)?.nom }]
                       : []),

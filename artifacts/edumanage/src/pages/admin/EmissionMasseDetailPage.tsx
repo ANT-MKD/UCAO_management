@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
 import { usePaiements } from "@/hooks/useStudentStore";
-import { cancelEmissionMasse } from "@/data/emissionMasseStore";
+import { cancelEmissionMasse, RUBRIQUE_EMISSION_LABELS } from "@/data/emissionMasseStore";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 function buildEmissionHtml(args: {
@@ -182,6 +182,16 @@ export default function EmissionMasseDetailPage({ id }: { id: string }) {
           <p className="font-semibold text-sm mt-1">{formatCFA(montantTotal)}</p>
           <p className="text-xs text-muted-foreground">{quittances.length} quittance(s)</p>
         </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <h3 className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Rubriques facturées</h3>
+        <p className="text-sm">
+          {(record.rubriques ?? []).map((r) => RUBRIQUE_EMISSION_LABELS[r]).join(" + ") || "—"}
+          {record.nbMensualites > 1 && (
+            <span className="text-muted-foreground"> — étalées sur {record.nbMensualites} mensualités</span>
+          )}
+        </p>
       </div>
 
       {record.commentaire && (

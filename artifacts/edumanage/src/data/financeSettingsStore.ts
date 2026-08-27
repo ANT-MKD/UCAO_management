@@ -114,6 +114,8 @@ const SEED_MODES_PAIEMENT: ModePaiementFinanceRecord[] = [
   { id: "mp-seed-2", code: "CHQ", intitule: "Chèque" },
   { id: "mp-seed-3", code: "ESP", intitule: "Espèce" },
   { id: "mp-seed-4", code: "VIR", intitule: "Virement" },
+  { id: "mp-seed-5", code: "WAVE", intitule: "Wave" },
+  { id: "mp-seed-6", code: "OM", intitule: "Orange Money" },
 ];
 
 const SEED_TYPES_FACTURE: TypeFactureRecord[] = [];

@@ -1,17 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Send } from "lucide-react";
+import { Send, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, FRAIS_CONFIG } from "@/data/mockData";
+import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
-import { addEmissionMasse } from "@/data/emissionMasseStore";
+import {
+  addEmissionMasse,
+  findActiveEmissionForClasse,
+  montantGrilleParRubrique,
+  RUBRIQUE_EMISSION_LABELS,
+  type RubriqueEmission,
+} from "@/data/emissionMasseStore";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCFA } from "@/lib/utils";
+import { formatCFA, cn } from "@/lib/utils";
 
 const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
 const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0]?.libelle ?? "2025-2026";
+const RUBRIQUE_OPTIONS: RubriqueEmission[] = ["inscription", "scolarite", "fraisDivers"];
 
 function todayPlus(days: number): string {
   const d = new Date();
@@ -32,6 +39,9 @@ export default function EmissionMasseFormPage() {
   const [annee, setAnnee] = useState(DEFAULT_ANNEE);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
+  const [rubriques, setRubriques] = useState<RubriqueEmission[]>(["scolarite"]);
+  const [nbMensualites, setNbMensualites] = useState("1");
+  const [excludedIds, setExcludedIds] = useState<string[]>([]);
   const [dateEcheance, setDateEcheance] = useState(todayPlus(0));
   const [dateLimite, setDateLimite] = useState(todayPlus(30));
   const [commentaire, setCommentaire] = useState("");
@@ -45,8 +55,19 @@ export default function EmissionMasseFormPage() {
 
   const selectedClasse = filteredClasses.find((c) => c.id === classeId) ?? null;
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
-  const grille = FRAIS_CONFIG.find((f) => f.filiereId === filiereId && f.niveau === niveau?.alias && f.annee === annee);
-  const effectif = selectedClasse ? etudiants.filter((e) => e.classeId === selectedClasse.id && e.statut !== "suspendu").length : 0;
+  const grilleTotal = montantGrilleParRubrique(filiereId, niveau?.alias ?? "", annee, rubriques);
+  const classeStudents = selectedClasse
+    ? etudiants.filter((e) => e.classeId === selectedClasse.id && e.statut !== "suspendu")
+    : [];
+  const includedStudents = classeStudents.filter((e) => !excludedIds.includes(e.id));
+  const nbMens = Math.max(1, Math.round(Number(nbMensualites) || 1));
+  const montantParEcheance = nbMens > 1 ? Math.round(grilleTotal / nbMens) : grilleTotal;
+
+  const activeExisting = classeId ? findActiveEmissionForClasse(classeId, annee) : undefined;
+
+  useEffect(() => {
+    setExcludedIds([]);
+  }, [classeId]);
 
   const handleFiliereChange = (id: string) => {
     setFiliereId(id);
@@ -64,17 +85,29 @@ export default function EmissionMasseFormPage() {
     setClasseId("");
   };
 
+  const toggleRubrique = (r: RubriqueEmission) => {
+    setRubriques((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  };
+
+  const toggleExclude = (id: string) => {
+    setExcludedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   const handleSubmit = () => {
     if (!filiereId || !niveauId || !classeId) {
       toast.error("Sélectionnez la filière, le niveau et la classe");
+      return;
+    }
+    if (rubriques.length === 0) {
+      toast.error("Sélectionnez au moins une rubrique à facturer");
       return;
     }
     if (!dateEcheance || !dateLimite) {
       toast.error("Indiquez la date d'échéance et la date limite");
       return;
     }
-    if (effectif === 0) {
-      toast.error("Aucun étudiant actif dans cette classe");
+    if (includedStudents.length === 0) {
+      toast.error("Aucun étudiant retenu pour cette génération");
       return;
     }
 
@@ -92,9 +125,12 @@ export default function EmissionMasseFormPage() {
       dateLimite,
       commentaire,
       emisPar: currentUser?.name ?? "Administration",
+      rubriques,
+      nbMensualites: nbMens,
+      etudiantIds: includedStudents.map((e) => e.id),
     });
 
-    toast.success(`Émission ${record.reference} générée pour ${effectif} étudiant(s)`);
+    toast.success(`Émission ${record.reference} générée pour ${includedStudents.length} étudiant(s)`);
     setLocation(`/admin/emissions-masse/${record.id}`);
   };
 
@@ -108,7 +144,7 @@ export default function EmissionMasseFormPage() {
           { label: "Nouvelle émission" },
         ]}
         title="Nouvelle émission en masse"
-        subtitle="Génère une quittance pour chaque étudiant actif de la classe sélectionnée, selon la grille tarifaire en vigueur"
+        subtitle="Génère une quittance pour chaque étudiant retenu de la classe sélectionnée, selon la grille tarifaire en vigueur"
       />
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -184,14 +220,98 @@ export default function EmissionMasseFormPage() {
           )}
         </div>
 
-        {selectedClasse && (
-          <div className="bg-muted/30 border border-border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+        {activeExisting && (
+          <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-50 text-amber-800 text-xs">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
             <span>
-              <strong>{effectif}</strong> étudiant(s) actif(s) recevront une quittance de{" "}
-              <strong>{grille ? formatCFA(grille.scolariteAnnuelle) : "0 FCFA"}</strong> (Scolarité annuelle)
+              Une émission active existe déjà pour cette classe sur {annee} : <strong>{activeExisting.reference}</strong> (
+              {activeExisting.quittanceIds.length} quittance(s), émise le {activeExisting.emisLe}). Vérifiez avant de continuer pour
+              éviter une double facturation.
             </span>
-            {!grille && <span className="text-amber-600 text-xs">Aucune grille tarifaire configurée pour ce niveau/année.</span>}
           </div>
+        )}
+
+        {selectedClasse && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-2">
+                Rubriques à facturer <span className="text-red-500">*</span>
+              </label>
+              <div className="grid sm:grid-cols-3 gap-2">
+                {RUBRIQUE_OPTIONS.map((r) => {
+                  const checked = rubriques.includes(r);
+                  return (
+                    <label
+                      key={r}
+                      className={cn(
+                        "flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors text-sm",
+                        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                      )}
+                    >
+                      <input type="checkbox" checked={checked} onChange={() => toggleRubrique(r)} className="rounded" />
+                      {RUBRIQUE_EMISSION_LABELS[r]}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Répartition</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={nbMensualites}
+                    onChange={(e) => setNbMensualites(e.target.value)}
+                    className={cn(inputClass, "max-w-[100px]")}
+                  />
+                  <span className="text-xs text-muted-foreground">mensualité(s) — 1 = paiement unique</span>
+                </div>
+              </div>
+              <div className="bg-muted/30 border border-border rounded-xl p-3 text-sm flex flex-col justify-center">
+                <span className="text-xs text-muted-foreground">Montant par étudiant</span>
+                <span className="font-semibold">
+                  {formatCFA(grilleTotal)}
+                  {nbMens > 1 && (
+                    <span className="text-muted-foreground font-normal"> ({nbMens} × {formatCFA(montantParEcheance)})</span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {rubriques.length > 0 && grilleTotal === 0 && (
+              <p className="text-xs text-amber-600">Aucune grille tarifaire configurée pour ce niveau/année — le montant sera de 0 FCFA.</p>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-2">
+                Étudiants de la classe ({includedStudents.length}/{classeStudents.length} retenu(s))
+              </label>
+              <div className="border border-border rounded-xl max-h-56 overflow-y-auto divide-y divide-border">
+                {classeStudents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center">Aucun étudiant actif dans cette classe.</p>
+                ) : (
+                  classeStudents.map((e) => {
+                    const excluded = excludedIds.includes(e.id);
+                    return (
+                      <label key={e.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-muted/30">
+                        <span className="flex items-center gap-2">
+                          <input type="checkbox" checked={!excluded} onChange={() => toggleExclude(e.id)} className="rounded" />
+                          <span className={cn(excluded && "text-muted-foreground line-through")}>
+                            {e.prenom} {e.nom}
+                          </span>
+                        </span>
+                        <span className="text-xs text-muted-foreground font-mono">{e.matricule}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </>
         )}
 
         <div className="grid sm:grid-cols-2 gap-4">
