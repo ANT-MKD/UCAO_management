@@ -142,8 +142,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-paiement-prof",
         label: "Paiement professeur",
         children: [
-          { id: "fin-paiement-prof-nouveau", label: "Nouveau paiement professeur", href: "/admin/vacations/new" },
-          { id: "fin-paiement-prof-liste", label: "Les paiements professeurs", href: "/admin/vacations" },
+          { id: "fin-paiement-prof-nouveau", label: "Nouveau paiement professeur", href: "/admin/decomptes-professeurs/new" },
+          { id: "fin-paiement-prof-liste", label: "Les paiements professeurs", href: "/admin/decomptes-professeurs" },
         ],
       },
       { id: "fin-devis", label: "Devis", href: wipHref("fin-devis") },

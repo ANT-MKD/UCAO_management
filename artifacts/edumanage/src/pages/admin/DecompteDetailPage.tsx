@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Ban, ChevronDown, ChevronRight, Printer } from "lucide-react";
+import { ArrowLeft, Ban, ChevronDown, ChevronRight, CircleDollarSign, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { annulerDecompte } from "@/data/decompteStore";
+import { useDecomptePaiements } from "@/hooks/useDecomptePaiementStore";
 import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -62,10 +63,12 @@ th{background:#f3f4f6;text-align:left}
 export default function DecompteDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const decomptes = useDecomptes();
+  const paiements = useDecomptePaiements();
   const [expanded, setExpanded] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const record = decomptes.find((d) => d.id === id);
+  const historiquePaiements = record ? paiements.filter((p) => p.decompteId === record.id).sort((a, b) => b.date.localeCompare(a.date)) : [];
 
   if (!record) {
     return (
@@ -82,7 +85,12 @@ export default function DecompteDetailPage({ id }: { id: string }) {
   }
 
   const handleCancel = () => {
-    annulerDecompte(record.id);
+    const result = annulerDecompte(record.id);
+    if (!result.ok) {
+      toast.error(result.reason);
+      setConfirmCancel(false);
+      return;
+    }
     toast.success("Décompte annulé — les pointages qu'il contenait redeviennent éligibles à un futur décompte");
     setConfirmCancel(false);
   };
@@ -130,6 +138,15 @@ export default function DecompteDetailPage({ id }: { id: string }) {
             >
               <Printer size={15} /> Imprimer
             </button>
+            {record.statut !== "annule" && record.netAPayer - record.montantPaye > 0 && (
+              <button
+                onClick={() => setLocation(`/admin/decomptes-professeurs/new?decompteId=${record.id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors"
+                data-testid="decompte-payer"
+              >
+                <CircleDollarSign size={15} /> Payer
+              </button>
+            )}
           </div>
         }
       />
@@ -177,6 +194,36 @@ export default function DecompteDetailPage({ id }: { id: string }) {
           </span>
         </div>
       </div>
+
+      {historiquePaiements.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div className="px-5 py-3 border-b border-border bg-muted/40">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Historique des paiements</h3>
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {historiquePaiements.map((p) => (
+                <tr
+                  key={p.id}
+                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                  onClick={() => setLocation(`/admin/decomptes-professeurs/${p.id}`)}
+                  data-testid={`decompte-paiement-hist-${p.id}`}
+                >
+                  <td className="px-5 py-3 font-medium">{p.reference}</td>
+                  <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">{formatDate(p.date)}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{p.moyen}</td>
+                  <td className="px-5 py-3 text-right font-semibold">{formatCFA(p.montant)}</td>
+                  <td className="px-5 py-3 text-center">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", p.annulee ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
+                      {p.annulee ? "Annulé" : "Validé"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <button
@@ -235,13 +282,17 @@ export default function DecompteDetailPage({ id }: { id: string }) {
         )}
       </div>
 
-      {record.statut !== "annule" ? (
+      {record.statut === "annule" ? (
+        <p className="text-sm text-red-600 font-medium">Ce décompte a été annulé.</p>
+      ) : record.montantPaye > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Un paiement a déjà été enregistré sur ce décompte — annulation impossible.
+        </p>
+      ) : (
         <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
           <input type="checkbox" checked={false} onChange={() => setConfirmCancel(true)} className="rounded" />
           Annuler le décompte
         </label>
-      ) : (
-        <p className="text-sm text-red-600 font-medium">Ce décompte a été annulé.</p>
       )}
 
       {confirmCancel && (

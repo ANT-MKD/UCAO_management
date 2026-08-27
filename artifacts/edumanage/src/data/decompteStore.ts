@@ -132,10 +132,34 @@ export function genererDecompte(payload: GenererDecomptePayload): DecompteRecord
   return record;
 }
 
-/** Annule un décompte émis (les pointages qu'il contenait redeviennent éligibles pour un futur décompte). */
-export function annulerDecompte(id: string): void {
+/** Annule un décompte émis (les pointages qu'il contenait redeviennent éligibles pour un futur décompte). Refuse si un paiement a déjà été enregistré dessus. */
+export function annulerDecompte(id: string): { ok: boolean; reason?: string } {
   const record = store.records.find((r) => r.id === id);
-  if (!record || record.statut === "annule") return;
+  if (!record || record.statut === "annule") return { ok: false, reason: "Décompte introuvable ou déjà annulé." };
+  if (record.montantPaye > 0) {
+    return { ok: false, reason: "Ce décompte a déjà un paiement enregistré — impossible de l'annuler." };
+  }
   store.records = store.records.map((r) => (r.id === id ? { ...r, statut: "annule" as const } : r));
+  persist();
+  return { ok: true };
+}
+
+/** Applique un paiement (total ou partiel) sur un décompte émis. Plafonné au net à payer. */
+export function payerDecompte(id: string, montant: number): DecompteRecord | undefined {
+  const record = store.records.find((r) => r.id === id);
+  if (!record || record.statut === "annule") return undefined;
+  const nouveauMontantPaye = Math.min(record.netAPayer, record.montantPaye + Math.max(0, montant));
+  const updated: DecompteRecord = { ...record, montantPaye: nouveauMontantPaye };
+  store.records = store.records.map((r) => (r.id === id ? updated : r));
+  persist();
+  return updated;
+}
+
+/** Retire un paiement appliqué sur un décompte (ex. annulation d'un paiement professeur) : opération symétrique de payerDecompte(). */
+export function reverserPaiementDecompte(id: string, montant: number): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record) return;
+  const nouveauMontantPaye = Math.max(0, record.montantPaye - Math.max(0, montant));
+  store.records = store.records.map((r) => (r.id === id ? { ...r, montantPaye: nouveauMontantPaye } : r));
   persist();
 }

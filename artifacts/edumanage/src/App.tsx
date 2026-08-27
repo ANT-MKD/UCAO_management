@@ -106,6 +106,9 @@ const DecomptesPage = lazy(() => import("@/pages/admin/DecomptesPage"));
 const DecompteTauxHoraireFormPage = lazy(() => import("@/pages/admin/DecompteTauxHoraireFormPage"));
 const DecompteForfaitFormPage = lazy(() => import("@/pages/admin/DecompteForfaitFormPage"));
 const DecompteATermeFormPage = lazy(() => import("@/pages/admin/DecompteATermeFormPage"));
+const DecomptePaiementsPage = lazy(() => import("@/pages/admin/DecomptePaiementsPage"));
+const DecomptePaiementFormPage = lazy(() => import("@/pages/admin/DecomptePaiementFormPage"));
+const DecomptePaiementDetailPage = lazy(() => import("@/pages/admin/DecomptePaiementDetailPage"));
 const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
@@ -417,6 +420,12 @@ function AppRouter() {
       <Route path="/admin/decomptes/a-terme/new">
         <Admin><DecompteATermeFormPage /></Admin>
       </Route>
+      <Route path="/admin/decomptes-professeurs/new">
+        <Admin><DecomptePaiementFormPage /></Admin>
+      </Route>
+      <Route path="/admin/decomptes-professeurs/:id">
+        {(p) => <Admin><DecomptePaiementDetailPage id={p.id} /></Admin>}
+      </Route>
       <Route path="/admin/decomptes/:id">
         {(p) => <Admin><DecompteDetailPage id={p.id} /></Admin>}
       </Route>
@@ -511,6 +520,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/decomptes">
         <Admin><DecomptesPage /></Admin>
+      </Route>
+      <Route path="/admin/decomptes-professeurs">
+        <Admin><DecomptePaiementsPage /></Admin>
       </Route>
       <Route path="/admin/encaissements-pec">
         <Admin><EncaissementPECPage /></Admin>
