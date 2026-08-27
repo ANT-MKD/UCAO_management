@@ -10,7 +10,7 @@ export interface AvoirDepotRecord {
   payeur: string;
   montant: number;
   motif: string;
-  moyenOrigine?: string;
+  moyenOrigine: string;
   referenceBancaire?: string;
   ajouteePar: string;
   annulee: boolean;
@@ -68,7 +68,7 @@ export interface DeposerAvoirPayload {
   payeur: string;
   montant: number;
   motif: string;
-  moyenOrigine?: string;
+  moyenOrigine: string;
   referenceBancaire?: string;
   date: string;
   ajouteePar: string;

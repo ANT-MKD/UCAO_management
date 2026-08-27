@@ -7,6 +7,7 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
 import { deposerAvoir } from "@/data/avoirDepotStore";
+import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, cn } from "@/lib/utils";
 
@@ -16,7 +17,9 @@ const inputClass =
 export default function AvoirDepotFormPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
+  const modesPaiement = useModesPaiementFinance();
   const { currentUser } = useAuth();
+  const originesDisponibles = modesPaiement.filter((m) => m.intitule.toUpperCase() !== "AVOIR");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<EtudiantRecord | null>(null);
@@ -33,12 +36,12 @@ export default function AvoirDepotFormPage() {
       ).slice(0, 5)
     : [];
 
-  const canSubmit = !!selectedStudent && Number(montant) > 0 && motif.trim().length > 0;
+  const canSubmit = !!selectedStudent && Number(montant) > 0 && motif.trim().length > 0 && moyenOrigine.trim().length > 0;
 
   const handleSubmit = () => {
     if (!selectedStudent) return;
     if (!canSubmit) {
-      toast.error("Sélectionnez un étudiant, un montant et un motif");
+      toast.error("Sélectionnez un étudiant, un montant, un motif et une origine du crédit");
       return;
     }
     const record = deposerAvoir({
@@ -46,7 +49,7 @@ export default function AvoirDepotFormPage() {
       payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
       montant: Number(montant),
       motif: motif.trim(),
-      moyenOrigine: moyenOrigine.trim() || undefined,
+      moyenOrigine,
       referenceBancaire: referenceBancaire.trim() || undefined,
       date,
       ajouteePar: currentUser?.name ?? "Administration",
@@ -147,8 +150,15 @@ export default function AvoirDepotFormPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Origine du crédit (optionnel)</label>
-            <input value={moyenOrigine} onChange={(e) => setMoyenOrigine(e.target.value)} className={inputClass} placeholder="ex. Virement, Espèce…" />
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Origine du crédit <span className="text-red-500">*</span>
+            </label>
+            <select value={moyenOrigine} onChange={(e) => setMoyenOrigine(e.target.value)} className={inputClass} data-testid="depot-avoir-origine">
+              <option value="">Sélectionner…</option>
+              {originesDisponibles.map((m) => (
+                <option key={m.id} value={m.intitule}>{m.intitule}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
