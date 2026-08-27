@@ -26,9 +26,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
 
   // Finances — Avoir
 
-  // Finances — Décompte
-  "fin-decompte-terme": { title: "À terme", section: "Finances · Décompte" },
-
   // Finances — divers
   "fin-devis": { title: "Devis", section: "Finances" },
   "fin-reduction-autorisee": { title: "Réduction autorisée", section: "Finances · Réduction" },

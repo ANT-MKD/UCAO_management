@@ -129,6 +129,13 @@ export default function DecomptesPage() {
             >
               <Plus size={14} /> Décompte forfait
             </button>
+            <button
+              onClick={() => setLocation("/admin/decomptes/a-terme/new")}
+              className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-medium hover:bg-primary/90 transition-colors"
+              data-testid="btn-new-decompte-aterme"
+            >
+              <Plus size={14} /> Décompte à terme
+            </button>
           </div>
         }
       />

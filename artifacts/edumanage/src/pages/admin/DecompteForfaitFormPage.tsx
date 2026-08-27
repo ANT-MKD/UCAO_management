@@ -9,10 +9,12 @@ import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import { useTeacherVolumes } from "@/hooks/useTeacherVolumeStore";
+import { useTeacherCourseStatuses } from "@/hooks/useTeacherCourseStatusStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { makeTeacherRateId } from "@/data/teacherRateStore";
 import { makeTeacherVolumeId, getTeacherVolume } from "@/data/teacherVolumeStore";
+import { makeTeacherCourseStatusId } from "@/data/teacherCourseStatusStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
 import { buildTeacherCourses, niveauLabel } from "@/lib/teacherCourseUtils";
 import { filterTeachers, teacherDisplayLabel, computeVhPointe, type EnseignantRecord } from "@/lib/teacherUtils";
@@ -57,6 +59,7 @@ export default function DecompteForfaitFormPage() {
   const classes = useClasses();
   const teacherRates = useTeacherRates();
   const teacherVolumes = useTeacherVolumes();
+  const teacherCourseStatuses = useTeacherCourseStatuses();
   const pointages = usePointages();
   const decomptes = useDecomptes();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
@@ -80,6 +83,9 @@ export default function DecompteForfaitFormPage() {
       const rateId = makeTeacherRateId(selected.id, course.ecId, course.classeId, anneeScolaire);
       const rate = teacherRates.find((r) => r.id === rateId);
       if (!rate || rate.modePaiement !== "forfait" || rate.montant == null) continue;
+      const statusId = makeTeacherCourseStatusId(selected.id, course.ecId, course.classeId, anneeScolaire);
+      const status = teacherCourseStatuses.find((s) => s.id === statusId);
+      if (status?.typeComptabilisation === "a_terme") continue; // ces cours passent par le décompte "À terme"
 
       const sourceId = `forfait:${selected.id}:${course.ecId}:${course.classeId}:${anneeScolaire}`;
       if (sourceIdsDejaDecomptes.has(sourceId)) continue;
@@ -126,7 +132,7 @@ export default function DecompteForfaitFormPage() {
       });
     }
     return lines.sort((a, b) => a.coursLabel.localeCompare(b.coursLabel, "fr"));
-  }, [selected, seances, cahiers, ecs, ues, classes, anneeScolaire, teacherRates, teacherVolumes, pointages, sourceIdsDejaDecomptes]);
+  }, [selected, seances, cahiers, ecs, ues, classes, anneeScolaire, teacherRates, teacherVolumes, teacherCourseStatuses, pointages, sourceIdsDejaDecomptes]);
 
   const pickTeacher = (t: EnseignantRecord) => {
     setSelectedId(t.id);

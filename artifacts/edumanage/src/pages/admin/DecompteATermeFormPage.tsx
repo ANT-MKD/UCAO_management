@@ -11,7 +11,7 @@ import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import { useTeacherCourseStatuses } from "@/hooks/useTeacherCourseStatusStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
-import { makeTeacherRateId } from "@/data/teacherRateStore";
+import { makeTeacherRateId, type ModePaiementProf } from "@/data/teacherRateStore";
 import { makeTeacherCourseStatusId } from "@/data/teacherCourseStatusStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
 import { buildTeacherCourses, niveauLabel } from "@/lib/teacherCourseUtils";
@@ -20,7 +20,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 interface EligibleLine {
-  pointageId: string;
+  sourceId: string;
+  mode: ModePaiementProf;
   ecId: string;
   classeId: string;
   coursLabel: string;
@@ -46,7 +47,7 @@ const DEFAULT_ANNEE =
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
-export default function DecompteTauxHoraireFormPage() {
+export default function DecompteATermeFormPage() {
   const [, setLocation] = useLocation();
   const { currentUser } = useAuth();
   const seances = useSeances();
@@ -68,45 +69,86 @@ export default function DecompteTauxHoraireFormPage() {
   const selected = teachers.find((t) => t.id === selectedId) ?? null;
   const suggestions = useMemo(() => filterTeachers(teachers, query).slice(0, 8), [teachers, query]);
 
-  const pointageIdsDejaDecomptes = useMemo(() => getPointageIdsDejaDecomptes(), [decomptes]);
+  const sourceIdsDejaDecomptes = useMemo(() => getPointageIdsDejaDecomptes(), [decomptes]);
 
   const eligibleLines: EligibleLine[] = useMemo(() => {
     if (!selected) return [];
     const courseItems = buildTeacherCourses(selected, seances, ecs, ues, classes, anneeScolaire);
     const lines: EligibleLine[] = [];
     for (const course of courseItems) {
-      const rateId = makeTeacherRateId(selected.id, course.ecId, course.classeId, anneeScolaire);
-      const rate = teacherRates.find((r) => r.id === rateId);
-      if (!rate || rate.modePaiement !== "taux_horaire" || rate.montant == null) continue;
       const statusId = makeTeacherCourseStatusId(selected.id, course.ecId, course.classeId, anneeScolaire);
       const status = teacherCourseStatuses.find((s) => s.id === statusId);
-      if (status?.typeComptabilisation === "a_terme") continue; // ces cours passent par le décompte "À terme"
+      if (status?.typeComptabilisation !== "a_terme") continue; // seuls les cours explicitement marqués "à terme"
+
+      const rateId = makeTeacherRateId(selected.id, course.ecId, course.classeId, anneeScolaire);
+      const rate = teacherRates.find((r) => r.id === rateId);
+      if (!rate || !rate.modePaiement || rate.montant == null) continue;
+
       const classe = classes.find((c) => c.id === course.classeId);
       const ec = ecs.find((e) => e.id === course.ecId);
       const ue = ec ? ues.find((u) => u.id === ec.ueId) : undefined;
-      const coursPointages = pointages.filter(
-        (p) =>
-          p.teacherId === selected.id &&
-          p.ecId === course.ecId &&
-          p.classeId === course.classeId &&
-          p.annee === anneeScolaire &&
-          p.statut === "valide" &&
-          !pointageIdsDejaDecomptes.has(p.id),
-      );
-      for (const p of coursPointages) {
-        const montantBrut = p.volumePointe * (rate.montant ?? 0);
+      const niveauTxt = classe ? niveauLabel(classe.niveau) : "";
+      const classeTxt = classe?.nom ?? "";
+      const semestreTxt = ue?.semestre ?? "";
+
+      if (rate.modePaiement === "taux_horaire") {
+        const coursPointages = pointages.filter(
+          (p) =>
+            p.teacherId === selected.id &&
+            p.ecId === course.ecId &&
+            p.classeId === course.classeId &&
+            p.annee === anneeScolaire &&
+            p.statut === "valide" &&
+            !sourceIdsDejaDecomptes.has(p.id),
+        );
+        for (const p of coursPointages) {
+          const montantBrut = p.volumePointe * (rate.montant ?? 0);
+          const abattementMontant = (montantBrut * rate.tauxAbatt) / 100;
+          lines.push({
+            sourceId: p.id,
+            mode: "taux_horaire",
+            ecId: course.ecId,
+            classeId: course.classeId,
+            coursLabel: course.coursLabel,
+            duree: p.volumePointe,
+            date: p.date,
+            niveauLabel: niveauTxt,
+            classeLabel: classeTxt,
+            anneeLabel: anneeScolaire,
+            semestreLabel: semestreTxt,
+            montantBrut,
+            abattementPct: rate.tauxAbatt,
+            abattementMontant,
+            montantNet: montantBrut - abattementMontant,
+          });
+        }
+      } else if (rate.modePaiement === "forfait") {
+        const sourceId = `aterme-forfait:${selected.id}:${course.ecId}:${course.classeId}:${anneeScolaire}`;
+        if (sourceIdsDejaDecomptes.has(sourceId)) continue;
+        const coursPointages = pointages.filter(
+          (p) =>
+            p.teacherId === selected.id &&
+            p.ecId === course.ecId &&
+            p.classeId === course.classeId &&
+            p.annee === anneeScolaire &&
+            p.statut === "valide",
+        );
+        if (coursPointages.length === 0) continue; // au moins un pointage validé pour prouver que le cours a débuté
+        const dateFin = coursPointages.reduce((max, p) => (p.date > max ? p.date : max), "");
+        const montantBrut = rate.montant ?? 0;
         const abattementMontant = (montantBrut * rate.tauxAbatt) / 100;
         lines.push({
-          pointageId: p.id,
+          sourceId,
+          mode: "forfait",
           ecId: course.ecId,
           classeId: course.classeId,
           coursLabel: course.coursLabel,
-          duree: p.volumePointe,
-          date: p.date,
-          niveauLabel: classe ? niveauLabel(classe.niveau) : "",
-          classeLabel: classe?.nom ?? "",
+          duree: coursPointages.reduce((s, p) => s + p.volumePointe, 0),
+          date: dateFin,
+          niveauLabel: niveauTxt,
+          classeLabel: classeTxt,
           anneeLabel: anneeScolaire,
-          semestreLabel: ue?.semestre ?? "",
+          semestreLabel: semestreTxt,
           montantBrut,
           abattementPct: rate.tauxAbatt,
           abattementMontant,
@@ -114,8 +156,8 @@ export default function DecompteTauxHoraireFormPage() {
         });
       }
     }
-    return lines.sort((a, b) => a.date.localeCompare(b.date));
-  }, [selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes]);
+    return lines.sort((a, b) => a.coursLabel.localeCompare(b.coursLabel, "fr") || a.date.localeCompare(b.date));
+  }, [selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, sourceIdsDejaDecomptes]);
 
   const pickTeacher = (t: EnseignantRecord) => {
     setSelectedId(t.id);
@@ -124,21 +166,21 @@ export default function DecompteTauxHoraireFormPage() {
     setChecked(new Set());
   };
 
-  const toggleLine = (pointageId: string) => {
+  const toggleLine = (sourceId: string) => {
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(pointageId)) next.delete(pointageId);
-      else next.add(pointageId);
+      if (next.has(sourceId)) next.delete(sourceId);
+      else next.add(sourceId);
       return next;
     });
   };
 
   const toggleAll = () => {
     if (checked.size === eligibleLines.length) setChecked(new Set());
-    else setChecked(new Set(eligibleLines.map((l) => l.pointageId)));
+    else setChecked(new Set(eligibleLines.map((l) => l.sourceId)));
   };
 
-  const selectedLines = eligibleLines.filter((l) => checked.has(l.pointageId));
+  const selectedLines = eligibleLines.filter((l) => checked.has(l.sourceId));
   const totalBrut = selectedLines.reduce((s, l) => s + l.montantBrut, 0);
   const totalAbattement = selectedLines.reduce((s, l) => s + l.abattementMontant, 0);
   const totalNet = selectedLines.reduce((s, l) => s + l.montantNet, 0);
@@ -146,7 +188,7 @@ export default function DecompteTauxHoraireFormPage() {
   const handleGenerer = () => {
     if (!selected || selectedLines.length === 0) return;
     const lignes: DecompteLigne[] = selectedLines.map((l) => ({
-      pointageId: l.pointageId,
+      pointageId: l.sourceId,
       ecId: l.ecId,
       classeId: l.classeId,
       coursLabel: l.coursLabel,
@@ -164,7 +206,7 @@ export default function DecompteTauxHoraireFormPage() {
     const record = genererDecompte({
       teacherId: selected.id,
       professeur: `${selected.prenom} ${selected.nom}`,
-      type: "taux_horaire",
+      type: "a_terme",
       annee: anneeScolaire,
       date: new Date().toISOString().slice(0, 10),
       ajouteePar: currentUser?.name ?? "Administration",
@@ -177,9 +219,9 @@ export default function DecompteTauxHoraireFormPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Les décomptes", href: "/admin/decomptes" }, { label: "Taux horaire" }]}
-        title="Nouveau décompte — Taux horaire"
-        subtitle="Génère un décompte à partir des pointages validés du professeur payés au taux horaire"
+        breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Les décomptes", href: "/admin/decomptes" }, { label: "À terme" }]}
+        title="Nouveau décompte — À terme"
+        subtitle="Génère un décompte pour les cours explicitement marqués « à terme » (règlement différé), quel que soit leur mode de paiement"
       />
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -200,7 +242,7 @@ export default function DecompteTauxHoraireFormPage() {
               onFocus={() => setShowSuggestions(true)}
               placeholder="Matricule, prénom, nom ou téléphone du professeur…"
               className={`${inputClass} pl-10`}
-              data-testid="decompte-taux-search"
+              data-testid="decompte-aterme-search"
             />
             {showSuggestions && suggestions.length > 0 && query.trim().length > 0 && (
               <div className="absolute z-30 left-0 right-0 mt-1 bg-popover border border-border rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
@@ -213,7 +255,7 @@ export default function DecompteTauxHoraireFormPage() {
                       "w-full px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors",
                       t.id === selectedId && "bg-primary/5",
                     )}
-                    data-testid={`decompte-taux-option-${t.id}`}
+                    data-testid={`decompte-aterme-option-${t.id}`}
                   >
                     {teacherDisplayLabel(t)}
                   </button>
@@ -222,15 +264,15 @@ export default function DecompteTauxHoraireFormPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <label htmlFor="decompte-annee" className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+            <label htmlFor="decompte-aterme-annee" className="text-xs font-medium text-muted-foreground whitespace-nowrap">
               Année scolaire
             </label>
             <select
-              id="decompte-annee"
+              id="decompte-aterme-annee"
               value={anneeScolaire}
               onChange={(e) => { setAnneeScolaire(e.target.value); setChecked(new Set()); }}
               className={`${inputClass} min-w-[140px]`}
-              data-testid="decompte-taux-annee"
+              data-testid="decompte-aterme-annee"
             >
               {ANNEE_OPTIONS.map((a) => (
                 <option key={a} value={a}>{a}</option>
@@ -242,11 +284,12 @@ export default function DecompteTauxHoraireFormPage() {
 
       {!selected ? (
         <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">
-          Sélectionnez un professeur pour afficher ses pointages validés éligibles au décompte
+          Sélectionnez un professeur pour afficher ses cours marqués « à terme »
         </div>
       ) : eligibleLines.length === 0 ? (
         <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">
-          Aucun pointage validé, payé au taux horaire et non encore décompté pour {selected.prenom} {selected.nom} sur {anneeScolaire}
+          Aucun cours marqué « à terme », pointé et non encore décompté pour {selected.prenom} {selected.nom} sur {anneeScolaire}.
+          Le marquage se fait sur la page « Mise à jour statut cours ».
         </div>
       ) : (
         <>
@@ -258,19 +301,20 @@ export default function DecompteTauxHoraireFormPage() {
               type="button"
               onClick={toggleAll}
               className="text-xs font-medium text-primary hover:underline"
-              data-testid="decompte-taux-tout-cocher"
+              data-testid="decompte-aterme-tout-cocher"
             >
               {checked.size === eligibleLines.length ? "Tout décocher" : "Tout cocher"}
             </button>
           </div>
 
           <div className="bg-card border border-border border-t-0 overflow-x-auto" style={{ boxShadow: "var(--shadow-sm)" }}>
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[950px] text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   <th className="px-4 py-3 w-10" />
                   <th className="text-left px-3 py-3">Cours</th>
-                  <th className="text-left px-3 py-3">Fait le</th>
+                  <th className="text-center px-3 py-3">Mode</th>
+                  <th className="text-left px-3 py-3">Date</th>
                   <th className="text-center px-3 py-3">Durée (h)</th>
                   <th className="text-right px-3 py-3">Montant brut</th>
                   <th className="text-center px-3 py-3">Abatt.</th>
@@ -279,14 +323,14 @@ export default function DecompteTauxHoraireFormPage() {
               </thead>
               <tbody>
                 {eligibleLines.map((l) => (
-                  <tr key={l.pointageId} className="border-b border-border last:border-0 align-top">
+                  <tr key={l.sourceId} className="border-b border-border last:border-0 align-top">
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
-                        checked={checked.has(l.pointageId)}
-                        onChange={() => toggleLine(l.pointageId)}
+                        checked={checked.has(l.sourceId)}
+                        onChange={() => toggleLine(l.sourceId)}
                         className="rounded"
-                        data-testid={`decompte-taux-check-${l.pointageId}`}
+                        data-testid={`decompte-aterme-check-${l.sourceId}`}
                       />
                     </td>
                     <td className="px-3 py-3">
@@ -295,6 +339,11 @@ export default function DecompteTauxHoraireFormPage() {
                         {l.niveauLabel} — {l.classeLabel} — {l.anneeLabel}
                         {l.semestreLabel ? ` — ${l.semestreLabel}` : ""}
                       </p>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", l.mode === "forfait" ? "bg-violet-50 text-violet-700" : "bg-sky-50 text-sky-700")}>
+                        {l.mode === "forfait" ? "Forfait" : "Taux horaire"}
+                      </span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(l.date)}</td>
                     <td className="px-3 py-3 text-center">{l.duree}</td>
@@ -329,7 +378,7 @@ export default function DecompteTauxHoraireFormPage() {
               onClick={handleGenerer}
               disabled={selectedLines.length === 0}
               className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
-              data-testid="decompte-taux-generer"
+              data-testid="decompte-aterme-generer"
             >
               <FileCheck2 size={15} /> Générer le décompte ({selectedLines.length})
             </button>
