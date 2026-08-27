@@ -8,6 +8,7 @@ import { cancelPaiement } from "@/data/studentStore";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
+import { useEncaissements } from "@/hooks/useEncaissementStore";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -72,11 +73,15 @@ export default function PaiementDetailPage({ id }: { id: string }) {
   const etudiants = useStudentStore();
   const emissions = useEmissionsMasse();
   const prisesEnCharge = usePrisesEnCharge();
+  const encaissements = useEncaissements();
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const record = paiements.find((p) => p.id === id);
   const emissionOrigine = record ? emissions.find((e) => e.quittanceIds.includes(record.id)) : undefined;
   const priseEnChargeOrigine = record ? prisesEnCharge.find((r) => r.lignes.some((l) => l.quittanceId === record.id)) : undefined;
+  const encaissementsQuittance = record
+    ? encaissements.filter((e) => e.quittanceId === record.id).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
 
   if (!record) {
     return (
@@ -232,23 +237,50 @@ export default function PaiementDetailPage({ id }: { id: string }) {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <div className="px-5 py-3 border-b border-border bg-muted/40">
-          <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Détails de l&apos;encaissement</h3>
-        </div>
-        <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-          {record.montant === 0 ? (
-            <span className="text-muted-foreground">Aucun encaissement enregistré pour cette quittance.</span>
-          ) : (
-            <>
-              <span>
-                <strong>{formatCFA(record.montant)}</strong> payé le <strong>{formatDate(record.date)}</strong>
-              </span>
-              <span className="text-muted-foreground">
-                Par : {record.moyen} — Référence : {record.reference}
-              </span>
-            </>
+        <div className="px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Historique des encaissements</h3>
+          {encaissementsQuittance.length > 0 && (
+            <button onClick={() => setLocation("/admin/encaissements")} className="text-xs text-primary hover:underline">
+              Voir tous les encaissements
+            </button>
           )}
         </div>
+        {encaissementsQuittance.length === 0 ? (
+          <p className="text-sm text-muted-foreground px-5 py-4">Aucun encaissement enregistré pour cette quittance.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left px-4 py-3">Numéro</th>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-right px-4 py-3">Montant</th>
+                <th className="text-left px-4 py-3">Mode</th>
+                <th className="text-center px-4 py-3">Statut</th>
+                <th className="w-14" />
+              </tr>
+            </thead>
+            <tbody>
+              {encaissementsQuittance.map((e) => (
+                <tr
+                  key={e.id}
+                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                  onClick={() => setLocation(`/admin/encaissements/${e.id}`)}
+                >
+                  <td className="px-4 py-3 font-medium">{e.reference}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDate(e.date)}</td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCFA(e.montant)}</td>
+                  <td className="px-4 py-3">{e.moyen}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", e.annulee ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
+                      {e.annulee ? "Annulé" : "Validé"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs text-primary">Voir</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {record.statut !== "annule" ? (

@@ -92,6 +92,8 @@ const EmissionMassePage = lazy(() => import("@/pages/admin/EmissionMassePage"));
 const OrganismesPECPage = lazy(() => import("@/pages/admin/OrganismesPECPage"));
 const OrganismePECDetailPage = lazy(() => import("@/pages/admin/OrganismePECDetailPage"));
 const PriseEnChargePage = lazy(() => import("@/pages/admin/PriseEnChargePage"));
+const EncaissementsPage = lazy(() => import("@/pages/admin/EncaissementsPage"));
+const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
 const EncaissementPECFormPage = lazy(() => import("@/pages/admin/EncaissementPECFormPage"));
 const EncaissementPECDetailPage = lazy(() => import("@/pages/admin/EncaissementPECDetailPage"));
@@ -347,6 +349,9 @@ function AppRouter() {
       <Route path="/admin/prises-en-charge/:id">
         {(p) => <Admin><PriseEnChargeDetailPage id={p.id} /></Admin>}
       </Route>
+      <Route path="/admin/encaissements/:id">
+        {(p) => <Admin><EncaissementDetailPage id={p.id} /></Admin>}
+      </Route>
       <Route path="/admin/encaissements-pec/new">
         <Admin><EncaissementPECFormPage /></Admin>
       </Route>
@@ -447,6 +452,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/prises-en-charge">
         <Admin><PriseEnChargePage /></Admin>
+      </Route>
+      <Route path="/admin/encaissements">
+        <Admin><EncaissementsPage /></Admin>
       </Route>
       <Route path="/admin/encaissements-pec">
         <Admin><EncaissementPECPage /></Admin>

@@ -6,10 +6,12 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
 import { registerPaiement, payerQuittance } from "@/data/studentStore";
 import type { EtudiantRecord, PaiementLigne, PaiementRecord } from "@/data/studentStore";
+import { enregistrerEncaissement } from "@/data/encaissementStore";
 import { FRAIS_CONFIG } from "@/data/mockData";
 import { STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useClasses } from "@/hooks/useStructureStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { montantQuittance } from "@/pages/admin/PaiementsPage";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
@@ -55,6 +57,7 @@ export default function AddPaiementPage() {
   const classes = useClasses();
   const paiements = usePaiements();
   const modesPaiement = useModesPaiementFinance();
+  const { currentUser } = useAuth();
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<EtudiantRecord | null>(null);
@@ -114,22 +117,48 @@ export default function AddPaiementPage() {
 
   const handleSubmit = () => {
     if (!selectedStudent) return;
+    const encaissePar = currentUser?.name ?? "Administration";
     if (payMode === "existante") {
       if (!selectedQuittance) return;
+      const montantEvent = Number(montantVerse) || 0;
+      const quittanceLignes =
+        selectedQuittance.lignes && selectedQuittance.lignes.length > 0
+          ? selectedQuittance.lignes
+          : [{ label: selectedQuittance.rubrique, montant: selectedQuittance.montant || montantQuittance(selectedQuittance) }];
       payerQuittance({
         id: selectedQuittance.id,
-        montant: Number(montantVerse) || 0,
+        montant: montantEvent,
         moyen: selectedMoyen,
         reference,
         date: dateOperation,
       });
+      if (montantEvent > 0) {
+        enregistrerEncaissement({
+          quittanceId: selectedQuittance.id,
+          quittanceReference: selectedQuittance.numeroRecu,
+          quittanceDateEmission: selectedQuittance.date,
+          quittanceDateLimite: selectedQuittance.dateLimite,
+          montantQuittanceTotal: montantQuittance(selectedQuittance),
+          quittanceLignes,
+          dejaPayeAvant: selectedQuittance.montant,
+          etudiantId: selectedStudent.id,
+          payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
+          filiere: selectedStudent.filiere,
+          annee: selectedStudent.annee,
+          montant: montantEvent,
+          moyen: selectedMoyen,
+          referenceBancaire: reference || undefined,
+          date: dateOperation,
+          encaissePar,
+        });
+      }
       setSubmitted(true);
       setTimeout(() => setLocation(`/admin/paiements/${selectedQuittance.id}`), 1500);
       return;
     }
     if (lignes.length === 0) return;
     const verse = Number(montantVerse) || totalFacture;
-    registerPaiement({
+    const created = registerPaiement({
       etudiantId: selectedStudent.id,
       rubrique: "Facture unique",
       montant: verse,
@@ -141,6 +170,26 @@ export default function AddPaiementPage() {
       classeId: classeId || undefined,
       dateLimite: dateLimite || undefined,
     });
+    if (verse > 0) {
+      enregistrerEncaissement({
+        quittanceId: created.id,
+        quittanceReference: created.numeroRecu,
+        quittanceDateEmission: created.date,
+        quittanceDateLimite: created.dateLimite,
+        montantQuittanceTotal: totalFacture,
+        quittanceLignes: lignes,
+        dejaPayeAvant: 0,
+        etudiantId: selectedStudent.id,
+        payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
+        filiere: selectedStudent.filiere,
+        annee: selectedStudent.annee,
+        montant: verse,
+        moyen: selectedMoyen,
+        referenceBancaire: reference || undefined,
+        date: dateOperation,
+        encaissePar,
+      });
+    }
     setSubmitted(true);
     setTimeout(() => setLocation(`/admin/students/${selectedStudent.id}`), 1500);
   };

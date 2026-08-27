@@ -113,7 +113,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-enc-pec-masse", label: "Nouvel encaissement de PEC en masse", href: "/admin/encaissements-pec-masse" },
           { id: "fin-enc-pec-liste", label: "Liste encaissement PEC", href: "/admin/encaissements-pec" },
           { id: "fin-enc-pec-masse2", label: "PEC en masse", href: "/admin/pec-masse" },
-          { id: "fin-enc-liste", label: "Les encaissements", href: "/admin/transactions" },
+          { id: "fin-enc-liste", label: "Les encaissements", href: "/admin/encaissements" },
           { id: "fin-enc-facture", label: "Facture autres services", href: wipHref("fin-enc-facture") },
           { id: "fin-enc-candidature", label: "Candidature", href: wipHref("fin-enc-candidature") },
           { id: "fin-enc-autorisation", label: "Autorisation paiement", href: wipHref("fin-enc-autorisation") },
@@ -124,7 +124,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-avoir",
         label: "Avoir",
         children: [
-          { id: "fin-avoir-enc", label: "Les encaissements", href: "/admin/transactions" },
+          { id: "fin-avoir-enc", label: "Les encaissements", href: "/admin/encaissements" },
           { id: "fin-avoir-depot", label: "Dépôt avoir", href: wipHref("fin-avoir-depot") },
           { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: wipHref("fin-avoir-remboursement") },
           { id: "fin-avoir-remboursements", label: "Les remboursements", href: wipHref("fin-avoir-remboursements") },
