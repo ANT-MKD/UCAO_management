@@ -123,8 +123,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-avoir-enc", label: "Les encaissements", href: "/admin/encaissements" },
           { id: "fin-avoir-depot", label: "Dépôt avoir", href: "/admin/avoir/depots/new" },
-          { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: wipHref("fin-avoir-remboursement") },
-          { id: "fin-avoir-remboursements", label: "Les remboursements", href: wipHref("fin-avoir-remboursements") },
+          { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: "/admin/avoir/remboursements/new" },
+          { id: "fin-avoir-remboursements", label: "Les remboursements", href: "/admin/avoir/remboursements" },
           { id: "fin-avoir-consentement", label: "Consentement avoir", href: wipHref("fin-avoir-consentement") },
         ],
       },

@@ -96,6 +96,9 @@ const FactureAutreServicePage = lazy(() => import("@/pages/admin/FactureAutreSer
 const FactureAutreServiceFormPage = lazy(() => import("@/pages/admin/FactureAutreServiceFormPage"));
 const AvoirDepotFormPage = lazy(() => import("@/pages/admin/AvoirDepotFormPage"));
 const AvoirDepotDetailPage = lazy(() => import("@/pages/admin/AvoirDepotDetailPage"));
+const RemboursementAvoirPage = lazy(() => import("@/pages/admin/RemboursementAvoirPage"));
+const RemboursementAvoirFormPage = lazy(() => import("@/pages/admin/RemboursementAvoirFormPage"));
+const RemboursementAvoirDetailPage = lazy(() => import("@/pages/admin/RemboursementAvoirDetailPage"));
 const FactureAutreServiceDetailPage = lazy(() => import("@/pages/admin/FactureAutreServiceDetailPage"));
 const EncaissementsPage = lazy(() => import("@/pages/admin/EncaissementsPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
@@ -369,6 +372,12 @@ function AppRouter() {
       <Route path="/admin/avoir/depots/:id">
         {(p) => <Admin><AvoirDepotDetailPage id={p.id} /></Admin>}
       </Route>
+      <Route path="/admin/avoir/remboursements/new">
+        <Admin><RemboursementAvoirFormPage /></Admin>
+      </Route>
+      <Route path="/admin/avoir/remboursements/:id">
+        {(p) => <Admin><RemboursementAvoirDetailPage id={p.id} /></Admin>}
+      </Route>
       <Route path="/admin/encaissements-pec/new">
         <Admin><EncaissementPECFormPage /></Admin>
       </Route>
@@ -475,6 +484,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/factures-autres-services">
         <Admin><FactureAutreServicePage /></Admin>
+      </Route>
+      <Route path="/admin/avoir/remboursements">
+        <Admin><RemboursementAvoirPage /></Admin>
       </Route>
       <Route path="/admin/encaissements-pec">
         <Admin><EncaissementPECPage /></Admin>

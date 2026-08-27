@@ -25,8 +25,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   "fin-enc-facture": { title: "Facture autres services", section: "Finances · Encaissement" },
 
   // Finances — Avoir
-  "fin-avoir-remboursement": { title: "Remboursement avoir", section: "Finances · Avoir" },
-  "fin-avoir-remboursements": { title: "Les remboursements", section: "Finances · Avoir" },
   "fin-avoir-consentement": { title: "Consentement avoir", section: "Finances · Avoir" },
 
   // Finances — Décompte
