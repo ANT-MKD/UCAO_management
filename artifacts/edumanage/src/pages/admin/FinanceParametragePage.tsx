@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "wouter";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -8,12 +8,24 @@ import {
   typeFraisStore,
   modePaiementFinanceStore,
   typeFactureStore,
+  modeleFraisStore,
+  articleServiceStore,
+  importArticlesService,
   type TypeFraisRecord,
   type ModePaiementFinanceRecord,
   type TypeFactureRecord,
+  type ModeleFraisRecord,
+  type ArticleServiceRecord,
 } from "@/data/financeSettingsStore";
-import { useTypesFrais, useModesPaiementFinance, useTypesFacture } from "@/hooks/useFinanceSettingsStore";
-import { cn } from "@/lib/utils";
+import {
+  useTypesFrais,
+  useModesPaiementFinance,
+  useTypesFacture,
+  useModelesFrais,
+  useArticlesService,
+} from "@/hooks/useFinanceSettingsStore";
+import { parseArticleServiceExcel, downloadArticleServiceTemplate } from "@/lib/financeArticleImport";
+import { formatCFA, cn } from "@/lib/utils";
 
 const SECTIONS = [
   { id: "type-frais", label: "Type frais" },
@@ -62,23 +74,28 @@ function DeleteConfirm({
 function SectionShell({
   title,
   onAdd,
+  extraActions,
   children,
 }: {
   title: string;
   onAdd: () => void;
+  extraActions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
       <div className="px-5 py-3.5 border-b border-border bg-muted/40 flex items-center justify-between">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">{title}</h3>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={14} /> Ajouter
-        </button>
+        <div className="flex items-center gap-2">
+          {extraActions}
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} /> Ajouter
+          </button>
+        </div>
       </div>
       {children}
     </div>
@@ -457,6 +474,329 @@ function TypeFactureSection() {
   );
 }
 
+function ModeleFraisSection() {
+  const items = useModelesFrais();
+  const [editing, setEditing] = useState<ModeleFraisRecord | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [code, setCode] = useState("");
+  const [intitule, setIntitule] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ModeleFraisRecord | null>(null);
+
+  const open = creating || !!editing;
+
+  const startCreate = () => {
+    setCode("");
+    setIntitule("");
+    setCreating(true);
+  };
+  const startEdit = (r: ModeleFraisRecord) => {
+    setCode(r.code);
+    setIntitule(r.intitule);
+    setEditing(r);
+  };
+  const close = () => {
+    setCreating(false);
+    setEditing(null);
+  };
+
+  const handleSave = () => {
+    if (!code.trim() || !intitule.trim()) {
+      toast.error("Code et intitulé sont obligatoires");
+      return;
+    }
+    if (editing) {
+      modeleFraisStore.update(editing.id, { code: code.trim(), intitule: intitule.trim() });
+      toast.success("Modèle de frais modifié");
+    } else {
+      modeleFraisStore.add({ code: code.trim(), intitule: intitule.trim() });
+      toast.success("Modèle de frais ajouté");
+    }
+    close();
+  };
+
+  return (
+    <>
+      <SectionShell title="Les modèles de frais" onAdd={startCreate}>
+        {items.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">Aucun modèle de frais.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left px-4 py-3 w-32">Code</th>
+                <th className="text-left px-4 py-3">Intitulé</th>
+                <th className="text-right px-4 py-3 w-24">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((r) => (
+                <tr key={r.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 font-medium">{r.code}</td>
+                  <td className="px-4 py-3">{r.intitule}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" onClick={() => startEdit(r)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteTarget(r)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600" aria-label="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </SectionShell>
+
+      <FormModal open={open} onClose={close} title={editing ? "Modifier le modèle de frais" : "Nouveau modèle de frais"} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Code <span className="text-red-500">*</span>
+            </label>
+            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Intitulé <span className="text-red-500">*</span>
+            </label>
+            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+              Annuler
+            </button>
+            <button type="button" onClick={handleSave} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90">
+              Sauvegarder
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      <DeleteConfirm
+        open={!!deleteTarget}
+        label={deleteTarget?.intitule ?? ""}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) modeleFraisStore.remove(deleteTarget.id);
+          toast.success("Modèle de frais supprimé");
+          setDeleteTarget(null);
+        }}
+      />
+    </>
+  );
+}
+
+function ArticleServiceSection() {
+  const items = useArticlesService();
+  const [editing, setEditing] = useState<ArticleServiceRecord | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [code, setCode] = useState("");
+  const [intitule, setIntitule] = useState("");
+  const [prixUnitaire, setPrixUnitaire] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ArticleServiceRecord | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const open = creating || !!editing;
+
+  const startCreate = () => {
+    setCode("");
+    setIntitule("");
+    setPrixUnitaire("");
+    setCreating(true);
+  };
+  const startEdit = (r: ArticleServiceRecord) => {
+    setCode(r.code);
+    setIntitule(r.intitule);
+    setPrixUnitaire(String(r.prixUnitaire));
+    setEditing(r);
+  };
+  const close = () => {
+    setCreating(false);
+    setEditing(null);
+  };
+
+  const handleSave = () => {
+    if (!code.trim() || !intitule.trim() || !prixUnitaire.trim()) {
+      toast.error("Code, intitulé et prix unitaire sont obligatoires");
+      return;
+    }
+    const prix = Number(prixUnitaire);
+    if (!Number.isFinite(prix) || prix < 0) {
+      toast.error("Prix unitaire invalide");
+      return;
+    }
+    if (editing) {
+      articleServiceStore.update(editing.id, { code: code.trim(), intitule: intitule.trim(), prixUnitaire: prix });
+      toast.success("Article modifié");
+    } else {
+      articleServiceStore.add({ code: code.trim(), intitule: intitule.trim(), prixUnitaire: prix });
+      toast.success("Article ajouté");
+    }
+    close();
+  };
+
+  const handleFile = async (file: File) => {
+    setImportLoading(true);
+    setImportMessage("");
+    try {
+      const rows = await parseArticleServiceExcel(file);
+      if (rows.length === 0) {
+        setImportMessage("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const count = importArticlesService(rows);
+      setImportMessage(`Import réussi : ${count} article(s) importé(s).`);
+    } catch (err) {
+      console.error(err);
+      setImportMessage("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      setImportLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <SectionShell
+        title="Les articles autres services"
+        onAdd={startCreate}
+        extraActions={
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
+          >
+            <FileSpreadsheet size={14} /> Importer
+          </button>
+        }
+      >
+        {items.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">Aucun article.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left px-4 py-3 w-32">Code</th>
+                <th className="text-left px-4 py-3">Intitulé</th>
+                <th className="text-right px-4 py-3">Prix Unitaire</th>
+                <th className="text-right px-4 py-3 w-24">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((r) => (
+                <tr key={r.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 font-medium">{r.code}</td>
+                  <td className="px-4 py-3">{r.intitule}</td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCFA(r.prixUnitaire)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" onClick={() => startEdit(r)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteTarget(r)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600" aria-label="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </SectionShell>
+
+      <FormModal open={open} onClose={close} title={editing ? "Modifier l'article" : "Nouvel article"} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Code <span className="text-red-500">*</span>
+            </label>
+            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Intitulé <span className="text-red-500">*</span>
+            </label>
+            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Prix Unitaire <span className="text-red-500">*</span>
+            </label>
+            <input type="number" min={0} value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value)} className={inputClass} />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+              Annuler
+            </button>
+            <button type="button" onClick={handleSave} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90">
+              Sauvegarder
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      <FormModal open={importOpen} onClose={() => setImportOpen(false)} title="Importer des articles" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Fichier Excel (.xlsx) avec les colonnes Code, Intitulé, Prix Unitaire.</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={downloadArticleServiceTemplate}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
+            >
+              <Download size={14} /> Télécharger le modèle
+            </button>
+            <button
+              type="button"
+              disabled={importLoading}
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 disabled:opacity-60"
+            >
+              <Upload size={14} /> {importLoading ? "Import..." : "Choisir un fichier"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFile(file);
+              }}
+            />
+          </div>
+          {importMessage && (
+            <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">{importMessage}</div>
+          )}
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setImportOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+              Fermer
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      <DeleteConfirm
+        open={!!deleteTarget}
+        label={deleteTarget?.intitule ?? ""}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) articleServiceStore.remove(deleteTarget.id);
+          toast.success("Article supprimé");
+          setDeleteTarget(null);
+        }}
+      />
+    </>
+  );
+}
+
 function ComingSoonSection({ label }: { label: string }) {
   return (
     <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
@@ -494,8 +834,8 @@ export default function FinanceParametragePage({ section }: { section: string })
           {current.id === "type-frais" && <TypeFraisSection />}
           {current.id === "mode-paiement" && <ModePaiementSection />}
           {current.id === "type-facture" && <TypeFactureSection />}
-          {current.id === "modele-frais" && <ComingSoonSection label="Modèle de frais" />}
-          {current.id === "article-service" && <ComingSoonSection label="Article autre service" />}
+          {current.id === "modele-frais" && <ModeleFraisSection />}
+          {current.id === "article-service" && <ArticleServiceSection />}
           {current.id === "banque" && <ComingSoonSection label="Banque" />}
           {current.id === "activite-service" && <ComingSoonSection label="Activités autres services" />}
         </div>

@@ -18,6 +18,19 @@ export interface TypeFactureRecord {
   facturePedagogique: boolean;
 }
 
+export interface ModeleFraisRecord {
+  id: string;
+  code: string;
+  intitule: string;
+}
+
+export interface ArticleServiceRecord {
+  id: string;
+  code: string;
+  intitule: string;
+  prixUnitaire: number;
+}
+
 function createListStore<T extends { id: string }>(storageKey: string, seed: T[]) {
   const listeners = new Set<() => void>();
 
@@ -91,9 +104,30 @@ const SEED_MODES_PAIEMENT: ModePaiementFinanceRecord[] = [
 
 const SEED_TYPES_FACTURE: TypeFactureRecord[] = [];
 
+const SEED_MODELES_FRAIS: ModeleFraisRecord[] = [
+  { id: "mf-seed-1", code: "AN", intitule: "Ancien" },
+  { id: "mf-seed-2", code: "ep", intitule: "Privé" },
+  { id: "mf-seed-3", code: "etat", intitule: "Etat" },
+  { id: "mf-seed-4", code: "NV", intitule: "Nouveau" },
+];
+
+const SEED_ARTICLES_SERVICE: ArticleServiceRecord[] = [];
+
 export const typeFraisStore = createListStore<TypeFraisRecord>("edumanage-fin-type-frais-v1", SEED_TYPES_FRAIS);
 export const modePaiementFinanceStore = createListStore<ModePaiementFinanceRecord>(
   "edumanage-fin-mode-paiement-v1",
   SEED_MODES_PAIEMENT,
 );
 export const typeFactureStore = createListStore<TypeFactureRecord>("edumanage-fin-type-facture-v1", SEED_TYPES_FACTURE);
+export const modeleFraisStore = createListStore<ModeleFraisRecord>("edumanage-fin-modele-frais-v1", SEED_MODELES_FRAIS);
+export const articleServiceStore = createListStore<ArticleServiceRecord>(
+  "edumanage-fin-article-service-v1",
+  SEED_ARTICLES_SERVICE,
+);
+
+export function importArticlesService(rows: Omit<ArticleServiceRecord, "id">[]): number {
+  for (const row of rows) {
+    articleServiceStore.add(row);
+  }
+  return rows.length;
+}
