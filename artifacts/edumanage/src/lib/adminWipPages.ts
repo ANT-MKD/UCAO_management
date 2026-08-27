@@ -23,8 +23,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   "fin-enc-pec-liste": { title: "Liste encaissement PEC", section: "Finances · Encaissement" },
   "fin-enc-pec-masse2": { title: "PEC en masse", section: "Finances · Encaissement" },
   "fin-enc-facture": { title: "Facture autres services", section: "Finances · Encaissement" },
-  "fin-enc-autorisation": { title: "Autorisation paiement", section: "Finances · Encaissement" },
-  "fin-enc-avoir": { title: "Avoir", section: "Finances · Encaissement" },
 
   // Finances — Avoir
   "fin-avoir-depot": { title: "Dépôt avoir", section: "Finances · Avoir" },
