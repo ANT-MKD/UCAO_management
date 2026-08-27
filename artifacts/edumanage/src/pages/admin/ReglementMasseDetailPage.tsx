@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useReglementsMasse } from "@/hooks/useReglementMasseStore";
 import { cancelReglementMasse } from "@/data/reglementMasseStore";
+import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { statutReglementMasse } from "@/pages/admin/ReglementMassePage";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
@@ -61,6 +62,7 @@ ${args.lignes.map((l) => `<tr><td>${l.reference}</td><td>${l.etudiant}</td><td>$
 export default function ReglementMasseDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const reglements = useReglementsMasse();
+  const organismes = useOrganismesPEC();
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const record = reglements.find((r) => r.id === id);
@@ -81,6 +83,7 @@ export default function ReglementMasseDetailPage({ id }: { id: string }) {
 
   const statut = statutReglementMasse(record);
   const total = record.lignes.reduce((s, l) => s + l.montant, 0);
+  const organisme = organismes.find((o) => o.id === record.organismeId);
 
   const handleCancel = () => {
     cancelReglementMasse(record.id);
@@ -144,7 +147,13 @@ export default function ReglementMasseDetailPage({ id }: { id: string }) {
       <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-5 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
           <p className="text-xs text-muted-foreground">Entité</p>
-          <p className="font-semibold text-sm mt-1">{record.organisme}</p>
+          {organisme ? (
+            <button onClick={() => setLocation(`/admin/organismes-pec/${organisme.id}`)} className="font-semibold text-sm mt-1 text-primary hover:underline text-left" data-testid="regm-voir-organisme">
+              {record.organisme}
+            </button>
+          ) : (
+            <p className="font-semibold text-sm mt-1">{record.organisme}</p>
+          )}
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Année référence</p>

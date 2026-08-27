@@ -1,4 +1,4 @@
-import { enregistrerEncaissementSurPEC } from "./priseEnChargeStore";
+import { enregistrerEncaissementSurPEC, retirerEncaissementSurPEC } from "./priseEnChargeStore";
 
 const STORAGE_KEY = "edumanage-encaissements-pec-v1";
 
@@ -18,6 +18,7 @@ export interface EncaissementPECRecord {
   referenceBancaire?: string;
   ajouteePar: string;
   lignes: EncaissementPECLigne[];
+  annulee: boolean;
 }
 
 const listeners = new Set<() => void>();
@@ -97,9 +98,19 @@ export function addEncaissementPEC(payload: AddEncaissementPECPayload): Encaisse
     referenceBancaire: payload.referenceBancaire,
     ajouteePar: payload.ajouteePar,
     lignes: lignesAppliquees,
+    annulee: false,
   };
 
   store.records = [record, ...store.records];
   persist();
   return record;
+}
+
+/** Annule l'encaissement PEC : retire l'encaissement reconnu sur chaque PEC concernée. */
+export function cancelEncaissementPEC(id: string): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record || record.annulee) return;
+  record.lignes.forEach((l) => retirerEncaissementSurPEC(l.priseEnChargeId, l.montant));
+  store.records = store.records.map((r) => (r.id === id ? { ...r, annulee: true } : r));
+  persist();
 }

@@ -111,15 +111,15 @@ export default function DashboardPage() {
           <button onClick={() => setLocation("/admin/students/new")} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
             + Inscrire Étudiant
           </button>
-          <button onClick={() => setLocation("/admin/transactions/new")} className="flex items-center gap-1.5 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
-            Nouvelle transaction
+          <button onClick={() => setLocation("/admin/paiements/new")} className="flex items-center gap-1.5 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+            Nouvel encaissement
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard icon={Users} label="Étudiants inscrits" value={etudiants.length} trend="+12 ce mois" trendDirection="up" accentColor="#4f46e5" onClick={() => setLocation("/admin/students")} />
-        <KPICard icon={TrendingUp} label="Recettes encaissées" value={formatCFA(totalRecettes)} trend="+8% vs mois préc." trendDirection="up" accentColor="#10b981" onClick={() => setLocation("/admin/transactions")} />
+        <KPICard icon={TrendingUp} label="Recettes encaissées" value={formatCFA(totalRecettes)} trend="+8% vs mois préc." trendDirection="up" accentColor="#10b981" onClick={() => setLocation("/admin/encaissements")} />
         <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiants`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
         <KPICard icon={BarChart3} label="Taux de réussite" value={`${tauxReussiteMoy}%`} trend="+2% vs S1" trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
       </div>

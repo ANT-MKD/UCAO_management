@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useReglementsMasse } from "@/hooks/useReglementMasseStore";
 import type { ReglementMasseRecord } from "@/data/reglementMasseStore";
 import { formatCFA, cn } from "@/lib/utils";
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 type Statut = "Validé" | "Annulé";
 
@@ -35,6 +37,8 @@ export default function ReglementMassePage() {
   const [, setLocation] = useLocation();
   const reglements = useReglementsMasse();
   const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const filtered = useMemo(() => {
     const f = filters;
@@ -51,7 +55,16 @@ export default function ReglementMassePage() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [reglements, filters]);
 
-  const patchFilter = (patch: Partial<ColFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const firstRowNum = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastRowNum = Math.min(filtered.length, currentPage * pageSize);
+
+  const patchFilter = (patch: Partial<ColFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPage(1);
+  };
 
   return (
     <div>
@@ -113,14 +126,14 @@ export default function ReglementMassePage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {pageRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
                   Aucun règlement effectué.
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => {
+              pageRows.map((r) => {
                 const statut = statutReglementMasse(r);
                 return (
                   <tr
@@ -157,6 +170,41 @@ export default function ReglementMassePage() {
             )}
           </tbody>
         </table>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Afficher</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="px-2 py-1 border border-border rounded-lg bg-background text-xs"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span>
+              Enregistrements {firstRowNum} - {lastRowNum} sur {filtered.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Page {currentPage} sur {totalPages}</span>
+            <div className="flex gap-1">
+              <button onClick={() => setPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronsLeft size={14} />
+              </button>
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronRight size={14} />
+              </button>
+              <button onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronsRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -10,8 +10,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  TrendingUp,
+  Receipt,
+  Ban,
+  Wallet,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { KPICard } from "@/components/admin/KPICard";
 import { useEncaissements } from "@/hooks/useEncaissementStore";
 import type { EncaissementRecord } from "@/data/encaissementStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
@@ -91,6 +96,11 @@ export default function EncaissementsPage() {
 
   const advancedActiveCount = [dateDebut, dateFin, montantMin, montantMax, moyenFilter].filter(Boolean).length;
 
+  const validees = filtered.filter((r) => !r.annulee);
+  const totalEncaisse = validees.reduce((s, r) => s + r.montant, 0);
+  const nbAnnulees = filtered.length - validees.length;
+  const montantMoyen = validees.length > 0 ? Math.round(totalEncaisse / validees.length) : 0;
+
   const exportExcel = () => {
     const rows = filtered.map((r) => ({
       Numéro: r.reference,
@@ -144,6 +154,13 @@ export default function EncaissementsPage() {
           </div>
         }
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <KPICard icon={TrendingUp} label="Total encaissé" value={formatCFA(totalEncaisse)} accentColor="#10b981" />
+        <KPICard icon={Receipt} label="Nb opérations" value={filtered.length} accentColor="#4f46e5" />
+        <KPICard icon={Ban} label="Annulées" value={nbAnnulees} accentColor="#ef4444" />
+        <KPICard icon={Wallet} label="Montant moyen" value={formatCFA(montantMoyen)} accentColor="#f59e0b" />
+      </div>
 
       {advancedOpen && (
         <div className="bg-card border border-border rounded-xl p-4 mb-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3" style={{ boxShadow: "var(--shadow-sm)" }}>

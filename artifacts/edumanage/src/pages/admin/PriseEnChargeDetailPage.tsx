@@ -9,6 +9,7 @@ import { statutPEC, montantPEC, resteAEncaisser } from "@/pages/admin/PriseEnCha
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { usePaiements } from "@/hooks/useStudentStore";
 import { useEncaissementsPEC } from "@/hooks/useEncaissementPECStore";
+import { statutEncaissementPEC } from "@/pages/admin/EncaissementPECPage";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
 
@@ -16,6 +17,11 @@ const STATUT_CLS: Record<string, string> = {
   Active: "bg-emerald-50 text-emerald-700",
   Expirée: "bg-red-50 text-red-700",
   Annulée: "bg-slate-100 text-slate-600",
+};
+
+const STATUT_ENC_CLS: Record<string, string> = {
+  Validé: "bg-emerald-50 text-emerald-700",
+  Annulé: "bg-red-50 text-red-700",
 };
 
 const inputClass =
@@ -380,11 +386,13 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
                 <th className="text-left px-4 py-3">Date</th>
                 <th className="text-left px-4 py-3">Mode de paiement</th>
                 <th className="text-right px-4 py-3">Montant</th>
+                <th className="text-center px-4 py-3">Statut</th>
               </tr>
             </thead>
             <tbody>
               {encaissementsRecus.map((e) => {
                 const ligne = e.lignes.find((l) => l.priseEnChargeId === record.id);
+                const statutEnc = statutEncaissementPEC(e);
                 return (
                   <tr
                     key={e.id}
@@ -395,6 +403,9 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(e.date)}</td>
                     <td className="px-4 py-3">{e.modePaiement}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatCFA(ligne?.montant ?? 0)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_ENC_CLS[statutEnc])}>{statutEnc}</span>
+                    </td>
                   </tr>
                 );
               })}

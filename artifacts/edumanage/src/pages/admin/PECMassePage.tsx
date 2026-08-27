@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePECsMasse } from "@/hooks/usePECMasseStore";
 import { cn } from "@/lib/utils";
@@ -16,10 +16,14 @@ const EMPTY_FILTERS: ColFilters = { reference: "", organisme: "", classe: "" };
 const filterInputClass =
   "w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
 export default function PECMassePage() {
   const [, setLocation] = useLocation();
   const pecsMasse = usePECsMasse();
   const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const filtered = useMemo(() => {
     const f = filters;
@@ -33,7 +37,16 @@ export default function PECMassePage() {
       .sort((a, b) => b.emisLe.localeCompare(a.emisLe));
   }, [pecsMasse, filters]);
 
-  const patchFilter = (patch: Partial<ColFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const firstRowNum = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastRowNum = Math.min(filtered.length, currentPage * pageSize);
+
+  const patchFilter = (patch: Partial<ColFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPage(1);
+  };
 
   return (
     <div>
@@ -83,14 +96,14 @@ export default function PECMassePage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {pageRows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-16 text-center text-sm text-muted-foreground">
                   Aucune PEC en masse ne correspond aux critères sélectionnés.
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => (
+              pageRows.map((r) => (
                 <tr
                   key={r.id}
                   className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
@@ -125,6 +138,41 @@ export default function PECMassePage() {
             )}
           </tbody>
         </table>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Afficher</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="px-2 py-1 border border-border rounded-lg bg-background text-xs"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span>
+              Enregistrements {firstRowNum} - {lastRowNum} sur {filtered.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Page {currentPage} sur {totalPages}</span>
+            <div className="flex gap-1">
+              <button onClick={() => setPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronsLeft size={14} />
+              </button>
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronRight size={14} />
+              </button>
+              <button onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+                <ChevronsRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
