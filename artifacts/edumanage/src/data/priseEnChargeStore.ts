@@ -180,3 +180,16 @@ export function prolongerPriseEnCharge(id: string, payload: ProlongerPriseEnChar
   persist();
   return updated;
 }
+
+/** Retire une seule ligne déjà couverte par la PEC (ex. l'organisme conteste ce frais précis) : le reste de la PEC n'est pas touché. */
+export function retirerLignePriseEnCharge(id: string, quittanceId: string): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record || record.annulee) return;
+  const ligne = record.lignes.find((l) => l.quittanceId === quittanceId);
+  if (!ligne) return;
+  reverserReglementQuittance(quittanceId, ligne.montantPEC);
+  store.records = store.records.map((r) =>
+    r.id === id ? { ...r, lignes: r.lignes.filter((l) => l.quittanceId !== quittanceId) } : r,
+  );
+  persist();
+}

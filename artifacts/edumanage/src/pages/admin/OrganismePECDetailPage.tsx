@@ -1,18 +1,33 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Building2, MapPin, Mail, Phone, User } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Mail, Phone, User, Eye } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
+import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
+import { statutPEC, montantPEC } from "@/pages/admin/PriseEnChargePage";
 import { ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { formatCFA, cn } from "@/lib/utils";
 
 const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEES_ACADEMIQUES[0]?.libelle ?? "";
+
+const STATUT_CLS: Record<string, string> = {
+  Active: "bg-emerald-50 text-emerald-700",
+  Expirée: "bg-red-50 text-red-700",
+  Annulée: "bg-slate-100 text-slate-600",
+};
 
 export default function OrganismePECDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const organismes = useOrganismesPEC();
+  const prisesEnCharge = usePrisesEnCharge();
   const [annee, setAnnee] = useState(DEFAULT_ANNEE);
 
   const record = organismes.find((o) => o.id === id);
+
+  const prisesDeLannee = useMemo(
+    () => prisesEnCharge.filter((r) => r.organismeId === id && r.annee === annee).sort((a, b) => b.dateSaisie.localeCompare(a.dateSaisie)),
+    [prisesEnCharge, id, annee],
+  );
 
   if (!record) {
     return (
@@ -117,9 +132,38 @@ export default function OrganismePECDetailPage({ id }: { id: string }) {
               ))}
             </select>
           </div>
-          <div className="py-16 text-center text-sm text-muted-foreground px-6">
-            Aucune prise en charge enregistrée pour {annee}.
-          </div>
+          {prisesDeLannee.length === 0 ? (
+            <div className="py-16 text-center text-sm text-muted-foreground px-6">
+              Aucune prise en charge enregistrée pour {annee}.
+            </div>
+          ) : (
+            <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
+              {prisesDeLannee.map((r) => {
+                const statut = statutPEC(r);
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setLocation(`/admin/prises-en-charge/${r.id}`)}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-muted/30 transition-colors"
+                  >
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        Réf : <span className="font-medium text-foreground">{r.reference}</span> | Période du <strong>{r.debut}</strong> au{" "}
+                        <strong>{r.fin}</strong> | Date limite : <strong>{r.dateLimite}</strong>
+                      </p>
+                      <p className="text-xs text-muted-foreground">{r.filiere} / {r.annee}</p>
+                      <p className="font-semibold text-sm mt-0.5">{r.etudiant}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="font-semibold text-sm">{formatCFA(montantPEC(r))}</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_CLS[statut])}>{statut}</span>
+                      <Eye size={14} className="text-muted-foreground" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

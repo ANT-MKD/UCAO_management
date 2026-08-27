@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
-import { Plus, Eye, Download } from "lucide-react";
+import { Plus, Eye, Download, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import type { PriseEnChargeRecord } from "@/data/priseEnChargeStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 const TODAY = new Date().toISOString().slice(0, 10);
+const PAGE_SIZE = 15;
 
 type Statut = "Active" | "Expirée" | "Annulée";
 
@@ -27,6 +28,10 @@ export function montantPEC(r: PriseEnChargeRecord): number {
   return r.lignes.reduce((s, l) => s + l.montantPEC, 0);
 }
 
+function joursAvantExpiration(r: PriseEnChargeRecord): number {
+  return Math.floor((new Date(r.dateLimite).getTime() - Date.now()) / 86400000);
+}
+
 interface ColFilters {
   reference: string;
   organisme: string;
@@ -43,6 +48,7 @@ export default function PriseEnChargePage() {
   const [, setLocation] = useLocation();
   const prisesEnCharge = usePrisesEnCharge();
   const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const f = filters;
@@ -57,7 +63,21 @@ export default function PriseEnChargePage() {
       .sort((a, b) => b.dateSaisie.localeCompare(a.dateSaisie));
   }, [prisesEnCharge, filters]);
 
-  const patchFilter = (patch: Partial<ColFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const actives = prisesEnCharge.filter((r) => statutPEC(r) === "Active");
+  const expireSous7 = actives.filter((r) => joursAvantExpiration(r) <= 7).length;
+  const expireSous30 = actives.filter((r) => {
+    const j = joursAvantExpiration(r);
+    return j > 7 && j <= 30;
+  }).length;
+
+  const patchFilter = (patch: Partial<ColFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPage(1);
+  };
 
   const exportExcel = () => {
     const sheetRows = filtered.map((r) => ({
@@ -104,6 +124,18 @@ export default function PriseEnChargePage() {
         }
       />
 
+      {(expireSous7 > 0 || expireSous30 > 0) && (
+        <div className="bg-card border border-border rounded-xl p-4 mb-4 flex flex-wrap items-center gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <AlertTriangle size={13} /> Prises en charge actives arrivant à expiration
+          </span>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-600" /> ≤ 7 jours : <strong>{expireSous7}</strong></span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> 8–30 jours : <strong>{expireSous30}</strong></span>
+          </div>
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-xl overflow-x-auto" style={{ boxShadow: "var(--shadow-sm)" }}>
         <table className="w-full min-w-[1000px] text-sm">
           <thead>
@@ -129,7 +161,7 @@ export default function PriseEnChargePage() {
               </th>
               <th className="px-3 py-2">
                 {Object.values(filters).some(Boolean) && (
-                  <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap">
+                  <button onClick={() => patchFilter(EMPTY_FILTERS)} className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap">
                     Réinit.
                   </button>
                 )}
@@ -137,14 +169,14 @@ export default function PriseEnChargePage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {pageRows.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-16 text-center text-sm text-muted-foreground">
                   Aucune prise en charge ne correspond aux critères sélectionnés.
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => {
+              pageRows.map((r) => {
                 const statut = statutPEC(r);
                 return (
                   <tr
@@ -189,6 +221,30 @@ export default function PriseEnChargePage() {
             )}
           </tbody>
         </table>
+
+        {filtered.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <span className="text-xs text-muted-foreground">
+              Page {currentPage} / {totalPages} — {filtered.length} prise(s) en charge
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

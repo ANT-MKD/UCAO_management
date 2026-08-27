@@ -38,6 +38,7 @@ export default function PriseEnChargeFormPage() {
   const [documentName, setDocumentName] = useState("");
   const [referenceExterne, setReferenceExterne] = useState("");
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
+  const [filtreFrais, setFiltreFrais] = useState("");
   const { currentUser } = useAuth();
 
   const filteredStudents = searchQuery.length > 1
@@ -77,14 +78,28 @@ export default function PriseEnChargeFormPage() {
   const totalAlloue = allocation.reduce((s, l) => s + l.montantPEC, 0);
   const nonAffecte = type === "montant" ? Math.max(0, (Number(montantTotal) || 0) - totalAlloue) : 0;
 
+  const fraisImpayesFiltres = useMemo(
+    () => fraisImpayes.filter((f) => f.label.toLowerCase().includes(filtreFrais.toLowerCase())),
+    [fraisImpayes, filtreFrais],
+  );
+
   const pickStudent = (s: EtudiantRecord) => {
     setSelectedStudent(s);
     setSearchQuery(`${s.prenom} ${s.nom}`);
     setCheckedIds([]);
+    setFiltreFrais("");
   };
 
   const toggleLigne = (id: string) => {
     setCheckedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleTousFraisFiltres = () => {
+    const idsFiltres = fraisImpayesFiltres.map((f) => f.id);
+    const tousCoches = idsFiltres.every((fid) => checkedIds.includes(fid));
+    setCheckedIds((prev) =>
+      tousCoches ? prev.filter((fid) => !idsFiltres.includes(fid)) : [...new Set([...prev, ...idsFiltres])],
+    );
   };
 
   const handleSubmit = () => {
@@ -299,7 +314,14 @@ export default function PriseEnChargeFormPage() {
         </div>
 
         <div className="border-t border-border pt-4">
-          <h3 className="text-sm font-bold text-foreground">Les frais concernés par la prise en charge</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground">Les frais concernés par la prise en charge</h3>
+            {fraisImpayes.length > 0 && (
+              <button onClick={toggleTousFraisFiltres} className="text-xs text-primary hover:underline">
+                Tout {fraisImpayesFiltres.every((f) => checkedIds.includes(f.id)) && fraisImpayesFiltres.length > 0 ? "décocher" : "cocher"}
+              </button>
+            )}
+          </div>
           <p className="text-xs text-red-500 mb-3">Seuls les frais qui n&apos;ont pas fait l&apos;objet d&apos;acompte sont susceptibles d&apos;être pris en charge</p>
 
           {!selectedStudent ? (
@@ -311,44 +333,65 @@ export default function PriseEnChargeFormPage() {
               Aucun frais impayé (non entamé par un acompte) pour cet étudiant.
             </div>
           ) : (
-            <div className="border border-border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/30 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    <th className="px-3 py-2 w-8" />
-                    <th className="text-left px-3 py-2">Intitulé frais</th>
-                    <th className="text-right px-3 py-2">Montant</th>
-                    <th className="text-right px-3 py-2">Montant PEC</th>
-                    <th className="text-left px-3 py-2">Date Limite</th>
-                    <th className="text-center px-3 py-2">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fraisImpayes.map((f) => {
-                    const checked = checkedIds.includes(f.id);
-                    const ligne = allocation.find((l) => l.id === f.id);
-                    return (
-                      <tr key={f.id} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2">
-                          <input type="checkbox" checked={checked} onChange={() => toggleLigne(f.id)} className="rounded" data-testid={`pec-ligne-${f.id}`} />
-                        </td>
-                        <td className="px-3 py-2">{f.label}</td>
-                        <td className="px-3 py-2 text-right">{formatCFA(f.montantFrais)}</td>
-                        <td className="px-3 py-2 text-right font-medium text-primary">{checked ? formatCFA(ligne?.montantPEC ?? 0) : "—"}</td>
-                        <td className="px-3 py-2">{f.dateLimite ? formatShortDate(f.dateLimite) : "—"}</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">Impayé</span>
+            <>
+              {fraisImpayes.length > 3 && (
+                <div className="relative mb-2">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={filtreFrais}
+                    onChange={(e) => setFiltreFrais(e.target.value)}
+                    placeholder="Filtrer les frais (ex. scolarité)…"
+                    className={cn(inputClass, "pl-9 py-2")}
+                  />
+                </div>
+              )}
+              <div className="border border-border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/30 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      <th className="px-3 py-2 w-8" />
+                      <th className="text-left px-3 py-2">Intitulé frais</th>
+                      <th className="text-right px-3 py-2">Montant</th>
+                      <th className="text-right px-3 py-2">Montant PEC</th>
+                      <th className="text-left px-3 py-2">Date Limite</th>
+                      <th className="text-center px-3 py-2">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fraisImpayesFiltres.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                          Aucun frais ne correspond au filtre.
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="px-3 py-2 bg-muted/20 flex justify-between text-xs">
-                <span className="text-muted-foreground">{checkedIds.length} frais sélectionné(s) — total pris en charge : <strong className="text-foreground">{formatCFA(totalAlloue)}</strong></span>
-                {nonAffecte > 0 && <span className="text-amber-600">Non affecté : {formatCFA(nonAffecte)}</span>}
+                    ) : (
+                      fraisImpayesFiltres.map((f) => {
+                        const checked = checkedIds.includes(f.id);
+                        const ligne = allocation.find((l) => l.id === f.id);
+                        return (
+                          <tr key={f.id} className="border-b border-border last:border-0">
+                            <td className="px-3 py-2">
+                              <input type="checkbox" checked={checked} onChange={() => toggleLigne(f.id)} className="rounded" data-testid={`pec-ligne-${f.id}`} />
+                            </td>
+                            <td className="px-3 py-2">{f.label}</td>
+                            <td className="px-3 py-2 text-right">{formatCFA(f.montantFrais)}</td>
+                            <td className="px-3 py-2 text-right font-medium text-primary">{checked ? formatCFA(ligne?.montantPEC ?? 0) : "—"}</td>
+                            <td className="px-3 py-2">{f.dateLimite ? formatShortDate(f.dateLimite) : "—"}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">Impayé</span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+                <div className="px-3 py-2 bg-muted/20 flex justify-between text-xs">
+                  <span className="text-muted-foreground">{checkedIds.length} frais sélectionné(s) — total pris en charge : <strong className="text-foreground">{formatCFA(totalAlloue)}</strong></span>
+                  {nonAffecte > 0 && <span className="text-amber-600">Non affecté : {formatCFA(nonAffecte)}</span>}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 

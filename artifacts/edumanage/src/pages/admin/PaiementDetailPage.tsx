@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Ban, Printer, Layers, UserSquare2 } from "lucide-react";
+import { ArrowLeft, Ban, Printer, Layers, HeartHandshake, UserSquare2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePaiements, useStudentStore } from "@/hooks/useStudentStore";
 import { cancelPaiement } from "@/data/studentStore";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
+import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -70,10 +71,12 @@ export default function PaiementDetailPage({ id }: { id: string }) {
   const paiements = usePaiements();
   const etudiants = useStudentStore();
   const emissions = useEmissionsMasse();
+  const prisesEnCharge = usePrisesEnCharge();
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const record = paiements.find((p) => p.id === id);
   const emissionOrigine = record ? emissions.find((e) => e.quittanceIds.includes(record.id)) : undefined;
+  const priseEnChargeOrigine = record ? prisesEnCharge.find((r) => r.lignes.some((l) => l.quittanceId === record.id)) : undefined;
 
   if (!record) {
     return (
@@ -164,10 +167,20 @@ export default function PaiementDetailPage({ id }: { id: string }) {
       {emissionOrigine && (
         <button
           onClick={() => setLocation(`/admin/emissions-masse/${emissionOrigine.id}`)}
-          className="mb-5 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 text-sm hover:bg-indigo-100 transition-colors"
+          className="mb-3 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 text-sm hover:bg-indigo-100 transition-colors"
           data-testid="quittance-emission-origine"
         >
           <Layers size={15} /> Issue de l&apos;émission en masse <strong>{emissionOrigine.reference}</strong>
+        </button>
+      )}
+
+      {priseEnChargeOrigine && (
+        <button
+          onClick={() => setLocation(`/admin/prises-en-charge/${priseEnChargeOrigine.id}`)}
+          className="mb-5 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-50 text-purple-700 text-sm hover:bg-purple-100 transition-colors"
+          data-testid="quittance-pec-origine"
+        >
+          <HeartHandshake size={15} /> Réglée par la prise en charge <strong>{priseEnChargeOrigine.reference}</strong> ({priseEnChargeOrigine.organisme})
         </button>
       )}
 

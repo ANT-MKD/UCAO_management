@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Ban, Printer, Building2, Mail, Phone, User, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Ban, Printer, Building2, Mail, Phone, User, CalendarPlus, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
-import { cancelPriseEnCharge, prolongerPriseEnCharge, type PriseEnChargeLigne } from "@/data/priseEnChargeStore";
+import { cancelPriseEnCharge, prolongerPriseEnCharge, retirerLignePriseEnCharge, type PriseEnChargeLigne } from "@/data/priseEnChargeStore";
 import { statutPEC, montantPEC } from "@/pages/admin/PriseEnChargePage";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { usePaiements } from "@/hooks/useStudentStore";
@@ -80,6 +80,8 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
   const [nouvelleFin, setNouvelleFin] = useState("");
   const [nouvelleDateLimite, setNouvelleDateLimite] = useState("");
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
+  const [filtreFrais, setFiltreFrais] = useState("");
+  const [retirerTarget, setRetirerTarget] = useState<PriseEnChargeLigne | null>(null);
 
   const record = prisesEnCharge.find((r) => r.id === id);
   const organisme = record ? organismes.find((o) => o.id === record.organismeId) : undefined;
@@ -91,6 +93,11 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
       .filter((p) => p.etudiantId === record.etudiantId && p.statut !== "annule" && p.montant === 0 && !dejaCouverts.has(p.id))
       .map((p) => ({ id: p.id, label: p.rubrique, montantFrais: montantQuittance(p), dateLimite: p.dateLimite }));
   }, [paiements, record]);
+
+  const fraisEligiblesFiltres = useMemo(
+    () => fraisEligibles.filter((f) => f.label.toLowerCase().includes(filtreFrais.toLowerCase())),
+    [fraisEligibles, filtreFrais],
+  );
 
   const montantDejaApplique = record ? montantPEC(record) : 0;
   const resteDisponible = record?.type === "montant" ? Math.max(0, (record.montant ?? 0) - montantDejaApplique) : undefined;
@@ -131,6 +138,21 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
 
   const toggleLigne = (fid: string) => {
     setCheckedIds((prev) => (prev.includes(fid) ? prev.filter((x) => x !== fid) : [...prev, fid]));
+  };
+
+  const toggleTousFraisFiltres = () => {
+    const idsFiltres = fraisEligiblesFiltres.map((f) => f.id);
+    const tousCoches = idsFiltres.every((fid) => checkedIds.includes(fid));
+    setCheckedIds((prev) =>
+      tousCoches ? prev.filter((fid) => !idsFiltres.includes(fid)) : [...new Set([...prev, ...idsFiltres])],
+    );
+  };
+
+  const handleRetirerLigne = () => {
+    if (!retirerTarget) return;
+    retirerLignePriseEnCharge(record.id, retirerTarget.quittanceId);
+    toast.success(`Frais « ${retirerTarget.label} » retiré de la prise en charge`);
+    setRetirerTarget(null);
   };
 
   const handleCancel = () => {
@@ -292,6 +314,7 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
               <th className="text-right px-4 py-3">Montant PEC</th>
               <th className="text-left px-4 py-3">Date limite</th>
               <th className="text-center px-4 py-3">Statut</th>
+              {!record.annulee && <th className="w-12" />}
             </tr>
           </thead>
           <tbody>
@@ -317,6 +340,18 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
                       {statutLigne}
                     </span>
                   </td>
+                  {!record.annulee && (
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => setRetirerTarget(l)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                        aria-label="Retirer ce frais"
+                        data-testid={`pec-retirer-ligne-${l.quittanceId}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -377,7 +412,25 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
               )}
 
               <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Frais éligibles non encore couverts</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Frais éligibles non encore couverts</p>
+                  {fraisEligibles.length > 0 && (
+                    <button onClick={toggleTousFraisFiltres} className="text-xs text-primary hover:underline">
+                      Tout {fraisEligiblesFiltres.every((f) => checkedIds.includes(f.id)) && fraisEligiblesFiltres.length > 0 ? "décocher" : "cocher"}
+                    </button>
+                  )}
+                </div>
+                {fraisEligibles.length > 3 && (
+                  <div className="relative mb-2">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={filtreFrais}
+                      onChange={(e) => setFiltreFrais(e.target.value)}
+                      placeholder="Filtrer les frais (ex. scolarité)…"
+                      className={cn(inputClass, "pl-9 py-2")}
+                    />
+                  </div>
+                )}
                 {fraisEligibles.length === 0 ? (
                   <div className="py-6 text-center text-sm text-muted-foreground border border-dashed border-border rounded-xl">
                     Aucun frais impayé supplémentaire pour cet étudiant.
@@ -395,21 +448,29 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {fraisEligibles.map((f) => {
-                          const checked = checkedIds.includes(f.id);
-                          const ligne = allocationProlongation.find((l) => l.id === f.id);
-                          return (
-                            <tr key={f.id} className="border-b border-border last:border-0">
-                              <td className="px-3 py-2">
-                                <input type="checkbox" checked={checked} onChange={() => toggleLigne(f.id)} className="rounded" data-testid={`pec-prolong-ligne-${f.id}`} />
-                              </td>
-                              <td className="px-3 py-2">{f.label}</td>
-                              <td className="px-3 py-2 text-right">{formatCFA(f.montantFrais)}</td>
-                              <td className="px-3 py-2 text-right font-medium text-primary">{checked ? formatCFA(ligne?.montantPEC ?? 0) : "—"}</td>
-                              <td className="px-3 py-2">{f.dateLimite ? formatShortDate(f.dateLimite) : "—"}</td>
-                            </tr>
-                          );
-                        })}
+                        {fraisEligiblesFiltres.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                              Aucun frais ne correspond au filtre.
+                            </td>
+                          </tr>
+                        ) : (
+                          fraisEligiblesFiltres.map((f) => {
+                            const checked = checkedIds.includes(f.id);
+                            const ligne = allocationProlongation.find((l) => l.id === f.id);
+                            return (
+                              <tr key={f.id} className="border-b border-border last:border-0">
+                                <td className="px-3 py-2">
+                                  <input type="checkbox" checked={checked} onChange={() => toggleLigne(f.id)} className="rounded" data-testid={`pec-prolong-ligne-${f.id}`} />
+                                </td>
+                                <td className="px-3 py-2">{f.label}</td>
+                                <td className="px-3 py-2 text-right">{formatCFA(f.montantFrais)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-primary">{checked ? formatCFA(ligne?.montantPEC ?? 0) : "—"}</td>
+                                <td className="px-3 py-2">{f.dateLimite ? formatShortDate(f.dateLimite) : "—"}</td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                     <div className="px-3 py-2 bg-muted/20 text-xs text-muted-foreground">
@@ -437,6 +498,28 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
       )}
 
       {record.annulee && <p className="text-sm text-red-600 font-medium">Cette prise en charge a été annulée.</p>}
+
+      {retirerTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRetirerTarget(null)} />
+          <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6">
+            <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+              <Trash2 size={16} className="text-red-600" /> Retirer « {retirerTarget.label} » ?
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Ce frais redeviendra dû par l&apos;étudiant. Les autres frais couverts par cette PEC ne sont pas affectés.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setRetirerTarget(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                Annuler
+              </button>
+              <button type="button" onClick={handleRetirerLigne} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700">
+                Retirer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
