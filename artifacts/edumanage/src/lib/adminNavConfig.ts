@@ -183,7 +183,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-pec-organisme", label: "Organisme de PEC", href: "/admin/organismes-pec" },
           { id: "fin-pec-liste", label: "Les prises en charge", href: "/admin/prises-en-charge" },
-          { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: wipHref("fin-pec-regularisation") },
+          { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: "/admin/prises-en-charge" },
           { id: "fin-pec-export", label: "Export comptable", href: wipHref("fin-pec-export") },
           { id: "fin-pec-derogation", label: "Dérogation des paiements", href: wipHref("fin-pec-derogation") },
         ],

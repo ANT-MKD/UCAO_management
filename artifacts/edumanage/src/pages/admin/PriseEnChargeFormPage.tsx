@@ -8,6 +8,7 @@ import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { addPriseEnCharge, type TypePEC, type PriseEnChargeLigne } from "@/data/priseEnChargeStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { montantQuittance } from "@/pages/admin/PaiementsPage";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
@@ -35,8 +36,9 @@ export default function PriseEnChargeFormPage() {
   const [montantTotal, setMontantTotal] = useState("");
   const [pourcentage, setPourcentage] = useState("");
   const [documentName, setDocumentName] = useState("");
-  const [referenceOverride, setReferenceOverride] = useState("");
+  const [referenceExterne, setReferenceExterne] = useState("");
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
+  const { currentUser } = useAuth();
 
   const filteredStudents = searchQuery.length > 1
     ? etudiants.filter((e) =>
@@ -134,7 +136,8 @@ export default function PriseEnChargeFormPage() {
       montant: type === "montant" ? Number(montantTotal) : undefined,
       pourcentage: type === "pourcentage" ? Number(pourcentage) : undefined,
       document: documentName || undefined,
-      referenceOverride: referenceOverride || undefined,
+      referenceExterne: referenceExterne || undefined,
+      ajouteePar: currentUser?.name ?? "Administration",
       lignes,
     });
 
@@ -290,8 +293,8 @@ export default function PriseEnChargeFormPage() {
             </label>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
-            <input value={referenceOverride} onChange={(e) => setReferenceOverride(e.target.value)} placeholder="Auto si vide" className={cn(inputClass, "font-mono")} />
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence externe</label>
+            <input value={referenceExterne} onChange={(e) => setReferenceExterne(e.target.value)} placeholder="Référence du dossier chez l'organisme" className={cn(inputClass, "font-mono")} />
           </div>
         </div>
 

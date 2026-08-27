@@ -1,18 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Ban, Printer } from "lucide-react";
+import { ArrowLeft, Ban, Printer, Building2, Mail, Phone, User, CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
-import { cancelPriseEnCharge } from "@/data/priseEnChargeStore";
+import { cancelPriseEnCharge, prolongerPriseEnCharge, type PriseEnChargeLigne } from "@/data/priseEnChargeStore";
 import { statutPEC, montantPEC } from "@/pages/admin/PriseEnChargePage";
-import { formatCFA, formatDate, cn } from "@/lib/utils";
+import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
+import { usePaiements } from "@/hooks/useStudentStore";
+import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
+import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
   Active: "bg-emerald-50 text-emerald-700",
   Expirée: "bg-red-50 text-red-700",
   Annulée: "bg-slate-100 text-slate-600",
 };
+
+const inputClass =
+  "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 function buildPECHtml(args: {
   reference: string;
@@ -68,9 +74,43 @@ ${args.lignes.map((l) => `<tr><td>${l.label}</td><td>${formatCFA(l.montantFrais)
 export default function PriseEnChargeDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const prisesEnCharge = usePrisesEnCharge();
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  const organismes = useOrganismesPEC();
+  const paiements = usePaiements();
+  const [action, setAction] = useState<"" | "annuler" | "prolonger">("");
+  const [nouvelleFin, setNouvelleFin] = useState("");
+  const [nouvelleDateLimite, setNouvelleDateLimite] = useState("");
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
   const record = prisesEnCharge.find((r) => r.id === id);
+  const organisme = record ? organismes.find((o) => o.id === record.organismeId) : undefined;
+
+  const fraisEligibles = useMemo(() => {
+    if (!record) return [];
+    const dejaCouverts = new Set(record.lignes.map((l) => l.quittanceId));
+    return paiements
+      .filter((p) => p.etudiantId === record.etudiantId && p.statut !== "annule" && p.montant === 0 && !dejaCouverts.has(p.id))
+      .map((p) => ({ id: p.id, label: p.rubrique, montantFrais: montantQuittance(p), dateLimite: p.dateLimite }));
+  }, [paiements, record]);
+
+  const montantDejaApplique = record ? montantPEC(record) : 0;
+  const resteDisponible = record?.type === "montant" ? Math.max(0, (record.montant ?? 0) - montantDejaApplique) : undefined;
+
+  const allocationProlongation = useMemo(() => {
+    if (!record) return [];
+    const checked = fraisEligibles.filter((f) => checkedIds.includes(f.id));
+    if (record.type === "pourcentage") {
+      const pct = record.pourcentage ?? 0;
+      return checked.map((f) => ({ ...f, montantPEC: Math.round((f.montantFrais * pct) / 100) }));
+    }
+    let remaining = resteDisponible ?? 0;
+    return checked.map((f) => {
+      const applied = Math.min(remaining, f.montantFrais);
+      remaining -= applied;
+      return { ...f, montantPEC: applied };
+    });
+  }, [record, fraisEligibles, checkedIds, resteDisponible]);
+
+  const totalProlongation = allocationProlongation.reduce((s, l) => s + l.montantPEC, 0);
 
   if (!record) {
     return (
@@ -89,10 +129,37 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
   const statut = statutPEC(record);
   const total = montantPEC(record);
 
+  const toggleLigne = (fid: string) => {
+    setCheckedIds((prev) => (prev.includes(fid) ? prev.filter((x) => x !== fid) : [...prev, fid]));
+  };
+
   const handleCancel = () => {
     cancelPriseEnCharge(record.id);
     toast.success("Prise en charge annulée — les quittances couvertes ont été rétablies");
-    setConfirmCancel(false);
+    setAction("");
+  };
+
+  const handleProlonger = () => {
+    if (!nouvelleFin || !nouvelleDateLimite) {
+      toast.error("Indiquez la nouvelle date de fin et la nouvelle date limite");
+      return;
+    }
+    if (nouvelleFin <= record.fin) {
+      toast.error("La nouvelle date de fin doit être postérieure à la fin actuelle");
+      return;
+    }
+    const lignes: PriseEnChargeLigne[] = allocationProlongation.map((l) => ({
+      quittanceId: l.id,
+      label: l.label,
+      montantFrais: l.montantFrais,
+      montantPEC: l.montantPEC,
+    }));
+    prolongerPriseEnCharge(record.id, { nouvelleFin, nouvelleDateLimite, lignes });
+    toast.success(lignes.length > 0 ? `Prise en charge prolongée — ${lignes.length} frais supplémentaire(s) couvert(s)` : "Prise en charge prolongée");
+    setAction("");
+    setCheckedIds([]);
+    setNouvelleFin("");
+    setNouvelleDateLimite("");
   };
 
   const handlePrint = () => {
@@ -125,9 +192,17 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
           { label: "Les prises en charge", href: "/admin/prises-en-charge" },
           { label: record.reference },
         ]}
-        title={`Prise en charge ${record.reference}`}
+        title={`Consultation prise en charge [${record.reference}]`}
         actions={
           <div className="flex gap-2">
+            {organisme && (
+              <button
+                onClick={() => setLocation(`/admin/organismes-pec/${organisme.id}`)}
+                className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"
+              >
+                Modifier l&apos;organisme
+              </button>
+            )}
             <button
               onClick={() => setLocation("/admin/prises-en-charge")}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"
@@ -151,33 +226,63 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <div>
-          <p className="text-xs text-muted-foreground">Organisme</p>
-          <p className="font-semibold text-sm mt-1">{record.organisme}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Étudiant</p>
-          <p className="font-semibold text-sm mt-1">{record.etudiant}</p>
-          <p className="text-xs text-muted-foreground">{record.filiere} / {record.annee}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Période / Date limite</p>
-          <p className="font-semibold text-sm mt-1">{formatDate(record.debut)} → {formatDate(record.fin)}</p>
-          <p className="text-xs text-muted-foreground">Limite : {formatDate(record.dateLimite)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">
-            {record.type === "montant" ? "Montant pris en charge" : `Pourcentage (${record.pourcentage}%)`}
+      <div className="grid lg:grid-cols-[1fr_380px] gap-5 mb-5">
+        <div className="bg-card border border-border rounded-xl p-5 space-y-2" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="font-semibold text-sm">{record.etudiant}</p>
+            <p className="font-bold text-primary">{formatCFA(total)}</p>
+          </div>
+          <p className="text-xs text-muted-foreground">{record.filiere} | {record.annee}</p>
+          <p className="text-sm">
+            Type PEC : <strong>{record.type === "montant" ? "PEC par montant" : "PEC par pourcentage"}</strong>
+            {record.type === "pourcentage" && <span className="text-muted-foreground"> ({record.pourcentage}%)</span>}
           </p>
-          <p className="font-semibold text-sm mt-1">{formatCFA(total)}</p>
+          <p className="text-sm">
+            Valable du <strong>{formatDate(record.debut)}</strong> au <strong>{formatDate(record.fin)}</strong>
+          </p>
+          <p className="text-sm">Date limite : <strong>{formatDate(record.dateLimite)}</strong></p>
+          <p className="text-sm text-muted-foreground">Référence externe : {record.referenceExterne || "—"}</p>
+          <p className="text-sm text-muted-foreground">Ajoutée par : <strong className="text-foreground">{record.ajouteePar}</strong></p>
           <span className={cn("inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium", STATUT_CLS[statut])}>{statut}</span>
         </div>
+
+        {organisme && (
+          <div className="bg-card border border-border rounded-xl p-5 space-y-2.5 text-sm" style={{ boxShadow: "var(--shadow-sm)" }}>
+            <div className="flex items-center gap-2">
+              <Building2 size={15} className="text-primary shrink-0" />
+              <span className="font-semibold">{organisme.intitule}</span>
+            </div>
+            {organisme.email && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mail size={13} className="shrink-0" /> {organisme.email}
+              </div>
+            )}
+            {organisme.telephone && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone size={13} className="shrink-0" /> {organisme.telephone}
+              </div>
+            )}
+            <div className="border-t border-border pt-2.5 flex items-center gap-2">
+              <User size={13} className="text-muted-foreground shrink-0" />
+              <span>Contact : <strong>{organisme.contactNom}</strong></span>
+            </div>
+            {organisme.contactEmail && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mail size={13} className="shrink-0" /> Email contact : {organisme.contactEmail}
+              </div>
+            )}
+            {organisme.contactTelephone && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone size={13} className="shrink-0" /> Téléphone contact : {organisme.contactTelephone}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="px-5 py-3 border-b border-border bg-muted/40">
-          <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Frais couverts</h3>
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Frais concernés</h3>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -185,50 +290,153 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
               <th className="text-left px-4 py-3">Frais</th>
               <th className="text-right px-4 py-3">Montant</th>
               <th className="text-right px-4 py-3">Montant PEC</th>
+              <th className="text-left px-4 py-3">Date limite</th>
+              <th className="text-center px-4 py-3">Statut</th>
             </tr>
           </thead>
           <tbody>
-            {record.lignes.map((l, i) => (
-              <tr key={i} className="border-b border-border last:border-0">
-                <td className="px-4 py-3">{l.label}</td>
-                <td className="px-4 py-3 text-right text-muted-foreground">{formatCFA(l.montantFrais)}</td>
-                <td className="px-4 py-3 text-right font-medium">{formatCFA(l.montantPEC)}</td>
-              </tr>
-            ))}
+            {record.lignes.map((l, i) => {
+              const quittance = paiements.find((p) => p.id === l.quittanceId);
+              const statutLigne = quittance ? statutQuittance(quittance) : "—";
+              return (
+                <tr key={i} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3">{l.label}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{formatCFA(l.montantFrais)}</td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCFA(l.montantPEC)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{quittance?.dateLimite ? formatShortDate(quittance.dateLimite) : "—"}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full font-medium",
+                        statutLigne === "Payé" && "bg-emerald-50 text-emerald-700",
+                        statutLigne === "Acompte" && "bg-amber-50 text-amber-700",
+                        statutLigne === "Impayé" && "bg-slate-100 text-slate-600",
+                        statutLigne === "Annulé" && "bg-red-50 text-red-700",
+                      )}
+                    >
+                      {statutLigne}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {!record.annulee ? (
-        <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
-          <input type="checkbox" checked={false} onChange={() => setConfirmCancel(true)} className="rounded" />
-          Annuler la prise en charge
-        </label>
-      ) : (
-        <p className="text-sm text-red-600 font-medium">Cette prise en charge a été annulée.</p>
-      )}
-
-      {confirmCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmCancel(false)} />
-          <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6">
-            <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
-              <Ban size={16} className="text-red-600" /> Annuler la prise en charge {record.reference} ?
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Les quittances couvertes redeviendront dues pour le montant retiré. Action irréversible.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirmCancel(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
-                Annuler
-              </button>
-              <button type="button" onClick={handleCancel} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700">
-                Confirmer
-              </button>
-            </div>
+      {!record.annulee && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div className="flex flex-wrap gap-6">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="radio" checked={action === "annuler"} onChange={() => setAction("annuler")} className="accent-primary" />
+              Annuler la prise en charge
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="radio" checked={action === "prolonger"} onChange={() => setAction("prolonger")} className="accent-primary" data-testid="pec-radio-prolonger" />
+              Prolonger la prise en charge
+            </label>
           </div>
+
+          {action === "annuler" && (
+            <div className="border-t border-border pt-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                Les quittances couvertes redeviendront dues pour le montant retiré. Action irréversible.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setAction("")} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                  Annuler
+                </button>
+                <button onClick={handleCancel} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700">
+                  <Ban size={14} /> Confirmer l&apos;annulation
+                </button>
+              </div>
+            </div>
+          )}
+
+          {action === "prolonger" && (
+            <div className="border-t border-border pt-4 space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    Nouvelle date de fin <span className="text-red-500">*</span>
+                  </label>
+                  <input type="date" value={nouvelleFin} onChange={(e) => setNouvelleFin(e.target.value)} min={record.fin} className={inputClass} data-testid="pec-nouvelle-fin" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    Nouvelle date limite <span className="text-red-500">*</span>
+                  </label>
+                  <input type="date" value={nouvelleDateLimite} onChange={(e) => setNouvelleDateLimite(e.target.value)} className={inputClass} data-testid="pec-nouvelle-limite" />
+                </div>
+              </div>
+
+              {record.type === "montant" && (
+                <p className="text-xs text-muted-foreground">
+                  Montant restant disponible sur cette PEC : <strong className="text-foreground">{formatCFA(resteDisponible ?? 0)}</strong>
+                </p>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Frais éligibles non encore couverts</p>
+                {fraisEligibles.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground border border-dashed border-border rounded-xl">
+                    Aucun frais impayé supplémentaire pour cet étudiant.
+                  </div>
+                ) : (
+                  <div className="border border-border rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/30 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <th className="px-3 py-2 w-8" />
+                          <th className="text-left px-3 py-2">Intitulé frais</th>
+                          <th className="text-right px-3 py-2">Montant</th>
+                          <th className="text-right px-3 py-2">Montant PEC</th>
+                          <th className="text-left px-3 py-2">Date limite</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fraisEligibles.map((f) => {
+                          const checked = checkedIds.includes(f.id);
+                          const ligne = allocationProlongation.find((l) => l.id === f.id);
+                          return (
+                            <tr key={f.id} className="border-b border-border last:border-0">
+                              <td className="px-3 py-2">
+                                <input type="checkbox" checked={checked} onChange={() => toggleLigne(f.id)} className="rounded" data-testid={`pec-prolong-ligne-${f.id}`} />
+                              </td>
+                              <td className="px-3 py-2">{f.label}</td>
+                              <td className="px-3 py-2 text-right">{formatCFA(f.montantFrais)}</td>
+                              <td className="px-3 py-2 text-right font-medium text-primary">{checked ? formatCFA(ligne?.montantPEC ?? 0) : "—"}</td>
+                              <td className="px-3 py-2">{f.dateLimite ? formatShortDate(f.dateLimite) : "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="px-3 py-2 bg-muted/20 text-xs text-muted-foreground">
+                      {checkedIds.length} frais sélectionné(s) — total ajouté à la PEC : <strong className="text-foreground">{formatCFA(totalProlongation)}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setAction("")} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                  Annuler
+                </button>
+                <button
+                  onClick={handleProlonger}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90"
+                  data-testid="pec-confirmer-prolongation"
+                >
+                  <CalendarPlus size={14} /> Confirmer la prolongation
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {record.annulee && <p className="text-sm text-red-600 font-medium">Cette prise en charge a été annulée.</p>}
     </div>
   );
 }

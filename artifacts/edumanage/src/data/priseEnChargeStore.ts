@@ -14,6 +14,8 @@ export interface PriseEnChargeLigne {
 export interface PriseEnChargeRecord {
   id: string;
   reference: string;
+  /** Référence propre à l'organisme (son propre dossier), distincte de notre numéro interne. */
+  referenceExterne?: string;
   type: TypePEC;
   dateSaisie: string;
   organismeId: string;
@@ -28,6 +30,8 @@ export interface PriseEnChargeRecord {
   montant?: number;
   pourcentage?: number;
   document?: string;
+  /** Utilisateur (admin/comptabilité) ayant saisi la prise en charge. */
+  ajouteePar: string;
   lignes: PriseEnChargeLigne[];
   annulee: boolean;
 }
@@ -94,14 +98,19 @@ export interface AddPriseEnChargePayload {
   montant?: number;
   pourcentage?: number;
   document?: string;
-  referenceOverride?: string;
+  referenceExterne?: string;
+  ajouteePar: string;
   lignes: PriseEnChargeLigne[];
+}
+
+function makeReference(annee: string): string {
+  store.counter = (store.counter ?? 0) + 1;
+  return `PEC-${annee.slice(0, 4)}-${String(store.counter).padStart(3, "0")}`;
 }
 
 /** Enregistre une prise en charge : règle chaque quittance retenue (payerQuittance) avec l'organisme comme moyen de paiement. */
 export function addPriseEnCharge(payload: AddPriseEnChargePayload): PriseEnChargeRecord {
-  store.counter = (store.counter ?? 0) + 1;
-  const reference = payload.referenceOverride?.trim() || `PEC-${payload.annee.slice(0, 4)}-${String(store.counter).padStart(3, "0")}`;
+  const reference = makeReference(payload.annee);
 
   const lignesAppliquees = payload.lignes.filter((l) => l.montantPEC > 0);
   lignesAppliquees.forEach((l) => {
@@ -111,6 +120,7 @@ export function addPriseEnCharge(payload: AddPriseEnChargePayload): PriseEnCharg
   const record: PriseEnChargeRecord = {
     id: `pec-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     reference,
+    referenceExterne: payload.referenceExterne,
     type: payload.type,
     dateSaisie: payload.dateSaisie,
     organismeId: payload.organismeId,
@@ -125,6 +135,7 @@ export function addPriseEnCharge(payload: AddPriseEnChargePayload): PriseEnCharg
     montant: payload.montant,
     pourcentage: payload.pourcentage,
     document: payload.document,
+    ajouteePar: payload.ajouteePar,
     lignes: lignesAppliquees,
     annulee: false,
   };
@@ -141,4 +152,31 @@ export function cancelPriseEnCharge(id: string): void {
   record.lignes.forEach((l) => reverserReglementQuittance(l.quittanceId, l.montantPEC));
   store.records = store.records.map((r) => (r.id === id ? { ...r, annulee: true } : r));
   persist();
+}
+
+export interface ProlongerPriseEnChargePayload {
+  nouvelleFin: string;
+  nouvelleDateLimite: string;
+  lignes: PriseEnChargeLigne[];
+}
+
+/** Régularisation : prolonge la période de la PEC et applique son montant/pourcentage aux frais nouvellement éligibles. */
+export function prolongerPriseEnCharge(id: string, payload: ProlongerPriseEnChargePayload): PriseEnChargeRecord | undefined {
+  const record = store.records.find((r) => r.id === id);
+  if (!record || record.annulee) return undefined;
+
+  const lignesAppliquees = payload.lignes.filter((l) => l.montantPEC > 0);
+  lignesAppliquees.forEach((l) => {
+    payerQuittance({ id: l.quittanceId, montant: l.montantPEC, moyen: "Prise en charge", reference: record.reference, date: new Date().toISOString().slice(0, 10) });
+  });
+
+  const updated: PriseEnChargeRecord = {
+    ...record,
+    fin: payload.nouvelleFin,
+    dateLimite: payload.nouvelleDateLimite,
+    lignes: [...record.lignes, ...lignesAppliquees],
+  };
+  store.records = store.records.map((r) => (r.id === id ? updated : r));
+  persist();
+  return updated;
 }
