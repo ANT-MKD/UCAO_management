@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS } from "@/data/mockData";
@@ -12,6 +12,7 @@ const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 export default function TeacherContractsPage() {
+  const [, setLocation] = useLocation();
   const contracts = useTeacherContracts();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
   const [quickSearch, setQuickSearch] = useState("");
@@ -80,8 +81,13 @@ export default function TeacherContractsPage() {
                 const teacher = teachers.find((t) => t.id === c.teacherId);
                 const statut = contractStatut(c);
                 return (
-                  <tr key={c.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 font-medium">{c.id}</td>
+                  <tr
+                    key={c.id}
+                    className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/40"
+                    onClick={() => setLocation(`/admin/teachers/contracts/${c.id}`)}
+                    data-testid={`contract-row-${c.id}`}
+                  >
+                    <td className="px-4 py-3 font-medium text-primary">{c.id}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{teacher ? `${teacher.prenom} ${teacher.nom}` : c.teacherId}</p>
                       <p className="text-xs text-muted-foreground">{teacher?.matricule}</p>
@@ -89,15 +95,17 @@ export default function TeacherContractsPage() {
                     <td className="px-3 py-3 text-center">{c.annee}</td>
                     <td className="px-3 py-3 text-center whitespace-nowrap">{formatShortDate(c.createdAt)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatCFA(montantTotal(c))}</td>
-                    <td className="px-3 py-3 text-center">{c.nombreAvenants}</td>
+                    <td className="px-3 py-3 text-center">{c.avenants.length}</td>
                     <td className="px-3 py-3 text-center">
                       <span
                         className={cn(
                           "text-xs px-2 py-0.5 rounded-full font-medium",
-                          statut === "actif" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                          statut === "actif" && "bg-emerald-50 text-emerald-700",
+                          statut === "expire" && "bg-slate-100 text-slate-600",
+                          statut === "resilie" && "bg-red-50 text-red-700",
                         )}
                       >
-                        {statut === "actif" ? "Actif" : "Expiré"}
+                        {statut === "actif" ? "Actif" : statut === "expire" ? "Expiré" : "Résilié"}
                       </span>
                     </td>
                   </tr>
