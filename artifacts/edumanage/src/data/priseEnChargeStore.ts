@@ -206,3 +206,13 @@ export function enregistrerEncaissementSurPEC(id: string, montant: number): void
   );
   persist();
 }
+
+/** Retire un montant précédemment reconnu comme encaissé (ex. annulation d'un règlement en masse). */
+export function retirerEncaissementSurPEC(id: string, montant: number): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record) return;
+  store.records = store.records.map((r) =>
+    r.id === id ? { ...r, montantEncaisse: Math.max(0, (r.montantEncaisse ?? 0) - Math.max(0, montant)) } : r,
+  );
+  persist();
+}

@@ -95,6 +95,12 @@ const PriseEnChargePage = lazy(() => import("@/pages/admin/PriseEnChargePage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
 const EncaissementPECFormPage = lazy(() => import("@/pages/admin/EncaissementPECFormPage"));
 const EncaissementPECDetailPage = lazy(() => import("@/pages/admin/EncaissementPECDetailPage"));
+const ReglementMassePage = lazy(() => import("@/pages/admin/ReglementMassePage"));
+const ReglementMasseFormPage = lazy(() => import("@/pages/admin/ReglementMasseFormPage"));
+const ReglementMasseDetailPage = lazy(() => import("@/pages/admin/ReglementMasseDetailPage"));
+const PECMassePage = lazy(() => import("@/pages/admin/PECMassePage"));
+const PECMasseFormPage = lazy(() => import("@/pages/admin/PECMasseFormPage"));
+const PECMasseDetailPage = lazy(() => import("@/pages/admin/PECMasseDetailPage"));
 const PriseEnChargeFormPage = lazy(() => import("@/pages/admin/PriseEnChargeFormPage"));
 const PriseEnChargeDetailPage = lazy(() => import("@/pages/admin/PriseEnChargeDetailPage"));
 const EmissionMasseFormPage = lazy(() => import("@/pages/admin/EmissionMasseFormPage"));
@@ -347,6 +353,18 @@ function AppRouter() {
       <Route path="/admin/encaissements-pec/:id">
         {(p) => <Admin><EncaissementPECDetailPage id={p.id} /></Admin>}
       </Route>
+      <Route path="/admin/encaissements-pec-masse/new">
+        <Admin><ReglementMasseFormPage /></Admin>
+      </Route>
+      <Route path="/admin/encaissements-pec-masse/:id">
+        {(p) => <Admin><ReglementMasseDetailPage id={p.id} /></Admin>}
+      </Route>
+      <Route path="/admin/pec-masse/new">
+        <Admin><PECMasseFormPage /></Admin>
+      </Route>
+      <Route path="/admin/pec-masse/:id">
+        {(p) => <Admin><PECMasseDetailPage id={p.id} /></Admin>}
+      </Route>
       <Route path="/admin/vacations/new">
         <Admin><VacationFormPage /></Admin>
       </Route>
@@ -432,6 +450,12 @@ function AppRouter() {
       </Route>
       <Route path="/admin/encaissements-pec">
         <Admin><EncaissementPECPage /></Admin>
+      </Route>
+      <Route path="/admin/encaissements-pec-masse">
+        <Admin><ReglementMassePage /></Admin>
+      </Route>
+      <Route path="/admin/pec-masse">
+        <Admin><PECMassePage /></Admin>
       </Route>
       <Route path="/admin/vacations">
         <Admin><VacationsPage /></Admin>

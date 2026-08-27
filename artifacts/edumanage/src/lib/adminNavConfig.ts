@@ -110,9 +110,9 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-enc-nouveau", label: "Nouvel encaissement", href: "/admin/paiements/new" },
           { id: "fin-enc-pec", label: "Nouvel encaissement de PEC", href: "/admin/encaissements-pec/new" },
-          { id: "fin-enc-pec-masse", label: "Nouvel encaissement de PEC en masse", href: wipHref("fin-enc-pec-masse") },
+          { id: "fin-enc-pec-masse", label: "Nouvel encaissement de PEC en masse", href: "/admin/encaissements-pec-masse" },
           { id: "fin-enc-pec-liste", label: "Liste encaissement PEC", href: "/admin/encaissements-pec" },
-          { id: "fin-enc-pec-masse2", label: "PEC en masse", href: wipHref("fin-enc-pec-masse2") },
+          { id: "fin-enc-pec-masse2", label: "PEC en masse", href: "/admin/pec-masse" },
           { id: "fin-enc-liste", label: "Les encaissements", href: "/admin/transactions" },
           { id: "fin-enc-facture", label: "Facture autres services", href: wipHref("fin-enc-facture") },
           { id: "fin-enc-candidature", label: "Candidature", href: wipHref("fin-enc-candidature") },
