@@ -28,6 +28,11 @@ export function montantPEC(r: PriseEnChargeRecord): number {
   return r.lignes.reduce((s, l) => s + l.montantPEC, 0);
 }
 
+/** Montant engagé (appliqué aux quittances) encore non reconnu comme reçu de l'organisme. */
+export function resteAEncaisser(r: PriseEnChargeRecord): number {
+  return Math.max(0, montantPEC(r) - (r.montantEncaisse ?? 0));
+}
+
 function joursAvantExpiration(r: PriseEnChargeRecord): number {
   return Math.floor((new Date(r.dateLimite).getTime() - Date.now()) / 86400000);
 }

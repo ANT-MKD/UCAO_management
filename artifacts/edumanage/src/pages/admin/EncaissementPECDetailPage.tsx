@@ -1,0 +1,172 @@
+import { useLocation } from "wouter";
+import { ArrowLeft, Printer } from "lucide-react";
+import { PageHeader } from "@/components/admin/PageHeader";
+import { useEncaissementsPEC } from "@/hooks/useEncaissementPECStore";
+import { montantEncaissement } from "@/pages/admin/EncaissementPECPage";
+import { formatCFA, formatDate } from "@/lib/utils";
+
+function buildEncaissementHtml(args: {
+  reference: string;
+  organisme: string;
+  date: string;
+  modePaiement: string;
+  referenceBancaire?: string;
+  lignes: { reference: string; montant: number }[];
+}): string {
+  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const total = args.lignes.reduce((s, l) => s + l.montant, 0);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
+<style>
+body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:40px;color:#1a1a1a}
+.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
+.header h1{font-size:22px;color:#4f46e5;margin:0}
+.header p{font-size:12px;color:#666;margin:4px 0}
+.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
+.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
+th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
+th{background:#f4f4f8}
+.total-row td{font-weight:bold;background:#f9f9fc}
+.footer{margin-top:50px;font-size:11px;color:#666}
+</style></head><body>
+<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
+<div class="title">ENCAISSEMENT PEC N° ${args.reference}</div>
+<div class="meta">
+  <div>Organisme : <strong>${args.organisme}</strong></div>
+  <div>Date : <strong>${formatDate(args.date)}</strong></div>
+  <div>Mode de paiement : <strong>${args.modePaiement}</strong></div>
+  ${args.referenceBancaire ? `<div>Référence bancaire : <strong>${args.referenceBancaire}</strong></div>` : ""}
+</div>
+<table>
+<thead><tr><th>Prise en charge</th><th>Montant encaissé</th></tr></thead>
+<tbody>
+${args.lignes.map((l) => `<tr><td>${l.reference}</td><td>${formatCFA(l.montant)}</td></tr>`).join("")}
+<tr class="total-row"><td>Total encaissé</td><td>${formatCFA(total)}</td></tr>
+</tbody>
+</table>
+<div class="footer">Fait à Dakar, le ${now}</div>
+</body></html>`;
+}
+
+export default function EncaissementPECDetailPage({ id }: { id: string }) {
+  const [, setLocation] = useLocation();
+  const encaissements = useEncaissementsPEC();
+
+  const record = encaissements.find((r) => r.id === id);
+
+  if (!record) {
+    return (
+      <div>
+        <PageHeader
+          breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Les encaissements PEC", href: "/admin/encaissements-pec" }]}
+          title="Encaissement introuvable"
+        />
+        <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
+          Cet encaissement n&apos;existe pas ou a été supprimé.
+        </div>
+      </div>
+    );
+  }
+
+  const total = montantEncaissement(record);
+
+  const handlePrint = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(
+      buildEncaissementHtml({
+        reference: record.reference,
+        organisme: record.organisme,
+        date: record.date,
+        modePaiement: record.modePaiement,
+        referenceBancaire: record.referenceBancaire,
+        lignes: record.lignes.map((l) => ({ reference: l.reference, montant: l.montant })),
+      }),
+    );
+    win.document.close();
+    win.print();
+  };
+
+  return (
+    <div>
+      <PageHeader
+        breadcrumb={[
+          { label: "Admin" },
+          { label: "Finances" },
+          { label: "Les encaissements PEC", href: "/admin/encaissements-pec" },
+          { label: record.reference },
+        ]}
+        title={`Encaissement ${record.reference}`}
+        actions={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLocation("/admin/encaissements-pec")}
+              className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"
+            >
+              <ArrowLeft size={15} /> Retour
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+              data-testid="enc-pec-imprimer"
+            >
+              <Printer size={15} /> Imprimer
+            </button>
+          </div>
+        }
+      />
+
+      <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div>
+          <p className="text-xs text-muted-foreground">Organisme</p>
+          <p className="font-semibold text-sm mt-1">{record.organisme}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Date / Mode de paiement</p>
+          <p className="font-semibold text-sm mt-1">{formatDate(record.date)}</p>
+          <p className="text-xs text-muted-foreground">{record.modePaiement}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Référence bancaire</p>
+          <p className="font-semibold text-sm mt-1">{record.referenceBancaire || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Total encaissé</p>
+          <p className="font-bold text-primary text-sm mt-1">{formatCFA(total)}</p>
+          <p className="text-xs text-muted-foreground">Ajouté par : {record.ajouteePar}</p>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div className="px-5 py-3 border-b border-border bg-muted/40">
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Prises en charge concernées</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <th className="text-left px-4 py-3">Référence PEC</th>
+              <th className="text-right px-4 py-3">Montant encaissé</th>
+              <th className="w-14" />
+            </tr>
+          </thead>
+          <tbody>
+            {record.lignes.map((l, i) => (
+              <tr key={i} className="border-b border-border last:border-0">
+                <td className="px-4 py-3 font-medium">{l.reference}</td>
+                <td className="px-4 py-3 text-right font-medium">{formatCFA(l.montant)}</td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() => setLocation(`/admin/prises-en-charge/${l.priseEnChargeId}`)}
+                    className="text-xs text-primary hover:underline whitespace-nowrap"
+                  >
+                    Voir la PEC
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

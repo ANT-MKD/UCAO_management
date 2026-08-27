@@ -34,6 +34,8 @@ export interface PriseEnChargeRecord {
   ajouteePar: string;
   lignes: PriseEnChargeLigne[];
   annulee: boolean;
+  /** Montant effectivement reçu de l'organisme (encaissement PEC) — distinct du montant engagé/appliqué aux quittances. */
+  montantEncaisse: number;
 }
 
 const listeners = new Set<() => void>();
@@ -138,6 +140,7 @@ export function addPriseEnCharge(payload: AddPriseEnChargePayload): PriseEnCharg
     ajouteePar: payload.ajouteePar,
     lignes: lignesAppliquees,
     annulee: false,
+    montantEncaisse: 0,
   };
 
   store.records = [record, ...store.records];
@@ -190,6 +193,16 @@ export function retirerLignePriseEnCharge(id: string, quittanceId: string): void
   reverserReglementQuittance(quittanceId, ligne.montantPEC);
   store.records = store.records.map((r) =>
     r.id === id ? { ...r, lignes: r.lignes.filter((l) => l.quittanceId !== quittanceId) } : r,
+  );
+  persist();
+}
+
+/** Enregistre qu'un montant a été effectivement reçu de l'organisme pour cette PEC (encaissement PEC). */
+export function enregistrerEncaissementSurPEC(id: string, montant: number): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record) return;
+  store.records = store.records.map((r) =>
+    r.id === id ? { ...r, montantEncaisse: (r.montantEncaisse ?? 0) + Math.max(0, montant) } : r,
   );
   persist();
 }

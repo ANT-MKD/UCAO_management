@@ -5,9 +5,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { cancelPriseEnCharge, prolongerPriseEnCharge, retirerLignePriseEnCharge, type PriseEnChargeLigne } from "@/data/priseEnChargeStore";
-import { statutPEC, montantPEC } from "@/pages/admin/PriseEnChargePage";
+import { statutPEC, montantPEC, resteAEncaisser } from "@/pages/admin/PriseEnChargePage";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { usePaiements } from "@/hooks/useStudentStore";
+import { useEncaissementsPEC } from "@/hooks/useEncaissementPECStore";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
 
@@ -76,6 +77,7 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
   const prisesEnCharge = usePrisesEnCharge();
   const organismes = useOrganismesPEC();
   const paiements = usePaiements();
+  const encaissements = useEncaissementsPEC();
   const [action, setAction] = useState<"" | "annuler" | "prolonger">("");
   const [nouvelleFin, setNouvelleFin] = useState("");
   const [nouvelleDateLimite, setNouvelleDateLimite] = useState("");
@@ -135,6 +137,8 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
 
   const statut = statutPEC(record);
   const total = montantPEC(record);
+  const reste = resteAEncaisser(record);
+  const encaissementsRecus = encaissements.filter((e) => e.lignes.some((l) => l.priseEnChargeId === record.id));
 
   const toggleLigne = (fid: string) => {
     setCheckedIds((prev) => (prev.includes(fid) ? prev.filter((x) => x !== fid) : [...prev, fid]));
@@ -260,6 +264,11 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
             {record.type === "pourcentage" && <span className="text-muted-foreground"> ({record.pourcentage}%)</span>}
           </p>
           <p className="text-sm">
+            Engagé : <strong>{formatCFA(total)}</strong> — Encaissé :{" "}
+            <strong className="text-emerald-600">{formatCFA(record.montantEncaisse ?? 0)}</strong> — Reste à encaisser :{" "}
+            <strong className={reste > 0 ? "text-amber-600" : "text-emerald-600"}>{formatCFA(reste)}</strong>
+          </p>
+          <p className="text-sm">
             Valable du <strong>{formatDate(record.debut)}</strong> au <strong>{formatDate(record.fin)}</strong>
           </p>
           <p className="text-sm">Date limite : <strong>{formatDate(record.dateLimite)}</strong></p>
@@ -358,6 +367,41 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
           </tbody>
         </table>
       </div>
+
+      {encaissementsRecus.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div className="px-5 py-3 border-b border-border bg-muted/40">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Encaissements reçus</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left px-4 py-3">Référence</th>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3">Mode de paiement</th>
+                <th className="text-right px-4 py-3">Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              {encaissementsRecus.map((e) => {
+                const ligne = e.lignes.find((l) => l.priseEnChargeId === record.id);
+                return (
+                  <tr
+                    key={e.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                    onClick={() => setLocation(`/admin/encaissements-pec/${e.id}`)}
+                  >
+                    <td className="px-4 py-3 font-medium">{e.reference}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatDate(e.date)}</td>
+                    <td className="px-4 py-3">{e.modePaiement}</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatCFA(ligne?.montant ?? 0)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {!record.annulee && (
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
