@@ -132,10 +132,10 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-decompte",
         label: "Décompte",
         children: [
-          { id: "fin-decompte-taux", label: "Taux horaire", href: "/admin/vacations" },
+          { id: "fin-decompte-taux", label: "Taux horaire", href: "/admin/decomptes/taux-horaire/new" },
           { id: "fin-decompte-forfait", label: "Forfait", href: "/admin/vacations" },
           { id: "fin-decompte-terme", label: "À terme", href: wipHref("fin-decompte-terme") },
-          { id: "fin-decompte-liste", label: "Les décomptes", href: "/admin/vacations" },
+          { id: "fin-decompte-liste", label: "Les décomptes", href: "/admin/decomptes" },
         ],
       },
       {

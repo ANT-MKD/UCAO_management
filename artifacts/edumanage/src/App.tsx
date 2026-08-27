@@ -102,6 +102,9 @@ const RemboursementAvoirFormPage = lazy(() => import("@/pages/admin/Remboursemen
 const RemboursementAvoirDetailPage = lazy(() => import("@/pages/admin/RemboursementAvoirDetailPage"));
 const FactureAutreServiceDetailPage = lazy(() => import("@/pages/admin/FactureAutreServiceDetailPage"));
 const EncaissementsPage = lazy(() => import("@/pages/admin/EncaissementsPage"));
+const DecomptesPage = lazy(() => import("@/pages/admin/DecomptesPage"));
+const DecompteTauxHoraireFormPage = lazy(() => import("@/pages/admin/DecompteTauxHoraireFormPage"));
+const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
 const EncaissementPECFormPage = lazy(() => import("@/pages/admin/EncaissementPECFormPage"));
@@ -403,6 +406,12 @@ function AppRouter() {
       <Route path="/admin/vacations/:id/edit">
         {(p) => <Admin><VacationFormPage id={p.id} /></Admin>}
       </Route>
+      <Route path="/admin/decomptes/taux-horaire/new">
+        <Admin><DecompteTauxHoraireFormPage /></Admin>
+      </Route>
+      <Route path="/admin/decomptes/:id">
+        {(p) => <Admin><DecompteDetailPage id={p.id} /></Admin>}
+      </Route>
 
       {/* ===== ADMIN — base routes (2 segments) ===== */}
       <Route path="/admin/dashboard">
@@ -491,6 +500,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/avoir/consentement">
         <Admin><ConsentementAvoirPage /></Admin>
+      </Route>
+      <Route path="/admin/decomptes">
+        <Admin><DecomptesPage /></Admin>
       </Route>
       <Route path="/admin/encaissements-pec">
         <Admin><EncaissementPECPage /></Admin>

@@ -1,0 +1,270 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { ArrowLeft, Ban, ChevronDown, ChevronRight, Printer } from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/admin/PageHeader";
+import { useDecomptes } from "@/hooks/useDecompteStore";
+import { annulerDecompte } from "@/data/decompteStore";
+import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
+
+const TYPE_LABEL: Record<string, string> = {
+  taux_horaire: "Taux horaire",
+  forfait: "Forfait",
+  a_terme: "À terme",
+};
+
+function buildDecompteHtml(args: {
+  reference: string;
+  date: string;
+  professeur: string;
+  type: string;
+  montantDecompte: number;
+  netAPayer: number;
+  lignes: { coursLabel: string; date: string; duree: number; montantBrut: number; abattementPct: number; montantNet: number }[];
+}): string {
+  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const rows = args.lignes
+    .map(
+      (l) =>
+        `<tr><td>${l.coursLabel}</td><td>${formatShortDate(l.date)}</td><td style="text-align:center">${l.duree}</td><td style="text-align:right">${formatCFA(l.montantBrut)}</td><td style="text-align:center">${l.abattementPct}%</td><td style="text-align:right">${formatCFA(l.montantNet)}</td></tr>`,
+    )
+    .join("");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
+<style>
+body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:40px;color:#1a1a1a}
+.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
+.header h1{font-size:22px;color:#4f46e5;margin:0}
+.header p{font-size:12px;color:#666;margin:4px 0}
+.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
+.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px}
+th,td{border:1px solid #ccc;padding:6px 8px}
+th{background:#f3f4f6;text-align:left}
+.footer{margin-top:50px;font-size:11px;color:#666}
+</style></head><body>
+<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
+<div class="title">DÉCOMPTE N° ${args.reference}</div>
+<div class="meta">
+  <div>Date : <strong>${formatDate(args.date)}</strong></div>
+  <div>Professeur : <strong>${args.professeur}</strong></div>
+  <div>Type : <strong>${args.type}</strong></div>
+  <div>Montant décompté : <strong>${formatCFA(args.montantDecompte)}</strong></div>
+  <div>Net à payer : <strong>${formatCFA(args.netAPayer)}</strong></div>
+</div>
+<table>
+<thead><tr><th>Cours</th><th>Fait le</th><th>Durée (h)</th><th>Montant brut</th><th>Abatt.</th><th>Montant net</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<div class="footer">Fait à Dakar, le ${now}</div>
+</body></html>`;
+}
+
+export default function DecompteDetailPage({ id }: { id: string }) {
+  const [, setLocation] = useLocation();
+  const decomptes = useDecomptes();
+  const [expanded, setExpanded] = useState(true);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  const record = decomptes.find((d) => d.id === id);
+
+  if (!record) {
+    return (
+      <div>
+        <PageHeader
+          breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Les décomptes", href: "/admin/decomptes" }]}
+          title="Décompte introuvable"
+        />
+        <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
+          Ce décompte n&apos;existe pas ou a été supprimé.
+        </div>
+      </div>
+    );
+  }
+
+  const handleCancel = () => {
+    annulerDecompte(record.id);
+    toast.success("Décompte annulé — les pointages qu'il contenait redeviennent éligibles à un futur décompte");
+    setConfirmCancel(false);
+  };
+
+  const handlePrint = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(
+      buildDecompteHtml({
+        reference: record.reference,
+        date: record.date,
+        professeur: record.professeur,
+        type: TYPE_LABEL[record.type] ?? record.type,
+        montantDecompte: record.montantDecompte,
+        netAPayer: record.netAPayer,
+        lignes: record.lignes,
+      }),
+    );
+    win.document.close();
+    win.print();
+  };
+
+  return (
+    <div>
+      <PageHeader
+        breadcrumb={[
+          { label: "Admin" },
+          { label: "Finances" },
+          { label: "Les décomptes", href: "/admin/decomptes" },
+          { label: record.reference },
+        ]}
+        title={`Décompte ${record.reference}`}
+        actions={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLocation("/admin/decomptes")}
+              className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"
+            >
+              <ArrowLeft size={15} /> Retour
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+              data-testid="decompte-imprimer"
+            >
+              <Printer size={15} /> Imprimer
+            </button>
+          </div>
+        }
+      />
+
+      {record.statut === "annule" && (
+        <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 text-red-700 text-sm font-medium">
+          Ce décompte a été annulé. Les pointages qu&apos;il contenait sont redevenus éligibles à un futur décompte.
+        </div>
+      )}
+
+      <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div>
+          <p className="text-xs text-muted-foreground">Créé par</p>
+          <p className="font-semibold text-sm mt-1">{record.ajouteePar}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Émis le</p>
+          <p className="font-semibold text-sm mt-1">{formatDate(record.date)}</p>
+          <p className="text-xs text-muted-foreground">{TYPE_LABEL[record.type] ?? record.type} — {record.annee}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Pour le professeur</p>
+          <p className="font-semibold text-sm mt-1">{record.professeur}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Mt total décompté / Net à payer</p>
+          <p className="font-semibold text-sm mt-1">{formatCFA(record.montantDecompte)}</p>
+          <p className="text-xs font-bold text-primary">{formatCFA(record.netAPayer)}</p>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-5 mb-5 flex flex-wrap items-center gap-6" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div>
+          <p className="text-xs text-muted-foreground">Montant payé</p>
+          <p className="font-semibold text-sm mt-1">{formatCFA(record.montantPaye)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Reste à payer</p>
+          <p className="font-semibold text-sm mt-1">{formatCFA(Math.max(0, record.netAPayer - record.montantPaye))}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Statut</p>
+          <span className={cn("inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium", record.statut === "annule" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
+            {record.statut === "annule" ? "Annulé" : "Emis"}
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full flex items-center justify-between px-5 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
+          data-testid="decompte-toggle-detail"
+        >
+          <span className="text-xs font-bold text-foreground uppercase tracking-wide flex items-center gap-2">
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            Détails du décompte — {record.lignes.length} ligne(s)
+          </span>
+        </button>
+        {expanded && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead>
+                <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <th className="text-left px-4 py-3">Cours</th>
+                  <th className="text-left px-4 py-3">Fait le</th>
+                  <th className="text-left px-4 py-3">Niveau / Classe / Année / Semestre</th>
+                  <th className="text-center px-4 py-3">Durée (h)</th>
+                  <th className="text-right px-4 py-3">Montant brut</th>
+                  <th className="text-center px-4 py-3">Abattement</th>
+                  <th className="text-right px-4 py-3">Montant net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {record.lignes.map((l, i) => (
+                  <tr key={`${l.pointageId}-${i}`} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-medium">{l.coursLabel}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(l.date)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {l.niveauLabel} — {l.classeLabel} — {l.anneeLabel}
+                      {l.semestreLabel ? ` — ${l.semestreLabel}` : ""}
+                    </td>
+                    <td className="px-4 py-3 text-center">{l.duree}</td>
+                    <td className="px-4 py-3 text-right">{formatCFA(l.montantBrut)}</td>
+                    <td className="px-4 py-3 text-center text-muted-foreground">
+                      {l.abattementPct}% (-{formatCFA(l.abattementMontant)})
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatCFA(l.montantNet)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-muted/20 font-semibold">
+                  <td className="px-4 py-3" colSpan={4}>Total</td>
+                  <td className="px-4 py-3 text-right">{formatCFA(record.montantDecompte)}</td>
+                  <td className="px-4 py-3" />
+                  <td className="px-4 py-3 text-right text-primary">{formatCFA(record.netAPayer)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {record.statut !== "annule" ? (
+        <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
+          <input type="checkbox" checked={false} onChange={() => setConfirmCancel(true)} className="rounded" />
+          Annuler le décompte
+        </label>
+      ) : (
+        <p className="text-sm text-red-600 font-medium">Ce décompte a été annulé.</p>
+      )}
+
+      {confirmCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmCancel(false)} />
+          <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6">
+            <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+              <Ban size={16} className="text-red-600" /> Annuler le décompte {record.reference} ?
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Les pointages qu&apos;il contient redeviendront éligibles à un futur décompte. Action irréversible.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmCancel(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                Annuler
+              </button>
+              <button type="button" onClick={handleCancel} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700">
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
