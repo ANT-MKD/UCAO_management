@@ -41,7 +41,7 @@ export default function AvoirDepotFormPage() {
   const handleSubmit = () => {
     if (!selectedStudent) return;
     if (!canSubmit) {
-      toast.error("Sélectionnez un étudiant, un montant, un motif et une origine du crédit");
+      toast.error("Sélectionnez un étudiant, un montant, un motif et un mode de règlement");
       return;
     }
     const record = deposerAvoir({
@@ -151,7 +151,7 @@ export default function AvoirDepotFormPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Origine du crédit <span className="text-red-500">*</span>
+              Choisir un mode de règlement <span className="text-red-500">*</span>
             </label>
             <select value={moyenOrigine} onChange={(e) => setMoyenOrigine(e.target.value)} className={inputClass} data-testid="depot-avoir-origine">
               <option value="">Sélectionner…</option>

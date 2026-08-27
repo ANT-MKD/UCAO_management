@@ -34,7 +34,7 @@ body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;col
   <div>Date : <strong>${formatDate(args.date)}</strong></div>
   <div>Bénéficiaire : <strong>${args.payeur}</strong></div>
   <div>Montant crédité : <strong>${formatCFA(args.montant)}</strong></div>
-  ${args.moyenOrigine ? `<div>Origine : <strong>${args.moyenOrigine}</strong></div>` : ""}
+  ${args.moyenOrigine ? `<div>Mode de règlement : <strong>${args.moyenOrigine}</strong></div>` : ""}
   ${args.referenceBancaire ? `<div>Référence : <strong>${args.referenceBancaire}</strong></div>` : ""}
 </div>
 <p>Motif : ${args.motif}</p>
@@ -165,7 +165,7 @@ export default function AvoirDepotDetailPage({ id }: { id: string }) {
         <p className="px-5 py-4 text-sm">{record.motif}</p>
         {(record.moyenOrigine || record.referenceBancaire) && (
           <p className="px-5 pb-4 text-xs text-muted-foreground">
-            {record.moyenOrigine && <>Origine : {record.moyenOrigine} </>}
+            {record.moyenOrigine && <>Mode de règlement : {record.moyenOrigine} </>}
             {record.referenceBancaire && <>— Référence : {record.referenceBancaire}</>}
           </p>
         )}
