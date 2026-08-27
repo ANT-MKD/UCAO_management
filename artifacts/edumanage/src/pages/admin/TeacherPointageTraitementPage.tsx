@@ -65,6 +65,13 @@ const STATUT_CLS: Record<string, string> = {
   brouillon: "bg-slate-100 text-slate-600",
 };
 
+const STATUT_TABS: { key: TraitementStatut; label: string }[] = [
+  { key: "", label: "Toutes" },
+  { key: "soumis", label: "En attente" },
+  { key: "valide", label: "Validées" },
+  { key: "rejete", label: "Rejetées" },
+];
+
 const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -81,42 +88,82 @@ export default function TeacherPointageTraitementPage() {
   const teachers = ENSEIGNANTS as EnseignantRecord[];
 
   const [applied, setApplied] = useState<AdvancedFilters>(EMPTY_FILTERS);
+  const [quickSearch, setQuickSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [motifRejet, setMotifRejet] = useState("");
 
+  const treatable = useMemo(
+    () => pointages.filter((p) => p.statut !== "brouillon"),
+    [pointages],
+  );
+
+  const matchesFilters = (
+    p: PointageRecord,
+    f: AdvancedFilters,
+    opts: { skipStatut?: boolean } = {},
+  ): boolean => {
+    const teacher = teachers.find((t) => t.id === p.teacherId);
+    const classe = classes.find((c) => c.id === p.classeId);
+    const ec = ecs.find((e) => e.id === p.ecId);
+    const ue = ues.find((u) => u.id === ec?.ueId);
+
+    if (f.teacherId && p.teacherId !== f.teacherId) return false;
+    if (f.anneeAcademique && p.annee !== f.anneeAcademique) return false;
+    if (f.annee && classe?.annee !== f.annee && p.annee !== f.annee) return false;
+    if (f.filiereId && classe?.filiereId !== f.filiereId) return false;
+    if (f.niveauId) {
+      const niveau = NIVEAUX.find((n) => n.id === f.niveauId);
+      if (niveau && classe?.niveau !== niveau.alias) return false;
+    }
+    if (f.classeId && p.classeId !== f.classeId) return false;
+    if (f.semestreId) {
+      const semestre = SEMESTRES.find((s) => s.id === f.semestreId);
+      if (semestre && ue?.semestre !== semestre.alias) return false;
+    }
+    if (!opts.skipStatut && f.statut && p.statut !== f.statut) return false;
+    if (f.dateDebut && p.date < f.dateDebut) return false;
+    if (f.dateFin && p.date > f.dateFin) return false;
+    if (!teacher || !classe) return false;
+    return true;
+  };
+
+  const quickMatchIds = useMemo(() => {
+    if (!quickSearch.trim()) return null;
+    return new Set(filterTeachers(teachers, quickSearch).map((t) => t.id));
+  }, [teachers, quickSearch]);
+
+  // Tous les pointages traitables respectant les filtres avancés, hors statut —
+  // sert de base aux compteurs des onglets rapides.
+  const baseForTabs = useMemo(
+    () =>
+      treatable.filter(
+        (p) =>
+          matchesFilters(p, applied, { skipStatut: true }) &&
+          (!quickMatchIds || quickMatchIds.has(p.teacherId)),
+      ),
+    [treatable, applied, quickMatchIds, teachers, classes, ecs, ues],
+  );
+
+  const tabCounts: Record<TraitementStatut, number> = {
+    "": baseForTabs.length,
+    soumis: baseForTabs.filter((p) => p.statut === "soumis").length,
+    valide: baseForTabs.filter((p) => p.statut === "valide").length,
+    rejete: baseForTabs.filter((p) => p.statut === "rejete").length,
+  };
+
   const filtered = useMemo(() => {
-    const treatable = pointages.filter((p) => p.statut !== "brouillon");
-    if (!hasAnyCriterion(applied)) return [];
-
-    return treatable.filter((p) => {
-      const teacher = teachers.find((t) => t.id === p.teacherId);
-      const classe = classes.find((c) => c.id === p.classeId);
-      const ec = ecs.find((e) => e.id === p.ecId);
-      const ue = ues.find((u) => u.id === ec?.ueId);
-
-      if (applied.teacherId && p.teacherId !== applied.teacherId) return false;
-      if (applied.anneeAcademique && p.annee !== applied.anneeAcademique) return false;
-      if (applied.annee && (classe?.annee !== applied.annee && p.annee !== applied.annee)) return false;
-      if (applied.filiereId && classe?.filiereId !== applied.filiereId) return false;
-      if (applied.niveauId) {
-        const niveau = NIVEAUX.find((n) => n.id === applied.niveauId);
-        if (niveau && classe?.niveau !== niveau.alias) return false;
-      }
-      if (applied.classeId && p.classeId !== applied.classeId) return false;
-      if (applied.semestreId) {
-        const semestre = SEMESTRES.find((s) => s.id === applied.semestreId);
-        if (semestre && ue?.semestre !== semestre.alias) return false;
-      }
-      if (applied.statut && p.statut !== applied.statut) return false;
-      if (applied.dateDebut && p.date < applied.dateDebut) return false;
-      if (applied.dateFin && p.date > applied.dateFin) return false;
-      if (!teacher || !classe) return false;
-      return true;
-    });
-  }, [pointages, applied, teachers, classes, ecs, ues]);
+    const order: Record<PointageStatut, number> = { soumis: 0, valide: 1, rejete: 2, brouillon: 3 };
+    return baseForTabs
+      .filter((p) => !applied.statut || p.statut === applied.statut)
+      .sort((a, b) => {
+        const byStatut = order[a.statut] - order[b.statut];
+        return byStatut !== 0 ? byStatut : b.date.localeCompare(a.date);
+      });
+  }, [baseForTabs, applied.statut]);
 
   const pendingCount = pointages.filter((p) => p.statut === "soumis").length;
+  const hasActiveRefinement = hasAnyCriterion(applied) || quickSearch.trim() !== "";
 
   const handleValidate = (id: string) => {
     updatePointageStatut(id, "valide");
@@ -157,10 +204,24 @@ export default function TeacherPointageTraitementPage() {
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm">
           <span className="font-bold">{pendingCount}</span> pointage{pendingCount > 1 ? "s" : ""} en attente
         </div>
-        {hasAnyCriterion(applied) && (
+        <div className="relative w-full sm:w-72">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={quickSearch}
+            onChange={(e) => setQuickSearch(e.target.value)}
+            placeholder="Rechercher un professeur (nom, matricule)…"
+            className={`${inputClass} pl-10`}
+            data-testid="pointage-quick-search"
+          />
+        </div>
+        {hasActiveRefinement && (
           <button
             type="button"
-            onClick={() => setApplied(EMPTY_FILTERS)}
+            onClick={() => {
+              setApplied(EMPTY_FILTERS);
+              setQuickSearch("");
+            }}
             className="text-xs text-muted-foreground hover:text-foreground underline"
           >
             Réinitialiser les filtres
@@ -168,15 +229,33 @@ export default function TeacherPointageTraitementPage() {
         )}
       </div>
 
-      {!hasAnyCriterion(applied) ? (
-        <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">
-          Utilisez la recherche avancée pour afficher les pointages.
-          <br />
-          Sélectionnez au moins un critère, notamment un statut, puis cliquez sur Filtrer.
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
-          Aucun pointage ne correspond aux critères sélectionnés.
+      <div className="flex flex-wrap gap-2 mb-4">
+        {STATUT_TABS.map((tab) => {
+          const active = applied.statut === tab.key;
+          return (
+            <button
+              key={tab.key || "toutes"}
+              type="button"
+              onClick={() => setApplied((a) => ({ ...a, statut: tab.key }))}
+              className={cn(
+                "px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors",
+                active
+                  ? "bg-primary text-white border-primary"
+                  : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted",
+              )}
+              data-testid={`pointage-tab-${tab.key || "toutes"}`}
+            >
+              {tab.label} <span className="opacity-70">({tabCounts[tab.key]})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
+          {hasActiveRefinement
+            ? "Aucun pointage ne correspond aux critères sélectionnés."
+            : "Aucun pointage à traiter pour le moment."}
         </div>
       ) : (
         <div
