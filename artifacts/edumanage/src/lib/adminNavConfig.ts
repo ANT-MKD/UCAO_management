@@ -125,7 +125,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-avoir-depot", label: "Dépôt avoir", href: "/admin/avoir/depots/new" },
           { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: "/admin/avoir/remboursements/new" },
           { id: "fin-avoir-remboursements", label: "Les remboursements", href: "/admin/avoir/remboursements" },
-          { id: "fin-avoir-consentement", label: "Consentement avoir", href: wipHref("fin-avoir-consentement") },
+          { id: "fin-avoir-consentement", label: "Consentement avoir", href: "/admin/avoir/consentement" },
         ],
       },
       {

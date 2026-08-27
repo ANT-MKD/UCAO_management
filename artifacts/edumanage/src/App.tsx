@@ -97,6 +97,7 @@ const FactureAutreServiceFormPage = lazy(() => import("@/pages/admin/FactureAutr
 const AvoirDepotFormPage = lazy(() => import("@/pages/admin/AvoirDepotFormPage"));
 const AvoirDepotDetailPage = lazy(() => import("@/pages/admin/AvoirDepotDetailPage"));
 const RemboursementAvoirPage = lazy(() => import("@/pages/admin/RemboursementAvoirPage"));
+const ConsentementAvoirPage = lazy(() => import("@/pages/admin/ConsentementAvoirPage"));
 const RemboursementAvoirFormPage = lazy(() => import("@/pages/admin/RemboursementAvoirFormPage"));
 const RemboursementAvoirDetailPage = lazy(() => import("@/pages/admin/RemboursementAvoirDetailPage"));
 const FactureAutreServiceDetailPage = lazy(() => import("@/pages/admin/FactureAutreServiceDetailPage"));
@@ -487,6 +488,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/avoir/remboursements">
         <Admin><RemboursementAvoirPage /></Admin>
+      </Route>
+      <Route path="/admin/avoir/consentement">
+        <Admin><ConsentementAvoirPage /></Admin>
       </Route>
       <Route path="/admin/encaissements-pec">
         <Admin><EncaissementPECPage /></Admin>
