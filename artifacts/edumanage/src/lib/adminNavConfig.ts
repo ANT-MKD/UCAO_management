@@ -101,7 +101,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-quittance-nouvelle", label: "Nouvelle quittance", href: "/admin/paiements/new" },
           { id: "fin-quittance-liste", label: "Les quittances", href: "/admin/paiements" },
-          { id: "fin-quittance-masse", label: "Émission en masse", href: wipHref("fin-quittance-masse") },
+          { id: "fin-quittance-masse", label: "Émission en masse", href: "/admin/emissions-masse" },
         ],
       },
       {

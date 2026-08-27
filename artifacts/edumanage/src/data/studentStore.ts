@@ -1115,6 +1115,69 @@ export function cancelPaiement(id: string): void {
   persist();
 }
 
+export interface EmettreQuittanceBrutePayload {
+  etudiantId: string;
+  date: string;
+  dateLimite?: string;
+  lignes: PaiementLigne[];
+  reference: string;
+}
+
+/** Émet une quittance non encaissée (facturation) : le montant payé est nul, le solde de l'étudiant est augmenté d'autant. */
+export function emettreQuittanceBrute(payload: EmettreQuittanceBrutePayload): PaiementRecord {
+  const etudiant = getEtudiantById(payload.etudiantId);
+  if (!etudiant) throw new Error("Étudiant introuvable");
+
+  const year = new Date(payload.date || Date.now()).getFullYear();
+  store.receiptCounter = (store.receiptCounter ?? 0) + 1;
+  const numeroRecu = `RECU-${year}-${String(store.receiptCounter).padStart(3, "0")}`;
+  const montantFacture = payload.lignes.reduce((s, l) => s + l.montant, 0);
+
+  const paiement: PaiementRecord = {
+    id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    date: payload.date,
+    etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+    etudiantId: etudiant.id,
+    classe: etudiant.classe,
+    rubrique: payload.lignes.length > 1 ? `Facture unique (${payload.lignes.length} rubriques)` : payload.lignes[0]?.label ?? "Frais",
+    lignes: payload.lignes,
+    montant: 0,
+    moyen: "",
+    reference: payload.reference,
+    numeroRecu,
+    soldeRestant: etudiant.soldeDu + montantFacture,
+    statut: "paye",
+    dateLimite: payload.dateLimite,
+  };
+
+  store.paiements = [paiement, ...store.paiements];
+
+  etudiant.soldeDu = etudiant.soldeDu + montantFacture;
+  const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
+  if (ins) ins.soldeDu = etudiant.soldeDu;
+
+  persist();
+  return paiement;
+}
+
+/** Annule une quittance émise en masse et jamais payée : contrairement à cancelPaiement(), rembourse le solde élève. */
+export function cancelQuittanceEmise(id: string): void {
+  const idx = store.paiements.findIndex((p) => p.id === id);
+  if (idx < 0) return;
+  const p = store.paiements[idx];
+  if (p.statut !== "annule" && p.montant === 0) {
+    const etudiant = getEtudiantById(p.etudiantId);
+    if (etudiant) {
+      const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
+      etudiant.soldeDu = Math.max(0, etudiant.soldeDu - montantFacture);
+      const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
+      if (ins) ins.soldeDu = etudiant.soldeDu;
+    }
+  }
+  store.paiements = store.paiements.map((pp) => (pp.id === id ? { ...pp, statut: "annule" } : pp));
+  persist();
+}
+
 /**
  * Autorise ou interdit l'accès portail des étudiants.
  * Interdit → statut `suspendu` (déjà utilisé dans le store / réinscription).

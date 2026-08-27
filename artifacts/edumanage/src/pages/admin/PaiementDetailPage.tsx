@@ -12,6 +12,7 @@ const STATUT_CLS: Record<string, string> = {
   Payé: "bg-emerald-50 text-emerald-700",
   Acompte: "bg-amber-50 text-amber-700",
   Annulé: "bg-red-50 text-red-700",
+  Impayé: "bg-slate-100 text-slate-600",
 };
 
 function buildQuittanceHtml(args: {
@@ -200,12 +201,18 @@ export default function PaiementDetailPage({ id }: { id: string }) {
           <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Détails de l&apos;encaissement</h3>
         </div>
         <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-          <span>
-            <strong>{formatCFA(record.montant)}</strong> payé le <strong>{formatDate(record.date)}</strong>
-          </span>
-          <span className="text-muted-foreground">
-            Par : {record.moyen} — Référence : {record.reference}
-          </span>
+          {record.montant === 0 ? (
+            <span className="text-muted-foreground">Aucun encaissement enregistré pour cette quittance.</span>
+          ) : (
+            <>
+              <span>
+                <strong>{formatCFA(record.montant)}</strong> payé le <strong>{formatDate(record.date)}</strong>
+              </span>
+              <span className="text-muted-foreground">
+                Par : {record.moyen} — Référence : {record.reference}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

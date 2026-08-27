@@ -8,12 +8,13 @@ import { usePaiements, useStudentStore } from "@/hooks/useStudentStore";
 import type { PaiementRecord } from "@/data/studentStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
-type Statut = "Payé" | "Acompte" | "Annulé";
+type Statut = "Payé" | "Acompte" | "Annulé" | "Impayé";
 
 const STATUT_CLS: Record<Statut, string> = {
   Payé: "bg-emerald-50 text-emerald-700",
   Acompte: "bg-amber-50 text-amber-700",
   Annulé: "bg-red-50 text-red-700",
+  Impayé: "bg-slate-100 text-slate-600",
 };
 
 export function montantQuittance(p: PaiementRecord): number {
@@ -22,6 +23,7 @@ export function montantQuittance(p: PaiementRecord): number {
 
 export function statutQuittance(p: PaiementRecord): Statut {
   if (p.statut === "annule") return "Annulé";
+  if (p.montant === 0) return "Impayé";
   return p.montant >= montantQuittance(p) ? "Payé" : "Acompte";
 }
 
