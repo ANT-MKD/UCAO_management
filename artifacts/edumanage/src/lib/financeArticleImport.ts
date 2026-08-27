@@ -1,7 +1,8 @@
 import * as XLSX from "xlsx";
-import type { ArticleServiceRecord } from "@/data/financeSettingsStore";
+import type { ArticleServiceRecord, ActiviteServiceRecord } from "@/data/financeSettingsStore";
 
 const HEADERS = ["Code", "Intitulé", "Prix Unitaire"] as const;
+const ACTIVITE_HEADERS = ["Code", "Intitulé", "Montant"] as const;
 
 const DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
 
@@ -67,4 +68,48 @@ export function downloadArticleServiceTemplate() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Articles");
   XLSX.writeFile(wb, "modele-import-articles-services.xlsx");
+}
+
+function mapActiviteRow(raw: Record<string, unknown>): Omit<ActiviteServiceRecord, "id"> | null {
+  const entries = Object.entries(raw).map(([k, v]) => [normalizeHeader(k), v] as const);
+  const get = (...aliases: string[]) => {
+    for (const a of aliases) {
+      const hit = entries.find(([k]) => k === normalizeHeader(a) || k.includes(normalizeHeader(a)));
+      if (hit) return hit[1];
+    }
+    return "";
+  };
+
+  const code = str(get("code"));
+  const intitule = str(get("intitule", "intitulé", "libelle"));
+  if (!code || !intitule) return null;
+
+  return {
+    code,
+    intitule,
+    montant: num(get("montant", "prix", "tarif")),
+  };
+}
+
+export async function parseActiviteServiceExcel(file: File): Promise<Omit<ActiviteServiceRecord, "id">[]> {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = workbook.Sheets[sheetName];
+  const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  return json.map(mapActiviteRow).filter((r): r is Omit<ActiviteServiceRecord, "id"> => !!r);
+}
+
+export function downloadActiviteServiceTemplate() {
+  const sample: (string | number)[][] = [
+    [...ACTIVITE_HEADERS],
+    ["VOY", "Voyage d'étude", 30000],
+    ["GALA", "Gala de fin d'année", 15000],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sample);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Activités");
+  XLSX.writeFile(wb, "modele-import-activites-services.xlsx");
 }

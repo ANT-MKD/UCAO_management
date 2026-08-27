@@ -10,12 +10,17 @@ import {
   typeFactureStore,
   modeleFraisStore,
   articleServiceStore,
+  banqueStore,
+  activiteServiceStore,
   importArticlesService,
+  importActivitesService,
   type TypeFraisRecord,
   type ModePaiementFinanceRecord,
   type TypeFactureRecord,
   type ModeleFraisRecord,
   type ArticleServiceRecord,
+  type BanqueRecord,
+  type ActiviteServiceRecord,
 } from "@/data/financeSettingsStore";
 import {
   useTypesFrais,
@@ -23,8 +28,15 @@ import {
   useTypesFacture,
   useModelesFrais,
   useArticlesService,
+  useBanques,
+  useActivitesService,
 } from "@/hooks/useFinanceSettingsStore";
-import { parseArticleServiceExcel, downloadArticleServiceTemplate } from "@/lib/financeArticleImport";
+import {
+  parseArticleServiceExcel,
+  downloadArticleServiceTemplate,
+  parseActiviteServiceExcel,
+  downloadActiviteServiceTemplate,
+} from "@/lib/financeArticleImport";
 import { formatCFA, cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -797,11 +809,337 @@ function ArticleServiceSection() {
   );
 }
 
-function ComingSoonSection({ label }: { label: string }) {
+function BanqueSection() {
+  const items = useBanques();
+  const [editing, setEditing] = useState<BanqueRecord | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [code, setCode] = useState("");
+  const [intitule, setIntitule] = useState("");
+  const [numeroCompte, setNumeroCompte] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<BanqueRecord | null>(null);
+
+  const open = creating || !!editing;
+
+  const startCreate = () => {
+    setCode("");
+    setIntitule("");
+    setNumeroCompte("");
+    setCreating(true);
+  };
+  const startEdit = (r: BanqueRecord) => {
+    setCode(r.code);
+    setIntitule(r.intitule);
+    setNumeroCompte(r.numeroCompte);
+    setEditing(r);
+  };
+  const close = () => {
+    setCreating(false);
+    setEditing(null);
+  };
+
+  const handleSave = () => {
+    if (!code.trim() || !intitule.trim() || !numeroCompte.trim()) {
+      toast.error("Code, intitulé et numéro de compte sont obligatoires");
+      return;
+    }
+    if (editing) {
+      banqueStore.update(editing.id, { code: code.trim(), intitule: intitule.trim(), numeroCompte: numeroCompte.trim() });
+      toast.success("Banque modifiée");
+    } else {
+      banqueStore.add({ code: code.trim(), intitule: intitule.trim(), numeroCompte: numeroCompte.trim() });
+      toast.success("Banque ajoutée");
+    }
+    close();
+  };
+
   return (
-    <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
-      La section « {label} » n&apos;est pas encore configurée.
-    </div>
+    <>
+      <SectionShell title="Liste des banques" onAdd={startCreate}>
+        {items.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">Aucune banque.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left px-4 py-3 w-32">Code</th>
+                <th className="text-left px-4 py-3">Intitulé</th>
+                <th className="text-left px-4 py-3">Numéro Compte</th>
+                <th className="text-right px-4 py-3 w-24">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((r) => (
+                <tr key={r.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 font-medium">{r.code}</td>
+                  <td className="px-4 py-3">{r.intitule}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{r.numeroCompte}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" onClick={() => startEdit(r)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteTarget(r)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600" aria-label="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </SectionShell>
+
+      <FormModal open={open} onClose={close} title={editing ? "Modifier la banque" : "Nouvelle banque"} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Code <span className="text-red-500">*</span>
+            </label>
+            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Intitulé <span className="text-red-500">*</span>
+            </label>
+            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Numéro Compte <span className="text-red-500">*</span>
+            </label>
+            <input value={numeroCompte} onChange={(e) => setNumeroCompte(e.target.value)} className={inputClass} />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+              Annuler
+            </button>
+            <button type="button" onClick={handleSave} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90">
+              Sauvegarder
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      <DeleteConfirm
+        open={!!deleteTarget}
+        label={deleteTarget?.intitule ?? ""}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) banqueStore.remove(deleteTarget.id);
+          toast.success("Banque supprimée");
+          setDeleteTarget(null);
+        }}
+      />
+    </>
+  );
+}
+
+function ActiviteServiceSection() {
+  const items = useActivitesService();
+  const [editing, setEditing] = useState<ActiviteServiceRecord | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [code, setCode] = useState("");
+  const [intitule, setIntitule] = useState("");
+  const [montant, setMontant] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ActiviteServiceRecord | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const open = creating || !!editing;
+
+  const startCreate = () => {
+    setCode("");
+    setIntitule("");
+    setMontant("");
+    setCreating(true);
+  };
+  const startEdit = (r: ActiviteServiceRecord) => {
+    setCode(r.code);
+    setIntitule(r.intitule);
+    setMontant(String(r.montant));
+    setEditing(r);
+  };
+  const close = () => {
+    setCreating(false);
+    setEditing(null);
+  };
+
+  const handleSave = () => {
+    if (!code.trim() || !intitule.trim() || !montant.trim()) {
+      toast.error("Code, intitulé et montant sont obligatoires");
+      return;
+    }
+    const value = Number(montant);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error("Montant invalide");
+      return;
+    }
+    if (editing) {
+      activiteServiceStore.update(editing.id, { code: code.trim(), intitule: intitule.trim(), montant: value });
+      toast.success("Activité modifiée");
+    } else {
+      activiteServiceStore.add({ code: code.trim(), intitule: intitule.trim(), montant: value });
+      toast.success("Activité ajoutée");
+    }
+    close();
+  };
+
+  const handleFile = async (file: File) => {
+    setImportLoading(true);
+    setImportMessage("");
+    try {
+      const rows = await parseActiviteServiceExcel(file);
+      if (rows.length === 0) {
+        setImportMessage("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const count = importActivitesService(rows);
+      setImportMessage(`Import réussi : ${count} activité(s) importée(s).`);
+    } catch (err) {
+      console.error(err);
+      setImportMessage("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      setImportLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <SectionShell
+        title="Les activités autres services"
+        onAdd={startCreate}
+        extraActions={
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
+          >
+            <FileSpreadsheet size={14} /> Importer
+          </button>
+        }
+      >
+        {items.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">Aucune activité.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left px-4 py-3 w-32">Code</th>
+                <th className="text-left px-4 py-3">Intitulé</th>
+                <th className="text-right px-4 py-3">Montant</th>
+                <th className="text-right px-4 py-3 w-24">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((r) => (
+                <tr key={r.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 font-medium">{r.code}</td>
+                  <td className="px-4 py-3">{r.intitule}</td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCFA(r.montant)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" onClick={() => startEdit(r)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteTarget(r)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600" aria-label="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </SectionShell>
+
+      <FormModal open={open} onClose={close} title={editing ? "Modifier l'activité" : "Nouvelle activité"} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Code <span className="text-red-500">*</span>
+            </label>
+            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Intitulé <span className="text-red-500">*</span>
+            </label>
+            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Montant <span className="text-red-500">*</span>
+            </label>
+            <input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={inputClass} />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+              Annuler
+            </button>
+            <button type="button" onClick={handleSave} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90">
+              Sauvegarder
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      <FormModal open={importOpen} onClose={() => setImportOpen(false)} title="Importer des activités" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Fichier Excel (.xlsx) avec les colonnes Code, Intitulé, Montant.</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={downloadActiviteServiceTemplate}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
+            >
+              <Download size={14} /> Télécharger le modèle
+            </button>
+            <button
+              type="button"
+              disabled={importLoading}
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 disabled:opacity-60"
+            >
+              <Upload size={14} /> {importLoading ? "Import..." : "Choisir un fichier"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFile(file);
+              }}
+            />
+          </div>
+          {importMessage && (
+            <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">{importMessage}</div>
+          )}
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setImportOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+              Fermer
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      <DeleteConfirm
+        open={!!deleteTarget}
+        label={deleteTarget?.intitule ?? ""}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) activiteServiceStore.remove(deleteTarget.id);
+          toast.success("Activité supprimée");
+          setDeleteTarget(null);
+        }}
+      />
+    </>
   );
 }
 
@@ -836,8 +1174,8 @@ export default function FinanceParametragePage({ section }: { section: string })
           {current.id === "type-facture" && <TypeFactureSection />}
           {current.id === "modele-frais" && <ModeleFraisSection />}
           {current.id === "article-service" && <ArticleServiceSection />}
-          {current.id === "banque" && <ComingSoonSection label="Banque" />}
-          {current.id === "activite-service" && <ComingSoonSection label="Activités autres services" />}
+          {current.id === "banque" && <BanqueSection />}
+          {current.id === "activite-service" && <ActiviteServiceSection />}
         </div>
       </div>
     </div>

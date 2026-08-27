@@ -31,6 +31,20 @@ export interface ArticleServiceRecord {
   prixUnitaire: number;
 }
 
+export interface BanqueRecord {
+  id: string;
+  code: string;
+  intitule: string;
+  numeroCompte: string;
+}
+
+export interface ActiviteServiceRecord {
+  id: string;
+  code: string;
+  intitule: string;
+  montant: number;
+}
+
 function createListStore<T extends { id: string }>(storageKey: string, seed: T[]) {
   const listeners = new Set<() => void>();
 
@@ -112,6 +126,8 @@ const SEED_MODELES_FRAIS: ModeleFraisRecord[] = [
 ];
 
 const SEED_ARTICLES_SERVICE: ArticleServiceRecord[] = [];
+const SEED_BANQUES: BanqueRecord[] = [];
+const SEED_ACTIVITES_SERVICE: ActiviteServiceRecord[] = [];
 
 export const typeFraisStore = createListStore<TypeFraisRecord>("edumanage-fin-type-frais-v1", SEED_TYPES_FRAIS);
 export const modePaiementFinanceStore = createListStore<ModePaiementFinanceRecord>(
@@ -124,10 +140,22 @@ export const articleServiceStore = createListStore<ArticleServiceRecord>(
   "edumanage-fin-article-service-v1",
   SEED_ARTICLES_SERVICE,
 );
+export const banqueStore = createListStore<BanqueRecord>("edumanage-fin-banque-v1", SEED_BANQUES);
+export const activiteServiceStore = createListStore<ActiviteServiceRecord>(
+  "edumanage-fin-activite-service-v1",
+  SEED_ACTIVITES_SERVICE,
+);
 
 export function importArticlesService(rows: Omit<ArticleServiceRecord, "id">[]): number {
   for (const row of rows) {
     articleServiceStore.add(row);
+  }
+  return rows.length;
+}
+
+export function importActivitesService(rows: Omit<ActiviteServiceRecord, "id">[]): number {
+  for (const row of rows) {
+    activiteServiceStore.add(row);
   }
   return rows.length;
 }
