@@ -93,7 +93,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Finances",
     icon: DollarSign,
     children: [
-      { id: "fin-param", label: "Paramétrage finances", href: "/admin/frais" },
+      { id: "fin-param", label: "Paramétrage finances", href: "/admin/finance-parametrage" },
+      { id: "fin-grille-frais", label: "Configuration des frais (grille tarifaire)", href: "/admin/frais" },
       {
         id: "fin-quittance",
         label: "Quittance",
