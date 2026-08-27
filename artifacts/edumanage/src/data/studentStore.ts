@@ -1110,13 +1110,24 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
   return paiement;
 }
 
-/** Annule une quittance déjà enregistrée (n'ajuste pas rétroactivement le solde élève). */
+/** Annule une quittance déjà enregistrée : retire sa part encore impayée du solde élève (la part déjà réglée n'est pas remboursée automatiquement — voir crediterAvoir côté appelant pour la part réglée par avoir). */
 export function cancelPaiement(id: string): void {
   const idx = store.paiements.findIndex((p) => p.id === id);
   if (idx < 0) return;
+  const p = store.paiements[idx];
+  if (p.statut !== "annule") {
+    const etudiant = getEtudiantById(p.etudiantId);
+    if (etudiant) {
+      const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
+      const resteDu = Math.max(0, montantFacture - p.montant);
+      etudiant.soldeDu = Math.max(0, etudiant.soldeDu - resteDu);
+      const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
+      if (ins) ins.soldeDu = etudiant.soldeDu;
+    }
+  }
   // Nouvelle référence de tableau : useSyncExternalStore compare par Object.is
   // et ne re-rend pas si getPaiements() renvoie la même référence.
-  store.paiements = store.paiements.map((p) => (p.id === id ? { ...p, statut: "annule" } : p));
+  store.paiements = store.paiements.map((pp) => (pp.id === id ? { ...pp, statut: "annule" } : pp));
   persist();
 }
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Users, TrendingUp, AlertTriangle, BarChart3, ArrowRight, Clock,
-  Bell, CreditCard, DollarSign, ChevronRight,
+  Bell, CreditCard, DollarSign, ChevronRight, Wallet,
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -85,6 +85,7 @@ export default function DashboardPage() {
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
   const totalRecettes = paiements.reduce((s, p) => s + p.montant, 0);
+  const totalAvoirCirculation = etudiants.reduce((s, e) => s + e.soldeAvoir, 0);
   const tauxReussiteMoy = Math.round(SUCCESS_RATE_DATA.reduce((s, d) => s + d.value, 0) / SUCCESS_RATE_DATA.length);
 
   const filteredSuccess = filiereFilter
@@ -117,10 +118,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <KPICard icon={Users} label="Étudiants inscrits" value={etudiants.length} trend="+12 ce mois" trendDirection="up" accentColor="#4f46e5" onClick={() => setLocation("/admin/students")} />
         <KPICard icon={TrendingUp} label="Recettes encaissées" value={formatCFA(totalRecettes)} trend="+8% vs mois préc." trendDirection="up" accentColor="#10b981" onClick={() => setLocation("/admin/encaissements")} />
         <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiants`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
+        <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend="Crédits dus aux étudiants" trendDirection="down" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
         <KPICard icon={BarChart3} label="Taux de réussite" value={`${tauxReussiteMoy}%`} trend="+2% vs S1" trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
       </div>
 
@@ -402,7 +404,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "+ Inscrire Étudiant", href: "/admin/students/new", color: "#4f46e5", icon: Users },
-          { label: "Nouvelle transaction", href: "/admin/transactions/new", color: "#10b981", icon: DollarSign },
+          { label: "Nouvel encaissement", href: "/admin/paiements/new", color: "#10b981", icon: DollarSign },
           { label: "Ajouter une séance", href: "/admin/schedule/new", color: "#8b5cf6", icon: Clock },
           { label: "Saisir des Notes", href: "/admin/notes", color: "#f59e0b", icon: BarChart3 },
         ].map((a) => (

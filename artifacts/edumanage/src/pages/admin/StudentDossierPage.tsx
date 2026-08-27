@@ -6,6 +6,8 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { formatCFA, formatDate, getMention } from "@/lib/utils";
 import { ABSENCES } from "@/data/mockData";
 import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes } from "@/hooks/useStudentStore";
+import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
+import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
@@ -33,6 +35,10 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const studentPaiements = usePaiementsByEtudiant(id);
   const allNotes = useNotes();
   const studentNotes = allNotes.filter((n) => n.etudiantId === id);
+  const avoirDepots = useAvoirDepots();
+  const avoirRemboursements = useRemboursementsAvoir();
+  const studentDepots = avoirDepots.filter((d) => d.etudiantId === id);
+  const studentRemboursements = avoirRemboursements.filter((r) => r.etudiantId === id);
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -290,6 +296,47 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {(studentDepots.length > 0 || studentRemboursements.length > 0) && (
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Historique Avoir</h3>
+                  <span className="text-sm text-muted-foreground">
+                    Solde actuel : <span className="font-bold text-emerald-600">{formatCFA(student.soldeAvoir)}</span>
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    ...studentDepots.map((d) => ({ id: d.id, type: "Dépôt" as const, reference: d.reference, date: d.date, montant: d.montant, annulee: d.annulee, href: `/admin/avoir/depots/${d.id}` })),
+                    ...studentRemboursements.map((r) => ({ id: r.id, type: "Remboursement" as const, reference: r.reference, date: r.date, montant: r.montant, annulee: r.annulee, href: `/admin/avoir/remboursements/${r.id}` })),
+                  ]
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .map((mvt) => (
+                      <div
+                        key={mvt.id}
+                        onClick={() => setLocation(mvt.href)}
+                        className="flex items-center gap-4 p-3.5 bg-muted/30 rounded-xl border border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                      >
+                        <span className={cn("text-xs font-semibold px-2 py-1 rounded-full", mvt.type === "Dépôt" ? "bg-emerald-50 text-emerald-700" : "bg-orange-50 text-orange-700")}>
+                          {mvt.type}
+                        </span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-foreground">{mvt.reference}</div>
+                          <div className="text-xs text-muted-foreground">{formatDate(mvt.date)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className={cn("font-bold", mvt.type === "Dépôt" ? "text-emerald-600" : "text-orange-600")}>
+                            {mvt.type === "Dépôt" ? "+" : "−"}{formatCFA(mvt.montant)}
+                          </div>
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", mvt.annulee ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
+                            {mvt.annulee ? "Annulé" : "Validé"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
             )}
           </div>

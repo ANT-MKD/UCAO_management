@@ -4,11 +4,12 @@ import { ArrowLeft, Ban, Printer, Layers, HeartHandshake, UserSquare2 } from "lu
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePaiements, useStudentStore } from "@/hooks/useStudentStore";
-import { cancelPaiement } from "@/data/studentStore";
+import { cancelPaiement, crediterAvoir } from "@/data/studentStore";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { useEncaissements } from "@/hooks/useEncaissementStore";
+import { annulerEncaissement } from "@/data/encaissementStore";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -103,6 +104,14 @@ export default function PaiementDetailPage({ id }: { id: string }) {
   const lignes = record.lignes && record.lignes.length > 0 ? record.lignes : [{ label: record.rubrique, montant: record.montant }];
 
   const handleCancel = () => {
+    // Recrédite le solde avoir pour chaque versement AVOIR non déjà annulé, et marque ces encaissements comme annulés
+    // (la part réglée en espèces/Wave/etc. n'est pas remboursée automatiquement : ça reste un mouvement d'argent réel).
+    encaissementsQuittance
+      .filter((e) => !e.annulee && e.moyen.toUpperCase() === "AVOIR")
+      .forEach((e) => {
+        crediterAvoir(record.etudiantId, e.montant);
+        annulerEncaissement(e.id);
+      });
     cancelPaiement(record.id);
     toast.success("Quittance annulée");
     setConfirmCancel(false);
