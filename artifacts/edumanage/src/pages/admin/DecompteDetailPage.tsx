@@ -196,9 +196,9 @@ export default function DecompteDetailPage({ id }: { id: string }) {
               <thead>
                 <tr className="bg-muted/20 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-4 py-3">Cours</th>
-                  <th className="text-left px-4 py-3">Fait le</th>
+                  <th className="text-left px-4 py-3">{record.type === "forfait" ? "Terminé le" : "Fait le"}</th>
                   <th className="text-left px-4 py-3">Niveau / Classe / Année / Semestre</th>
-                  <th className="text-center px-4 py-3">Durée (h)</th>
+                  <th className="text-center px-4 py-3">{record.type === "forfait" ? "V.H total" : "Durée (h)"}</th>
                   <th className="text-right px-4 py-3">Montant brut</th>
                   <th className="text-center px-4 py-3">Abattement</th>
                   <th className="text-right px-4 py-3">Montant net</th>
