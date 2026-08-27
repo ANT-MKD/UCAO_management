@@ -8,6 +8,7 @@ import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
 import { addRallonge, type RallongeStatut } from "@/data/rallongeStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
+import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -25,10 +26,14 @@ export function TeacherDashboardPage() {
   const notes = useNotes();
   const cahiers = useCahiers();
   const ecs = useEcs();
+  const absences = useTeacherAbsences();
 
   const mineSeances = seances.filter((s) => matchProf(s.prof, currentUser?.name));
   const mineCahiers = cahiers.filter((c) => matchProf(c.prof, currentUser?.name));
   const mineEcs = ecs.filter((e) => matchProf(e.responsable, currentUser?.name));
+  const mineAbsences = absences
+    .filter((a) => a.teacherId === currentUser?.linkedId)
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="space-y-4">
@@ -61,6 +66,24 @@ export function TeacherDashboardPage() {
         {mineSeances.length === 0 && <p className="text-sm text-muted-foreground">Aucune sÃ©ance.</p>}
         <p className="text-xs text-muted-foreground mt-3">{notes.filter((n) => n.statut === "brouillon_prof").length} notes en brouillon (toutes classes)</p>
       </div>
+      {mineAbsences.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="font-bold text-sm mb-3">Mes absences / retards</h3>
+          {mineAbsences.slice(0, 5).map((a) => (
+            <div key={a.id} className="flex justify-between items-center text-sm border-b border-border py-2 last:border-0">
+              <span>
+                {a.date} —{" "}
+                <span className={a.type === "absence" ? "text-red-600 font-medium" : "text-amber-600 font-medium"}>
+                  {a.type === "absence" ? "Absence" : `Retard (${a.dureeMinutes} min)`}
+                </span>
+              </span>
+              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", a.justifie ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600")}>
+                {a.justifie ? "Justifié" : "Non justifié"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

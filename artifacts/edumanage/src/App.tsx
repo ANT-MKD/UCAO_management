@@ -66,6 +66,8 @@ const TeacherPointageFormPage = lazy(() => import("@/pages/admin/TeacherPointage
 const TeacherPointageTraitementPage = lazy(() => import("@/pages/admin/TeacherPointageTraitementPage"));
 const TeacherRallongeFormPage = lazy(() => import("@/pages/admin/TeacherRallongeFormPage"));
 const TeacherRallongeTraitementPage = lazy(() => import("@/pages/admin/TeacherRallongeTraitementPage"));
+const TeacherAbsenceFormPage = lazy(() => import("@/pages/admin/TeacherAbsenceFormPage"));
+const TeacherAbsencePage = lazy(() => import("@/pages/admin/TeacherAbsencePage"));
 const TeacherDossierPage = lazy(() => import("@/pages/admin/TeacherDossierPage"));
 const TeacherFormPage = lazy(() => import("@/pages/admin/TeacherFormPage"));
 
@@ -261,6 +263,12 @@ function AppRouter() {
       </Route>
       <Route path="/admin/teachers/rallonge">
         <Admin><TeacherRallongeTraitementPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/absence/new">
+        <Admin><TeacherAbsenceFormPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/absence">
+        <Admin><TeacherAbsencePage /></Admin>
       </Route>
       <Route path="/admin/teachers/:id/edit">
         {(p) => <Admin><TeacherFormPage id={p.id} /></Admin>}

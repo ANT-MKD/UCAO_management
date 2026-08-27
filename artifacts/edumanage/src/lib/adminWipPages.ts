@@ -13,7 +13,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   "prof-statut-cours": { title: "Mise à jour statut cours", section: "Professeurs" },
   "prof-pointage-nouveau": { title: "Nouveau pointage", section: "Professeurs" },
   "prof-pointage-traitement": { title: "Traitement pointage", section: "Professeurs" },
-  "prof-absence-retard": { title: "Absence / Retard", section: "Professeurs" },
   "prof-contrat": { title: "Contrat professeur", section: "Professeurs" },
 
   // Finances — Quittance
