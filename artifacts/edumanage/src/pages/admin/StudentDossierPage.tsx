@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet } from "lucide-react";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { formatCFA, formatDate, getMention } from "@/lib/utils";
@@ -86,12 +86,20 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
             <span>·</span>
             <span>{student.niveau}</span>
           </div>
-          {student.soldeDu > 0 && (
-            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-500">
-              <AlertTriangle size={12} />
-              Solde dû : {formatCFA(student.soldeDu)}
-            </div>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {student.soldeDu > 0 && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
+                <AlertTriangle size={12} />
+                Solde dû : {formatCFA(student.soldeDu)}
+              </div>
+            )}
+            {student.soldeAvoir > 0 && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                <Wallet size={12} />
+                Solde avoir : {formatCFA(student.soldeAvoir)}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <button onClick={() => setLocation(`/admin/students/card?id=${encodeURIComponent(student.id)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors">

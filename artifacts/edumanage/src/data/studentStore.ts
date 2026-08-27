@@ -28,6 +28,8 @@ export interface EtudiantRecord {
   niveau: string;
   statut: string;
   soldeDu: number;
+  /** Crédit disponible (avoir) — utilisable comme moyen de paiement "AVOIR" sur une quittance. */
+  soldeAvoir: number;
   annee: string;
   anneePremiereInscription: number;
   inscriptionUniquePayee: boolean;
@@ -369,6 +371,7 @@ function seedEtudiants(): EtudiantRecord[] {
     sexe: e.sexe as "M" | "F",
     anneePremiereInscription: parseMatriculeYear(e.matricule),
     inscriptionUniquePayee: e.soldeDu === 0 || !["et2", "et3", "et5", "et7", "et8", "et11", "et12"].includes(e.id),
+    soldeAvoir: 0,
   }));
 }
 
@@ -511,10 +514,11 @@ function loadStore(): StoreData {
           ...p,
           numeroRecu: p.numeroRecu || `RECU-2025-${String(i + 1).padStart(3, "0")}`,
         }));
+        const etudiants = (parsed.etudiants ?? fresh.etudiants).map((e) => ({ ...e, soldeAvoir: e.soldeAvoir ?? 0 }));
         return {
           ...fresh,
           ...parsed,
-          etudiants: parsed.etudiants ?? fresh.etudiants,
+          etudiants,
           inscriptions: parsed.inscriptions ?? fresh.inscriptions,
           matriculeCounters: parsed.matriculeCounters ?? fresh.matriculeCounters,
           annees: (parsed.annees ?? fresh.annees).map((a) => ({ ...a, cloturee: a.cloturee ?? false })),
@@ -781,6 +785,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
     niveau: payload.niveau,
     statut: payload.classeId ? payload.statut : "preinscrit",
     soldeDu: payload.soldeDu,
+    soldeAvoir: 0,
     annee: payload.annee,
     anneePremiereInscription: anneePremiere,
     inscriptionUniquePayee: payload.inscriptionUniquePayee,
@@ -1235,6 +1240,24 @@ export function reverserReglementQuittance(id: string, montant: number): void {
 
   store.paiements = store.paiements.map((pp) => (pp.id === id ? { ...pp, montant: nouveauMontantPaye } : pp));
   persist();
+}
+
+/** Crédite le solde d'avoir d'un étudiant (ex. dépôt avoir, annulation d'un règlement payé par avoir). */
+export function crediterAvoir(etudiantId: string, montant: number): void {
+  const etudiant = getEtudiantById(etudiantId);
+  if (!etudiant || montant <= 0) return;
+  etudiant.soldeAvoir = etudiant.soldeAvoir + montant;
+  persist();
+}
+
+/** Débite le solde d'avoir d'un étudiant (ex. règlement d'une quittance payé par avoir). Renvoie false si le solde est insuffisant. */
+export function debiterAvoir(etudiantId: string, montant: number): boolean {
+  const etudiant = getEtudiantById(etudiantId);
+  if (!etudiant || montant <= 0) return false;
+  if (etudiant.soldeAvoir < montant) return false;
+  etudiant.soldeAvoir = etudiant.soldeAvoir - montant;
+  persist();
+  return true;
 }
 
 /** Pousse une notification de relance au portail étudiant pour chaque quittance non soldée et non annulée. Renvoie le nombre de relances envoyées. */

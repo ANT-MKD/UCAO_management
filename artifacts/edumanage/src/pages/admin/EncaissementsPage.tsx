@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { useEncaissements } from "@/hooks/useEncaissementStore";
 import type { EncaissementRecord } from "@/data/encaissementStore";
+import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { formatCFA, cn } from "@/lib/utils";
 
@@ -30,6 +31,18 @@ const STATUT_CLS: Record<string, string> = {
   Validée: "bg-emerald-50 text-emerald-700",
   Annulée: "bg-red-50 text-red-700",
 };
+
+interface OperationRow {
+  id: string;
+  reference: string;
+  date: string;
+  payeur: string;
+  montant: number;
+  encaissePar: string;
+  moyen?: string;
+  annulee: boolean;
+  href: string;
+}
 
 interface ColFilters {
   reference: string;
@@ -54,6 +67,7 @@ function formatDateTime(iso: string): string {
 export default function EncaissementsPage() {
   const [, setLocation] = useLocation();
   const encaissements = useEncaissements();
+  const depots = useAvoirDepots();
   const modesPaiement = useModesPaiementFinance();
 
   const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
@@ -71,13 +85,39 @@ export default function EncaissementsPage() {
     setPage(1);
   };
 
+  const rows = useMemo<OperationRow[]>(() => {
+    const encRows: OperationRow[] = encaissements.map((r) => ({
+      id: r.id,
+      reference: r.reference,
+      date: r.date,
+      payeur: r.payeur,
+      montant: r.montant,
+      encaissePar: r.encaissePar,
+      moyen: r.moyen,
+      annulee: r.annulee,
+      href: `/admin/encaissements/${r.id}`,
+    }));
+    const depotRows: OperationRow[] = depots.map((d) => ({
+      id: d.id,
+      reference: d.reference,
+      date: d.date,
+      payeur: d.payeur,
+      montant: d.montant,
+      encaissePar: d.ajouteePar,
+      moyen: d.moyenOrigine,
+      annulee: d.annulee,
+      href: `/admin/avoir/depots/${d.id}`,
+    }));
+    return [...encRows, ...depotRows];
+  }, [encaissements, depots]);
+
   const filtered = useMemo(() => {
-    return encaissements
+    return rows
       .filter((r) => {
         if (filters.reference && !r.reference.toLowerCase().includes(filters.reference.toLowerCase())) return false;
         if (filters.payeur && !r.payeur.toLowerCase().includes(filters.payeur.toLowerCase())) return false;
         if (filters.encaissePar && !r.encaissePar.toLowerCase().includes(filters.encaissePar.toLowerCase())) return false;
-        if (filters.statut && statutEncaissement(r) !== filters.statut) return false;
+        if (filters.statut && (r.annulee ? "Annulée" : "Validée") !== filters.statut) return false;
         if (dateDebut && r.date < dateDebut) return false;
         if (dateFin && r.date > dateFin) return false;
         if (montantMin && r.montant < Number(montantMin)) return false;
@@ -86,7 +126,7 @@ export default function EncaissementsPage() {
         return true;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [encaissements, filters, dateDebut, dateFin, montantMin, montantMax, moyenFilter]);
+  }, [rows, filters, dateDebut, dateFin, montantMin, montantMax, moyenFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -102,16 +142,15 @@ export default function EncaissementsPage() {
   const montantMoyen = validees.length > 0 ? Math.round(totalEncaisse / validees.length) : 0;
 
   const exportExcel = () => {
-    const rows = filtered.map((r) => ({
+    const exportRows = filtered.map((r) => ({
       Numéro: r.reference,
       "Émis le": formatDateTime(r.date),
       Payeur: r.payeur,
       Montant: r.montant,
       "Encaissé par": r.encaissePar,
-      Statut: statutEncaissement(r),
-      "Quittance liée": r.quittanceReference,
+      Statut: r.annulee ? "Annulée" : "Validée",
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
+    const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Encaissements");
     XLSX.writeFile(wb, `encaissements-${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -122,7 +161,7 @@ export default function EncaissementsPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Les encaissements" }]}
         title="Les opérations"
-        subtitle={`${filtered.length} encaissement(s) enregistré(s)`}
+        subtitle={`${filtered.length} opération(s) enregistrée(s)`}
         actions={
           <div className="flex gap-2">
             <button
@@ -246,44 +285,47 @@ export default function EncaissementsPage() {
             {pageRows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-16 text-center text-sm text-muted-foreground">
-                  {encaissements.length === 0
+                  {rows.length === 0
                     ? "Aucun encaissement enregistré pour l'instant."
                     : "Aucune opération ne correspond aux critères sélectionnés."}
                 </td>
               </tr>
             ) : (
-              pageRows.map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
-                  onClick={() => setLocation(`/admin/encaissements/${r.id}`)}
-                  data-testid={`enc-row-${r.id}`}
-                >
-                  <td className="px-4 py-3 font-medium whitespace-nowrap">{r.reference}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatDateTime(r.date)}</td>
-                  <td className="px-4 py-3">{r.payeur}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatCFA(r.montant)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{r.encaissePar}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_CLS[statutEncaissement(r)])}>
-                      {statutEncaissement(r)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLocation(`/admin/encaissements/${r.id}`);
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                      aria-label="Voir le détail"
-                      data-testid={`enc-view-${r.id}`}
-                    >
-                      <Eye size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))
+              pageRows.map((r) => {
+                const statut = r.annulee ? "Annulée" : "Validée";
+                return (
+                  <tr
+                    key={r.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                    onClick={() => setLocation(r.href)}
+                    data-testid={`enc-row-${r.id}`}
+                  >
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{r.reference}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatDateTime(r.date)}</td>
+                    <td className="px-4 py-3">{r.payeur}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatCFA(r.montant)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{r.encaissePar}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_CLS[statut])}>
+                        {statut}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(r.href);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                        aria-label="Voir le détail"
+                        data-testid={`enc-view-${r.id}`}
+                      >
+                        <Eye size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

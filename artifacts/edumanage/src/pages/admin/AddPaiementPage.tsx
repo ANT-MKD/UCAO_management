@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, Check, Search, ClipboardCheck, ReceiptText } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
-import { registerPaiement, payerQuittance } from "@/data/studentStore";
+import { registerPaiement, payerQuittance, debiterAvoir } from "@/data/studentStore";
 import type { EtudiantRecord, PaiementLigne, PaiementRecord } from "@/data/studentStore";
 import { enregistrerEncaissement } from "@/data/encaissementStore";
 import { FRAIS_CONFIG } from "@/data/mockData";
@@ -115,6 +116,10 @@ export default function AddPaiementPage() {
       ).slice(0, 5)
     : [];
 
+  const isAvoir = selectedMoyen.toUpperCase() === "AVOIR";
+  const soldeAvoirDisponible = selectedStudent?.soldeAvoir ?? 0;
+  const avoirInsuffisant = isAvoir && Number(montantVerse) > soldeAvoirDisponible;
+
   const handleSubmit = () => {
     if (!selectedStudent) return;
     const encaissePar = currentUser?.name ?? "Administration";
@@ -151,6 +156,10 @@ export default function AddPaiementPage() {
           date: dateOperation,
           encaissePar,
         });
+      }
+      if (isAvoir && montantEvent > 0) {
+        const ok = debiterAvoir(selectedStudent.id, montantEvent);
+        if (!ok) toast.error("Solde avoir insuffisant au moment de la validation — le règlement a tout de même été enregistré.");
       }
       setSubmitted(true);
       setTimeout(() => setLocation(`/admin/paiements/${selectedQuittance.id}`), 1500);
@@ -190,13 +199,18 @@ export default function AddPaiementPage() {
         encaissePar,
       });
     }
+    if (isAvoir && verse > 0) {
+      const ok = debiterAvoir(selectedStudent.id, verse);
+      if (!ok) toast.error("Solde avoir insuffisant au moment de la validation — le règlement a tout de même été enregistré.");
+    }
     setSubmitted(true);
     setTimeout(() => setLocation(`/admin/students/${selectedStudent.id}`), 1500);
   };
 
   const restantQuittance = selectedQuittance ? montantQuittance(selectedQuittance) - selectedQuittance.montant : 0;
-  const canConfirmStep2Existante = !!selectedQuittance && Number(montantVerse) > 0;
-  const canConfirmStep2 = payMode === "existante" ? canConfirmStep2Existante : lignes.length > 0 && (!needsClasse || !!classeId);
+  const canConfirmStep2Existante = !!selectedQuittance && Number(montantVerse) > 0 && !avoirInsuffisant;
+  const canConfirmStep2 =
+    (payMode === "existante" ? canConfirmStep2Existante : lignes.length > 0 && (!needsClasse || !!classeId)) && !avoirInsuffisant;
 
   return (
     <div>
@@ -398,6 +412,12 @@ export default function AddPaiementPage() {
                   );
                 })}
               </div>
+              {isAvoir && (
+                <p className={cn("text-[11px] mt-2", avoirInsuffisant ? "text-red-600 font-medium" : "text-muted-foreground")}>
+                  Solde avoir disponible : {formatCFA(soldeAvoirDisponible)}
+                  {avoirInsuffisant && " — insuffisant pour ce montant"}
+                </p>
+              )}
             </div>
 
             <div>
@@ -533,6 +553,12 @@ export default function AddPaiementPage() {
                   </button>
                 );})}
               </div>
+              {isAvoir && (
+                <p className={cn("text-[11px] mt-2", avoirInsuffisant ? "text-red-600 font-medium" : "text-muted-foreground")}>
+                  Solde avoir disponible : {formatCFA(soldeAvoirDisponible)}
+                  {avoirInsuffisant && " — insuffisant pour ce montant"}
+                </p>
+              )}
             </div>
 
             <div>

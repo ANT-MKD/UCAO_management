@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useEncaissements } from "@/hooks/useEncaissementStore";
 import { annulerEncaissement } from "@/data/encaissementStore";
-import { reverserReglementQuittance } from "@/data/studentStore";
+import { reverserReglementQuittance, crediterAvoir } from "@/data/studentStore";
 import { statutEncaissement } from "@/pages/admin/EncaissementsPage";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
@@ -90,6 +90,9 @@ export default function EncaissementDetailPage({ id }: { id: string }) {
 
   const handleCancel = () => {
     reverserReglementQuittance(record.quittanceId, record.montant);
+    if (record.moyen.toUpperCase() === "AVOIR") {
+      crediterAvoir(record.etudiantId, record.montant);
+    }
     annulerEncaissement(record.id);
     toast.success("Encaissement annulé — le montant a été retiré de la quittance");
     setConfirmCancel(false);
