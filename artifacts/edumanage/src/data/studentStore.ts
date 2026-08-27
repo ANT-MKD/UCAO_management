@@ -1218,6 +1218,25 @@ export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord |
   return updated;
 }
 
+/** Retire un règlement appliqué sur une quittance (ex. annulation d'une prise en charge) : opération symétrique de payerQuittance(). */
+export function reverserReglementQuittance(id: string, montant: number): void {
+  const p = store.paiements.find((pp) => pp.id === id);
+  if (!p) return;
+
+  const nouveauMontantPaye = Math.max(0, p.montant - Math.max(0, montant));
+  const diff = p.montant - nouveauMontantPaye;
+
+  const etudiant = getEtudiantById(p.etudiantId);
+  if (etudiant && diff > 0) {
+    etudiant.soldeDu = etudiant.soldeDu + diff;
+    const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
+    if (ins) ins.soldeDu = etudiant.soldeDu;
+  }
+
+  store.paiements = store.paiements.map((pp) => (pp.id === id ? { ...pp, montant: nouveauMontantPaye } : pp));
+  persist();
+}
+
 /** Pousse une notification de relance au portail étudiant pour chaque quittance non soldée et non annulée. Renvoie le nombre de relances envoyées. */
 export function relancerQuittances(ids: string[]): number {
   let count = 0;

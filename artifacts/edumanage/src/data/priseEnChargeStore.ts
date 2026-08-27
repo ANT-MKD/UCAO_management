@@ -1,0 +1,144 @@
+import { payerQuittance, reverserReglementQuittance } from "./studentStore";
+
+const STORAGE_KEY = "edumanage-prises-en-charge-v1";
+
+export type TypePEC = "montant" | "pourcentage";
+
+export interface PriseEnChargeLigne {
+  quittanceId: string;
+  label: string;
+  montantFrais: number;
+  montantPEC: number;
+}
+
+export interface PriseEnChargeRecord {
+  id: string;
+  reference: string;
+  type: TypePEC;
+  dateSaisie: string;
+  organismeId: string;
+  organisme: string;
+  etudiantId: string;
+  etudiant: string;
+  filiere: string;
+  annee: string;
+  debut: string;
+  fin: string;
+  dateLimite: string;
+  montant?: number;
+  pourcentage?: number;
+  document?: string;
+  lignes: PriseEnChargeLigne[];
+  annulee: boolean;
+}
+
+const listeners = new Set<() => void>();
+
+function notify() {
+  listeners.forEach((fn) => fn());
+}
+
+interface Persisted {
+  records: PriseEnChargeRecord[];
+  counter: number;
+}
+
+function load(): Persisted {
+  if (typeof window === "undefined") return { records: [], counter: 0 };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { records: [], counter: 0 };
+    return JSON.parse(raw) as Persisted;
+  } catch {
+    return { records: [], counter: 0 };
+  }
+}
+
+let store: Persisted = load();
+
+function persist() {
+  // Nouvelle référence de tableau : useSyncExternalStore compare par Object.is
+  // et ne re-rend pas si getPrisesEnCharge() renvoie la même référence.
+  store = { ...store, records: store.records.slice() };
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  }
+  notify();
+}
+
+export function subscribePrisesEnCharge(fn: () => void) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export function getPrisesEnCharge(): PriseEnChargeRecord[] {
+  return store.records;
+}
+
+export function getPriseEnChargeById(id: string): PriseEnChargeRecord | undefined {
+  return store.records.find((r) => r.id === id);
+}
+
+export interface AddPriseEnChargePayload {
+  type: TypePEC;
+  dateSaisie: string;
+  organismeId: string;
+  organisme: string;
+  etudiantId: string;
+  etudiant: string;
+  filiere: string;
+  annee: string;
+  debut: string;
+  fin: string;
+  dateLimite: string;
+  montant?: number;
+  pourcentage?: number;
+  document?: string;
+  referenceOverride?: string;
+  lignes: PriseEnChargeLigne[];
+}
+
+/** Enregistre une prise en charge : règle chaque quittance retenue (payerQuittance) avec l'organisme comme moyen de paiement. */
+export function addPriseEnCharge(payload: AddPriseEnChargePayload): PriseEnChargeRecord {
+  store.counter = (store.counter ?? 0) + 1;
+  const reference = payload.referenceOverride?.trim() || `PEC-${payload.annee.slice(0, 4)}-${String(store.counter).padStart(3, "0")}`;
+
+  const lignesAppliquees = payload.lignes.filter((l) => l.montantPEC > 0);
+  lignesAppliquees.forEach((l) => {
+    payerQuittance({ id: l.quittanceId, montant: l.montantPEC, moyen: "Prise en charge", reference, date: payload.dateSaisie });
+  });
+
+  const record: PriseEnChargeRecord = {
+    id: `pec-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    reference,
+    type: payload.type,
+    dateSaisie: payload.dateSaisie,
+    organismeId: payload.organismeId,
+    organisme: payload.organisme,
+    etudiantId: payload.etudiantId,
+    etudiant: payload.etudiant,
+    filiere: payload.filiere,
+    annee: payload.annee,
+    debut: payload.debut,
+    fin: payload.fin,
+    dateLimite: payload.dateLimite,
+    montant: payload.montant,
+    pourcentage: payload.pourcentage,
+    document: payload.document,
+    lignes: lignesAppliquees,
+    annulee: false,
+  };
+
+  store.records = [record, ...store.records];
+  persist();
+  return record;
+}
+
+/** Annule la prise en charge : retire le règlement appliqué sur chaque quittance couverte (le solde élève est restauré). */
+export function cancelPriseEnCharge(id: string): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record || record.annulee) return;
+  record.lignes.forEach((l) => reverserReglementQuittance(l.quittanceId, l.montantPEC));
+  store.records = store.records.map((r) => (r.id === id ? { ...r, annulee: true } : r));
+  persist();
+}
