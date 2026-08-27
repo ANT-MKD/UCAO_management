@@ -6,6 +6,7 @@ import {
   BookOpen,
   ClipboardList,
   NotebookPen,
+  Clock3,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -19,7 +20,8 @@ const NAV = [
   { to: "/teacher/schedule", icon: Calendar, label: "Mon EDT" },
   { to: "/teacher/modules", icon: BookOpen, label: "Mes modules" },
   { to: "/teacher/grades", icon: ClipboardList, label: "Saisie notes" },
-  { to: "/teacher/cahier", icon: NotebookPen, label: "Cahier de sÃ©ance" },
+  { to: "/teacher/cahier", icon: NotebookPen, label: "Cahier de séance" },
+  { to: "/teacher/rallonge", icon: Clock3, label: "Demande de rallonge" },
 ];
 
 export function TeacherLayout({ children }: { children: React.ReactNode }) {
@@ -74,7 +76,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full px-2 py-2 rounded-lg hover:bg-muted"
           >
             <LogOut className="w-4 h-4" />
-            {!collapsed && "DÃ©connexion"}
+            {!collapsed && "Déconnexion"}
           </button>
         </div>
       </aside>

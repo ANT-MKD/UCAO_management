@@ -64,6 +64,8 @@ const TeacherVolumePage = lazy(() => import("@/pages/admin/TeacherVolumePage"));
 const TeacherCourseStatusPage = lazy(() => import("@/pages/admin/TeacherCourseStatusPage"));
 const TeacherPointageFormPage = lazy(() => import("@/pages/admin/TeacherPointageFormPage"));
 const TeacherPointageTraitementPage = lazy(() => import("@/pages/admin/TeacherPointageTraitementPage"));
+const TeacherRallongeFormPage = lazy(() => import("@/pages/admin/TeacherRallongeFormPage"));
+const TeacherRallongeTraitementPage = lazy(() => import("@/pages/admin/TeacherRallongeTraitementPage"));
 const TeacherDossierPage = lazy(() => import("@/pages/admin/TeacherDossierPage"));
 const TeacherFormPage = lazy(() => import("@/pages/admin/TeacherFormPage"));
 
@@ -97,6 +99,7 @@ const TeacherDashboardPage = lazy(() => import("@/pages/teacher/TeacherPortalPag
 const TeacherSchedulePage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherSchedulePage })));
 const TeacherModulesPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherModulesPage })));
 const TeacherGradesPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherGradesPage })));
+const TeacherRallongePage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherRallongePage })));
 const TeacherCahierPage = lazy(() => import("@/pages/teacher/TeacherCahierPage"));
 const StudentSchedulePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentSchedulePage })));
 const StudentGradesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentGradesPage })));
@@ -253,6 +256,12 @@ function AppRouter() {
       <Route path="/admin/teachers/pointage">
         <Admin><TeacherPointageTraitementPage /></Admin>
       </Route>
+      <Route path="/admin/teachers/rallonge/new">
+        <Admin><TeacherRallongeFormPage /></Admin>
+      </Route>
+      <Route path="/admin/teachers/rallonge">
+        <Admin><TeacherRallongeTraitementPage /></Admin>
+      </Route>
       <Route path="/admin/teachers/:id/edit">
         {(p) => <Admin><TeacherFormPage id={p.id} /></Admin>}
       </Route>
@@ -389,6 +398,9 @@ function AppRouter() {
       </Route>
       <Route path="/teacher/cahier">
         <Teacher><TeacherCahierPage /></Teacher>
+      </Route>
+      <Route path="/teacher/rallonge">
+        <Teacher><TeacherRallongePage /></Teacher>
       </Route>
       <Route path="/teacher">
         <Redirect to="/teacher/dashboard" />

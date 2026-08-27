@@ -41,6 +41,9 @@ function load(): PointageRecord[] {
 let store: PointageRecord[] = load();
 
 function persist() {
+  // Nouvelle référence de tableau : useSyncExternalStore compare par
+  // Object.is et ne re-rend pas si getPointages() renvoie la même référence.
+  store = store.slice();
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   }

@@ -4,6 +4,11 @@ import { useSeances, useNotes, useCahiers, useStudentStore } from "@/hooks/useSt
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { saveNotesGrid, submitNotesForValidation } from "@/data/studentStore";
+import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
+import { addRallonge, type RallongeStatut } from "@/data/rallongeStore";
+import { useRallonges } from "@/hooks/useRallongeStore";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -204,6 +209,197 @@ export function TeacherGradesPage() {
           <button type="button" onClick={() => handleSave(false)} className="px-4 py-2 rounded-xl border border-border text-sm">Brouillon</button>
           <button type="button" onClick={() => handleSave(true)} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium">Soumettre Ã  l&apos;admin</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const RALLONGE_STATUT_LABEL: Record<RallongeStatut, string> = {
+  soumis: "En attente",
+  valide: "Validée",
+  rejete: "Rejetée",
+};
+
+const RALLONGE_STATUT_CLS: Record<RallongeStatut, string> = {
+  soumis: "bg-amber-50 text-amber-700",
+  valide: "bg-emerald-50 text-emerald-700",
+  rejete: "bg-red-50 text-red-700",
+};
+
+export function TeacherRallongePage() {
+  const { currentUser } = useAuth();
+  const seances = useSeances();
+  const ecs = useEcs();
+  const ues = useUes();
+  const classes = useClasses();
+  const rallonges = useRallonges();
+
+  const myTeacher = useMemo(
+    () => ENSEIGNANTS.find((t) => t.id === currentUser?.linkedId) ?? null,
+    [currentUser?.linkedId],
+  );
+  const annee = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEES_ACADEMIQUES[0]?.libelle ?? "";
+
+  const courses = useMemo(
+    () => (myTeacher ? buildTeacherCourses(myTeacher, seances, ecs, ues, classes, annee) : []),
+    [myTeacher, seances, ecs, ues, classes, annee],
+  );
+
+  const [courseId, setCourseId] = useState("");
+  const [heures, setHeures] = useState("2");
+  const [motif, setMotif] = useState("");
+
+  const selectedCourse = courses.find((c) => c.id === courseId) ?? null;
+
+  const mine = useMemo(
+    () =>
+      rallonges
+        .filter((r) => r.teacherId === myTeacher?.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [rallonges, myTeacher?.id],
+  );
+
+  function handleSubmit() {
+    if (!myTeacher || !selectedCourse) {
+      toast.error("Sélectionnez un cours");
+      return;
+    }
+    const heuresNum = Number(heures);
+    if (!heuresNum || heuresNum <= 0) {
+      toast.error("Indiquez un nombre d'heures valide");
+      return;
+    }
+    if (!motif.trim()) {
+      toast.error("Indiquez un motif");
+      return;
+    }
+    addRallonge({
+      teacherId: myTeacher.id,
+      ecId: selectedCourse.ecId,
+      classeId: selectedCourse.classeId,
+      annee,
+      vhActuel: selectedCourse.volumeHoraire,
+      vhSupplementaire: heuresNum,
+      motif: motif.trim(),
+      origine: "prof",
+    });
+    toast.success("Demande de rallonge envoyée à l'administration");
+    setCourseId("");
+    setHeures("2");
+    setMotif("");
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>
+          Demande de rallonge de volume horaire
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Demandez des heures supplémentaires sur un cours dont le volume prévu est dépassé.
+          L&apos;administration valide ou rejette votre demande.
+        </p>
+        {!myTeacher ? (
+          <p className="text-sm text-muted-foreground">Compte non rattaché à une fiche professeur.</p>
+        ) : (
+          <>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <select
+                className="rounded-xl border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
+                value={courseId}
+                onChange={(e) => setCourseId(e.target.value)}
+              >
+                <option value="">Sélectionner un cours</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.coursLabel} — {c.detailsLabel}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={0.5}
+                step={0.5}
+                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                value={heures}
+                onChange={(e) => setHeures(e.target.value)}
+                placeholder="Heures supplémentaires demandées"
+              />
+              {selectedCourse && (
+                <p className="text-xs text-muted-foreground self-center">
+                  Volume horaire prévu actuellement : <span className="font-semibold text-foreground">{selectedCourse.volumeHoraire} h</span>
+                </p>
+              )}
+            </div>
+            <textarea
+              rows={3}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              placeholder="Motif de la demande…"
+            />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
+              >
+                Envoyer la demande
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="p-5 border-b border-border">
+          <h3 className="font-bold text-sm">Mes demandes</h3>
+        </div>
+        {mine.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-10">Aucune demande de rallonge envoyée.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
+                <th className="px-4 py-3">Cours</th>
+                <th className="px-4 py-3">Rallonge</th>
+                <th className="px-4 py-3">Motif</th>
+                <th className="px-4 py-3">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mine.map((r) => {
+                const ec = ecs.find((e) => e.id === r.ecId);
+                const classe = classes.find((c) => c.id === r.classeId);
+                return (
+                  <tr key={r.id} className="border-t border-border align-top">
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{ec ? `${ec.code} — ${ec.libelle}` : r.ecId}</p>
+                      <p className="text-xs text-muted-foreground">{classe?.nom}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      +{r.vhSupplementaire} h
+                      <span className="text-xs text-muted-foreground block">
+                        {r.vhActuel}h → {r.vhActuel + r.vhSupplementaire}h
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {r.motif}
+                      {r.statut === "rejete" && r.motifRejet && (
+                        <span className="block text-red-600 text-xs mt-1">{r.motifRejet}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", RALLONGE_STATUT_CLS[r.statut])}>
+                        {RALLONGE_STATUT_LABEL[r.statut]}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
