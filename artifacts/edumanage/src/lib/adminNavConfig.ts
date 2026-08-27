@@ -85,7 +85,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "prof-rallonge-traitement", label: "Traitement rallonge", href: "/admin/teachers/rallonge" },
       { id: "prof-absence-nouveau", label: "Nouveau constat absence/retard", href: "/admin/teachers/absence/new" },
       { id: "prof-absence-retard", label: "Absence / Retard", href: "/admin/teachers/absence" },
-      { id: "prof-contrat", label: "Contrat professeur", href: wipHref("prof-contrat") },
+      { id: "prof-contrat", label: "Contrat professeur", href: "/admin/teachers/contracts" },
     ],
   },
   {
