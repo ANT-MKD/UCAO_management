@@ -181,7 +181,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-pec",
         label: "Prise en charge",
         children: [
-          { id: "fin-pec-organisme", label: "Organisme de PEC", href: wipHref("fin-pec-organisme") },
+          { id: "fin-pec-organisme", label: "Organisme de PEC", href: "/admin/organismes-pec" },
           { id: "fin-pec-liste", label: "Les prises en charge", href: wipHref("fin-pec-liste") },
           { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: wipHref("fin-pec-regularisation") },
           { id: "fin-pec-export", label: "Export comptable", href: wipHref("fin-pec-export") },
