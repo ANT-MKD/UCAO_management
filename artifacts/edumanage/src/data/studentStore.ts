@@ -1305,6 +1305,19 @@ export function relancerQuittances(ids: string[]): number {
   return count;
 }
 
+/** Reporte la date limite d'un lot de quittances déjà émises et non soldées. Renvoie le nombre modifié. */
+export function reporterEcheanceQuittances(ids: string[], nouvelleDateLimite: string): number {
+  let count = 0;
+  for (const id of ids) {
+    const p = store.paiements.find((pp) => pp.id === id);
+    if (!p || p.statut === "annule") continue;
+    p.dateLimite = nouvelleDateLimite;
+    count++;
+  }
+  if (count > 0) persist();
+  return count;
+}
+
 /**
  * Autorise ou interdit l'accès portail des étudiants.
  * Interdit → statut `suspendu` (déjà utilisé dans le store / réinscription).

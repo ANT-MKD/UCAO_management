@@ -13,9 +13,11 @@ import {
   LogOut,
   Bell,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
+import { useNotifications } from "@/hooks/useStudentStore";
+import { markNotificationRead } from "@/data/studentStore";
 
 interface StudentLayoutProps {
   children: React.ReactNode;
@@ -41,10 +43,17 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   const [location, setLocation] = useLocation();
   const { currentUser, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifications = useNotifications(currentUser?.id);
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const handleLogout = () => {
     logout();
     setLocation("/login");
+  };
+
+  const handleOpenNotif = () => {
+    setNotifOpen((o) => !o);
   };
 
   return (
@@ -132,10 +141,52 @@ export function StudentLayout({ children }: StudentLayoutProps) {
             </h1>
             <p className="text-xs text-muted-foreground">Suivi académique et administratif</p>
           </div>
-          <button className="relative p-2 rounded-lg hover:bg-muted text-muted-foreground">
-            <Bell size={18} />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleOpenNotif}
+              className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              data-testid="student-topbar-notifications"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {notifOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between sticky top-0 bg-popover">
+                  <span className="font-semibold text-sm">Notifications</span>
+                  <span className="text-xs text-primary font-medium">{unreadCount} non lue(s)</span>
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune notification</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
+                      className={cn(
+                        "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
+                        !n.read && "bg-primary/[0.03]",
+                      )}
+                      data-testid={`student-notification-${n.id}`}
+                    >
+                      <div className="flex gap-2">
+                        {!n.read && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
+                        <div className={!n.read ? "" : "pl-3.5"}>
+                          <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </header>
 
         <div className="p-5 md:p-7 max-w-[1400px]">{children}</div>

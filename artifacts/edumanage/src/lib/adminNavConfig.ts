@@ -182,7 +182,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-reprise-liste", label: "Reprise frais étudiant", href: "/admin/reprise-frais" },
         ],
       },
-      { id: "fin-rappel", label: "Rappel des paiements", href: wipHref("fin-rappel") },
+      { id: "fin-rappel", label: "Rappel des paiements", href: "/admin/rappel-paiement" },
       {
         id: "fin-pec",
         label: "Prise en charge",

@@ -27,7 +27,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   // Finances — Avoir
 
   // Finances — divers
-  "fin-rappel": { title: "Rappel des paiements", section: "Finances" },
   "fin-pec-organisme": { title: "Organisme de PEC", section: "Finances · Prise en charge" },
   "fin-pec-liste": { title: "Les prises en charge", section: "Finances · Prise en charge" },
   "fin-pec-regularisation": { title: "Régularisation prise en charge", section: "Finances · Prise en charge" },

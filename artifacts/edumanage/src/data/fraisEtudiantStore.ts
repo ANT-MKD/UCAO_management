@@ -110,9 +110,11 @@ export function ajouterFraisEtudiant(
   persist();
 
   if (quittancerImmediatement) {
+    const datesLimites = created.map((l) => l.dateLimite).filter((d): d is string => !!d).sort();
     const quittance = emettreQuittanceBrute({
       etudiantId,
       date,
+      dateLimite: datesLimites[0],
       lignes: created.map((l) => ({ label: typeFraisLabel(l.typeFraisId), montant: l.montant })),
       reference: `Frais étudiant (${created.length} ligne(s))`,
     });
