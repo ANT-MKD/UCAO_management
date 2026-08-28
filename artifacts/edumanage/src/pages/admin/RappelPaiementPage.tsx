@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Plus } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { useRappelsPaiement } from "@/hooks/useRappelPaiementStore";
@@ -32,6 +32,23 @@ export default function RappelPaiementPage() {
       header: "Nouvelle échéance",
       render: (r) => (r.nouvelleEcheance ? <span className="text-sm font-medium text-primary">{formatShortDate(r.nouvelleEcheance as string)}</span> : <span className="text-sm text-muted-foreground">—</span>),
     },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => {
+        const r = row as unknown as RappelPaiementRecord;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setLocation(`/admin/rappel-paiement/${r.id}`); }}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+            aria-label="Voir le détail"
+            data-testid={`rappel-paiement-view-${r.id}`}
+          >
+            <Eye size={14} />
+          </button>
+        );
+      },
+    },
   ];
 
   return (
@@ -56,6 +73,7 @@ export default function RappelPaiementPage() {
         searchable
         searchPlaceholder="Rechercher..."
         emptyMessage="Aucune donnée à afficher"
+        onRowClick={(row) => setLocation(`/admin/rappel-paiement/${(row as unknown as RappelPaiementRecord).id}`)}
       />
     </div>
   );

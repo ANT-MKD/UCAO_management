@@ -127,6 +127,7 @@ const NouvelleReprisFraisPage = lazy(() => import("@/pages/admin/NouvelleReprisF
 const ReprisFraisPage = lazy(() => import("@/pages/admin/ReprisFraisPage"));
 const RappelPaiementPage = lazy(() => import("@/pages/admin/RappelPaiementPage"));
 const NouveauRappelPaiementPage = lazy(() => import("@/pages/admin/NouveauRappelPaiementPage"));
+const RappelPaiementDetailPage = lazy(() => import("@/pages/admin/RappelPaiementDetailPage"));
 const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
@@ -488,6 +489,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/rappel-paiement/new">
         <Admin><NouveauRappelPaiementPage /></Admin>
+      </Route>
+      <Route path="/admin/rappel-paiement/:id">
+        {(p) => <Admin><RappelPaiementDetailPage id={p.id} /></Admin>}
       </Route>
       <Route path="/admin/rappel-paiement">
         <Admin><RappelPaiementPage /></Admin>

@@ -59,6 +59,19 @@ export function getRappelsPaiement(): RappelPaiementRecord[] {
   return store.records;
 }
 
+/** Cherche un rappel déjà envoyé pour exactement la même cohorte et le même seuil d'échéance — utilisé pour
+ * avertir avant un doublon (même sélection relancée deux fois par erreur). */
+export function trouverRappelIdentique(
+  filiereId: string,
+  niveau: string | undefined,
+  annee: string,
+  fraisEchusAvant: string,
+): RappelPaiementRecord | undefined {
+  return store.records.find(
+    (r) => r.filiereId === filiereId && r.niveau === niveau && r.annee === annee && r.fraisEchusAvant === fraisEchusAvant,
+  );
+}
+
 export interface EnvoyerRappelPayload {
   filiereId: string;
   filiereLabel: string;
@@ -78,10 +91,12 @@ export function envoyerRappelPaiement(payload: EnvoyerRappelPayload): RappelPaie
   store.counter = (store.counter ?? 0) + 1;
   const reference = `RAP-${new Date(date).getFullYear()}-${String(store.counter).padStart(3, "0")}`;
 
-  const nbNotificationsEnvoyees = relancerQuittances(payload.quittanceIds);
+  // On reporte l'échéance AVANT d'envoyer les notifications : relancerQuittances lit dateLimite au
+  // moment de l'envoi pour composer son message, donc l'étudiant doit voir la date à jour, pas l'ancienne.
   if (payload.nouvelleEcheance) {
     reporterEcheanceQuittances(payload.quittanceIds, payload.nouvelleEcheance);
   }
+  const nbNotificationsEnvoyees = relancerQuittances(payload.quittanceIds);
 
   const record: RappelPaiementRecord = {
     id: `rappel-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

@@ -1,12 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell } from "lucide-react";
+import { ArrowLeft, Bell, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
-import { envoyerRappelPaiement } from "@/data/rappelPaiementStore";
-import { formatCFA, formatShortDate } from "@/lib/utils";
+import { envoyerRappelPaiement, trouverRappelIdentique } from "@/data/rappelPaiementStore";
+import { useRappelsPaiement } from "@/hooks/useRappelPaiementStore";
+import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
 const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0]?.libelle ?? "2025-2026";
@@ -22,6 +23,7 @@ export default function NouveauRappelPaiementPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const paiements = usePaiements();
+  useRappelsPaiement(); // s'abonne pour que la vérification de doublon reste à jour
 
   const [step, setStep] = useState<1 | 2>(1);
   const [filiereId, setFiliereId] = useState("");
@@ -29,6 +31,7 @@ export default function NouveauRappelPaiementPage() {
   const [annee, setAnnee] = useState(DEFAULT_ANNEE);
   const [fraisEchusAvant, setFraisEchusAvant] = useState(new Date().toISOString().slice(0, 10));
   const [nouvelleEcheance, setNouvelleEcheance] = useState("");
+  const [excludedIds, setExcludedIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
 
   const filteredNiveaux = useMemo(() => NIVEAUX.filter((n) => n.filiereId === filiereId), [filiereId]);
@@ -55,7 +58,18 @@ export default function NouveauRappelPaiementPage() {
     });
   }, [paiements, cohorteEtudiantIds, fraisEchusAvant, step]);
 
-  const nbEtudiantsConcernes = new Set(quittancesEnRetard.map((p) => p.etudiantId)).size;
+  const quittancesRetenues = useMemo(() => quittancesEnRetard.filter((p) => !excludedIds.includes(p.id)), [quittancesEnRetard, excludedIds]);
+  const nbEtudiantsConcernes = new Set(quittancesRetenues.map((p) => p.etudiantId)).size;
+
+  useEffect(() => {
+    setExcludedIds([]);
+  }, [filiereId, niveauId, annee, fraisEchusAvant]);
+
+  const rappelIdentique = filiereId ? trouverRappelIdentique(filiereId, niveau?.alias, annee, fraisEchusAvant) : undefined;
+
+  const toggleExclude = (id: string) => {
+    setExcludedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
 
   const handleSuivant = () => {
     if (!filiereId || !annee || !fraisEchusAvant) {
@@ -66,8 +80,8 @@ export default function NouveauRappelPaiementPage() {
   };
 
   const handleEnvoyer = () => {
-    if (quittancesEnRetard.length === 0) {
-      toast.error("Aucune quittance en retard pour cette sélection");
+    if (quittancesRetenues.length === 0) {
+      toast.error("Aucune quittance retenue pour l'envoi");
       return;
     }
     setSending(true);
@@ -80,7 +94,7 @@ export default function NouveauRappelPaiementPage() {
         annee,
         fraisEchusAvant,
         nouvelleEcheance: nouvelleEcheance || undefined,
-        quittanceIds: quittancesEnRetard.map((p) => p.id),
+        quittanceIds: quittancesRetenues.map((p) => p.id),
         nbEtudiants: nbEtudiantsConcernes,
       });
       toast.success(`${record.nbNotificationsEnvoyees} rappel(s) envoyé(s)` + (nouvelleEcheance ? ` — nouvelle échéance appliquée` : ""));
@@ -141,13 +155,20 @@ export default function NouveauRappelPaiementPage() {
 
       {step === 2 && (
         <div className="space-y-5">
+          {rappelIdentique && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs">
+              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+              Un rappel identique (même programme, niveau, année et échéance) a déjà été envoyé le {formatShortDate(rappelIdentique.date)} ({rappelIdentique.reference}) — vérifiez que ce n'est pas un doublon avant de continuer.
+            </div>
+          )}
+
           <div className="bg-card border border-border rounded-xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
                   {filiere?.nom}{niveau ? ` — ${niveau.nom}` : ""} ({annee}) — frais échus avant {formatShortDate(fraisEchusAvant)}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1">{quittancesEnRetard.length} quittance(s) en retard · {nbEtudiantsConcernes} étudiant(s)</p>
+                <p className="text-xs text-muted-foreground mt-1">{quittancesRetenues.length}/{quittancesEnRetard.length} quittance(s) retenue(s) · {nbEtudiantsConcernes} étudiant(s)</p>
               </div>
             </div>
 
@@ -158,6 +179,7 @@ export default function NouveauRappelPaiementPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      <th className="w-10 px-3 py-2" />
                       <th className="text-left px-3 py-2">Étudiant</th>
                       <th className="text-left px-3 py-2">Quittance</th>
                       <th className="text-right px-3 py-2">Reste dû</th>
@@ -165,14 +187,20 @@ export default function NouveauRappelPaiementPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {quittancesEnRetard.map((p) => (
-                      <tr key={p.id} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2">{p.etudiant}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{p.numeroRecu}</td>
-                        <td className="px-3 py-2 text-right font-semibold">{formatCFA(montantFacture(p) - p.montant)}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{p.dateLimite ? formatShortDate(p.dateLimite) : "—"}</td>
-                      </tr>
-                    ))}
+                    {quittancesEnRetard.map((p) => {
+                      const excluded = excludedIds.includes(p.id);
+                      return (
+                        <tr key={p.id} className="border-b border-border last:border-0">
+                          <td className="px-3 py-2">
+                            <input type="checkbox" checked={!excluded} onChange={() => toggleExclude(p.id)} className="rounded" data-testid={`rappel-inclure-${p.id}`} />
+                          </td>
+                          <td className={cn("px-3 py-2", excluded && "text-muted-foreground line-through")}>{p.etudiant}</td>
+                          <td className={cn("px-3 py-2 font-mono text-xs", excluded && "text-muted-foreground line-through")}>{p.numeroRecu}</td>
+                          <td className={cn("px-3 py-2 text-right font-semibold", excluded && "text-muted-foreground line-through")}>{formatCFA(montantFacture(p) - p.montant)}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{p.dateLimite ? formatShortDate(p.dateLimite) : "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -188,7 +216,7 @@ export default function NouveauRappelPaiementPage() {
           <div className="flex gap-3">
             <button
               onClick={handleEnvoyer}
-              disabled={sending || quittancesEnRetard.length === 0}
+              disabled={sending || quittancesRetenues.length === 0}
               className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="rappel-envoyer"
             >
