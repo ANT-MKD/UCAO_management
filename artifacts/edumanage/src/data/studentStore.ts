@@ -1407,39 +1407,6 @@ export function assignEtudiantToClasse(etudiantId: string, classeId: string) {
   persist();
 }
 
-/** Déverse les étudiants d'une classe source vers une classe cible (hors exclus) */
-export function transferClasseRoster(
-  sourceClasseId: string,
-  targetClasseId: string,
-  excludeIds: string[] = [],
-): number {
-  const source = getClasseById(sourceClasseId);
-  const target = getClasseById(targetClasseId);
-  if (!source || !target || sourceClasseId === targetClasseId) return 0;
-
-  const exclude = new Set(excludeIds);
-  let count = 0;
-  for (const e of store.etudiants) {
-    if (e.classeId !== sourceClasseId || exclude.has(e.id)) continue;
-    e.classeId = targetClasseId;
-    e.classe = target.nom;
-    e.niveau = target.niveau;
-    const ins = store.inscriptions.find((i) => i.etudiantId === e.id && i.annee === e.annee);
-    if (ins) {
-      ins.classeId = targetClasseId;
-      ins.classe = target.nom;
-      ins.niveau = target.niveau;
-    }
-    count++;
-  }
-  if (count > 0) {
-    incrementClasseEffectif(sourceClasseId, -count);
-    incrementClasseEffectif(targetClasseId, count);
-    persist();
-  }
-  return count;
-}
-
 export function cloturerAnnee(id: string) {
   const annee = store.annees.find((a) => a.id === id);
   if (!annee) return;

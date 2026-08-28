@@ -13,6 +13,10 @@ export interface ClassePedagogiqueRecord {
   delegue: string;
   annee: string;
   salleParDefautId?: string;
+  cloturee?: boolean;
+  dateCloture?: string;
+  clotureePar?: string;
+  observationCloture?: string;
 }
 
 /** Classe physique = local / salle (ex. RDC 1A) — nom stable */
@@ -200,6 +204,19 @@ export function upsertClasse(payload: ClassePayload, id?: string): ClassePedagog
 
 export function deleteClasse(id: string) {
   store.classes = store.classes.filter((c) => c.id !== id);
+  persist();
+}
+
+export function cloturerClasses(classeIds: string[], observations: Record<string, string>, clotureePar: string): void {
+  const dateCloture = new Date().toISOString().slice(0, 10);
+  for (const id of classeIds) {
+    const c = store.classes.find((x) => x.id === id);
+    if (!c) continue;
+    c.cloturee = true;
+    c.dateCloture = dateCloture;
+    c.clotureePar = clotureePar;
+    c.observationCloture = observations[id]?.trim() || undefined;
+  }
   persist();
 }
 

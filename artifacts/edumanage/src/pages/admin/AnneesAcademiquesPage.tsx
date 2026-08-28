@@ -65,6 +65,10 @@ export default function AnneesAcademiquesPage() {
         </div>
       )}
 
+      <p className="text-xs text-muted-foreground mb-4">
+        Ces actions s&apos;appliquent à toute l&apos;année scolaire d&apos;un coup. Pour clôturer ou faire basculer une classe en particulier, utilisez plutôt Classe &gt; Clôture année / Bascule année.
+      </p>
+
       <div className="space-y-4">
         {annees.map((a) => (
           <div key={a.id} className={cn("bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4", a.actuelle ? "border-primary ring-1 ring-primary/20" : "border-border")} style={{ boxShadow: "var(--shadow-sm)" }}>

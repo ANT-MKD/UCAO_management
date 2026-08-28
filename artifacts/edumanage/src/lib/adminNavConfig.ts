@@ -216,8 +216,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Classes",
         children: [
           { id: "scol-classes-liste", label: "Les classes", href: "/admin/classes" },
-          { id: "scol-classes-cloture", label: "Clôture année", href: "/admin/annees" },
-          { id: "scol-classes-bascule", label: "Bascule année", href: "/admin/annees" },
+          { id: "scol-classes-cloture", label: "Clôture année", href: "/admin/classe/cloture-annee" },
+          { id: "scol-classes-bascule", label: "Bascule année", href: "/admin/classe/bascule-annee" },
         ],
       },
       {

@@ -72,7 +72,7 @@ export default function InscriptionDefinitivePage() {
   const peutSoumettre = cohorteChoisie && specialite.trim().length > 0 && selectedIds.size > 0;
 
   const resolveClasseId = (): string | undefined => {
-    const dispo = classes.filter((c) => c.filiereId === filiereId && c.niveau === niveau?.alias && c.annee === annee);
+    const dispo = classes.filter((c) => c.filiereId === filiereId && c.niveau === niveau?.alias && c.annee === annee && !c.cloturee);
     if (dispo.length === 0) return undefined;
     return [...dispo].sort((a, b) => (b.max - b.inscrits) - (a.max - a.inscrits))[0].id;
   };
