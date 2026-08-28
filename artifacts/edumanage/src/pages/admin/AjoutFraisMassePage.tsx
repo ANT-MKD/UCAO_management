@@ -27,7 +27,8 @@ function emptyDraft(): DraftLigne {
 export default function AjoutFraisMassePage() {
   const classes = useClasses();
   const etudiants = useStudentStore();
-  const typesFrais = useTypesFrais();
+  const typesFraisComplet = useTypesFrais();
+  const typesFrais = useMemo(() => typesFraisComplet.filter((t) => t.code !== "REP"), [typesFraisComplet]);
   const fraisEtudiant = useFraisEtudiant();
 
   const [filiereId, setFiliereId] = useState("");
@@ -73,7 +74,7 @@ export default function AjoutFraisMassePage() {
     setEtudiantId("");
   };
 
-  const typeFraisLabel = (id: string) => typesFrais.find((t) => t.id === id)?.intitule ?? "Frais";
+  const typeFraisLabel = (id: string) => typesFraisComplet.find((t) => t.id === id)?.intitule ?? "Frais";
 
   const addDraft = () => setDrafts((prev) => [...prev, emptyDraft()]);
   const updateDraft = (key: string, patch: Partial<DraftLigne>) => setDrafts((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)));

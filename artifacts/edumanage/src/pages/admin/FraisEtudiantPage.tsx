@@ -26,7 +26,8 @@ function emptyDraft(): DraftLigne {
 export default function FraisEtudiantPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
-  const typesFrais = useTypesFrais();
+  const typesFraisComplet = useTypesFrais();
+  const typesFrais = useMemo(() => typesFraisComplet.filter((t) => t.code !== "REP"), [typesFraisComplet]);
   const fraisEtudiant = useFraisEtudiant();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,7 +69,7 @@ export default function FraisEtudiantPage() {
     setAnneeModalOpen(false);
   };
 
-  const typeFraisLabel = (id: string) => typesFrais.find((t) => t.id === id)?.intitule ?? "Frais";
+  const typeFraisLabel = (id: string) => typesFraisComplet.find((t) => t.id === id)?.intitule ?? "Frais";
 
   const lignesEnAttente = useMemo(
     () => (selectedStudent ? fraisEtudiant.filter((l) => l.etudiantId === selectedStudent.id && l.annee === selectedAnnee && !l.quittanceId && !l.annulee) : []),
