@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, Eye, FileSpreadsheet, Plus, Save, Trash2, Upload } from "lucide-react";
+import { Ban, Copy, Download, Eye, FileSpreadsheet, Plus, Save, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -9,6 +9,7 @@ import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import {
   getGrilleFrais,
   upsertGrilleFrais,
+  supprimerGrilleFrais,
   makeLigneGrilleFraisId,
   type GrilleFraisRecord,
   type LigneGrilleFrais,
@@ -23,6 +24,17 @@ const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANN
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+const filterInputClass =
+  "w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+interface OverviewFilters {
+  filiereId: string;
+  niveau: string;
+  annee: string;
+  modeleFraisId: string;
+}
+
+const EMPTY_FILTERS: OverviewFilters = { filiereId: "", niveau: "", annee: "", modeleFraisId: "" };
 
 export default function GrilleFraisPage() {
   const modelesFrais = useModelesFrais();
@@ -42,9 +54,17 @@ export default function GrilleFraisPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [duplicateTarget, setDuplicateTarget] = useState<GrilleFraisRecord | null>(null);
-  const [duplicateAnnee, setDuplicateAnnee] = useState("");
+  const [dupFiliereId, setDupFiliereId] = useState("");
+  const [dupNiveau, setDupNiveau] = useState("");
+  const [dupAnnee, setDupAnnee] = useState("");
+  const [dupModeleFraisId, setDupModeleFraisId] = useState("");
+
+  const [deleteTarget, setDeleteTarget] = useState<GrilleFraisRecord | null>(null);
+
+  const [overviewFilters, setOverviewFilters] = useState<OverviewFilters>(EMPTY_FILTERS);
 
   const niveauxDisponibles = useMemo(() => NIVEAUX.filter((n) => n.filiereId === filiereId), [filiereId]);
+  const dupNiveauxDisponibles = useMemo(() => NIVEAUX.filter((n) => n.filiereId === dupFiliereId), [dupFiliereId]);
 
   const combinaisonComplete = !!filiereId && !!niveau && !!annee && !!modeleFraisId;
 
@@ -59,6 +79,18 @@ export default function GrilleFraisPage() {
     setLignes(existing ? existing.lignes : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filiereId, niveau, annee, modeleFraisId, grillesFrais]);
+
+  const filteredGrilles = useMemo(() => {
+    return grillesFrais.filter((g) => {
+      if (overviewFilters.filiereId && g.filiereId !== overviewFilters.filiereId) return false;
+      if (overviewFilters.niveau && g.niveau !== overviewFilters.niveau) return false;
+      if (overviewFilters.annee && g.annee !== overviewFilters.annee) return false;
+      if (overviewFilters.modeleFraisId && g.modeleFraisId !== overviewFilters.modeleFraisId) return false;
+      return true;
+    });
+  }, [grillesFrais, overviewFilters]);
+
+  const patchOverviewFilter = (patch: Partial<OverviewFilters>) => setOverviewFilters((f) => ({ ...f, ...patch }));
 
   const addLigne = () => {
     setLignes((prev) => [
@@ -105,22 +137,42 @@ export default function GrilleFraisPage() {
 
   const ouvrirDuplication = (g: GrilleFraisRecord) => {
     setDuplicateTarget(g);
-    setDuplicateAnnee(ANNEE_OPTIONS.find((a) => a !== g.annee) ?? "");
+    setDupFiliereId(g.filiereId);
+    setDupNiveau(g.niveau);
+    setDupAnnee(ANNEE_OPTIONS.find((a) => a !== g.annee) ?? g.annee);
+    setDupModeleFraisId(g.modeleFraisId);
   };
 
   const confirmerDuplication = () => {
-    if (!duplicateTarget || !duplicateAnnee) return;
+    if (!duplicateTarget || !dupFiliereId || !dupNiveau || !dupAnnee || !dupModeleFraisId) return;
     upsertGrilleFrais({
-      filiereId: duplicateTarget.filiereId,
-      niveau: duplicateTarget.niveau,
-      annee: duplicateAnnee,
-      modeleFraisId: duplicateTarget.modeleFraisId,
+      filiereId: dupFiliereId,
+      niveau: dupNiveau,
+      annee: dupAnnee,
+      modeleFraisId: dupModeleFraisId,
       tauxTaxe: duplicateTarget.tauxTaxe,
       lignes: duplicateTarget.lignes.map((l) => ({ ...l, id: makeLigneGrilleFraisId() })),
     });
-    toast.success(`Grille dupliquée vers ${duplicateAnnee}`);
+    toast.success("Grille dupliquée");
     setDuplicateTarget(null);
-    editerGrille({ ...duplicateTarget, annee: duplicateAnnee });
+    editerGrille({ ...duplicateTarget, filiereId: dupFiliereId, niveau: dupNiveau, annee: dupAnnee, modeleFraisId: dupModeleFraisId });
+  };
+
+  const confirmerSuppression = () => {
+    if (!deleteTarget) return;
+    supprimerGrilleFrais(deleteTarget.id);
+    toast.success("Grille tarifaire supprimée");
+    if (
+      deleteTarget.filiereId === filiereId &&
+      deleteTarget.niveau === niveau &&
+      deleteTarget.annee === annee &&
+      deleteTarget.modeleFraisId === modeleFraisId
+    ) {
+      setFiliereId("");
+      setNiveau("");
+      setModeleFraisId("");
+    }
+    setDeleteTarget(null);
   };
 
   const handleFile = async (file: File) => {
@@ -152,6 +204,8 @@ export default function GrilleFraisPage() {
     }
   };
 
+  const overviewFiltersActive = Object.values(overviewFilters).some(Boolean);
+
   return (
     <div>
       <PageHeader
@@ -179,8 +233,13 @@ export default function GrilleFraisPage() {
       />
 
       <div className="bg-card border border-border rounded-xl overflow-hidden mb-6" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <div className="px-5 py-3 border-b border-border bg-muted/40">
+        <div className="px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
           <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Grilles configurées</h3>
+          {overviewFiltersActive && (
+            <button onClick={() => setOverviewFilters(EMPTY_FILTERS)} className="text-[11px] text-muted-foreground hover:text-foreground underline">
+              Réinitialiser les filtres
+            </button>
+          )}
         </div>
         {grillesFrais.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">Aucune grille configurée pour l&apos;instant.</div>
@@ -194,35 +253,79 @@ export default function GrilleFraisPage() {
                 <th className="text-left px-3 py-3">Modèle de frais</th>
                 <th className="text-center px-3 py-3">Lignes</th>
                 <th className="text-right px-3 py-3">Total HT</th>
-                <th className="px-3 py-3 w-20" />
+                <th className="px-3 py-3 w-24" />
+              </tr>
+              <tr className="border-b border-border bg-card">
+                <th className="px-3 py-2">
+                  <select value={overviewFilters.filiereId} onChange={(e) => patchOverviewFilter({ filiereId: e.target.value })} className={filterInputClass}>
+                    <option value="">Toutes</option>
+                    {FILIERES.map((f) => (
+                      <option key={f.id} value={f.id}>{f.code}</option>
+                    ))}
+                  </select>
+                </th>
+                <th className="px-3 py-2">
+                  <select value={overviewFilters.niveau} onChange={(e) => patchOverviewFilter({ niveau: e.target.value })} className={filterInputClass}>
+                    <option value="">Tous</option>
+                    {[...new Set(grillesFrais.map((g) => g.niveau))].map((n) => (
+                      <option key={n} value={n}>{niveauLabel(n)}</option>
+                    ))}
+                  </select>
+                </th>
+                <th className="px-3 py-2">
+                  <select value={overviewFilters.annee} onChange={(e) => patchOverviewFilter({ annee: e.target.value })} className={filterInputClass}>
+                    <option value="">Toutes</option>
+                    {ANNEE_OPTIONS.map((a) => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                </th>
+                <th className="px-3 py-2">
+                  <select value={overviewFilters.modeleFraisId} onChange={(e) => patchOverviewFilter({ modeleFraisId: e.target.value })} className={filterInputClass}>
+                    <option value="">Tous</option>
+                    {modelesFrais.map((m) => (
+                      <option key={m.id} value={m.id}>{m.intitule}</option>
+                    ))}
+                  </select>
+                </th>
+                <th className="px-3 py-2" colSpan={3} />
               </tr>
             </thead>
             <tbody>
-              {grillesFrais.map((g) => {
-                const filiere = FILIERES.find((f) => f.id === g.filiereId);
-                const modele = modelesFrais.find((m) => m.id === g.modeleFraisId);
-                const active = g.filiereId === filiereId && g.niveau === niveau && g.annee === annee && g.modeleFraisId === modeleFraisId;
-                return (
-                  <tr key={g.id} className={cn("border-b border-border last:border-0 cursor-pointer hover:bg-muted/30", active && "bg-primary/5")} onClick={() => editerGrille(g)} data-testid={`grille-frais-row-${g.id}`}>
-                    <td className="px-4 py-3">{filiere?.nom ?? g.filiereId}</td>
-                    <td className="px-3 py-3">{niveauLabel(g.niveau)}</td>
-                    <td className="px-3 py-3">{g.annee}</td>
-                    <td className="px-3 py-3">{modele?.intitule ?? g.modeleFraisId}</td>
-                    <td className="px-3 py-3 text-center">{g.lignes.length}</td>
-                    <td className="px-3 py-3 text-right font-semibold">{formatCFA(g.lignes.reduce((s, l) => s + l.montant, 0))}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); editerGrille(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Éditer" data-testid={`grille-frais-editer-${g.id}`}>
-                          <Eye size={14} />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); ouvrirDuplication(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Dupliquer" data-testid={`grille-frais-dupliquer-${g.id}`}>
-                          <Copy size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredGrilles.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">Aucune grille ne correspond aux critères sélectionnés.</td>
+                </tr>
+              ) : (
+                filteredGrilles.map((g) => {
+                  const filiere = FILIERES.find((f) => f.id === g.filiereId);
+                  const modele = modelesFrais.find((m) => m.id === g.modeleFraisId);
+                  const active = g.filiereId === filiereId && g.niveau === niveau && g.annee === annee && g.modeleFraisId === modeleFraisId;
+                  return (
+                    <tr key={g.id} className={cn("border-b border-border last:border-0 cursor-pointer hover:bg-muted/30", active && "bg-primary/5")} onClick={() => editerGrille(g)} data-testid={`grille-frais-row-${g.id}`}>
+                      <td className="px-4 py-3">{filiere?.nom ?? g.filiereId}</td>
+                      <td className="px-3 py-3">{niveauLabel(g.niveau)}</td>
+                      <td className="px-3 py-3">{g.annee}</td>
+                      <td className="px-3 py-3">{modele?.intitule ?? g.modeleFraisId}</td>
+                      <td className="px-3 py-3 text-center">{g.lignes.length}</td>
+                      <td className="px-3 py-3 text-right font-semibold">{formatCFA(g.lignes.reduce((s, l) => s + l.montant, 0))}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); editerGrille(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Éditer" data-testid={`grille-frais-editer-${g.id}`}>
+                            <Eye size={14} />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); ouvrirDuplication(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Dupliquer" data-testid={`grille-frais-dupliquer-${g.id}`}>
+                            <Copy size={14} />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(g); }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer" data-testid={`grille-frais-supprimer-${g.id}`}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         )}
@@ -330,66 +433,75 @@ export default function GrilleFraisPage() {
                     </td>
                   </tr>
                 ) : (
-                  lignes.map((l) => (
-                    <tr key={l.id} className="border-b border-border last:border-0 align-top">
-                      <td className="px-4 py-3">
-                        <input
-                          value={l.intitule}
-                          onChange={(e) => updateLigne(l.id, { intitule: e.target.value })}
-                          className={inputClass}
-                          placeholder="ex. Frais de scolarité"
-                          data-testid={`grille-ligne-intitule-${l.id}`}
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <input
-                          type="number"
-                          min={0}
-                          value={l.montant || ""}
-                          onChange={(e) => updateLigne(l.id, { montant: Number(e.target.value) || 0 })}
-                          className={`${inputClass} text-right`}
-                          data-testid={`grille-ligne-montant-${l.id}`}
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <select
-                          value={l.modalite}
-                          onChange={(e) => updateLigne(l.id, { modalite: e.target.value as ModaliteFrais })}
-                          className={inputClass}
-                        >
-                          <option value="avant_inscription">Avant inscription</option>
-                          <option value="echeances">Échéances</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {l.modalite === "echeances" && (
+                  lignes.map((l) => {
+                    const arrondiInexact = l.modalite === "echeances" && !!l.nbEcheances && l.montant % l.nbEcheances !== 0;
+                    return (
+                      <tr key={l.id} className="border-b border-border last:border-0 align-top">
+                        <td className="px-4 py-3">
+                          <input
+                            value={l.intitule}
+                            onChange={(e) => updateLigne(l.id, { intitule: e.target.value })}
+                            className={inputClass}
+                            placeholder="ex. Frais de scolarité"
+                            data-testid={`grille-ligne-intitule-${l.id}`}
+                          />
+                        </td>
+                        <td className="px-3 py-3">
                           <input
                             type="number"
-                            min={1}
-                            value={l.nbEcheances ?? ""}
-                            onChange={(e) => updateLigne(l.id, { nbEcheances: Number(e.target.value) || undefined })}
-                            className={`${inputClass} text-center`}
-                            placeholder="Nb"
+                            min={0}
+                            value={l.montant || ""}
+                            onChange={(e) => updateLigne(l.id, { montant: Number(e.target.value) || 0 })}
+                            className={`${inputClass} text-right`}
+                            data-testid={`grille-ligne-montant-${l.id}`}
                           />
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        {l.modalite === "echeances" && (
-                          <input
-                            value={l.dateLimite ?? ""}
-                            onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
+                          {arrondiInexact && (
+                            <p className="text-[10px] text-amber-600 mt-1 text-right">
+                              ⚠ ne se divise pas exactement par {l.nbEcheances} (reste {l.montant % (l.nbEcheances ?? 1)} F)
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <select
+                            value={l.modalite}
+                            onChange={(e) => updateLigne(l.id, { modalite: e.target.value as ModaliteFrais })}
                             className={inputClass}
-                            placeholder="JJ/MM"
-                          />
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        <button type="button" onClick={() => removeLigne(l.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                          >
+                            <option value="avant_inscription">Avant inscription</option>
+                            <option value="echeances">Échéances</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {l.modalite === "echeances" && (
+                            <input
+                              type="number"
+                              min={1}
+                              value={l.nbEcheances ?? ""}
+                              onChange={(e) => updateLigne(l.id, { nbEcheances: Number(e.target.value) || undefined })}
+                              className={`${inputClass} text-center`}
+                              placeholder="Nb"
+                              data-testid={`grille-ligne-echeances-${l.id}`}
+                            />
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {l.modalite === "echeances" && (
+                            <input
+                              value={l.dateLimite ?? ""}
+                              onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
+                              className={inputClass}
+                              placeholder="JJ/MM"
+                            />
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <button type="button" onClick={() => removeLigne(l.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
               {lignes.length > 0 && (
@@ -459,17 +571,45 @@ export default function GrilleFraisPage() {
         {duplicateTarget && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Recopier les {duplicateTarget.lignes.length} ligne(s) de {FILIERES.find((f) => f.id === duplicateTarget.filiereId)?.nom} — {niveauLabel(duplicateTarget.niveau)} — {duplicateTarget.annee} vers une autre année.
+              Recopier les {duplicateTarget.lignes.length} ligne(s) de {FILIERES.find((f) => f.id === duplicateTarget.filiereId)?.nom} — {niveauLabel(duplicateTarget.niveau)} — {duplicateTarget.annee} — {modelesFrais.find((m) => m.id === duplicateTarget.modeleFraisId)?.intitule} vers une nouvelle combinaison.
             </p>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire cible</label>
-              <select value={duplicateAnnee} onChange={(e) => setDuplicateAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
-                <option value="">— Sélectionner —</option>
-                {ANNEE_OPTIONS.map((a) => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+                <select value={dupFiliereId} onChange={(e) => { setDupFiliereId(e.target.value); setDupNiveau(""); }} className={inputClass} data-testid="grille-frais-dupliquer-filiere">
+                  {FILIERES.map((f) => (
+                    <option key={f.id} value={f.id}>{f.code}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+                <select value={dupNiveau} onChange={(e) => setDupNiveau(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-niveau">
+                  {dupNiveauxDisponibles.map((n) => (
+                    <option key={n.id} value={n.alias}>{n.nom}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire</label>
+                <select value={dupAnnee} onChange={(e) => setDupAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
+                  {ANNEE_OPTIONS.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
+                <select value={dupModeleFraisId} onChange={(e) => setDupModeleFraisId(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-modele">
+                  {modelesFrais.map((m) => (
+                    <option key={m.id} value={m.id}>{m.intitule}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+            {dupFiliereId === duplicateTarget.filiereId && dupNiveau === duplicateTarget.niveau && dupAnnee === duplicateTarget.annee && dupModeleFraisId === duplicateTarget.modeleFraisId && (
+              <p className="text-xs text-amber-600">Cette combinaison est identique à la grille source — elle sera simplement réenregistrée telle quelle.</p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setDuplicateTarget(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
                 Annuler
@@ -477,7 +617,7 @@ export default function GrilleFraisPage() {
               <button
                 type="button"
                 onClick={confirmerDuplication}
-                disabled={!duplicateAnnee}
+                disabled={!dupFiliereId || !dupNiveau || !dupAnnee || !dupModeleFraisId}
                 className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-40"
                 data-testid="grille-frais-dupliquer-confirmer"
               >
@@ -487,6 +627,28 @@ export default function GrilleFraisPage() {
           </div>
         )}
       </FormModal>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
+          <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6">
+            <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+              <Ban size={16} className="text-red-600" /> Supprimer cette grille tarifaire ?
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              {FILIERES.find((f) => f.id === deleteTarget.filiereId)?.nom} — {niveauLabel(deleteTarget.niveau)} — {deleteTarget.annee} — {modelesFrais.find((m) => m.id === deleteTarget.modeleFraisId)?.intitule} ({deleteTarget.lignes.length} ligne(s)). Les devis déjà générés à partir de cette grille ne sont pas affectés. Action irréversible.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                Annuler
+              </button>
+              <button type="button" onClick={confirmerSuppression} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700" data-testid="grille-frais-supprimer-confirmer">
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

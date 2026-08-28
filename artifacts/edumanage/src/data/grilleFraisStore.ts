@@ -126,3 +126,9 @@ export function upsertGrilleFrais(payload: UpsertGrilleFraisPayload): GrilleFrai
 export function makeLigneGrilleFraisId(): string {
   return `lgf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+/** Supprime intégralement une grille tarifaire (combinaison filière/niveau/année/modèle de frais). */
+export function supprimerGrilleFrais(id: string): void {
+  store = store.filter((g) => g.id !== id);
+  persist();
+}
