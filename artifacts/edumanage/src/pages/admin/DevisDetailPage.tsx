@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Ban, Printer } from "lucide-react";
+import { ArrowLeft, Ban, Printer, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useDevisList } from "@/hooks/useDevisStore";
@@ -94,7 +94,12 @@ export default function DevisDetailPage({ id }: { id: string }) {
   }
 
   const handleCancel = () => {
-    annulerDevis(record.id);
+    const result = annulerDevis(record.id);
+    if (!result.ok) {
+      toast.error(result.reason);
+      setConfirmCancel(false);
+      return;
+    }
     toast.success("Devis annulé");
     setConfirmCancel(false);
   };
@@ -152,6 +157,15 @@ export default function DevisDetailPage({ id }: { id: string }) {
             >
               <Printer size={15} /> Imprimer
             </button>
+            {!record.annule && !record.convertiEtudiantId && (
+              <button
+                onClick={() => setLocation(`/admin/devis/${record.id}/convertir`)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors"
+                data-testid="devis-convertir"
+              >
+                <UserPlus size={15} /> Convertir en inscription
+              </button>
+            )}
           </div>
         }
       />
@@ -162,6 +176,15 @@ export default function DevisDetailPage({ id }: { id: string }) {
         </div>
       )}
 
+      {record.convertiEtudiantId && (
+        <div className="mb-5 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium flex items-center justify-between gap-3">
+          <span>Ce devis a été converti en inscription réelle.</span>
+          <button onClick={() => setLocation(`/admin/students/${record.convertiEtudiantId}`)} className="underline hover:no-underline whitespace-nowrap" data-testid="devis-voir-etudiant-converti">
+            Voir la fiche étudiant
+          </button>
+        </div>
+      )}
+
       <div className="mb-5 px-4 py-3 rounded-xl bg-sky-50 text-sky-700 text-xs">
         Document purement informatif : ce devis ne crée aucune dette ni quittance pour un étudiant.
       </div>
@@ -169,7 +192,9 @@ export default function DevisDetailPage({ id }: { id: string }) {
       <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
           <p className="text-xs text-muted-foreground">Filière / Niveau</p>
-          <p className="font-semibold text-sm mt-1">{record.filiereLabel}</p>
+          <button onClick={() => setLocation(`/admin/filieres/${record.filiereId}/edit`)} className="font-semibold text-sm mt-1 text-primary hover:underline text-left" data-testid="devis-voir-filiere">
+            {record.filiereLabel}
+          </button>
           <p className="text-xs text-muted-foreground">{record.niveauLabel} — {record.annee}</p>
         </div>
         <div>
@@ -227,13 +252,15 @@ export default function DevisDetailPage({ id }: { id: string }) {
         </table>
       </div>
 
-      {!record.annule ? (
+      {record.annule ? (
+        <p className="text-sm text-red-600 font-medium">Ce devis a été annulé.</p>
+      ) : record.convertiEtudiantId ? (
+        <p className="text-xs text-muted-foreground">Ce devis a été converti en inscription — annulation impossible.</p>
+      ) : (
         <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
           <input type="checkbox" checked={false} onChange={() => setConfirmCancel(true)} className="rounded" />
           Annuler le devis
         </label>
-      ) : (
-        <p className="text-sm text-red-600 font-medium">Ce devis a été annulé.</p>
       )}
 
       {confirmCancel && (

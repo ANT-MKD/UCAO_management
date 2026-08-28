@@ -33,6 +33,7 @@ export interface DevisRecord {
   totalTTC: number;
   ajouteePar: string;
   annule: boolean;
+  convertiEtudiantId?: string;
 }
 
 const listeners = new Set<() => void>();
@@ -131,6 +132,7 @@ export function genererDevis(payload: GenererDevisPayload): DevisRecord {
     totalTTC,
     ajouteePar: payload.ajouteePar,
     annule: false,
+    convertiEtudiantId: undefined,
   };
 
   store.records = [record, ...store.records];
@@ -138,9 +140,21 @@ export function genererDevis(payload: GenererDevisPayload): DevisRecord {
   return record;
 }
 
-export function annulerDevis(id: string): void {
+export function annulerDevis(id: string): { ok: boolean; reason?: string } {
   const record = store.records.find((r) => r.id === id);
-  if (!record || record.annule) return;
+  if (!record || record.annule) return { ok: false, reason: "Devis introuvable ou déjà annulé." };
+  if (record.convertiEtudiantId) {
+    return { ok: false, reason: "Ce devis a déjà été converti en inscription — impossible de l'annuler." };
+  }
   store.records = store.records.map((r) => (r.id === id ? { ...r, annule: true } : r));
+  persist();
+  return { ok: true };
+}
+
+/** Marque un devis comme converti en inscription réelle, en le liant à l'étudiant créé. */
+export function marquerDevisConverti(id: string, etudiantId: string): void {
+  const record = store.records.find((r) => r.id === id);
+  if (!record) return;
+  store.records = store.records.map((r) => (r.id === id ? { ...r, convertiEtudiantId: etudiantId } : r));
   persist();
 }
