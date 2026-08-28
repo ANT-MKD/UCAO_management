@@ -169,8 +169,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-maj-ajouter", label: "Ajouter frais étudiant", href: "/admin/frais-etudiant" },
           { id: "fin-maj-supprimer", label: "Supprimer frais étudiant", href: "/admin/frais-etudiant/supprimer" },
-          { id: "fin-maj-ajouter-masse", label: "Ajout frais en masse", href: wipHref("fin-maj-ajouter-masse") },
-          { id: "fin-maj-suppression", label: "Suppression frais", href: wipHref("fin-maj-suppression") },
+          { id: "fin-maj-ajouter-masse", label: "Ajout frais en masse", href: "/admin/frais-etudiant/masse/ajouter" },
+          { id: "fin-maj-suppression", label: "Suppression frais", href: "/admin/frais-etudiant/masse/supprimer" },
         ],
       },
       {

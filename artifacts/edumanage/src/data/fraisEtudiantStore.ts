@@ -102,6 +102,39 @@ export function ajouterFraisEtudiant(
   return created;
 }
 
+/** Applique les mêmes lignes de frais à plusieurs étudiants (ajout en masse). Renvoie le nombre d'étudiants traités. */
+export function ajouterFraisEtudiantMasse(
+  etudiantIds: string[],
+  annee: string,
+  lignes: NouvelleLigneFraisEtudiant[],
+  quittancerImmediatement: boolean,
+  typeFraisLabel: (typeFraisId: string) => string,
+): number {
+  etudiantIds.forEach((etudiantId) => {
+    ajouterFraisEtudiant(etudiantId, annee, lignes, quittancerImmediatement, typeFraisLabel);
+  });
+  return etudiantIds.length;
+}
+
+/** Supprime (si non quittancées) ou annule (si déjà quittancées) une liste précise de lignes. Utilisé par la
+ * suppression en masse, une fois que la page a résolu quelles lignes sont réellement concernées. */
+export function traiterFraisEtudiantMasse(ligneIds: string[]): { supprimes: number; annules: number } {
+  let supprimes = 0;
+  let annules = 0;
+  for (const id of ligneIds) {
+    const ligne = store.find((l) => l.id === id);
+    if (!ligne) continue;
+    if (!ligne.quittanceId) {
+      supprimerFraisEtudiant(id);
+      supprimes++;
+    } else {
+      const result = annulerFraisEtudiantQuittance(id);
+      if (result.ok) annules++;
+    }
+  }
+  return { supprimes, annules };
+}
+
 export function supprimerFraisEtudiant(id: string): void {
   store = store.filter((l) => l.id !== id || !!l.quittanceId);
   persist();
