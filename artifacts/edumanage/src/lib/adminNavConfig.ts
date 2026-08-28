@@ -208,7 +208,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "scol-insc-fiche", label: "Fiche d'inscription", href: "/admin/inscription/fiche" },
           { id: "scol-insc-correction", label: "Correction d'inscription", href: "/admin/inscription/correction" },
-          { id: "scol-insc-definitive", label: "Inscription définitive", href: wipHref("scol-insc-definitive") },
+          { id: "scol-insc-definitive", label: "Inscription définitive", href: "/admin/inscription/definitive" },
         ],
       },
       {
