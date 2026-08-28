@@ -130,6 +130,9 @@ const NouveauRappelPaiementPage = lazy(() => import("@/pages/admin/NouveauRappel
 const RappelPaiementDetailPage = lazy(() => import("@/pages/admin/RappelPaiementDetailPage"));
 const ExportComptablePage = lazy(() => import("@/pages/admin/ExportComptablePage"));
 const ExportComptableDetailPage = lazy(() => import("@/pages/admin/ExportComptableDetailPage"));
+const DerogationPaiementPage = lazy(() => import("@/pages/admin/DerogationPaiementPage"));
+const NouvelleDerogationPage = lazy(() => import("@/pages/admin/NouvelleDerogationPage"));
+const DerogationPaiementDetailPage = lazy(() => import("@/pages/admin/DerogationPaiementDetailPage"));
 const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
@@ -506,6 +509,15 @@ function AppRouter() {
       </Route>
       <Route path="/admin/export-comptable">
         <Admin><ExportComptablePage /></Admin>
+      </Route>
+      <Route path="/admin/derogation-paiement/new">
+        <Admin><NouvelleDerogationPage /></Admin>
+      </Route>
+      <Route path="/admin/derogation-paiement/:id">
+        {(p) => <Admin><DerogationPaiementDetailPage id={p.id} /></Admin>}
+      </Route>
+      <Route path="/admin/derogation-paiement">
+        <Admin><DerogationPaiementPage /></Admin>
       </Route>
       <Route path="/admin/decomptes/:id">
         {(p) => <Admin><DecompteDetailPage id={p.id} /></Admin>}

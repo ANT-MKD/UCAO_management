@@ -11,6 +11,7 @@ import {
 import { getEcs, getUes } from "./curriculumStore";
 import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
+import { getDerogationsPaiement, derogationActivePour } from "./derogationPaiementStore";
 
 export interface EtudiantRecord {
   id: string;
@@ -854,8 +855,13 @@ export function checkReinscriptionEligibility(etudiantId: string): Reinscription
     reasons.push("Étudiant suspendu");
   }
   if (etudiant.soldeDu > 0) {
-    conditional = true;
-    reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA)`);
+    const derogation = derogationActivePour(getDerogationsPaiement(), etudiantId, "reinscription");
+    if (derogation) {
+      reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA) — dérogation ${derogation.reference} accordée jusqu'au ${derogation.dateFin}`);
+    } else {
+      conditional = true;
+      reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA)`);
+    }
   }
   const moyenne = MOYENNES_PROMO.find((m) => m.etudiantId === etudiantId);
   if (moyenne && moyenne.statut !== "Admis") {

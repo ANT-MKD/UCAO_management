@@ -20,7 +20,9 @@ import {
   type EtudiantRecord,
 } from "@/data/studentStore";
 import { useAnneeActuelle } from "@/hooks/useStudentStore";
-import { cn, formatCFA } from "@/lib/utils";
+import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
+import { derogationActivePour } from "@/data/derogationPaiementStore";
+import { cn, formatCFA, formatShortDate } from "@/lib/utils";
 
 const STEPS = [
   { id: 1, label: "Recherche", icon: Search },
@@ -120,6 +122,8 @@ export default function ReinscriptionPage() {
     ? MOYENNES_PROMO.find((m) => m.etudiantId === student.id)
     : undefined;
   const eligibility = student ? checkReinscriptionEligibility(student.id) : null;
+  const derogations = useDerogationsPaiement();
+  const derogationActive = student ? derogationActivePour(derogations, student.id, "reinscription") : undefined;
 
   const handleSearch = () => {
     setSearchError("");
@@ -258,9 +262,16 @@ export default function ReinscriptionPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className={cn("rounded-xl border p-4", student.soldeDu > 0 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50")}>
+            <div className={cn(
+              "rounded-xl border p-4",
+              student.soldeDu > 0 && derogationActive ? "border-blue-300 bg-blue-50" : student.soldeDu > 0 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50",
+            )}>
               <p className="text-xs font-medium text-muted-foreground mb-1">Situation financière</p>
-              {student.soldeDu > 0 ? (
+              {student.soldeDu > 0 && derogationActive ? (
+                <p className="text-sm text-blue-800 flex items-center gap-1">
+                  <AlertTriangle size={14} /> Impayés : {formatCFA(student.soldeDu)} — dérogation {derogationActive.reference} active jusqu'au {formatShortDate(derogationActive.dateFin)}
+                </p>
+              ) : student.soldeDu > 0 ? (
                 <p className="text-sm text-amber-800 flex items-center gap-1">
                   <AlertTriangle size={14} /> Impayés : {formatCFA(student.soldeDu)}
                 </p>

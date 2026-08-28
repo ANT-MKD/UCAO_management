@@ -13,6 +13,8 @@ import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
 import { statutFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { useReprisFrais } from "@/hooks/useReprisFraisStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
+import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
+import { statutDerogation, PORTEE_LABELS } from "@/data/derogationPaiementStore";
 import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
@@ -52,6 +54,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const typeFraisLabel = (typeFraisId: string) => typesFrais.find((t) => t.id === typeFraisId)?.intitule ?? "Frais";
   const reprisesFrais = useReprisFrais();
   const studentReprisesEnCours = reprisesFrais.filter((r) => r.etudiantId === id && r.statut !== "valide");
+  const derogationsPaiement = useDerogationsPaiement();
+  const studentDerogationActive = derogationsPaiement.find((d) => d.etudiantId === id && statutDerogation(d) === "active");
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -107,9 +111,10 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {student.soldeDu > 0 && (
-              <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
+              <div className={cn("flex items-center gap-1.5 text-xs font-medium", studentDerogationActive ? "text-blue-600" : "text-red-500")}>
                 <AlertTriangle size={12} />
                 Solde dû : {formatCFA(student.soldeDu)}
+                {studentDerogationActive && ` — dérogation active (${PORTEE_LABELS[studentDerogationActive.portee]})`}
               </div>
             )}
             {student.soldeAvoir > 0 && (

@@ -193,7 +193,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         ],
       },
       { id: "fin-export", label: "Export comptable", href: "/admin/export-comptable" },
-      { id: "fin-derogation", label: "Dérogation des paiements", href: wipHref("fin-derogation") },
+      { id: "fin-derogation", label: "Dérogation des paiements", href: "/admin/derogation-paiement" },
     ],
   },
   {
