@@ -60,6 +60,7 @@ export interface InscriptionRecord {
   modeleFraisId?: string;
   modeleFrais?: string;
   motif?: string;
+  effectuePar?: string;
 }
 
 export interface PaiementLigne {
@@ -847,6 +848,7 @@ export interface ReinscriptionPayload {
   specialite?: string;
   modeleFraisId?: string;
   modeleFrais?: string;
+  effectuePar?: string;
 }
 
 export interface ReinscriptionEligibility {
@@ -913,6 +915,7 @@ function creerInscriptionEtMettreAJourEtudiant(
     modeleFraisId: payload.modeleFraisId,
     modeleFrais: payload.modeleFrais,
     motif,
+    effectuePar: payload.effectuePar,
   };
 
   store.inscriptions.push(inscription);

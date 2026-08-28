@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, ArrowLeft, Briefcase } from "lucide-react";
 import { toast } from "sonner";
@@ -10,13 +10,14 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { registerInscriptionCorrection } from "@/data/studentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-const DEFAULT_FILIERE_KEY = "edumanage-fiche-inscription-filiere-defaut";
 
 export default function CorrectionInscriptionPage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const etudiants = useStudentStore();
   const classes = useClasses();
   const modelesFrais = useModelesFrais();
@@ -29,15 +30,10 @@ export default function CorrectionInscriptionPage() {
   const [annee, setAnnee] = useState("");
   const [specialite, setSpecialite] = useState("");
   const [modeleFraisId, setModeleFraisId] = useState("");
-  const [definirParDefaut, setDefinirParDefaut] = useState(true);
   const [motif, setMotif] = useState("");
   const [saving, setSaving] = useState(false);
 
   const studentInscriptions = useInscriptions(selectedStudent?.id ?? "");
-
-  useEffect(() => {
-    if (definirParDefaut && filiereId) localStorage.setItem(DEFAULT_FILIERE_KEY, filiereId);
-  }, [definirParDefaut, filiereId]);
 
   const filteredStudents = searchQuery.length > 1
     ? etudiants.filter((e) =>
@@ -73,7 +69,7 @@ export default function CorrectionInscriptionPage() {
     if (!selectedStudent || !peutSoumettre || !niveau) return;
     const classeId = resolveClasseId();
     if (!classeId) {
-      toast.error(`Aucune classe pédagogique disponible pour ${niveau.alias} en ${annee} dans ce programme.`);
+      toast.error(`Aucune classe pédagogique disponible pour ${niveau.alias} en ${annee} dans cette filière.`);
       return;
     }
     const classeResolue = classes.find((c) => c.id === classeId);
@@ -92,6 +88,7 @@ export default function CorrectionInscriptionPage() {
           specialite: specialite.trim() || undefined,
           modeleFraisId: modele?.id,
           modeleFrais: modele?.intitule,
+          effectuePar: currentUser?.name ?? "Administration",
         },
         motif.trim(),
       );
@@ -107,7 +104,7 @@ export default function CorrectionInscriptionPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Scolarité" }, { label: "Inscription" }, { label: "Correction inscription" }]}
         title="Correction inscription"
-        subtitle="Corriger le programme, le niveau ou l'année d'un étudiant déjà inscrit, avec motif obligatoire"
+        subtitle="Corriger la filière, le niveau ou l'année d'un étudiant déjà inscrit, avec motif obligatoire"
         actions={
           <button onClick={() => setLocation("/admin/students")} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">
             <ArrowLeft size={15} /> Retour
@@ -167,8 +164,8 @@ export default function CorrectionInscriptionPage() {
             <div className="bg-card border border-border rounded-xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Nouvelle fiche d&apos;inscription</p>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-                <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="correction-inscription-programme">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+                <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="correction-inscription-filiere">
                   <option value="">Sélectionner</option>
                   {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
                 </select>
@@ -202,10 +199,6 @@ export default function CorrectionInscriptionPage() {
                   </select>
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={definirParDefaut} onChange={(e) => setDefinirParDefaut(e.target.checked)} className="rounded" data-testid="correction-inscription-defaut" />
-                Définir comme filière par défaut
-              </label>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
                 <textarea

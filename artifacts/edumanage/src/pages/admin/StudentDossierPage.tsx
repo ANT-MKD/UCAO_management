@@ -234,6 +234,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         <span>Date : {formatDate(ins.dateInscription)}</span>
                         {ins.specialite && <span>Spécialité : <strong className="text-foreground">{ins.specialite}</strong></span>}
                         {ins.modeleFrais && <span>Modèle de frais : <strong className="text-foreground">{ins.modeleFrais}</strong></span>}
+                        {ins.effectuePar && <span>Effectuée par : <strong className="text-foreground">{ins.effectuePar}</strong></span>}
                         {ins.soldeDu > 0 && (
                           <span className="text-red-500 sm:col-span-2">Solde dû : {formatCFA(ins.soldeDu)}</span>
                         )}

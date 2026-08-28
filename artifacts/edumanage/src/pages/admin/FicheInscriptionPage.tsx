@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
-import { STATUTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 import { useStudentStore, useAllInscriptions, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { registerReinscription } from "@/data/studentStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -17,6 +17,7 @@ const DEFAULT_FILIERE_KEY = "edumanage-fiche-inscription-filiere-defaut";
 
 export default function FicheInscriptionPage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const etudiants = useStudentStore();
   const inscriptions = useAllInscriptions();
   const classes = useClasses();
@@ -82,7 +83,7 @@ export default function FicheInscriptionPage() {
     if (!peutSoumettre || !niveau) return;
     const classeId = resolveClasseId();
     if (!classeId) {
-      toast.error(`Aucune classe pédagogique disponible pour ${niveau.alias} en ${annee} dans ce programme.`);
+      toast.error(`Aucune classe pédagogique disponible pour ${niveau.alias} en ${annee} dans cette filière.`);
       return;
     }
     const classeResolue = classes.find((c) => c.id === classeId);
@@ -104,6 +105,7 @@ export default function FicheInscriptionPage() {
           specialite: specialite.trim() || undefined,
           modeleFraisId: modele?.id,
           modeleFrais: modele?.intitule,
+          effectuePar: currentUser?.name ?? "Administration",
         });
         count += 1;
       }
@@ -120,7 +122,7 @@ export default function FicheInscriptionPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Scolarité" }, { label: "Inscription" }, { label: "Fiche d'inscription" }]}
         title="Nouvelle fiche d'inscription"
-        subtitle="Inscrire un ou plusieurs étudiants déjà existants dans un programme, un niveau et une année"
+        subtitle="Inscrire un ou plusieurs étudiants déjà existants dans une filière, un niveau et une année"
         actions={
           <button onClick={() => setLocation("/admin/students")} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">
             <ArrowLeft size={15} /> Retour
@@ -130,8 +132,8 @@ export default function FicheInscriptionPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="fiche-inscription-programme">
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="fiche-inscription-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
@@ -202,7 +204,7 @@ export default function FicheInscriptionPage() {
         {!filiereId || !niveauId || !annee ? (
           <div className="py-12 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
             <Info size={18} />
-            Choisissez le programme, l&apos;année et le niveau avant de rechercher des étudiants.
+            Choisissez la filière, l&apos;année et le niveau avant de rechercher des étudiants.
           </div>
         ) : searchQuery.length <= 1 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">Recherchez un étudiant par nom ou matricule.</div>

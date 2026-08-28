@@ -86,6 +86,15 @@ export default function DashboardPage() {
   const todaySeances = seances.filter((s) => s.jour === todayDayOfWeek).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
+  const enAttenteInscription = etudiants.filter((e) => e.statut === "preinscrit" || e.statut === "en_attente").length;
+  const alertesAffichees = NOTIFICATIONS.filter((n) => !n.lue)
+    .map((n) => {
+      if (n.id !== "nt3") return n;
+      if (enAttenteInscription === 0) return null;
+      return { ...n, message: `${enAttenteInscription} étudiant(s) préinscrit(s) ou en attente de confirmation d'inscription`, temps: "À l'instant" };
+    })
+    .filter((n): n is (typeof NOTIFICATIONS)[number] => n !== null)
+    .slice(0, 3);
   const totalRecettes = paiements.reduce((s, p) => s + p.montant, 0);
   const totalAvoirCirculation = etudiants.reduce((s, e) => s + e.soldeAvoir, 0);
   const totalDecompteRestant = decomptes
@@ -258,13 +267,16 @@ export default function DashboardPage() {
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Alertes intelligentes</h3>
             </div>
             <div className="p-3 space-y-2">
-              {NOTIFICATIONS.filter((n) => !n.lue).slice(0, 3).map((n) => {
+              {alertesAffichees.map((n) => {
                 const style = ALERT_STYLES[n.type] ?? ALERT_STYLES.info;
+                const estAlerteInscription = n.id === "nt3";
                 return (
                   <div
                     key={n.id}
+                    onClick={estAlerteInscription ? () => setLocation("/admin/inscription/definitive") : undefined}
                     className="flex items-start gap-3 p-3 rounded-xl border transition-colors hover:shadow-sm cursor-pointer"
                     style={{ background: style.bg, borderColor: style.border }}
+                    data-testid={estAlerteInscription ? "dashboard-alerte-inscription" : undefined}
                   >
                     <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: style.dot }} />
                     <div className="flex-1 min-w-0">

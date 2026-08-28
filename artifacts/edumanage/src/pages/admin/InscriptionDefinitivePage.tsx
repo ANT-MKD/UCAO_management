@@ -8,6 +8,7 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useStudentStore, useAllInscriptions } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { registerReinscription } from "@/data/studentStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -16,6 +17,7 @@ const STATUTS_EN_ATTENTE = new Set(["preinscrit", "en_attente"]);
 
 export default function InscriptionDefinitivePage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const etudiants = useStudentStore();
   const inscriptions = useAllInscriptions();
   const classes = useClasses();
@@ -79,7 +81,7 @@ export default function InscriptionDefinitivePage() {
     if (!peutSoumettre || !niveau) return;
     const classeId = resolveClasseId();
     if (!classeId) {
-      toast.error(`Aucune classe pédagogique disponible pour ${niveau.alias} en ${annee} dans ce programme.`);
+      toast.error(`Aucune classe pédagogique disponible pour ${niveau.alias} en ${annee} dans cette filière.`);
       return;
     }
     const classeResolue = classes.find((c) => c.id === classeId);
@@ -98,6 +100,7 @@ export default function InscriptionDefinitivePage() {
           statut: "actif",
           soldeDu: etudiant.soldeDu,
           specialite: specialite.trim(),
+          effectuePar: currentUser?.name ?? "Administration",
         });
         count += 1;
       }
@@ -113,7 +116,7 @@ export default function InscriptionDefinitivePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Scolarité" }, { label: "Inscription" }, { label: "Inscription définitive" }]}
         title="Inscription définitive"
-        subtitle="Confirmer en statut Actif les étudiants préinscrits ou en attente d'un programme"
+        subtitle="Confirmer en statut Actif les étudiants préinscrits ou en attente d'une filière"
         actions={
           <button onClick={() => setLocation("/admin/students")} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">
             <ArrowLeft size={15} /> Retour
@@ -123,8 +126,8 @@ export default function InscriptionDefinitivePage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="inscription-definitive-programme">
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="inscription-definitive-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
@@ -172,7 +175,7 @@ export default function InscriptionDefinitivePage() {
         {!cohorteChoisie ? (
           <div className="py-12 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
             <Info size={18} />
-            Choisissez le programme, l&apos;année et le niveau pour lister les étudiants préinscrits ou en attente.
+            Choisissez la filière, l&apos;année et le niveau pour lister les étudiants préinscrits ou en attente.
           </div>
         ) : candidats.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">Aucun étudiant préinscrit ou en attente dans cette cohorte.</div>
