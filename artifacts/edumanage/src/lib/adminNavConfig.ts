@@ -171,6 +171,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-maj-supprimer", label: "Supprimer frais étudiant", href: "/admin/frais-etudiant/supprimer" },
           { id: "fin-maj-ajouter-masse", label: "Ajout frais en masse", href: "/admin/frais-etudiant/masse/ajouter" },
           { id: "fin-maj-suppression", label: "Suppression frais", href: "/admin/frais-etudiant/masse/supprimer" },
+          { id: "fin-maj-liste", label: "Les frais étudiant", href: "/admin/frais-etudiant/liste" },
         ],
       },
       {

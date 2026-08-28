@@ -6,7 +6,7 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
-import { traiterFraisEtudiantMasse } from "@/data/fraisEtudiantStore";
+import { traiterFraisEtudiantMasse, statutFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { cn } from "@/lib/utils";
 
 const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
@@ -71,8 +71,8 @@ export default function SupprimerFraisMassePage() {
 
   const lignesConcernees = useMemo(() => {
     if (cibleIds.length === 0 || !annee) return [];
-    return fraisEtudiant.filter((l) => cibleIds.includes(l.etudiantId) && l.annee === annee);
-  }, [fraisEtudiant, cibleIds, annee]);
+    return fraisEtudiant.filter((l) => cibleIds.includes(l.etudiantId) && l.annee === annee && statutFraisEtudiant(l, paiements) !== "annule");
+  }, [fraisEtudiant, cibleIds, annee, paiements]);
 
   const typesPresents = useMemo(() => {
     const ids = new Set(lignesConcernees.map((l) => l.typeFraisId));
@@ -93,11 +93,6 @@ export default function SupprimerFraisMassePage() {
     }
     const ligneIds = lignesConcernees
       .filter((l) => selectedTypes.includes(l.typeFraisId))
-      .filter((l) => {
-        if (!l.quittanceId) return true;
-        const p = paiements.find((pp) => pp.id === l.quittanceId);
-        return p?.statut !== "annule";
-      })
       .map((l) => l.id);
 
     if (ligneIds.length === 0) {
@@ -105,7 +100,7 @@ export default function SupprimerFraisMassePage() {
       return;
     }
 
-    const { supprimes, annules } = traiterFraisEtudiantMasse(ligneIds);
+    const { supprimes, annules } = traiterFraisEtudiantMasse(ligneIds, motif.trim());
     toast.success(`${supprimes} frais supprimé(s), ${annules} frais annulé(s) (motif enregistré)`);
     setSelectedTypes([]);
     setMotif("");

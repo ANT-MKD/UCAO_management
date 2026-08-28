@@ -9,6 +9,9 @@ import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes } from "
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
+import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
+import { statutFraisEtudiant } from "@/data/fraisEtudiantStore";
+import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
@@ -42,6 +45,10 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const studentRemboursements = avoirRemboursements.filter((r) => r.etudiantId === id);
   const reductionsFrais = useReductionsFrais();
   const studentReductions = reductionsFrais.filter((r) => r.etudiantId === id);
+  const fraisEtudiant = useFraisEtudiant();
+  const typesFrais = useTypesFrais();
+  const studentFrais = fraisEtudiant.filter((l) => l.etudiantId === id);
+  const typeFraisLabel = (typeFraisId: string) => typesFrais.find((t) => t.id === typeFraisId)?.intitule ?? "Frais";
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -365,6 +372,34 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {studentFrais.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-bold text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Frais étudiant (ad-hoc)</h3>
+                <div className="space-y-2">
+                  {[...studentFrais].sort((a, b) => b.ajouteLe.localeCompare(a.ajouteLe)).map((l) => {
+                    const statut = statutFraisEtudiant(l, studentPaiements);
+                    const STATUT_META = {
+                      en_attente: { label: "Non quittancé", cls: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
+                      quittance: { label: "Quittancé", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+                      annule: { label: "Annulé", cls: "bg-muted text-muted-foreground" },
+                    }[statut];
+                    return (
+                      <div key={l.id} className="flex items-center gap-4 p-3.5 bg-muted/30 rounded-xl border border-border">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-foreground">{typeFraisLabel(l.typeFraisId)} <span className="text-xs text-muted-foreground">({l.annee})</span></div>
+                          <div className="text-xs text-muted-foreground">{formatDate(l.ajouteLe)}{statut === "annule" && l.motifAnnulation ? ` · Motif : ${l.motifAnnulation}` : ""}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-foreground">{formatCFA(l.montant)}</div>
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_META.cls)}>{STATUT_META.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

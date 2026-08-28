@@ -9,7 +9,7 @@ import { useStudentStore, useInscriptions } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
-import { ajouterFraisEtudiant, supprimerFraisEtudiant, quittancerFraisEtudiant, type NouvelleLigneFraisEtudiant } from "@/data/fraisEtudiantStore";
+import { ajouterFraisEtudiant, supprimerFraisEtudiant, quittancerFraisEtudiant, getLignesActivesPour, type NouvelleLigneFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 const inputClass =
@@ -71,13 +71,24 @@ export default function FraisEtudiantPage() {
   const typeFraisLabel = (id: string) => typesFrais.find((t) => t.id === id)?.intitule ?? "Frais";
 
   const lignesEnAttente = useMemo(
-    () => (selectedStudent ? fraisEtudiant.filter((l) => l.etudiantId === selectedStudent.id && l.annee === selectedAnnee && !l.quittanceId) : []),
+    () => (selectedStudent ? fraisEtudiant.filter((l) => l.etudiantId === selectedStudent.id && l.annee === selectedAnnee && !l.quittanceId && !l.annulee) : []),
     [fraisEtudiant, selectedStudent, selectedAnnee],
   );
 
   const addDraft = () => setDrafts((prev) => [...prev, emptyDraft()]);
   const updateDraft = (key: string, patch: Partial<DraftLigne>) => setDrafts((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)));
   const removeDraft = (key: string) => setDrafts((prev) => prev.filter((d) => d.key !== key));
+
+  const doublonWarning = (d: DraftLigne): string | null => {
+    if (!d.typeFraisId) return null;
+    if (drafts.filter((x) => x.typeFraisId === d.typeFraisId).length > 1) {
+      return "Ce type de frais est ajouté plusieurs fois dans cette saisie";
+    }
+    if (selectedStudent && getLignesActivesPour(selectedStudent.id, selectedAnnee, d.typeFraisId).length > 0) {
+      return "Cet étudiant a déjà un frais actif de ce type pour cette année";
+    }
+    return null;
+  };
 
   const handleSave = () => {
     if (!selectedStudent) return;
@@ -292,6 +303,9 @@ export default function FraisEtudiantPage() {
                               <option key={t.id} value={t.id}>{t.intitule}</option>
                             ))}
                           </select>
+                          {doublonWarning(d) && (
+                            <p className="text-[10px] text-amber-600 mt-1" data-testid={`frais-etudiant-draft-doublon-${d.key}`}>⚠ {doublonWarning(d)}</p>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <input type="number" min={0} value={d.montant || ""} onChange={(e) => updateDraft(d.key, { montant: Number(e.target.value) || 0 })} className={inputClass} data-testid={`frais-etudiant-draft-montant-${d.key}`} />

@@ -8,13 +8,11 @@ import { useStudentStore, useInscriptions, usePaiementsByEtudiant } from "@/hook
 import type { EtudiantRecord } from "@/data/studentStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
-import { supprimerFraisEtudiant, annulerFraisEtudiantQuittance } from "@/data/fraisEtudiantStore";
+import { supprimerFraisEtudiant, annulerFraisEtudiantQuittance, statutFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-
-type FraisStatut = "en_attente" | "quittance" | "annule";
 
 export default function SupprimerFraisEtudiantPage() {
   const etudiants = useStudentStore();
@@ -27,6 +25,7 @@ export default function SupprimerFraisEtudiantPage() {
   const [anneeModalOpen, setAnneeModalOpen] = useState(false);
   const [modalAnneeChoice, setModalAnneeChoice] = useState("");
   const [confirmTarget, setConfirmTarget] = useState<{ id: string; mode: "supprimer" | "annuler"; label: string; montant: number } | null>(null);
+  const [motif, setMotif] = useState("");
 
   const inscriptions = useInscriptions(selectedStudent?.id ?? "");
   const inscriptionAffichee = inscriptions.find((i) => i.annee === selectedAnnee);
@@ -65,27 +64,26 @@ export default function SupprimerFraisEtudiantPage() {
   );
 
   const lignesAvecStatut = useMemo(
-    () =>
-      lignes.map((l) => {
-        if (!l.quittanceId) return { ligne: l, statut: "en_attente" as FraisStatut };
-        const paiement = paiements.find((p) => p.id === l.quittanceId);
-        const statut: FraisStatut = paiement?.statut === "annule" ? "annule" : "quittance";
-        return { ligne: l, statut };
-      }),
+    () => lignes.map((l) => ({ ligne: l, statut: statutFraisEtudiant(l, paiements) })),
     [lignes, paiements],
   );
 
   const demanderSuppression = (id: string, mode: "supprimer" | "annuler", label: string, montant: number) => {
+    setMotif("");
     setConfirmTarget({ id, mode, label, montant });
   };
 
   const confirmer = () => {
     if (!confirmTarget) return;
+    if (!motif.trim()) {
+      toast.error("Le motif est obligatoire");
+      return;
+    }
     if (confirmTarget.mode === "supprimer") {
-      supprimerFraisEtudiant(confirmTarget.id);
+      supprimerFraisEtudiant(confirmTarget.id, motif.trim());
       toast.success("Frais supprimé");
     } else {
-      const result = annulerFraisEtudiantQuittance(confirmTarget.id);
+      const result = annulerFraisEtudiantQuittance(confirmTarget.id, motif.trim());
       if (!result.ok) {
         toast.error(result.reason);
         setConfirmTarget(null);
@@ -94,9 +92,10 @@ export default function SupprimerFraisEtudiantPage() {
       toast.success("Frais annulé — le solde dû de l'étudiant a été restauré");
     }
     setConfirmTarget(null);
+    setMotif("");
   };
 
-  const STATUT_META: Record<FraisStatut, { label: string; cls: string }> = {
+  const STATUT_META: Record<ReturnType<typeof statutFraisEtudiant>, { label: string; cls: string }> = {
     en_attente: { label: "Non quittancé", cls: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
     quittance: { label: "Quittancé", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
     annule: { label: "Annulé", cls: "bg-muted text-muted-foreground" },
@@ -210,6 +209,9 @@ export default function SupprimerFraisEtudiantPage() {
                     <div className="text-xs text-muted-foreground">
                       {ligne.obligatoire ? "Obligatoire" : "Optionnel"} {ligne.echeance ? `· ${ligne.nbEcheances} échéance(s)` : ""} {ligne.dateLimite ? `· Limite ${formatShortDate(ligne.dateLimite)}` : ""}
                     </div>
+                    {statut === "annule" && ligne.motifAnnulation && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Motif : {ligne.motifAnnulation}</div>
+                    )}
                   </div>
                   <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", STATUT_META[statut].cls)}>{STATUT_META[statut].label}</span>
                   <div className="font-bold text-foreground w-28 text-right">{formatCFA(ligne.montant)}</div>
@@ -251,6 +253,10 @@ export default function SupprimerFraisEtudiantPage() {
                 ? "Ce frais n'a pas encore été quittancé, la suppression est sans conséquence sur le solde de l'étudiant."
                 : "Ce frais a déjà été quittancé : l'annulation restaurera le solde dû de l'étudiant du montant correspondant."}
             </p>
+            <div>
+              <label className="block text-xs font-medium text-red-500 mb-1.5">Motif *</label>
+              <textarea value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={cn(inputClass, "resize-y")} data-testid="supprimer-frais-motif" />
+            </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setConfirmTarget(null)} className="px-4 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors">Annuler</button>
               <button onClick={confirmer} data-testid="supprimer-frais-confirmer" className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-medium hover:bg-red-700 transition-colors">Confirmer</button>

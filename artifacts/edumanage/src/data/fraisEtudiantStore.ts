@@ -1,4 +1,4 @@
-import { emettreQuittanceBrute, cancelQuittanceEmise } from "./studentStore";
+import { emettreQuittanceBrute, cancelQuittanceEmise, type PaiementRecord } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-frais-etudiant-v1";
 
@@ -15,6 +15,21 @@ export interface FraisEtudiantLigne {
   ajouteLe: string;
   quittanceId?: string;
   quittanceDate?: string;
+  annulee: boolean;
+  motifAnnulation?: string;
+}
+
+export type StatutFraisEtudiant = "en_attente" | "quittance" | "annule";
+
+/** Statut réel d'une ligne : annulee est la source de vérité pour une annulation faite depuis ces écrans,
+ * mais on retombe aussi sur le statut de la quittance sous-jacente si elle a été annulée ailleurs (ex. depuis
+ * la fiche paiement), pour ne jamais désynchroniser l'affichage. */
+export function statutFraisEtudiant(l: FraisEtudiantLigne, paiements: PaiementRecord[]): StatutFraisEtudiant {
+  if (l.annulee) return "annule";
+  if (!l.quittanceId) return "en_attente";
+  const p = paiements.find((pp) => pp.id === l.quittanceId);
+  if (p?.statut === "annule") return "annule";
+  return "quittance";
 }
 
 const listeners = new Set<() => void>();
@@ -28,7 +43,7 @@ function load(): FraisEtudiantLigne[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as FraisEtudiantLigne[];
+    return (JSON.parse(raw) as FraisEtudiantLigne[]).map((l) => ({ ...l, annulee: l.annulee ?? false }));
   } catch {
     return [];
   }
@@ -51,6 +66,11 @@ export function subscribeFraisEtudiant(fn: () => void) {
 
 export function getFraisEtudiant(): FraisEtudiantLigne[] {
   return store;
+}
+
+/** Lignes actives (non annulées) pour un étudiant/année/type — utilisé pour avertir d'un doublon avant ajout. */
+export function getLignesActivesPour(etudiantId: string, annee: string, typeFraisId: string): FraisEtudiantLigne[] {
+  return store.filter((l) => l.etudiantId === etudiantId && l.annee === annee && l.typeFraisId === typeFraisId && !l.annulee);
 }
 
 export interface NouvelleLigneFraisEtudiant {
@@ -83,6 +103,7 @@ export function ajouterFraisEtudiant(
     echeance: l.echeance,
     nbEcheances: l.nbEcheances,
     ajouteLe: date,
+    annulee: false,
   }));
 
   store = [...created, ...store];
@@ -116,36 +137,41 @@ export function ajouterFraisEtudiantMasse(
   return etudiantIds.length;
 }
 
-/** Supprime (si non quittancées) ou annule (si déjà quittancées) une liste précise de lignes. Utilisé par la
- * suppression en masse, une fois que la page a résolu quelles lignes sont réellement concernées. */
-export function traiterFraisEtudiantMasse(ligneIds: string[]): { supprimes: number; annules: number } {
+/** Supprime (si non quittancées) ou annule (si déjà quittancées) une liste précise de lignes, avec un motif
+ * commun. Utilisé par la suppression en masse, une fois que la page a résolu quelles lignes sont concernées. */
+export function traiterFraisEtudiantMasse(ligneIds: string[], motif: string): { supprimes: number; annules: number } {
   let supprimes = 0;
   let annules = 0;
   for (const id of ligneIds) {
     const ligne = store.find((l) => l.id === id);
-    if (!ligne) continue;
+    if (!ligne || ligne.annulee) continue;
     if (!ligne.quittanceId) {
-      supprimerFraisEtudiant(id);
+      supprimerFraisEtudiant(id, motif);
       supprimes++;
     } else {
-      const result = annulerFraisEtudiantQuittance(id);
+      const result = annulerFraisEtudiantQuittance(id, motif);
       if (result.ok) annules++;
     }
   }
   return { supprimes, annules };
 }
 
-export function supprimerFraisEtudiant(id: string): void {
-  store = store.filter((l) => l.id !== id || !!l.quittanceId);
+/** Annule (sans effet financier) une ligne encore non quittancée. Ne l'efface jamais : gardée pour l'audit,
+ * avec son motif, comme tous les autres documents financiers de l'app. */
+export function supprimerFraisEtudiant(id: string, motif?: string): void {
+  store = store.map((l) => (l.id === id ? { ...l, annulee: true, motifAnnulation: motif } : l));
   persist();
 }
 
 /** Annule un frais déjà quittancé : restaure le solde dû de l'étudiant via cancelQuittanceEmise. */
-export function annulerFraisEtudiantQuittance(id: string): { ok: boolean; reason?: string } {
+export function annulerFraisEtudiantQuittance(id: string, motif?: string): { ok: boolean; reason?: string } {
   const ligne = store.find((l) => l.id === id);
   if (!ligne) return { ok: false, reason: "Frais introuvable." };
   if (!ligne.quittanceId) return { ok: false, reason: "Ce frais n'est pas encore quittancé." };
+  if (ligne.annulee) return { ok: false, reason: "Ce frais est déjà annulé." };
   cancelQuittanceEmise(ligne.quittanceId);
+  store = store.map((l) => (l.id === id ? { ...l, annulee: true, motifAnnulation: motif } : l));
+  persist();
   return { ok: true };
 }
 

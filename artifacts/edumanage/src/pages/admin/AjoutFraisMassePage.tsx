@@ -6,6 +6,7 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
+import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
 import { ajouterFraisEtudiantMasse, type NouvelleLigneFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export default function AjoutFraisMassePage() {
   const classes = useClasses();
   const etudiants = useStudentStore();
   const typesFrais = useTypesFrais();
+  const fraisEtudiant = useFraisEtudiant();
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState(DEFAULT_ANNEE);
@@ -77,6 +79,22 @@ export default function AjoutFraisMassePage() {
   const updateDraft = (key: string, patch: Partial<DraftLigne>) => setDrafts((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)));
   const removeDraft = (key: string) => setDrafts((prev) => prev.filter((d) => d.key !== key));
 
+  const cibleIds = etudiantId ? [etudiantId] : cohorte.map((e) => e.id);
+
+  const doublonWarning = (d: DraftLigne): string | null => {
+    if (!d.typeFraisId) return null;
+    if (drafts.filter((x) => x.typeFraisId === d.typeFraisId).length > 1) {
+      return "Ce type de frais est ajouté plusieurs fois dans cette saisie";
+    }
+    const nbConcernes = cibleIds.filter((id) =>
+      fraisEtudiant.some((l) => l.etudiantId === id && l.annee === annee && l.typeFraisId === d.typeFraisId && !l.annulee)
+    ).length;
+    if (nbConcernes > 0) {
+      return `${nbConcernes} étudiant(s) de cette sélection ont déjà un frais actif de ce type pour cette année`;
+    }
+    return null;
+  };
+
   const handleSave = () => {
     if (!filiereId || !niveauId || !annee) {
       toast.error("Sélectionnez le programme, l'année et le niveau");
@@ -94,12 +112,11 @@ export default function AjoutFraisMassePage() {
       toast.error("Indiquez un nombre d'échéances pour chaque ligne payable en échéances");
       return;
     }
-    const cibles = etudiantId ? [etudiantId] : cohorte.map((e) => e.id);
-    if (cibles.length === 0) {
+    if (cibleIds.length === 0) {
       toast.error("Aucun étudiant ne correspond à cette sélection");
       return;
     }
-    const nb = ajouterFraisEtudiantMasse(cibles, annee, drafts.map(({ key, ...rest }) => rest), quittancerImmediatement, typeFraisLabel);
+    const nb = ajouterFraisEtudiantMasse(cibleIds, annee, drafts.map(({ key, ...rest }) => rest), quittancerImmediatement, typeFraisLabel);
     toast.success(`Frais ajoutés à ${nb} étudiant(s)${quittancerImmediatement ? " et quittancés" : " — en attente de quittance"}`);
     setDrafts([]);
     setQuittancerImmediatement(false);
@@ -187,6 +204,9 @@ export default function AjoutFraisMassePage() {
                           <option key={t.id} value={t.id}>{t.intitule}</option>
                         ))}
                       </select>
+                      {doublonWarning(d) && (
+                        <p className="text-[10px] text-amber-600 mt-1" data-testid={`masse-ajout-draft-doublon-${d.key}`}>⚠ {doublonWarning(d)}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input type="number" min={0} value={d.montant || ""} onChange={(e) => updateDraft(d.key, { montant: Number(e.target.value) || 0 })} className={inputClass} data-testid={`masse-ajout-draft-montant-${d.key}`} />
