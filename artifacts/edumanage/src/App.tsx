@@ -80,6 +80,8 @@ const NotesPage = lazy(() => import("@/pages/admin/NotesPage"));
 const MoyennesPage = lazy(() => import("@/pages/admin/MoyennesPage"));
 const DeliberationsPage = lazy(() => import("@/pages/admin/DeliberationsPage"));
 const ParametrageScolaritePage = lazy(() => import("@/pages/admin/ParametrageScolaritePage"));
+const FicheInscriptionPage = lazy(() => import("@/pages/admin/FicheInscriptionPage"));
+const CorrectionInscriptionPage = lazy(() => import("@/pages/admin/CorrectionInscriptionPage"));
 const RelevesPage = lazy(() => import("@/pages/admin/RelevesPage"));
 
 // Finances
@@ -525,6 +527,12 @@ function AppRouter() {
       </Route>
       <Route path="/admin/scolarite/parametrage">
         <Admin><ParametrageScolaritePage /></Admin>
+      </Route>
+      <Route path="/admin/inscription/fiche">
+        <Admin><FicheInscriptionPage /></Admin>
+      </Route>
+      <Route path="/admin/inscription/correction">
+        <Admin><CorrectionInscriptionPage /></Admin>
       </Route>
 
       {/* ===== ADMIN — base routes (2 segments) ===== */}

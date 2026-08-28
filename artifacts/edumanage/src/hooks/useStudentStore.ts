@@ -5,6 +5,7 @@ import {
   getEtudiantById,
   getEtudiantByMatricule,
   getInscriptionsByEtudiant,
+  getInscriptions,
   getAnneesAcademiques,
   getAnneeActuelle,
   getPaiements,
@@ -41,6 +42,10 @@ export function useInscriptions(etudiantId: string) {
     () => getInscriptionsByEtudiant(etudiantId),
   );
   return getInscriptionsByEtudiant(etudiantId);
+}
+
+export function useAllInscriptions() {
+  return useSyncExternalStore(subscribe, getInscriptions, getInscriptions);
 }
 
 export function useAnneesAcademiques() {

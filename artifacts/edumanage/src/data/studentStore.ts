@@ -53,9 +53,13 @@ export interface InscriptionRecord {
   classe: string;
   classeId: string;
   statut: string;
-  type: "premiere" | "reinscription";
+  type: "premiere" | "reinscription" | "correction";
   dateInscription: string;
   soldeDu: number;
+  specialite?: string;
+  modeleFraisId?: string;
+  modeleFrais?: string;
+  motif?: string;
 }
 
 export interface PaiementLigne {
@@ -700,6 +704,10 @@ export function getInscriptionsByEtudiant(etudiantId: string): InscriptionRecord
   return inscriptionsCache.get(etudiantId)!;
 }
 
+export function getInscriptions(): InscriptionRecord[] {
+  return store.inscriptions;
+}
+
 export function getAnneesAcademiques() {
   return store.annees;
 }
@@ -836,6 +844,9 @@ export interface ReinscriptionPayload {
   niveau: string;
   statut: string;
   soldeDu: number;
+  specialite?: string;
+  modeleFraisId?: string;
+  modeleFrais?: string;
 }
 
 export interface ReinscriptionEligibility {
@@ -874,7 +885,11 @@ export function checkReinscriptionEligibility(etudiantId: string): Reinscription
   return { decision: "allowed", reasons: ["Éligible à la réinscription"] };
 }
 
-export function registerReinscription(payload: ReinscriptionPayload): InscriptionRecord {
+function creerInscriptionEtMettreAJourEtudiant(
+  payload: ReinscriptionPayload,
+  type: InscriptionRecord["type"],
+  motif?: string,
+): InscriptionRecord {
   const etudiant = getEtudiantById(payload.etudiantId);
   if (!etudiant) throw new Error("Étudiant introuvable");
 
@@ -891,9 +906,13 @@ export function registerReinscription(payload: ReinscriptionPayload): Inscriptio
     classe: classe?.nom ?? "",
     classeId: payload.classeId,
     statut: payload.statut,
-    type: "reinscription",
+    type,
     dateInscription: new Date().toISOString().slice(0, 10),
     soldeDu: payload.soldeDu,
+    specialite: payload.specialite,
+    modeleFraisId: payload.modeleFraisId,
+    modeleFrais: payload.modeleFrais,
+    motif,
   };
 
   store.inscriptions.push(inscription);
@@ -909,6 +928,14 @@ export function registerReinscription(payload: ReinscriptionPayload): Inscriptio
 
   persist();
   return inscription;
+}
+
+export function registerReinscription(payload: ReinscriptionPayload): InscriptionRecord {
+  return creerInscriptionEtMettreAJourEtudiant(payload, "reinscription");
+}
+
+export function registerInscriptionCorrection(payload: ReinscriptionPayload, motif: string): InscriptionRecord {
+  return creerInscriptionEtMettreAJourEtudiant(payload, "correction", motif);
 }
 
 export function promoteAcademicYear(sourceAnneeId: string): { count: number; nextLabel: string } {

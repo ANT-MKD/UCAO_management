@@ -220,8 +220,11 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <span className="font-bold text-foreground">{ins.annee}</span>
                         <StatusBadge status={ins.statut} />
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                          {ins.type === "premiere" ? "1ère inscription" : "Réinscription"}
+                        <span className={cn(
+                          "text-[10px] font-semibold px-2 py-0.5 rounded-full",
+                          ins.type === "correction" ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-indigo-50 text-indigo-700",
+                        )}>
+                          {ins.type === "premiere" ? "1ère inscription" : ins.type === "correction" ? "Correction" : "Réinscription"}
                         </span>
                       </div>
                       <div className="grid sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
@@ -229,8 +232,13 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         <span>Niveau : <strong className="text-foreground">{ins.niveau}</strong></span>
                         <span>Classe : <strong className="text-foreground">{ins.classe}</strong></span>
                         <span>Date : {formatDate(ins.dateInscription)}</span>
+                        {ins.specialite && <span>Spécialité : <strong className="text-foreground">{ins.specialite}</strong></span>}
+                        {ins.modeleFrais && <span>Modèle de frais : <strong className="text-foreground">{ins.modeleFrais}</strong></span>}
                         {ins.soldeDu > 0 && (
                           <span className="text-red-500 sm:col-span-2">Solde dû : {formatCFA(ins.soldeDu)}</span>
+                        )}
+                        {ins.type === "correction" && ins.motif && (
+                          <span className="sm:col-span-2 text-amber-700 dark:text-amber-300">Motif : {ins.motif}</span>
                         )}
                       </div>
                     </div>
