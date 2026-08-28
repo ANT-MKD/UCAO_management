@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { Plus, Pencil, Trash2, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -8,6 +8,8 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { useReductionsAutorisees } from "@/hooks/useFinanceSettingsStore";
 import { reductionAutoriseeStore, type ReductionAutoriseeRecord } from "@/data/financeSettingsStore";
 import { usePersonnel } from "@/hooks/usePersonnelStore";
+import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
+import { totalReduitParPersonnelSurPeriode } from "@/data/reductionFraisStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 type Statut = "a_venir" | "actif" | "expire";
@@ -38,6 +40,7 @@ const EMPTY_FORM: FormState = { personnelId: "", tauxMax: "", montantPlafond: ""
 export default function ReductionAutoriseePage() {
   const reductions = useReductionsAutorisees();
   const personnel = usePersonnel();
+  useReductionsFrais(); // s'abonne pour recalculer le plafond utilisé quand une réduction est accordée/annulée
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ReductionAutoriseeRecord | null>(null);
@@ -90,6 +93,18 @@ export default function ReductionAutoriseePage() {
       toast.error("La date de fin doit être postérieure à la date de début");
       return;
     }
+    const chevauchement = reductions.find((r) =>
+      r.id !== editing?.id &&
+      r.personnelId === form.personnelId &&
+      r.dateDebut <= form.dateFin &&
+      r.dateFin >= form.dateDebut
+    );
+    if (chevauchement) {
+      toast.error(
+        `${personnelLabel(form.personnelId)} a déjà une autorisation du ${formatShortDate(chevauchement.dateDebut)} au ${formatShortDate(chevauchement.dateFin)} — les périodes ne peuvent pas se chevaucher.`,
+      );
+      return;
+    }
     if (editing) {
       reductionAutoriseeStore.update(editing.id, {
         personnelId: form.personnelId,
@@ -110,6 +125,12 @@ export default function ReductionAutoriseePage() {
       toast.success("Autorisation créée");
     }
     setModalOpen(false);
+  };
+
+  const desactiverMaintenant = (r: ReductionAutoriseeRecord) => {
+    const hier = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    reductionAutoriseeStore.update(r.id, { dateFin: hier < r.dateDebut ? r.dateDebut : hier });
+    toast.success(`Autorisation de ${personnelLabel(r.personnelId)} désactivée`);
   };
 
   const confirmerSuppression = () => {
@@ -137,7 +158,24 @@ export default function ReductionAutoriseePage() {
   const columns: Column<Record<string, unknown>>[] = [
     { key: "personnelId", header: "Utilisateur", render: (r) => <span className="font-medium text-foreground">{personnelLabel(r.personnelId as string)}</span> },
     { key: "tauxMax", header: "Taux(%)", sortable: true, render: (r) => <span className="font-semibold text-foreground">{r.tauxMax as number}%</span> },
-    { key: "montantPlafond", header: "Plafond", sortable: true, render: (r) => <span>{formatCFA(r.montantPlafond as number)}</span> },
+    {
+      key: "montantPlafond",
+      header: "Plafond",
+      sortable: true,
+      render: (r) => {
+        const rec = r as unknown as ReductionAutoriseeRecord;
+        const utilise = totalReduitParPersonnelSurPeriode(rec.personnelId, rec.dateDebut, rec.dateFin);
+        const restant = Math.max(0, rec.montantPlafond - utilise);
+        return (
+          <div>
+            <div>{formatCFA(rec.montantPlafond)}</div>
+            <div className={cn("text-[10px] mt-0.5", restant === 0 ? "text-red-500" : "text-muted-foreground")}>
+              Utilisé {formatCFA(utilise)} · Restant {formatCFA(restant)}
+            </div>
+          </div>
+        );
+      },
+    },
     { key: "dateDebut", header: "Date début", sortable: true, render: (r) => <span className="text-sm text-muted-foreground">{formatShortDate(r.dateDebut as string)}</span> },
     { key: "dateFin", header: "Date fin", sortable: true, render: (r) => <span className="text-sm text-muted-foreground">{formatShortDate(r.dateFin as string)}</span> },
     {
@@ -151,26 +189,40 @@ export default function ReductionAutoriseePage() {
     {
       key: "actions",
       header: "",
-      render: (r) => (
-        <div className="flex items-center gap-1">
-          <button
-            onClick={(e) => { e.stopPropagation(); openEdit(r as unknown as ReductionAutoriseeRecord); }}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-            aria-label="Modifier"
-            data-testid={`reduction-autorisee-editer-${r.id}`}
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); setDeleteTarget(r as unknown as ReductionAutoriseeRecord); }}
-            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
-            aria-label="Supprimer"
-            data-testid={`reduction-autorisee-supprimer-${r.id}`}
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      ),
+      render: (r) => {
+        const rec = r as unknown as ReductionAutoriseeRecord;
+        return (
+          <div className="flex items-center gap-1">
+            {computeStatut(rec) === "actif" && (
+              <button
+                onClick={(e) => { e.stopPropagation(); desactiverMaintenant(rec); }}
+                className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950 text-muted-foreground hover:text-amber-600 transition-colors"
+                aria-label="Désactiver maintenant"
+                title="Désactiver maintenant"
+                data-testid={`reduction-autorisee-desactiver-${r.id}`}
+              >
+                <PowerOff size={14} />
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); openEdit(rec); }}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Modifier"
+              data-testid={`reduction-autorisee-editer-${r.id}`}
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteTarget(rec); }}
+              className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+              aria-label="Supprimer"
+              data-testid={`reduction-autorisee-supprimer-${r.id}`}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

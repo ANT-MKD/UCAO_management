@@ -8,6 +8,7 @@ import { ABSENCES } from "@/data/mockData";
 import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes } from "@/hooks/useStudentStore";
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
+import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
 import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
@@ -39,6 +40,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const avoirRemboursements = useRemboursementsAvoir();
   const studentDepots = avoirDepots.filter((d) => d.etudiantId === id);
   const studentRemboursements = avoirRemboursements.filter((r) => r.etudiantId === id);
+  const reductionsFrais = useReductionsFrais();
+  const studentReductions = reductionsFrais.filter((r) => r.etudiantId === id);
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -336,6 +339,32 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         </div>
                       </div>
                     ))}
+                </div>
+              </div>
+            )}
+
+            {studentReductions.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-bold text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Historique des Réductions</h3>
+                <div className="space-y-2">
+                  {[...studentReductions].sort((a, b) => b.date.localeCompare(a.date)).map((r) => (
+                    <div
+                      key={r.id}
+                      onClick={() => setLocation(`/admin/reductions-frais/${r.id}`)}
+                      className="flex items-center gap-4 p-3.5 bg-muted/30 rounded-xl border border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-foreground">{r.reference}</div>
+                        <div className="text-xs text-muted-foreground">{formatDate(r.date)} · Taux {r.tauxApplique}%</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-orange-600">−{formatCFA(r.totalReduit)}</div>
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", r.annulee ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
+                          {r.annulee ? "Annulée" : "Validée"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
