@@ -2,44 +2,20 @@ import { useState } from "react";
 import { Plus, Edit, Trash2, Shield, User, Eye, EyeOff, CheckCircle, X } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
+import { usePersonnel } from "@/hooks/usePersonnelStore";
+import { upsertPersonnel, supprimerPersonnel, ROLE_META, STATUT_META, type PersonnelRecord, type PersonnelRole } from "@/data/personnelStore";
 import { cn } from "@/lib/utils";
 
-type Role = "superadmin" | "admin" | "directeur" | "secretaire" | "comptable" | "enseignant";
+type Role = PersonnelRole;
+type UserEntry = PersonnelRecord;
 
-interface UserEntry {
-  id: string;
-  nom: string;
-  email: string;
-  role: Role;
-  statut: "actif" | "inactif" | "suspendu";
-  derniereConnexion: string;
-  creeLe: string;
+function slugifyUsername(nom: string): string {
+  const clean = nom.replace(/^(Pr\.|Dr\.)\s*/i, "").trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length < 2) return clean.toLowerCase();
+  const nomFamille = parts[parts.length - 1].toLowerCase();
+  return `${parts[0][0].toLowerCase()}.${nomFamille}`;
 }
-
-const USERS: UserEntry[] = [
-  { id: "u1", nom: "Ousmane DIALLO", email: "admin@edumanage.com", role: "superadmin", statut: "actif", derniereConnexion: "Aujourd'hui 09:42", creeLe: "2023-09-01" },
-  { id: "u2", nom: "Fatou NDIAYE", email: "directrice@edumanage.com", role: "directeur", statut: "actif", derniereConnexion: "Hier 16:30", creeLe: "2023-09-01" },
-  { id: "u3", nom: "Ibrahima DIOP", email: "secretariat@edumanage.com", role: "secretaire", statut: "actif", derniereConnexion: "Aujourd'hui 08:15", creeLe: "2024-01-15" },
-  { id: "u4", nom: "Mariama TOURE", email: "compta@edumanage.com", role: "comptable", statut: "actif", derniereConnexion: "Il y a 2j", creeLe: "2024-01-15" },
-  { id: "u5", nom: "Pr. Cheikh FALL", email: "prof@edumanage.com", role: "enseignant", statut: "actif", derniereConnexion: "Aujourd'hui 11:05", creeLe: "2024-09-01" },
-  { id: "u6", nom: "Dr. Aminata DIALLO", email: "aminata.diallo@edumanage.com", role: "enseignant", statut: "inactif", derniereConnexion: "Il y a 5j", creeLe: "2024-09-01" },
-  { id: "u7", nom: "Seydou MBAYE", email: "s.mbaye@edumanage.com", role: "admin", statut: "suspendu", derniereConnexion: "Il y a 30j", creeLe: "2024-03-10" },
-];
-
-const ROLE_META: Record<Role, { label: string; cls: string; desc: string; color: string; bg: string }> = {
-  superadmin: { label: "Super Admin", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300", desc: "Accès total au système", color: "#ef4444", bg: "#fef2f2" },
-  admin: { label: "Administrateur", cls: "bg-primary/10 text-primary", desc: "Gestion complète sauf paramètres critiques", color: "#4f46e5", bg: "#eef2ff" },
-  directeur: { label: "Directeur", cls: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300", desc: "Consultation + validation notes/délibérations", color: "#8b5cf6", bg: "#f5f3ff" },
-  secretaire: { label: "Secrétariat", cls: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300", desc: "Gestion étudiants, inscriptions, planning", color: "#3b82f6", bg: "#eff6ff" },
-  comptable: { label: "Comptable", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300", desc: "Finances, paiements, vacations", color: "#10b981", bg: "#ecfdf5" },
-  enseignant: { label: "Enseignant", cls: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300", desc: "Saisie notes, consultation planning", color: "#f59e0b", bg: "#fffbeb" },
-};
-
-const STATUT_META = {
-  actif: { label: "Actif", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
-  inactif: { label: "Inactif", cls: "bg-muted text-muted-foreground" },
-  suspendu: { label: "Suspendu", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
-};
 
 interface FormData {
   nom: string;
@@ -49,7 +25,7 @@ interface FormData {
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState(USERS);
+  const users = usePersonnel();
   const [filterRole, setFilterRole] = useState<Role | "">("");
   const [filterStatut, setFilterStatut] = useState<"" | "actif" | "inactif" | "suspendu">("");
   const [showModal, setShowModal] = useState(false);
@@ -78,12 +54,20 @@ export default function UsersPage() {
 
   const handleSave = () => {
     if (!form.nom || !form.email) return;
+    upsertPersonnel({
+      id: editUser?.id,
+      username: editUser?.username ?? slugifyUsername(form.nom),
+      nom: form.nom,
+      email: form.email,
+      role: form.role,
+      statut: editUser?.statut ?? "actif",
+    });
     setSaved(true);
     setTimeout(() => { setSaved(false); setShowModal(false); }, 1500);
   };
 
   const handleDelete = () => {
-    if (deleteTarget) { setUsers((prev) => prev.filter((u) => u.id !== deleteTarget)); setDeleteTarget(null); }
+    if (deleteTarget) { supprimerPersonnel(deleteTarget); setDeleteTarget(null); }
   };
 
   const roleStats = Object.entries(ROLE_META).map(([key, meta]) => ({

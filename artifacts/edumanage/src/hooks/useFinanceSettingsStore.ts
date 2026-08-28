@@ -7,6 +7,7 @@ import {
   articleServiceStore,
   banqueStore,
   activiteServiceStore,
+  reductionAutoriseeStore,
 } from "@/data/financeSettingsStore";
 
 export function useTypesFrais() {
@@ -39,4 +40,12 @@ export function useBanques() {
 
 export function useActivitesService() {
   return useSyncExternalStore(activiteServiceStore.subscribe, activiteServiceStore.getAll, activiteServiceStore.getAll);
+}
+
+export function useReductionsAutorisees() {
+  return useSyncExternalStore(
+    reductionAutoriseeStore.subscribe,
+    reductionAutoriseeStore.getAll,
+    reductionAutoriseeStore.getAll,
+  );
 }

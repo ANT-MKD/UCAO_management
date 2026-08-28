@@ -114,6 +114,7 @@ const DevisFormPage = lazy(() => import("@/pages/admin/DevisFormPage"));
 const DevisConvertirPage = lazy(() => import("@/pages/admin/DevisConvertirPage"));
 const DevisDetailPage = lazy(() => import("@/pages/admin/DevisDetailPage"));
 const GrilleFraisPage = lazy(() => import("@/pages/admin/GrilleFraisPage"));
+const ReductionAutoriseePage = lazy(() => import("@/pages/admin/ReductionAutoriseePage"));
 const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
@@ -442,6 +443,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/grille-frais">
         <Admin><GrilleFraisPage /></Admin>
+      </Route>
+      <Route path="/admin/reduction-autorisee">
+        <Admin><ReductionAutoriseePage /></Admin>
       </Route>
       <Route path="/admin/decomptes/:id">
         {(p) => <Admin><DecompteDetailPage id={p.id} /></Admin>}
