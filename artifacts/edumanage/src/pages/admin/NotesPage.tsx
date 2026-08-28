@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { useEcs } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
+import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { cn } from "@/lib/utils";
 
 type NoteEntry = {
@@ -22,6 +23,7 @@ export default function NotesPage() {
   const etudiants = useStudentStore();
   const ECS = useEcs();
   const CLASSES = useClasses();
+  const scolariteConfigs = useScolariteConfigs();
   const [selectedFiliere, setSelectedFiliere] = useState("");
   const [selectedClasse, setSelectedClasse] = useState("");
   const [selectedEc, setSelectedEc] = useState("");
@@ -55,6 +57,7 @@ export default function NotesPage() {
   });
   const canShowTable = selectedClasse && selectedEc;
   const isGrilleMode = selectedType === "grille";
+  const bareme = scolariteConfigs.find((c) => c.filiereId === selectedFiliere)?.noteBareme ?? 20;
 
   const getEntry = (id: string): NoteEntry => entries[id] ?? { cc: "", examen: "", absent: false, justifie: false, publie: false };
 
@@ -226,7 +229,7 @@ export default function NotesPage() {
               <p className={cn("text-2xl font-bold", moyenne !== null ? (moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
                 {moyenne !== null ? moyenne.toFixed(2) : "—"}
               </p>
-              <p className="text-[10px] text-muted-foreground">/20</p>
+              <p className="text-[10px] text-muted-foreground">/{bareme}</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1">Max / Min</p>
@@ -285,12 +288,12 @@ export default function NotesPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Étudiant</th>
                   {isGrilleMode ? (
                     <>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">CC /20</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Examen /20</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">CC /{bareme}</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Examen /{bareme}</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Moy.</th>
                     </>
                   ) : (
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">{selectedType} /20</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">{selectedType} /{bareme}</th>
                   )}
                   <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Absent</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Justifié</th>
@@ -330,13 +333,13 @@ export default function NotesPage() {
                       {isGrilleMode ? (
                         <>
                           <td className="px-4 py-3 text-center">
-                            <input type="number" min={0} max={20} step={0.25} disabled={entry.absent} value={entry.cc}
+                            <input type="number" min={0} max={bareme} step={0.25} disabled={entry.absent} value={entry.cc}
                               onChange={(e) => updateEntry(etu.id, { cc: e.target.value })}
                               className="w-20 text-center px-2 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background disabled:opacity-30"
                               placeholder="—" />
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <input type="number" min={0} max={20} step={0.25} disabled={entry.absent} value={entry.examen}
+                            <input type="number" min={0} max={bareme} step={0.25} disabled={entry.absent} value={entry.examen}
                               onChange={(e) => updateEntry(etu.id, { examen: e.target.value })}
                               className="w-20 text-center px-2 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background disabled:opacity-30"
                               placeholder="—" />
@@ -352,7 +355,7 @@ export default function NotesPage() {
                           <input
                             type="number"
                             min={0}
-                            max={20}
+                            max={bareme}
                             step={0.25}
                             disabled={entry.absent}
                             value={selectedType === "CC" ? entry.cc : entry.examen}
