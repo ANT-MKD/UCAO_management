@@ -6,13 +6,13 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES, ENSEIGNANTS } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
-import { createEvaluation, findEvaluationsDoublon, type EvaluationRecord } from "@/data/evaluationStore";
+import { createEvaluation, findEvaluationsDoublon, getPoidsAutreType, type EvaluationRecord } from "@/data/evaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
-const POIDS_DEFAUT: Record<EvaluationRecord["type"], number> = { devoir: 40, examen: 60 };
+const POIDS_DEFAUT: Record<EvaluationRecord["type"], number> = { devoir: 30, examen: 70 };
 
 export default function NouvelleEvaluationPage() {
   const [, setLocation] = useLocation();
@@ -96,10 +96,16 @@ export default function NouvelleEvaluationPage() {
   };
   const handleTypeChange = (value: "" | EvaluationRecord["type"]) => {
     setType(value);
-    setPoids(value ? POIDS_DEFAUT[value] : "");
+    if (!value) { setPoids(""); return; }
+    // Si l'autre type (Devoir/Examen) est déjà posé pour ce cours/classe/session, on propose
+    // le complément à 100 plutôt que le poids par défaut fixe, pour partir d'un total cohérent.
+    const poidsAutre = classeId && ecId && semestreId ? getPoidsAutreType(classeId, ecId, semestreId, value) : undefined;
+    setPoids(poidsAutre !== undefined ? Math.max(1, 100 - poidsAutre) : POIDS_DEFAUT[value]);
   };
 
   const doublons = classeId && ecId && semestreId && type ? findEvaluationsDoublon(classeId, ecId, semestreId, type) : [];
+  const poidsAutreType = classeId && ecId && semestreId && type ? getPoidsAutreType(classeId, ecId, semestreId, type) : undefined;
+  const totalPoids = poidsAutreType !== undefined && poids !== "" ? poidsAutreType + Number(poids) : undefined;
 
   const peutSoumettre =
     !!filiereId && !!annee && !!niveauId && !!classeId && !!semestreId && !!ecId &&
@@ -235,6 +241,12 @@ export default function NouvelleEvaluationPage() {
               data-testid="eval-poids"
             />
             <p className="text-[11px] text-muted-foreground mt-1">Modifiable ensuite via Mise à jour poids évaluation.</p>
+          </div>
+        )}
+
+        {totalPoids !== undefined && totalPoids !== 100 && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-700 dark:text-amber-300" data-testid="eval-poids-total-warning">
+            Devoir ({type === "devoir" ? poids : poidsAutreType}%) + Examen ({type === "examen" ? poids : poidsAutreType}%) = {totalPoids}%, pas 100%. La moyenne de Saisie des Notes utilisera quand même ces poids tels quels.
           </div>
         )}
 

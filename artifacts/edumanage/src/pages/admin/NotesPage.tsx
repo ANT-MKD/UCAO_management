@@ -8,7 +8,14 @@ import { useStudentStore } from "@/hooks/useStudentStore";
 import { useEcs } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
+import { useEvaluations } from "@/hooks/useEvaluationStore";
+import { getPoidsForClasseEc } from "@/data/evaluationStore";
 import { cn } from "@/lib/utils";
+
+/** Partage par défaut CC/Examen tant qu'aucune évaluation n'a été planifiée
+ * (Scolarité > Évaluation > Nouvelle évaluation) pour ce cours et cette classe. */
+const POIDS_CC_DEFAUT = 30;
+const POIDS_EXAMEN_DEFAUT = 70;
 
 type NoteEntry = {
   cc: string;
@@ -24,6 +31,7 @@ export default function NotesPage() {
   const ECS = useEcs();
   const CLASSES = useClasses();
   const scolariteConfigs = useScolariteConfigs();
+  useEvaluations(); // souscription pour re-rendre si les poids planifiés changent pendant la saisie
   const [selectedFiliere, setSelectedFiliere] = useState("");
   const [selectedClasse, setSelectedClasse] = useState("");
   const [selectedEc, setSelectedEc] = useState("");
@@ -59,6 +67,14 @@ export default function NotesPage() {
   const isGrilleMode = selectedType === "grille";
   const bareme = scolariteConfigs.find((c) => c.filiereId === selectedFiliere)?.noteBareme ?? 20;
 
+  // Poids réels posés via Nouvelle évaluation / Mise à jour poids évaluation pour ce cours et
+  // cette classe, sinon repli sur le partage par défaut CC 30% / Examen 70%.
+  const poidsPlanifie = selectedClasse && selectedEc ? getPoidsForClasseEc(selectedClasse, selectedEc) : {};
+  const poidsCcPct = poidsPlanifie.devoir ?? POIDS_CC_DEFAUT;
+  const poidsExamenPct = poidsPlanifie.examen ?? POIDS_EXAMEN_DEFAUT;
+  const poidsCc = poidsCcPct / 100;
+  const poidsExamen = poidsExamenPct / 100;
+
   const getEntry = (id: string): NoteEntry => entries[id] ?? { cc: "", examen: "", absent: false, justifie: false, publie: false };
 
   const updateEntry = useCallback((id: string, patch: Partial<NoteEntry>) => {
@@ -83,7 +99,7 @@ export default function NotesPage() {
     if (isGrilleMode) {
       const cc = parseFloat(e.cc);
       const ex = parseFloat(e.examen);
-      if (!isNaN(cc) && !isNaN(ex)) return [cc * 0.4 + ex * 0.6];
+      if (!isNaN(cc) && !isNaN(ex)) return [cc * poidsCc + ex * poidsExamen];
       return [];
     }
     const val = parseFloat(selectedType === "CC" ? e.cc : e.examen);
@@ -267,6 +283,13 @@ export default function NotesPage() {
                   {ECS.find((e) => e.id === selectedEc)?.libelle} — {isGrilleMode ? "Grille CC / Examen" : selectedType}
                 </h3>
                 <p className="text-xs text-muted-foreground">{classeStudents.length} étudiants dans la liste</p>
+                {isGrilleMode && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {poidsPlanifie.devoir !== undefined || poidsPlanifie.examen !== undefined
+                      ? `Pondération issue de Nouvelle évaluation : CC ${poidsCcPct}% / Examen ${poidsExamenPct}%`
+                      : `Aucune évaluation planifiée pour ce cours — partage par défaut CC ${poidsCcPct}% / Examen ${poidsExamenPct}%`}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
@@ -288,8 +311,8 @@ export default function NotesPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Étudiant</th>
                   {isGrilleMode ? (
                     <>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">CC /{bareme}</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Examen /{bareme}</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">CC ({poidsCcPct}%) /{bareme}</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Examen ({poidsExamenPct}%) /{bareme}</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Moy.</th>
                     </>
                   ) : (
@@ -306,7 +329,7 @@ export default function NotesPage() {
                   const ccVal = parseFloat(entry.cc);
                   const exVal = parseFloat(entry.examen);
                   const noteVal = isGrilleMode
-                    ? (!isNaN(ccVal) && !isNaN(exVal) ? (ccVal * 0.4 + exVal * 0.6) : NaN)
+                    ? (!isNaN(ccVal) && !isNaN(exVal) ? (ccVal * poidsCc + exVal * poidsExamen) : NaN)
                     : parseFloat(selectedType === "CC" || selectedType === "grille" ? entry.cc : entry.examen);
                   const hasNote = !isNaN(noteVal) && !entry.absent;
                   const isAdmis = hasNote && !entry.absent && noteVal >= 10;

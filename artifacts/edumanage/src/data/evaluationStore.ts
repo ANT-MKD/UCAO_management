@@ -22,6 +22,8 @@ export interface EvaluationRecord {
   poids: number;
   creePar?: string;
   dateCreation: string;
+  modifiePar?: string;
+  modifieLe?: string;
 }
 
 interface EvaluationStore {
@@ -164,6 +166,7 @@ export interface EvaluationUpdatePayload {
   ecId: string;
   type: EvaluationRecord["type"];
   poids: number;
+  modifiePar?: string;
 }
 
 export function updateEvaluation(id: string, patch: EvaluationUpdatePayload): EvaluationRecord | undefined {
@@ -176,6 +179,31 @@ export function updateEvaluation(id: string, patch: EvaluationUpdatePayload): Ev
   evaluation.cours = ec ? `${ec.code} — ${ec.libelle}` : evaluation.cours;
   evaluation.type = patch.type;
   evaluation.poids = patch.poids;
+  evaluation.modifiePar = patch.modifiePar;
+  evaluation.modifieLe = new Date().toISOString().slice(0, 10);
   persist();
   return evaluation;
+}
+
+/** Poids de l'autre type (Devoir/Examen) déjà posé pour ce cours/classe/session, si présent. */
+export function getPoidsAutreType(
+  classeId: string,
+  ecId: string,
+  semestreId: string,
+  type: EvaluationRecord["type"],
+  excludeId?: string,
+): number | undefined {
+  const autreType: EvaluationRecord["type"] = type === "devoir" ? "examen" : "devoir";
+  return store.evaluations.find(
+    (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.type === autreType && e.id !== excludeId,
+  )?.poids;
+}
+
+/** Poids réels (Devoir/Examen) posés pour un cours et une classe, tous semestres confondus
+ * (chaque EC n'appartenant qu'à un seul semestre en pratique). Utilisé par Saisie des Notes
+ * pour remplacer le partage 30/70 par défaut dès qu'une planification existe. */
+export function getPoidsForClasseEc(classeId: string, ecId: string): { devoir?: number; examen?: number } {
+  const devoir = store.evaluations.find((e) => e.classeId === classeId && e.ecId === ecId && e.type === "devoir")?.poids;
+  const examen = store.evaluations.find((e) => e.classeId === classeId && e.ecId === ecId && e.type === "examen")?.poids;
+  return { devoir, examen };
 }

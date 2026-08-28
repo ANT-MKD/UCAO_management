@@ -7,6 +7,7 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockDat
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { updateEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -21,6 +22,7 @@ function nouvelleLigne(): PoidsRow {
 
 export default function PoidsEvaluationMassePage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const classes = useClasses();
   const evaluations = useEvaluations();
 
@@ -110,7 +112,14 @@ export default function PoidsEvaluationMassePage() {
       if (!row.type || row.poids === "" || Number(row.poids) <= 0) continue;
       const matches = evaluationsPerimetre.filter((e) => e.professeurId === professeurId && e.type === row.type);
       for (const m of matches) {
-        updateEvaluation(m.id, { semestreId: m.semestreId, semestre: m.semestre, ecId: m.ecId, type: m.type, poids: Number(row.poids) });
+        updateEvaluation(m.id, {
+          semestreId: m.semestreId,
+          semestre: m.semestre,
+          ecId: m.ecId,
+          type: m.type,
+          poids: Number(row.poids),
+          modifiePar: currentUser?.name ?? "Administration",
+        });
         total += 1;
       }
     }

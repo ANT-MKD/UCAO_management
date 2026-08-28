@@ -13,6 +13,7 @@ import {
   updateEvaluation,
   deleteEvaluation,
   findEvaluationsDoublon,
+  getPoidsAutreType,
   type EvaluationRecord,
 } from "@/data/evaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -113,6 +114,10 @@ export default function PoidsEvaluationPage() {
   const doublons = classeId && modalEcId && modalSemestreId && modalType
     ? findEvaluationsDoublon(classeId, modalEcId, modalSemestreId, modalType, editingId ?? undefined)
     : [];
+  const poidsAutreType = classeId && modalEcId && modalSemestreId && modalType
+    ? getPoidsAutreType(classeId, modalEcId, modalSemestreId, modalType, editingId ?? undefined)
+    : undefined;
+  const totalPoidsModal = poidsAutreType !== undefined && modalPoids !== "" ? poidsAutreType + Number(modalPoids) : undefined;
 
   const peutSauvegarderModal = !!modalEcId && !!modalSemestreId && !!modalType && modalPoids !== "" && Number(modalPoids) > 0;
 
@@ -125,6 +130,7 @@ export default function PoidsEvaluationPage() {
         ecId: modalEcId,
         type: modalType,
         poids: Number(modalPoids),
+        modifiePar: currentUser?.name ?? "Administration",
       });
       toast.success("Poids évaluation mis à jour");
     } else {
@@ -281,7 +287,15 @@ export default function PoidsEvaluationPage() {
                       <td className="px-4 py-3 text-foreground">{ev.cours}</td>
                       <td className="px-4 py-3 text-muted-foreground">{ev.semestre}</td>
                       <td className="px-4 py-3 text-muted-foreground">{ev.type === "devoir" ? "Devoir" : "Examen"}</td>
-                      <td className="px-4 py-3 font-semibold text-foreground">{ev.poids.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground">
+                        {ev.modifiePar ? (
+                          <span title={`Modifié par ${ev.modifiePar} le ${ev.modifieLe}`} className="border-b border-dashed border-muted-foreground/50 cursor-help">
+                            {ev.poids.toFixed(2)}
+                          </span>
+                        ) : (
+                          ev.poids.toFixed(2)
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => openEditModal(ev)} className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 flex items-center justify-center hover:bg-blue-100 transition-colors" data-testid={`poids-editer-${ev.id}`}>
@@ -357,6 +371,12 @@ export default function PoidsEvaluationPage() {
                   <input type="number" min={1} max={100} value={modalPoids} onChange={(e) => setModalPoids(e.target.value === "" ? "" : Number(e.target.value))} className={inputClass} data-testid="poids-modal-poids" />
                 </div>
               </div>
+
+              {totalPoidsModal !== undefined && totalPoidsModal !== 100 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-700 dark:text-amber-300" data-testid="poids-modal-total-warning">
+                  Devoir ({modalType === "devoir" ? modalPoids : poidsAutreType}%) + Examen ({modalType === "examen" ? modalPoids : poidsAutreType}%) = {totalPoidsModal}%, pas 100%. La moyenne de Saisie des Notes utilisera quand même ces poids tels quels.
+                </div>
+              )}
 
               {doublons.length > 0 && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-700 dark:text-amber-300" data-testid="poids-modal-doublon">
