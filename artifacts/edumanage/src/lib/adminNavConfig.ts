@@ -227,7 +227,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "scol-eval-nouvelle", label: "Nouvelle évaluation", href: "/admin/evaluation/nouvelle" },
           { id: "scol-eval-devoir", label: "Devoir", href: "/admin/evaluation/devoir" },
           { id: "scol-eval-poids", label: "Mise à jour poids évaluation", href: "/admin/evaluation/poids" },
-          { id: "scol-eval-poids-masse", label: "Mise à jour poids évaluation en masse", href: wipHref("scol-eval-poids-masse") },
+          { id: "scol-eval-poids-masse", label: "Mise à jour poids évaluation en masse", href: "/admin/evaluation/poids-masse" },
         ],
       },
       {
