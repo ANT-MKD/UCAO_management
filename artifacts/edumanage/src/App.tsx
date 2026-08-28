@@ -86,6 +86,8 @@ const InscriptionDefinitivePage = lazy(() => import("@/pages/admin/InscriptionDe
 const ClotureAnneePage = lazy(() => import("@/pages/admin/ClotureAnneePage"));
 const BasculeAnneePage = lazy(() => import("@/pages/admin/BasculeAnneePage"));
 const NouvelleEvaluationPage = lazy(() => import("@/pages/admin/NouvelleEvaluationPage"));
+const DevoirsListPage = lazy(() => import("@/pages/admin/DevoirsListPage"));
+const DevoirDetailPage = lazy(() => import("@/pages/admin/DevoirDetailPage"));
 const RelevesPage = lazy(() => import("@/pages/admin/RelevesPage"));
 
 // Finances
@@ -549,6 +551,12 @@ function AppRouter() {
       </Route>
       <Route path="/admin/evaluation/nouvelle">
         <Admin><NouvelleEvaluationPage /></Admin>
+      </Route>
+      <Route path="/admin/evaluation/devoir/:id">
+        {(p) => <Admin><DevoirDetailPage id={p.id} /></Admin>}
+      </Route>
+      <Route path="/admin/evaluation/devoir">
+        <Admin><DevoirsListPage /></Admin>
       </Route>
 
       {/* ===== ADMIN — base routes (2 segments) ===== */}

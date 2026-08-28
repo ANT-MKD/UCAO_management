@@ -4,6 +4,7 @@ import { getClasseById } from "./structureStore";
 
 export interface EvaluationRecord {
   id: string;
+  code: string;
   filiereId: string;
   filiere: string;
   annee: string;
@@ -76,6 +77,15 @@ export function getEvaluations(): EvaluationRecord[] {
   return store.evaluations;
 }
 
+export function getEvaluationById(id: string): EvaluationRecord | undefined {
+  return store.evaluations.find((e) => e.id === id);
+}
+
+export function deleteEvaluation(id: string): void {
+  store.evaluations = store.evaluations.filter((e) => e.id !== id);
+  persist();
+}
+
 export function findEvaluationsDoublon(
   classeId: string,
   ecId: string,
@@ -111,8 +121,13 @@ export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
     ? ENSEIGNANTS.find((en) => en.id === payload.professeurId)
     : undefined;
 
+  // Code lisible affiché aux utilisateurs : préfixe 1 pour un devoir, 2 pour un examen
+  // (repris de l'ancien système), suivi d'un suffixe temporel pour l'unicité.
+  const code = `${payload.type === "devoir" ? "1" : "2"}${Date.now().toString().slice(-8)}`;
+
   const evaluation: EvaluationRecord = {
     id: `eval-${Date.now()}`,
+    code,
     filiereId: payload.filiereId,
     filiere: filiere?.code ?? "",
     annee: payload.annee,
