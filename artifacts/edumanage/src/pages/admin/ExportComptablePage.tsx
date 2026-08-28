@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { useLocation } from "wouter";
+import { Download, Eye, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, Column } from "@/components/admin/DataTable";
@@ -12,10 +13,12 @@ import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { usePersonnel } from "@/hooks/usePersonnelStore";
 import { useExportsComptables } from "@/hooks/useExportComptableStore";
-import { enregistrerExportComptable, type ExportComptableRecord } from "@/data/exportComptableStore";
+import { enregistrerExportComptable, trouverExportIdentique, type ExportComptableRecord } from "@/data/exportComptableStore";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   construireLignesComptables,
   calculerTotaux,
+  calculerTotauxParCategorie,
   genererExcelComptable,
   CATEGORIE_LABELS,
   TOUTES_CATEGORIES,
@@ -33,6 +36,8 @@ function todayMinus(days: number): string {
 }
 
 export default function ExportComptablePage() {
+  const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const encaissements = useEncaissements();
   const paiementsProfesseur = useDecomptePaiements();
   const avoirsDepots = useAvoirDepots();
@@ -74,6 +79,12 @@ export default function ExportComptablePage() {
 
   const totaux = calculerTotaux(lignes);
 
+  const exportIdentique = useMemo(
+    () => (periodeDebut && periodeFin && categories.length > 0 ? trouverExportIdentique(periodeDebut, periodeFin, categories) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [exports, periodeDebut, periodeFin, categories],
+  );
+
   const handleGenerer = () => {
     if (!periodeDebut || !periodeFin) {
       toast.error("Sélectionnez une période");
@@ -93,7 +104,9 @@ export default function ExportComptablePage() {
       const record = enregistrerExportComptable({
         periodeDebut,
         periodeFin,
-        categories: categories.map((c) => CATEGORIE_LABELS[c]),
+        categories,
+        parCategorie: calculerTotauxParCategorie(lignes),
+        genereePar: currentUser?.name ?? "Administration",
         totalRecettes: totaux.totalRecettes,
         totalDepenses: totaux.totalDepenses,
         totalAjustements: totaux.totalAjustements,
@@ -103,6 +116,14 @@ export default function ExportComptablePage() {
     } finally {
       setGenerating(false);
     }
+  };
+
+  const regenerer = (record: ExportComptableRecord) => {
+    setPeriodeDebut(record.periodeDebut);
+    setPeriodeFin(record.periodeFin);
+    setCategories(record.categories as CategorieExport[]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    toast.info("Filtres repris de cet export — vérifiez l'aperçu puis générez à nouveau");
   };
 
   const columns: Column<Record<string, unknown>>[] = [
@@ -120,6 +141,34 @@ export default function ExportComptablePage() {
     { key: "totalRecettes", header: "Recettes", sortable: true, render: (r) => <span className="text-emerald-600 font-semibold">{formatCFA(r.totalRecettes as number)}</span> },
     { key: "totalDepenses", header: "Dépenses", sortable: true, render: (r) => <span className="text-red-500 font-semibold">{formatCFA(r.totalDepenses as number)}</span> },
     { key: "soldeNet", header: "Solde net", sortable: true, render: (r) => <span className="font-bold">{formatCFA(r.soldeNet as number)}</span> },
+    { key: "genereePar", header: "Généré par", render: (r) => <span className="text-sm text-muted-foreground">{r.genereePar as string}</span> },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => {
+        const r = row as unknown as ExportComptableRecord;
+        return (
+          <div className="flex items-center gap-1.5 justify-end">
+            <button
+              onClick={() => setLocation(`/admin/export-comptable/${r.id}`)}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+              title="Voir le détail"
+              data-testid={`export-comptable-view-${r.id}`}
+            >
+              <Eye size={14} />
+            </button>
+            <button
+              onClick={() => regenerer(r)}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+              title="Régénérer avec les mêmes filtres"
+              data-testid={`export-comptable-regenerer-${r.id}`}
+            >
+              <RotateCcw size={14} />
+            </button>
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -173,6 +222,13 @@ export default function ExportComptablePage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">{lignes.length} mouvement(s) trouvé(s) pour cette sélection.</p>
+
+        {exportIdentique && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs" data-testid="export-comptable-doublon">
+            <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+            Un export identique (même période, mêmes catégories) existe déjà : <strong>{exportIdentique.reference}</strong> généré le {formatDate(exportIdentique.date)} par {exportIdentique.genereePar}.
+          </div>
+        )}
 
         <button
           onClick={handleGenerer}

@@ -144,6 +144,20 @@ export function calculerTotaux(lignes: LigneComptable[]) {
   return { totalRecettes, totalDepenses, totalAjustements, soldeNet: totalRecettes - totalDepenses };
 }
 
+export interface CategorieDetail {
+  categorie: CategorieExport;
+  label: string;
+  nbLignes: number;
+  montant: number;
+}
+
+export function calculerTotauxParCategorie(lignes: LigneComptable[]): CategorieDetail[] {
+  return (Object.entries(CATEGORIE_LABELS) as [CategorieExport, string][]).map(([cat, label]) => {
+    const catLignes = lignes.filter((l) => l.categorie === cat && l.statut === "Validé");
+    return { categorie: cat, label, nbLignes: catLignes.length, montant: catLignes.reduce((s, l) => s + l.montant, 0) };
+  });
+}
+
 export function genererExcelComptable(lignes: LigneComptable[], periodeDebut: string, periodeFin: string) {
   const wb = XLSX.utils.book_new();
   const totaux = calculerTotaux(lignes);
@@ -157,10 +171,7 @@ export function genererExcelComptable(lignes: LigneComptable[], periodeDebut: st
     ["Total ajustements (réductions, hors trésorerie)", totaux.totalAjustements],
     [],
     ["Catégorie", "Nb lignes", "Total"],
-    ...(Object.entries(CATEGORIE_LABELS) as [CategorieExport, string][]).map(([cat, label]) => {
-      const catLignes = lignes.filter((l) => l.categorie === cat && l.statut === "Validé");
-      return [label, catLignes.length, catLignes.reduce((s, l) => s + l.montant, 0)];
-    }),
+    ...calculerTotauxParCategorie(lignes).map((c) => [c.label, c.nbLignes, c.montant]),
   ];
   const wsSynthese = XLSX.utils.aoa_to_sheet(synthese);
   XLSX.utils.book_append_sheet(wb, wsSynthese, "Synthèse");

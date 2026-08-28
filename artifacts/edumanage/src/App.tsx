@@ -129,6 +129,7 @@ const RappelPaiementPage = lazy(() => import("@/pages/admin/RappelPaiementPage")
 const NouveauRappelPaiementPage = lazy(() => import("@/pages/admin/NouveauRappelPaiementPage"));
 const RappelPaiementDetailPage = lazy(() => import("@/pages/admin/RappelPaiementDetailPage"));
 const ExportComptablePage = lazy(() => import("@/pages/admin/ExportComptablePage"));
+const ExportComptableDetailPage = lazy(() => import("@/pages/admin/ExportComptableDetailPage"));
 const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
@@ -499,6 +500,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/frais-etudiant">
         <Admin><FraisEtudiantPage /></Admin>
+      </Route>
+      <Route path="/admin/export-comptable/:id">
+        {(p) => <Admin><ExportComptableDetailPage id={p.id} /></Admin>}
       </Route>
       <Route path="/admin/export-comptable">
         <Admin><ExportComptablePage /></Admin>

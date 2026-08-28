@@ -1,12 +1,21 @@
 const STORAGE_KEY = "edumanage-export-comptable-v1";
 
+export interface ExportComptableCategorieDetail {
+  categorie: string;
+  label: string;
+  nbLignes: number;
+  montant: number;
+}
+
 export interface ExportComptableRecord {
   id: string;
   reference: string;
   date: string;
+  genereePar: string;
   periodeDebut: string;
   periodeFin: string;
   categories: string[];
+  parCategorie: ExportComptableCategorieDetail[];
   totalRecettes: number;
   totalDepenses: number;
   totalAjustements: number;
@@ -55,10 +64,16 @@ export function getExportsComptables(): ExportComptableRecord[] {
   return store.records;
 }
 
+export function getExportComptableById(id: string): ExportComptableRecord | undefined {
+  return store.records.find((r) => r.id === id);
+}
+
 export interface NouvelExportComptable {
   periodeDebut: string;
   periodeFin: string;
   categories: string[];
+  parCategorie: ExportComptableCategorieDetail[];
+  genereePar: string;
   totalRecettes: number;
   totalDepenses: number;
   totalAjustements: number;
@@ -73,9 +88,11 @@ export function enregistrerExportComptable(payload: NouvelExportComptable): Expo
     id: `export-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     reference,
     date,
+    genereePar: payload.genereePar,
     periodeDebut: payload.periodeDebut,
     periodeFin: payload.periodeFin,
     categories: payload.categories,
+    parCategorie: payload.parCategorie,
     totalRecettes: payload.totalRecettes,
     totalDepenses: payload.totalDepenses,
     totalAjustements: payload.totalAjustements,
@@ -85,4 +102,18 @@ export function enregistrerExportComptable(payload: NouvelExportComptable): Expo
   store.records = [record, ...store.records];
   persist();
   return record;
+}
+
+export function trouverExportIdentique(
+  periodeDebut: string,
+  periodeFin: string,
+  categories: string[],
+): ExportComptableRecord | undefined {
+  const set = [...categories].sort().join(",");
+  return store.records.find(
+    (r) =>
+      r.periodeDebut === periodeDebut &&
+      r.periodeFin === periodeFin &&
+      [...r.categories].sort().join(",") === set,
+  );
 }
