@@ -30,7 +30,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   "fin-pec-organisme": { title: "Organisme de PEC", section: "Finances · Prise en charge" },
   "fin-pec-liste": { title: "Les prises en charge", section: "Finances · Prise en charge" },
   "fin-pec-regularisation": { title: "Régularisation prise en charge", section: "Finances · Prise en charge" },
-  "fin-export": { title: "Export comptable", section: "Finances" },
   "fin-derogation": { title: "Dérogation des paiements", section: "Finances" },
 
   // Scolarité

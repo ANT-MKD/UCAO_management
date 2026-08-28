@@ -192,7 +192,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: "/admin/prises-en-charge" },
         ],
       },
-      { id: "fin-export", label: "Export comptable", href: wipHref("fin-export") },
+      { id: "fin-export", label: "Export comptable", href: "/admin/export-comptable" },
       { id: "fin-derogation", label: "Dérogation des paiements", href: wipHref("fin-derogation") },
     ],
   },
