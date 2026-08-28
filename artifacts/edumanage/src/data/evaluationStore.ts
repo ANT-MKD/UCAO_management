@@ -91,9 +91,15 @@ export function findEvaluationsDoublon(
   ecId: string,
   semestreId: string,
   type: EvaluationRecord["type"],
+  excludeId?: string,
 ): EvaluationRecord[] {
   return store.evaluations.filter(
-    (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.type === type,
+    (e) =>
+      e.classeId === classeId &&
+      e.ecId === ecId &&
+      e.semestreId === semestreId &&
+      e.type === type &&
+      e.id !== excludeId,
   );
 }
 
@@ -148,6 +154,28 @@ export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
   };
 
   store.evaluations.push(evaluation);
+  persist();
+  return evaluation;
+}
+
+export interface EvaluationUpdatePayload {
+  semestreId: string;
+  semestre: string;
+  ecId: string;
+  type: EvaluationRecord["type"];
+  poids: number;
+}
+
+export function updateEvaluation(id: string, patch: EvaluationUpdatePayload): EvaluationRecord | undefined {
+  const evaluation = store.evaluations.find((e) => e.id === id);
+  if (!evaluation) return undefined;
+  const ec = getEcById(patch.ecId);
+  evaluation.semestreId = patch.semestreId;
+  evaluation.semestre = patch.semestre;
+  evaluation.ecId = patch.ecId;
+  evaluation.cours = ec ? `${ec.code} — ${ec.libelle}` : evaluation.cours;
+  evaluation.type = patch.type;
+  evaluation.poids = patch.poids;
   persist();
   return evaluation;
 }
