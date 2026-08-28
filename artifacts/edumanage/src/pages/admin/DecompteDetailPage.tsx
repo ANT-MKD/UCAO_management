@@ -21,6 +21,8 @@ function buildDecompteHtml(args: {
   type: string;
   montantDecompte: number;
   netAPayer: number;
+  montantPaye: number;
+  statut: string;
   lignes: { coursLabel: string; date: string; duree: number; montantBrut: number; abattementPct: number; montantNet: number }[];
 }): string {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
@@ -51,6 +53,9 @@ th{background:#f3f4f6;text-align:left}
   <div>Type : <strong>${args.type}</strong></div>
   <div>Montant décompté : <strong>${formatCFA(args.montantDecompte)}</strong></div>
   <div>Net à payer : <strong>${formatCFA(args.netAPayer)}</strong></div>
+  <div>Montant payé : <strong>${formatCFA(args.montantPaye)}</strong></div>
+  <div>Reste à payer : <strong>${formatCFA(Math.max(0, args.netAPayer - args.montantPaye))}</strong></div>
+  <div>Statut : <strong>${args.statut}</strong></div>
 </div>
 <table>
 <thead><tr><th>Cours</th><th>Fait le</th><th>Durée (h)</th><th>Montant brut</th><th>Abatt.</th><th>Montant net</th></tr></thead>
@@ -106,6 +111,8 @@ export default function DecompteDetailPage({ id }: { id: string }) {
         type: TYPE_LABEL[record.type] ?? record.type,
         montantDecompte: record.montantDecompte,
         netAPayer: record.netAPayer,
+        montantPaye: record.montantPaye,
+        statut: record.statut === "annule" ? "Annulé" : record.montantPaye >= record.netAPayer ? "Payé" : "Emis",
         lignes: record.lignes,
       }),
     );
@@ -169,7 +176,9 @@ export default function DecompteDetailPage({ id }: { id: string }) {
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Pour le professeur</p>
-          <p className="font-semibold text-sm mt-1">{record.professeur}</p>
+          <button onClick={() => setLocation(`/admin/teachers/${record.teacherId}`)} className="font-semibold text-sm mt-1 text-primary hover:underline text-left" data-testid="decompte-voir-professeur">
+            {record.professeur}
+          </button>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Mt total décompté / Net à payer</p>

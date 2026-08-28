@@ -145,7 +145,9 @@ export default function DecomptePaiementDetailPage({ id }: { id: string }) {
       <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
           <p className="text-xs text-muted-foreground">Professeur</p>
-          <p className="font-semibold text-sm mt-1">{record.professeur}</p>
+          <button onClick={() => setLocation(`/admin/teachers/${record.teacherId}`)} className="font-semibold text-sm mt-1 text-primary hover:underline text-left" data-testid="paiement-decompte-voir-professeur">
+            {record.professeur}
+          </button>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Décompte réglé</p>

@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Edit, BookOpen, Calendar, DollarSign, FileText, Printer } from "lucide-react";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { ENSEIGNANTS, VACATIONS } from "@/data/mockData";
+import { ENSEIGNANTS } from "@/data/mockData";
 import { useSeances } from "@/hooks/useStudentStore";
+import { useDecomptes } from "@/hooks/useDecompteStore";
 import { formatCFA, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +18,17 @@ const GRADE_COLORS: Record<string, { bg: string; text: string }> = {
   Contractuel: { bg: "#eff6ff", text: "#3b82f6" },
 };
 
+const DECOMPTE_TYPE_LABEL: Record<string, string> = {
+  taux_horaire: "Taux horaire",
+  forfait: "Forfait",
+  a_terme: "À terme",
+};
+
 export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("informations");
   const seances = useSeances();
+  const decomptes = useDecomptes();
 
   const teacher = ENSEIGNANTS.find((e) => e.id === id);
   if (!teacher) {
@@ -34,14 +42,14 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
     );
   }
 
-  const teacherVacations = VACATIONS.filter((v) => v.enseignantId === id);
+  const teacherDecomptes = decomptes.filter((d) => d.teacherId === id).sort((a, b) => b.date.localeCompare(a.date));
   const gradeColors = GRADE_COLORS[teacher.grade] ?? { bg: "#f1f5f9", text: "#64748b" };
 
   const TABS = [
     { key: "informations", label: "Informations", icon: FileText },
     { key: "modules", label: "Modules", icon: BookOpen },
     { key: "planning", label: "Planning", icon: Calendar },
-    { key: "vacations", label: "Vacations", icon: DollarSign },
+    { key: "decomptes", label: "Décomptes", icon: DollarSign },
     { key: "attestation", label: "Attestation", icon: Printer },
   ];
 
@@ -239,25 +247,35 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
           );
         })()}
 
-        {activeTab === "vacations" && (
+        {activeTab === "decomptes" && (
           <div>
-            <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Vacations</h3>
-            {teacherVacations.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Aucune vacation enregistrée</p>
+            <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Décomptes</h3>
+            {teacherDecomptes.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Aucun décompte enregistré pour ce professeur</p>
             ) : (
               <div className="space-y-3">
-                {teacherVacations.map((v) => (
-                  <div key={v.id} className="flex items-center gap-4 p-4 bg-muted/30 rounded-xl border border-border">
+                {teacherDecomptes.map((d) => (
+                  <div
+                    key={d.id}
+                    onClick={() => setLocation(`/admin/decomptes/${d.id}`)}
+                    className="flex items-center gap-4 p-4 bg-muted/30 rounded-xl border border-border cursor-pointer hover:bg-muted/60 transition-colors"
+                    data-testid={`teacher-dossier-decompte-${d.id}`}
+                  >
                     <div className="flex-1">
-                      <div className="text-sm font-medium text-foreground">{v.mois}</div>
-                      <div className="text-xs text-muted-foreground">{v.heuresCm}h CM · {v.heuresTd}h TD</div>
+                      <div className="text-sm font-medium text-foreground">{d.reference}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDate(d.date)} · {DECOMPTE_TYPE_LABEL[d.type] ?? d.type}
+                      </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-foreground">{formatCFA(v.montantTotal)}</div>
+                      <div className="font-bold text-foreground">{formatCFA(d.netAPayer)}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {formatCFA(d.montantPaye)} payé
+                      </div>
                       <div className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full mt-1",
-                        v.statut === "paye" ? "bg-emerald-50 text-emerald-600" : v.statut === "valide" ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"
+                        d.statut === "annule" ? "bg-red-50 text-red-600" : d.montantPaye >= d.netAPayer ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                       )}>
-                        {v.statut}
+                        {d.statut === "annule" ? "Annulé" : d.montantPaye >= d.netAPayer ? "Payé" : "Emis"}
                       </div>
                     </div>
                   </div>
