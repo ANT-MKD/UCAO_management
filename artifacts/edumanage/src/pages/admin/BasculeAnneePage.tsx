@@ -5,8 +5,9 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
+import { upsertClasse } from "@/data/structureStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
-import { registerReinscription } from "@/data/studentStore";
+import { registerBasculeAnnee } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,16 @@ export default function BasculeAnneePage() {
     return [...dispo].sort((a, b) => (b.max - b.inscrits) - (a.max - a.inscrits))[0].id;
   };
 
+  const classeCibleManquante = !!niveauCible && !!anneeCible && !resolveClasseCibleId();
+
+  const handleCreerClasseCible = () => {
+    if (!niveauCible) return;
+    const filiere = FILIERES.find((f) => f.id === filiereId);
+    const nom = `${niveauCible.alias}-${filiere?.code ?? ""}-A`;
+    const created = upsertClasse({ nom, filiereId, niveauId: niveauCible.id, max: 40, annee: anneeCible });
+    toast.success(`Classe ${created.nom} créée pour ${anneeCible}`);
+  };
+
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -84,7 +95,7 @@ export default function BasculeAnneePage() {
       for (const classeId of selectedIds) {
         const roster = etudiants.filter((e) => e.classeId === classeId);
         for (const etu of roster) {
-          registerReinscription({
+          registerBasculeAnnee({
             etudiantId: etu.id,
             annee: anneeCible,
             filiereId,
@@ -180,6 +191,21 @@ export default function BasculeAnneePage() {
                 Suggérer (niveau/année suivants)
               </button>
             </div>
+
+            {classeCibleManquante && niveauCible && (
+              <div className="mx-5 mt-4 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Aucune classe {niveauCible.alias} n&apos;existe encore pour {anneeCible} dans cette filière.
+                </p>
+                <button
+                  onClick={handleCreerClasseCible}
+                  className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors whitespace-nowrap"
+                  data-testid="bascule-annee-creer-classe-cible"
+                >
+                  Créer la classe {niveauCible.alias} {anneeCible}
+                </button>
+              </div>
+            )}
 
             <table className="w-full text-sm">
               <thead>

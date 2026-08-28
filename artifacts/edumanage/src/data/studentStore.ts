@@ -53,7 +53,7 @@ export interface InscriptionRecord {
   classe: string;
   classeId: string;
   statut: string;
-  type: "premiere" | "reinscription" | "correction";
+  type: "premiere" | "reinscription" | "correction" | "bascule";
   dateInscription: string;
   soldeDu: number;
   specialite?: string;
@@ -935,6 +935,10 @@ function creerInscriptionEtMettreAJourEtudiant(
 
 export function registerReinscription(payload: ReinscriptionPayload): InscriptionRecord {
   return creerInscriptionEtMettreAJourEtudiant(payload, "reinscription");
+}
+
+export function registerBasculeAnnee(payload: ReinscriptionPayload): InscriptionRecord {
+  return creerInscriptionEtMettreAJourEtudiant(payload, "bascule");
 }
 
 export function registerInscriptionCorrection(payload: ReinscriptionPayload, motif: string): InscriptionRecord {

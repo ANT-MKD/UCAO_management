@@ -124,6 +124,10 @@ function load(): StructureStore {
 let store = load();
 
 function persist() {
+  // Recrée les références des tableaux à chaque écriture : useSyncExternalStore
+  // compare par égalité de référence, une mutation en place (push/unshift/Object.assign)
+  // sur le même tableau ne déclenche donc aucun re-rendu sans ce clonage.
+  store = { classes: store.classes.slice(), salles: store.salles.slice() };
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));

@@ -48,7 +48,11 @@ export default function ClassesPage() {
       render: (r) => (
         <div className="flex items-center gap-2">
           <span className="font-semibold text-foreground font-mono text-sm" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.nom}</span>
-          {r.cloturee && <StatusBadge status="clos" />}
+          {r.cloturee && (
+            <span title={`Clôturée le ${r.dateCloture ?? "—"} par ${r.clotureePar ?? "—"}${r.observationCloture ? ` — ${r.observationCloture}` : ""}`}>
+              <StatusBadge status="clos" />
+            </span>
+          )}
         </div>
       ),
     },

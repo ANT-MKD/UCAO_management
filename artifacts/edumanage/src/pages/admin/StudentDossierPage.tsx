@@ -222,9 +222,11 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         <StatusBadge status={ins.statut} />
                         <span className={cn(
                           "text-[10px] font-semibold px-2 py-0.5 rounded-full",
-                          ins.type === "correction" ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-indigo-50 text-indigo-700",
+                          ins.type === "correction" ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                            : ins.type === "bascule" ? "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                            : "bg-indigo-50 text-indigo-700",
                         )}>
-                          {ins.type === "premiere" ? "1ère inscription" : ins.type === "correction" ? "Correction" : "Réinscription"}
+                          {ins.type === "premiere" ? "1ère inscription" : ins.type === "correction" ? "Correction" : ins.type === "bascule" ? "Bascule annuelle" : "Réinscription"}
                         </span>
                       </div>
                       <div className="grid sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
