@@ -116,6 +116,7 @@ const SEED_TYPES_FRAIS: TypeFraisRecord[] = [
   { id: "tf-seed-2", code: "AVU", intitule: "Avance uniforme" },
   { id: "tf-seed-3", code: "BDE", intitule: "Bureau des étudiants (BDE)" },
   { id: "tf-seed-4", code: "FG", intitule: "Frais généraux" },
+  { id: "tf-seed-5", code: "REP", intitule: "Reprise ancien système" },
 ];
 
 const SEED_MODES_PAIEMENT: ModePaiementFinanceRecord[] = [

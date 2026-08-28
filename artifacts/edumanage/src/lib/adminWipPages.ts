@@ -27,8 +27,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   // Finances — Avoir
 
   // Finances — divers
-  "fin-reprise-nouvelle": { title: "Nouvelle reprise frais étudiant", section: "Finances · Reprise frais" },
-  "fin-reprise-liste": { title: "Reprise frais étudiant", section: "Finances · Reprise frais" },
   "fin-rappel": { title: "Rappel des paiements", section: "Finances" },
   "fin-pec-organisme": { title: "Organisme de PEC", section: "Finances · Prise en charge" },
   "fin-pec-liste": { title: "Les prises en charge", section: "Finances · Prise en charge" },

@@ -123,6 +123,8 @@ const SupprimerFraisEtudiantPage = lazy(() => import("@/pages/admin/SupprimerFra
 const AjoutFraisMassePage = lazy(() => import("@/pages/admin/AjoutFraisMassePage"));
 const SupprimerFraisMassePage = lazy(() => import("@/pages/admin/SupprimerFraisMassePage"));
 const FraisEtudiantListePage = lazy(() => import("@/pages/admin/FraisEtudiantListePage"));
+const NouvelleReprisFraisPage = lazy(() => import("@/pages/admin/NouvelleReprisFraisPage"));
+const ReprisFraisPage = lazy(() => import("@/pages/admin/ReprisFraisPage"));
 const DecompteDetailPage = lazy(() => import("@/pages/admin/DecompteDetailPage"));
 const EncaissementDetailPage = lazy(() => import("@/pages/admin/EncaissementDetailPage"));
 const EncaissementPECPage = lazy(() => import("@/pages/admin/EncaissementPECPage"));
@@ -475,6 +477,12 @@ function AppRouter() {
       </Route>
       <Route path="/admin/frais-etudiant/liste">
         <Admin><FraisEtudiantListePage /></Admin>
+      </Route>
+      <Route path="/admin/reprise-frais/new">
+        <Admin><NouvelleReprisFraisPage /></Admin>
+      </Route>
+      <Route path="/admin/reprise-frais">
+        <Admin><ReprisFraisPage /></Admin>
       </Route>
       <Route path="/admin/frais-etudiant">
         <Admin><FraisEtudiantPage /></Admin>

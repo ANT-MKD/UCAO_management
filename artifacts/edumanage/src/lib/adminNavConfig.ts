@@ -178,8 +178,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-reprise",
         label: "Reprise frais",
         children: [
-          { id: "fin-reprise-nouvelle", label: "Nouvelle reprise frais étudiant", href: wipHref("fin-reprise-nouvelle") },
-          { id: "fin-reprise-liste", label: "Reprise frais étudiant", href: wipHref("fin-reprise-liste") },
+          { id: "fin-reprise-nouvelle", label: "Nouvelle reprise frais étudiant", href: "/admin/reprise-frais/new" },
+          { id: "fin-reprise-liste", label: "Reprise frais étudiant", href: "/admin/reprise-frais" },
         ],
       },
       { id: "fin-rappel", label: "Rappel des paiements", href: wipHref("fin-rappel") },
