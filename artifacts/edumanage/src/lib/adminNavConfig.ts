@@ -224,7 +224,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "scol-evaluation",
         label: "Évaluation",
         children: [
-          { id: "scol-eval-nouvelle", label: "Nouvelle évaluation", href: wipHref("scol-eval-nouvelle") },
+          { id: "scol-eval-nouvelle", label: "Nouvelle évaluation", href: "/admin/evaluation/nouvelle" },
           { id: "scol-eval-devoir", label: "Devoir", href: wipHref("scol-eval-devoir") },
           { id: "scol-eval-poids", label: "Mise à jour poids évaluation", href: wipHref("scol-eval-poids") },
           { id: "scol-eval-poids-masse", label: "Mise à jour poids évaluation en masse", href: wipHref("scol-eval-poids-masse") },

@@ -32,7 +32,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   "fin-pec-regularisation": { title: "Régularisation prise en charge", section: "Finances · Prise en charge" },
 
   // Scolarité
-  "scol-eval-nouvelle": { title: "Nouvelle évaluation", section: "Scolarité · Évaluation" },
   "scol-eval-devoir": { title: "Devoir", section: "Scolarité · Évaluation" },
   "scol-eval-poids": { title: "Mise à jour poids évaluation", section: "Scolarité · Évaluation" },
   "scol-eval-poids-masse": { title: "Mise à jour poids évaluation en masse", section: "Scolarité · Évaluation" },
