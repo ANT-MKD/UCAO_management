@@ -10,6 +10,8 @@ export interface ScolariteConfigRecord {
   cumulCredit: boolean;
   moyennePassage: number;
   moyenneEliminatoire: number;
+  modifiePar?: string;
+  modifieLe?: string;
 }
 
 export interface ValeursParDefaut {
@@ -17,6 +19,8 @@ export interface ValeursParDefaut {
   cumulCredit: boolean;
   moyennePassage: number;
   moyenneEliminatoire: number;
+  modifiePar?: string;
+  modifieLe?: string;
 }
 
 const DEFAUT: ValeursParDefaut = { noteBareme: 20, cumulCredit: true, moyennePassage: 10, moyenneEliminatoire: 0 };
@@ -96,16 +100,18 @@ export interface ScolariteConfigPatch {
   moyenneEliminatoire: number;
 }
 
-export function updateScolariteConfig(id: string, patch: ScolariteConfigPatch): void {
-  store.configs = store.configs.map((c) => (c.id === id ? { ...c, ...patch } : c));
+export function updateScolariteConfig(id: string, patch: ScolariteConfigPatch, modifiePar: string): void {
+  const modifieLe = new Date().toISOString().slice(0, 10);
+  store.configs = store.configs.map((c) => (c.id === id ? { ...c, ...patch, modifiePar, modifieLe } : c));
   persist();
 }
 
-export function appliquerValeursParDefaut(id: string): void {
-  updateScolariteConfig(id, { ...store.valeursParDefaut });
+export function appliquerValeursParDefaut(id: string, modifiePar: string): void {
+  const { noteBareme, cumulCredit, moyennePassage, moyenneEliminatoire } = store.valeursParDefaut;
+  updateScolariteConfig(id, { noteBareme, cumulCredit, moyennePassage, moyenneEliminatoire }, modifiePar);
 }
 
-export function updateValeursParDefaut(patch: ValeursParDefaut): void {
-  store.valeursParDefaut = { ...patch };
+export function updateValeursParDefaut(patch: ScolariteConfigPatch, modifiePar: string): void {
+  store.valeursParDefaut = { ...patch, modifiePar, modifieLe: new Date().toISOString().slice(0, 10) };
   persist();
 }

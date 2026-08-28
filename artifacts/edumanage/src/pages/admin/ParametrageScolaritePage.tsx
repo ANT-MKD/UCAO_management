@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Settings2, Pencil, RotateCcw } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Settings2, Pencil, RotateCcw, Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { DataTable, Column } from "@/components/admin/DataTable";
+import { useAuth } from "@/contexts/AuthContext";
 import { useScolariteConfigs, useValeursParDefautScolarite } from "@/hooks/useScolariteConfigStore";
 import {
   updateScolariteConfig,
@@ -12,13 +14,14 @@ import {
   type ScolariteConfigRecord,
   type ScolariteConfigPatch,
 } from "@/data/scolariteConfigStore";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 const EMPTY_FORM: ScolariteConfigPatch = { noteBareme: 20, cumulCredit: true, moyennePassage: 10, moyenneEliminatoire: 0 };
 
 export default function ParametrageScolaritePage() {
+  const { currentUser } = useAuth();
   const configs = useScolariteConfigs();
   const valeursParDefaut = useValeursParDefautScolarite();
 
@@ -27,6 +30,8 @@ export default function ParametrageScolaritePage() {
   const [defautModalOpen, setDefautModalOpen] = useState(false);
   const [defautForm, setDefautForm] = useState<ScolariteConfigPatch>(EMPTY_FORM);
 
+  const auteur = () => currentUser?.name ?? "Administration";
+
   const openEdit = (r: ScolariteConfigRecord) => {
     setEditing(r);
     setForm({ noteBareme: r.noteBareme, cumulCredit: r.cumulCredit, moyennePassage: r.moyennePassage, moyenneEliminatoire: r.moyenneEliminatoire });
@@ -34,14 +39,14 @@ export default function ParametrageScolaritePage() {
 
   const handleSave = () => {
     if (!editing) return;
-    updateScolariteConfig(editing.id, form);
+    updateScolariteConfig(editing.id, form, auteur());
     toast.success(`Paramètres mis à jour — ${editing.filiere}`);
     setEditing(null);
   };
 
   const handleReinitialiser = () => {
     if (!editing) return;
-    appliquerValeursParDefaut(editing.id);
+    appliquerValeursParDefaut(editing.id, auteur());
     setForm({ ...valeursParDefaut });
     toast.success("Réinitialisé aux valeurs par défaut");
   };
@@ -52,10 +57,28 @@ export default function ParametrageScolaritePage() {
   };
 
   const handleSaveDefaut = () => {
-    updateValeursParDefaut(defautForm);
+    updateValeursParDefaut(defautForm, auteur());
     toast.success("Valeurs par défaut mises à jour");
     setDefautModalOpen(false);
   };
+
+  const exportExcel = () => {
+    const rows = configs.map((c) => ({
+      Programme: c.filiere,
+      "Note B.": c.noteBareme,
+      "Cumul crédit ?": c.cumulCredit ? "Oui" : "Non",
+      "Moy. passage": c.moyennePassage,
+      "Moy. éliminatoire": c.moyenneEliminatoire,
+      "Modifié par": c.modifiePar ?? "",
+      "Modifié le": c.modifieLe ? formatDate(c.modifieLe) : "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Paramétrage scolarité");
+    XLSX.writeFile(wb, `parametrage-scolarite-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const eliminatoireChangeeVersHaut = !!editing && form.moyenneEliminatoire > 0 && form.moyenneEliminatoire !== editing.moyenneEliminatoire;
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: "filiere", header: "Programme", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.filiere as string}</span> },
@@ -77,6 +100,21 @@ export default function ParametrageScolaritePage() {
       render: (r) => {
         const v = r.moyenneEliminatoire as number;
         return v > 0 ? <span className="text-amber-700 dark:text-amber-300 font-medium">{v}</span> : <span className="text-muted-foreground">{v}</span>;
+      },
+    },
+    {
+      key: "modifie",
+      header: "Dernière modification",
+      render: (row) => {
+        const r = row as unknown as ScolariteConfigRecord;
+        return r.modifiePar ? (
+          <div className="text-xs text-muted-foreground">
+            <div>{r.modifiePar}</div>
+            <div>{formatDate(r.modifieLe!)}</div>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        );
       },
     },
     {
@@ -105,13 +143,22 @@ export default function ParametrageScolaritePage() {
         title="Paramétrage scolarité"
         subtitle="Barème de notation, cumul des crédits, moyenne de passage et moyenne éliminatoire par programme"
         actions={
-          <button
-            onClick={openDefautModal}
-            className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
-            data-testid="scolarite-config-valeurs-defaut"
-          >
-            <Settings2 size={14} /> Valeurs par défaut
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportExcel}
+              className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
+              data-testid="scolarite-config-export-excel"
+            >
+              <Download size={14} /> Export excel
+            </button>
+            <button
+              onClick={openDefautModal}
+              className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
+              data-testid="scolarite-config-valeurs-defaut"
+            >
+              <Settings2 size={14} /> Valeurs par défaut
+            </button>
+          </div>
         }
       />
 
@@ -165,6 +212,14 @@ export default function ParametrageScolaritePage() {
             />
             <p className="text-[11px] text-muted-foreground mt-1">0 = désactivée. Au-dessus de 0, tout étudiant sous ce seuil est automatiquement exclu en délibération.</p>
           </div>
+
+          {eliminatoireChangeeVersHaut && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs" data-testid="scolarite-config-avertissement-eliminatoire">
+              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+              Vous modifiez la moyenne éliminatoire de {editing?.moyenneEliminatoire} à {form.moyenneEliminatoire} — cela peut changer immédiatement les décisions d&apos;exclusion à la prochaine délibération pour {editing?.filiere}.
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <button onClick={handleSave} className="flex-1 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="scolarite-config-sauvegarder">
               Enregistrer
@@ -180,7 +235,11 @@ export default function ParametrageScolaritePage() {
         open={defautModalOpen}
         onClose={() => setDefautModalOpen(false)}
         title="Valeurs par défaut"
-        subtitle="Utilisées pour réinitialiser un programme — n'affectent pas les programmes déjà configurés"
+        subtitle={
+          valeursParDefaut.modifiePar
+            ? `Utilisées pour réinitialiser un programme — n'affectent pas les programmes déjà configurés · Dernière modification : ${valeursParDefaut.modifiePar}, ${formatDate(valeursParDefaut.modifieLe!)}`
+            : "Utilisées pour réinitialiser un programme — n'affectent pas les programmes déjà configurés"
+        }
         size="sm"
       >
         <div className="space-y-4">
