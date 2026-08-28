@@ -116,6 +116,20 @@ export function validerReprisFrais(
   return { ok: true };
 }
 
+/** Valide toutes les lignes "en attente" déjà associées à un étudiant, parmi la liste fournie. Ignore les autres. */
+export function validerReprisFraisMasse(
+  ids: string[],
+  typeFraisId: string,
+  typeFraisLabel: (typeFraisId: string) => string,
+): number {
+  let nb = 0;
+  for (const id of ids) {
+    const result = validerReprisFrais(id, typeFraisId, typeFraisLabel);
+    if (result.ok) nb++;
+  }
+  return nb;
+}
+
 export function rejeterReprisFrais(id: string, motif: string): { ok: boolean; reason?: string } {
   const ligne = store.find((l) => l.id === id);
   if (!ligne) return { ok: false, reason: "Ligne introuvable." };

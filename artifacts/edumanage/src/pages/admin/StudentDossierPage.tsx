@@ -11,6 +11,7 @@ import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
 import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
 import { statutFraisEtudiant } from "@/data/fraisEtudiantStore";
+import { useReprisFrais } from "@/hooks/useReprisFraisStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const typesFrais = useTypesFrais();
   const studentFrais = fraisEtudiant.filter((l) => l.etudiantId === id);
   const typeFraisLabel = (typeFraisId: string) => typesFrais.find((t) => t.id === typeFraisId)?.intitule ?? "Frais";
+  const reprisesFrais = useReprisFrais();
+  const studentReprisesEnCours = reprisesFrais.filter((r) => r.etudiantId === id && r.statut !== "valide");
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -396,6 +399,31 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         <div className="text-right">
                           <div className="font-bold text-foreground">{formatCFA(l.montant)}</div>
                           <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_META.cls)}>{STATUT_META.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {studentReprisesEnCours.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-bold text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Reprise ancien système (en cours)</h3>
+                <div className="space-y-2">
+                  {[...studentReprisesEnCours].sort((a, b) => b.importeLe.localeCompare(a.importeLe)).map((r) => {
+                    const meta = r.statut === "rejete"
+                      ? { label: "Rejetée", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" }
+                      : { label: "En attente de validation", cls: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
+                    return (
+                      <div key={r.id} className="flex items-center gap-4 p-3.5 bg-muted/30 rounded-xl border border-border">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-foreground">Ancien code {r.ancienCode} <span className="text-xs text-muted-foreground">({r.libelleAnneeScolaire})</span></div>
+                          <div className="text-xs text-muted-foreground">{formatDate(r.importeLe)}{r.statut === "rejete" && r.motifRejet ? ` · Motif : ${r.motifRejet}` : ""}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-foreground">{formatCFA(r.montant)}</div>
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", meta.cls)}>{meta.label}</span>
                         </div>
                       </div>
                     );
