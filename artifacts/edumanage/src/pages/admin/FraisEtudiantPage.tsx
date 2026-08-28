@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Search, Plus, Trash2, Receipt, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useStudentStore, useInscriptions } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
@@ -30,11 +31,14 @@ export default function FraisEtudiantPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<EtudiantRecord | null>(null);
-  const [autresAnneesOpen, setAutresAnneesOpen] = useState(false);
+  const [selectedAnnee, setSelectedAnnee] = useState("");
+  const [anneeModalOpen, setAnneeModalOpen] = useState(false);
+  const [modalAnneeChoice, setModalAnneeChoice] = useState("");
   const [drafts, setDrafts] = useState<DraftLigne[]>([]);
   const [quittancerImmediatement, setQuittancerImmediatement] = useState(false);
 
   const inscriptions = useInscriptions(selectedStudent?.id ?? "");
+  const inscriptionAffichee = inscriptions.find((i) => i.annee === selectedAnnee);
 
   const filteredStudents = searchQuery.length > 1 && !selectedStudent
     ? etudiants.filter((e) =>
@@ -46,16 +50,29 @@ export default function FraisEtudiantPage() {
 
   const pickStudent = (s: EtudiantRecord) => {
     setSelectedStudent(s);
+    setSelectedAnnee(s.annee);
     setSearchQuery(`${s.matricule} - ${s.prenom.toUpperCase()} ${s.nom.toUpperCase()} (+${s.telephone})`);
     setDrafts([]);
     setQuittancerImmediatement(false);
   };
 
+  const ouvrirAutresAnnees = () => {
+    setModalAnneeChoice(selectedAnnee);
+    setAnneeModalOpen(true);
+  };
+
+  const afficherFraisAutreAnnee = () => {
+    if (!modalAnneeChoice) return;
+    setSelectedAnnee(modalAnneeChoice);
+    setDrafts([]);
+    setAnneeModalOpen(false);
+  };
+
   const typeFraisLabel = (id: string) => typesFrais.find((t) => t.id === id)?.intitule ?? "Frais";
 
   const lignesEnAttente = useMemo(
-    () => (selectedStudent ? fraisEtudiant.filter((l) => l.etudiantId === selectedStudent.id && l.annee === selectedStudent.annee && !l.quittanceId) : []),
-    [fraisEtudiant, selectedStudent],
+    () => (selectedStudent ? fraisEtudiant.filter((l) => l.etudiantId === selectedStudent.id && l.annee === selectedAnnee && !l.quittanceId) : []),
+    [fraisEtudiant, selectedStudent, selectedAnnee],
   );
 
   const addDraft = () => setDrafts((prev) => [...prev, emptyDraft()]);
@@ -78,7 +95,7 @@ export default function FraisEtudiantPage() {
     }
     ajouterFraisEtudiant(
       selectedStudent.id,
-      selectedStudent.annee,
+      selectedAnnee,
       drafts.map(({ key, ...rest }) => rest),
       quittancerImmediatement,
       typeFraisLabel,
@@ -148,42 +165,61 @@ export default function FraisEtudiantPage() {
             <UserAvatar name={`${selectedStudent.prenom} ${selectedStudent.nom}`} size="sm" />
             <div className="flex-1">
               <div className="font-semibold text-foreground text-sm">{selectedStudent.matricule} - {selectedStudent.prenom.toUpperCase()} {selectedStudent.nom.toUpperCase()}</div>
-              <div className="text-xs text-muted-foreground">Solde dû actuel : <span className="font-semibold text-foreground">{formatCFA(selectedStudent.soldeDu)}</span></div>
+              <div className="text-xs text-muted-foreground">
+                Solde dû actuel : <span className="font-semibold text-foreground">{formatCFA(selectedStudent.soldeDu)}</span>
+                {selectedAnnee !== selectedStudent.annee && inscriptionAffichee && (
+                  <> · Solde dû sur {selectedAnnee} : <span className="font-semibold text-foreground">{formatCFA(inscriptionAffichee.soldeDu)}</span></>
+                )}
+              </div>
             </div>
-            <div className="relative">
-              <button
-                onClick={() => setAutresAnneesOpen((v) => !v)}
-                className="flex items-center gap-1 text-xs text-primary hover:underline"
-                data-testid="frais-etudiant-autres-annees"
-              >
-                Autres années <ChevronDown size={12} />
-              </button>
-              {autresAnneesOpen && (
-                <div className="absolute right-0 z-20 mt-1 w-64 bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
-                  {inscriptions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground p-3">Aucune autre inscription</p>
-                  ) : (
-                    [...inscriptions].sort((a, b) => b.annee.localeCompare(a.annee)).map((ins) => (
-                      <div key={ins.id} className={cn("px-3 py-2 text-xs border-b border-border last:border-0", ins.annee === selectedStudent.annee && "bg-primary/5")}>
-                        <div className="font-medium text-foreground">{ins.annee}{ins.annee === selectedStudent.annee ? " (en cours)" : ""}</div>
-                        <div className="text-muted-foreground">{ins.filiere} · {ins.niveau} · {ins.classe} — solde dû {formatCFA(ins.soldeDu)}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            <button
+              onClick={ouvrirAutresAnnees}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+              data-testid="frais-etudiant-autres-annees"
+            >
+              Autres années <ChevronDown size={12} />
+            </button>
             <div className="text-xs text-muted-foreground whitespace-nowrap">
-              {selectedStudent.filiere} | {selectedStudent.niveau} | {selectedStudent.annee}
+              {inscriptionAffichee ? `${inscriptionAffichee.filiere} | ${inscriptionAffichee.niveau} | ${inscriptionAffichee.annee}` : `${selectedStudent.filiere} | ${selectedStudent.niveau} | ${selectedAnnee}`}
             </div>
           </div>
         )}
       </div>
 
+      <FormModal open={anneeModalOpen} onClose={() => setAnneeModalOpen(false)} title="Année scolaire" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire</label>
+            <select
+              value={modalAnneeChoice}
+              onChange={(e) => setModalAnneeChoice(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              data-testid="frais-etudiant-annee-select"
+            >
+              <option value="">Sélectionner</option>
+              {[...inscriptions].sort((a, b) => b.annee.localeCompare(a.annee)).map((ins) => (
+                <option key={ins.id} value={ins.annee}>{ins.annee}{ins.annee === selectedStudent?.annee ? " (en cours)" : ""}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={() => setAnneeModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
+          <button
+            onClick={afficherFraisAutreAnnee}
+            disabled={!modalAnneeChoice}
+            className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            data-testid="frais-etudiant-afficher-frais"
+          >
+            Afficher les frais
+          </button>
+        </div>
+      </FormModal>
+
       {selectedStudent && (
         <>
           <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-            <h3 className="text-sm font-semibold text-foreground mb-3">Frais non quittancés</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Frais non quittancés {selectedAnnee && `— ${selectedAnnee}`}</h3>
             {lignesEnAttente.length === 0 ? (
               <p className="text-sm text-red-500" data-testid="frais-etudiant-aucun-en-attente">
                 Aucun frais non quittancé détecté ou tous les frais ont été quittancés
