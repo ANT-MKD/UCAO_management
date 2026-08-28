@@ -20,6 +20,7 @@ export interface EvaluationRecord {
   professeur: string;
   type: "devoir" | "examen";
   poids: number;
+  description?: string;
   creePar?: string;
   dateCreation: string;
   modifiePar?: string;
@@ -167,6 +168,9 @@ export interface EvaluationUpdatePayload {
   type: EvaluationRecord["type"];
   poids: number;
   modifiePar?: string;
+  /** Omis = inchangé. Permet à Saisie des Notes de ne corriger que la date ou la description. */
+  dateCreation?: string;
+  description?: string;
 }
 
 export function updateEvaluation(id: string, patch: EvaluationUpdatePayload): EvaluationRecord | undefined {
@@ -179,6 +183,8 @@ export function updateEvaluation(id: string, patch: EvaluationUpdatePayload): Ev
   evaluation.cours = ec ? `${ec.code} — ${ec.libelle}` : evaluation.cours;
   evaluation.type = patch.type;
   evaluation.poids = patch.poids;
+  if (patch.dateCreation !== undefined) evaluation.dateCreation = patch.dateCreation;
+  if (patch.description !== undefined) evaluation.description = patch.description;
   evaluation.modifiePar = patch.modifiePar;
   evaluation.modifieLe = new Date().toISOString().slice(0, 10);
   persist();
