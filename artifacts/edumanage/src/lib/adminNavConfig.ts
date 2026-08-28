@@ -160,7 +160,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Réduction",
         children: [
           { id: "fin-reduction-autorisee", label: "Réduction autorisée", href: "/admin/reduction-autorisee" },
-          { id: "fin-reduction-frais", label: "Réduction frais", href: wipHref("fin-reduction-frais") },
+          { id: "fin-reduction-frais", label: "Réduction frais", href: "/admin/reductions-frais" },
         ],
       },
       {

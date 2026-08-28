@@ -1271,6 +1271,22 @@ export function debiterAvoir(etudiantId: string, montant: number): boolean {
   return true;
 }
 
+/** Applique une réduction définitive sur le solde dû d'un étudiant (contrairement à l'avoir, non remboursable). */
+export function appliquerReductionSolde(etudiantId: string, montant: number): void {
+  const etudiant = getEtudiantById(etudiantId);
+  if (!etudiant || montant <= 0) return;
+  etudiant.soldeDu = Math.max(0, etudiant.soldeDu - montant);
+  persist();
+}
+
+/** Annule une réduction déjà appliquée : restaure le montant sur le solde dû de l'étudiant. */
+export function annulerReductionSolde(etudiantId: string, montant: number): void {
+  const etudiant = getEtudiantById(etudiantId);
+  if (!etudiant || montant <= 0) return;
+  etudiant.soldeDu = etudiant.soldeDu + montant;
+  persist();
+}
+
 /** Pousse une notification de relance au portail étudiant pour chaque quittance non soldée et non annulée. Renvoie le nombre de relances envoyées. */
 export function relancerQuittances(ids: string[]): number {
   let count = 0;
