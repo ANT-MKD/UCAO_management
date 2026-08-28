@@ -146,7 +146,15 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-paiement-prof-liste", label: "Les paiements professeurs", href: "/admin/decomptes-professeurs" },
         ],
       },
-      { id: "fin-devis", label: "Devis", href: wipHref("fin-devis") },
+      {
+        id: "fin-devis",
+        label: "Devis",
+        children: [
+          { id: "fin-devis-nouveau", label: "Nouveau devis", href: "/admin/devis/new" },
+          { id: "fin-devis-liste", label: "Les devis", href: "/admin/devis" },
+          { id: "fin-devis-grille", label: "Grille tarifaire", href: "/admin/grille-frais" },
+        ],
+      },
       {
         id: "fin-reduction",
         label: "Réduction",

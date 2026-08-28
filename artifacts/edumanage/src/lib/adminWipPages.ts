@@ -27,7 +27,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   // Finances — Avoir
 
   // Finances — divers
-  "fin-devis": { title: "Devis", section: "Finances" },
   "fin-reduction-autorisee": { title: "Réduction autorisée", section: "Finances · Réduction" },
   "fin-reduction-frais": { title: "Réduction frais", section: "Finances · Réduction" },
   "fin-maj-supprimer": { title: "Supprimer frais étudiant", section: "Finances · Mise à jour frais" },
