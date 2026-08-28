@@ -1,6 +1,14 @@
-import { getDecompteById, payerDecompte, reverserPaiementDecompte } from "./decompteStore";
+import { getDecompteById, payerDecompte, reverserPaiementDecompte, type DecompteLigne } from "./decompteStore";
 
 const STORAGE_KEY = "edumanage-decompte-paiements-v1";
+
+export interface DecomptePaiementLigneDetail {
+  coursLabel: string;
+  date: string;
+  duree: number;
+  montantApplique: number;
+  montantLigneTotal: number;
+}
 
 export interface DecomptePaiementRecord {
   id: string;
@@ -8,6 +16,9 @@ export interface DecomptePaiementRecord {
   date: string;
   decompteId: string;
   decompteReference: string;
+  decompteDateEmission: string;
+  montantDecompteTotal: number;
+  abattementMontant: number;
   teacherId: string;
   professeur: string;
   montant: number;
@@ -15,6 +26,35 @@ export interface DecomptePaiementRecord {
   referenceBancaire?: string;
   payePar: string;
   annulee: boolean;
+  lignes: DecomptePaiementLigneDetail[];
+}
+
+/** Répartit un versement en FIFO sur les lignes d'un décompte, en tenant compte de ce qui était déjà couvert. Ne renvoie que les lignes réellement touchées par CE versement. */
+function allouerSurLignesDecompte(
+  decompteLignes: DecompteLigne[],
+  dejaPayeAvant: number,
+  montantVerse: number,
+): DecomptePaiementLigneDetail[] {
+  let couvertAvant = Math.max(0, dejaPayeAvant);
+  let restant = Math.max(0, montantVerse);
+  const result: DecomptePaiementLigneDetail[] = [];
+  for (const ligne of decompteLignes) {
+    const skip = Math.min(couvertAvant, ligne.montantNet);
+    couvertAvant -= skip;
+    const disponibleSurLigne = ligne.montantNet - skip;
+    const applique = Math.min(restant, disponibleSurLigne);
+    restant -= applique;
+    if (applique > 0) {
+      result.push({
+        coursLabel: ligne.coursLabel,
+        date: ligne.date,
+        duree: ligne.duree,
+        montantApplique: applique,
+        montantLigneTotal: ligne.montantNet,
+      });
+    }
+  }
+  return result;
 }
 
 const listeners = new Set<() => void>();
@@ -86,6 +126,8 @@ export function enregistrerPaiementDecompte(
     return { ok: false, reason: "Montant invalide — il dépasse le reste à payer sur ce décompte." };
   }
 
+  const lignes = allouerSurLignesDecompte(decompte.lignes, decompte.montantPaye, payload.montant);
+
   payerDecompte(payload.decompteId, payload.montant);
 
   store.counter = (store.counter ?? 0) + 1;
@@ -98,6 +140,9 @@ export function enregistrerPaiementDecompte(
     date: payload.date,
     decompteId: payload.decompteId,
     decompteReference: decompte.reference,
+    decompteDateEmission: decompte.date,
+    montantDecompteTotal: decompte.montantDecompte,
+    abattementMontant: decompte.montantDecompte - decompte.netAPayer,
     teacherId: decompte.teacherId,
     professeur: decompte.professeur,
     montant: payload.montant,
@@ -105,6 +150,7 @@ export function enregistrerPaiementDecompte(
     referenceBancaire: payload.referenceBancaire,
     payePar: payload.payePar,
     annulee: false,
+    lignes,
   };
 
   store.records = [record, ...store.records];

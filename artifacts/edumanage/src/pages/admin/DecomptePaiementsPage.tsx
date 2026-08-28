@@ -14,16 +14,21 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useDecomptePaiements } from "@/hooks/useDecomptePaiementStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
+import { ENSEIGNANTS } from "@/data/mockData";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 interface ColFilters {
   reference: string;
   professeur: string;
-  decompte: string;
   statut: string;
 }
 
-const EMPTY_FILTERS: ColFilters = { reference: "", professeur: "", decompte: "", statut: "" };
+const EMPTY_FILTERS: ColFilters = { reference: "", professeur: "", statut: "" };
+
+function teacherLabel(teacherId: string, fallback: string): string {
+  const t = ENSEIGNANTS.find((e) => e.id === teacherId);
+  return t ? `${t.matricule} - ${t.prenom} ${t.nom}` : fallback;
+}
 
 const filterInputClass =
   "w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -53,8 +58,7 @@ export default function DecomptePaiementsPage() {
     return paiements
       .filter((p) => {
         if (filters.reference && !p.reference.toLowerCase().includes(filters.reference.toLowerCase())) return false;
-        if (filters.professeur && !p.professeur.toLowerCase().includes(filters.professeur.toLowerCase())) return false;
-        if (filters.decompte && !p.decompteReference.toLowerCase().includes(filters.decompte.toLowerCase())) return false;
+        if (filters.professeur && !teacherLabel(p.teacherId, p.professeur).toLowerCase().includes(filters.professeur.toLowerCase())) return false;
         if (filters.statut) {
           const statut = p.annulee ? "Annulé" : "Validé";
           if (statut !== filters.statut) return false;
@@ -79,11 +83,11 @@ export default function DecomptePaiementsPage() {
 
   const exportExcel = () => {
     const rows = filtered.map((p) => ({
-      Numéro: p.reference,
+      "N° Opération": p.reference,
       "Payé le": formatShortDate(p.date),
-      Professeur: p.professeur,
+      Professeur: teacherLabel(p.teacherId, p.professeur),
       Décompte: p.decompteReference,
-      Montant: p.montant,
+      "Mt. Opération": p.montant,
       "Mode de règlement": p.moyen,
       "Payé par": p.payePar,
       Statut: p.annulee ? "Annulé" : "Validé",
@@ -176,11 +180,10 @@ export default function DecomptePaiementsPage() {
         <table className="w-full min-w-[950px] text-sm">
           <thead>
             <tr className="bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              <th className="text-left px-4 py-3">Numéro</th>
+              <th className="text-left px-4 py-3">N° Opération</th>
               <th className="text-left px-4 py-3">Payé le</th>
               <th className="text-left px-4 py-3">Professeur</th>
-              <th className="text-left px-4 py-3">Décompte</th>
-              <th className="text-right px-4 py-3">Montant</th>
+              <th className="text-right px-4 py-3">Mt. Opération</th>
               <th className="text-left px-4 py-3">Payé par</th>
               <th className="text-center px-4 py-3">Statut</th>
               <th className="text-right px-4 py-3 w-14" />
@@ -191,10 +194,7 @@ export default function DecomptePaiementsPage() {
               </th>
               <th className="px-3 py-2" />
               <th className="px-3 py-2">
-                <input value={filters.professeur} onChange={(e) => patchFilter({ professeur: e.target.value })} className={filterInputClass} placeholder="Nom du professeur…" />
-              </th>
-              <th className="px-3 py-2">
-                <input value={filters.decompte} onChange={(e) => patchFilter({ decompte: e.target.value })} className={filterInputClass} placeholder="N° décompte…" />
+                <input value={filters.professeur} onChange={(e) => patchFilter({ professeur: e.target.value })} className={filterInputClass} placeholder="Matricule, nom du professeur…" />
               </th>
               <th className="px-3 py-2" />
               <th className="px-3 py-2" />
@@ -217,7 +217,7 @@ export default function DecomptePaiementsPage() {
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
+                <td colSpan={7} className="py-16 text-center text-sm text-muted-foreground">
                   {paiements.length === 0
                     ? "Aucun paiement professeur enregistré pour l'instant."
                     : "Aucun paiement ne correspond aux critères sélectionnés."}
@@ -233,11 +233,11 @@ export default function DecomptePaiementsPage() {
                 >
                   <td className="px-4 py-3 font-medium whitespace-nowrap">{p.reference}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(p.date)}</td>
-                  <td className="px-4 py-3">{p.professeur}</td>
                   <td className="px-4 py-3">
+                    <p>{teacherLabel(p.teacherId, p.professeur)}</p>
                     <button
                       onClick={(e) => { e.stopPropagation(); setLocation(`/admin/decomptes/${p.decompteId}`); }}
-                      className="text-primary hover:underline"
+                      className="text-xs text-primary hover:underline"
                     >
                       {p.decompteReference}
                     </button>

@@ -1,22 +1,32 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Ban, Printer } from "lucide-react";
+import { ArrowLeft, Ban, ChevronDown, ChevronRight, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useDecomptePaiements } from "@/hooks/useDecomptePaiementStore";
-import { annulerPaiementDecompte } from "@/data/decomptePaiementStore";
-import { formatCFA, formatDate, cn } from "@/lib/utils";
+import { annulerPaiementDecompte, type DecomptePaiementLigneDetail } from "@/data/decomptePaiementStore";
+import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
 
 function buildPaiementHtml(args: {
   reference: string;
   date: string;
   professeur: string;
   decompteReference: string;
+  decompteDateEmission: string;
+  montantDecompteTotal: number;
+  abattementMontant: number;
   montant: number;
   moyen: string;
   referenceBancaire?: string;
+  lignes: DecomptePaiementLigneDetail[];
 }): string {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const rows = args.lignes
+    .map(
+      (l) =>
+        `<tr><td>${l.coursLabel}</td><td>${formatShortDate(l.date)}</td><td style="text-align:center">${l.duree}H</td><td style="text-align:right">${formatCFA(l.montantApplique)}</td></tr>`,
+    )
+    .join("");
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
 <style>
 body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
@@ -25,6 +35,9 @@ body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;col
 .header p{font-size:12px;color:#666;margin:4px 0}
 .title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
 .meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px}
+th,td{border:1px solid #ccc;padding:6px 8px}
+th{background:#f3f4f6;text-align:left}
 .footer{margin-top:50px;font-size:11px;color:#666}
 </style></head><body>
 <div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
@@ -32,11 +45,14 @@ body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;col
 <div class="meta">
   <div>Date : <strong>${formatDate(args.date)}</strong></div>
   <div>Professeur : <strong>${args.professeur}</strong></div>
-  <div>Décompte réglé : <strong>${args.decompteReference}</strong></div>
+  <div>Décompte réglé : <strong>${args.decompteReference}</strong> (émis le ${formatDate(args.decompteDateEmission)})</div>
+  <div>Mt total décompté : <strong>${formatCFA(args.montantDecompteTotal)}</strong></div>
+  <div>Montant abattement : <strong>${formatCFA(args.abattementMontant)}</strong></div>
   <div>Montant payé : <strong>${formatCFA(args.montant)}</strong></div>
   <div>Mode de règlement : <strong>${args.moyen}</strong></div>
   ${args.referenceBancaire ? `<div>Référence : <strong>${args.referenceBancaire}</strong></div>` : ""}
 </div>
+${rows ? `<table><thead><tr><th>Cours</th><th>Date du cours</th><th>Durée</th><th>Payés</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
 <div class="footer">Fait à Dakar, le ${now}</div>
 </body></html>`;
 }
@@ -45,6 +61,7 @@ export default function DecomptePaiementDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const paiements = useDecomptePaiements();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const record = paiements.find((p) => p.id === id);
 
@@ -77,9 +94,13 @@ export default function DecomptePaiementDetailPage({ id }: { id: string }) {
         date: record.date,
         professeur: record.professeur,
         decompteReference: record.decompteReference,
+        decompteDateEmission: record.decompteDateEmission,
+        montantDecompteTotal: record.montantDecompteTotal,
+        abattementMontant: record.abattementMontant,
         montant: record.montant,
         moyen: record.moyen,
         referenceBancaire: record.referenceBancaire,
+        lignes: record.lignes,
       }),
     );
     win.document.close();
@@ -131,6 +152,7 @@ export default function DecomptePaiementDetailPage({ id }: { id: string }) {
           <button onClick={() => setLocation(`/admin/decomptes/${record.decompteId}`)} className="font-semibold text-sm mt-1 text-primary hover:underline text-left" data-testid="paiement-decompte-voir-decompte">
             {record.decompteReference}
           </button>
+          <p className="text-xs text-muted-foreground">Émis le {formatDate(record.decompteDateEmission)}</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Date / Mode de règlement</p>
@@ -145,6 +167,53 @@ export default function DecomptePaiementDetailPage({ id }: { id: string }) {
           </span>
         </div>
       </div>
+
+      <div className="bg-card border border-border rounded-xl p-5 mb-5 flex flex-wrap items-center gap-6" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div>
+          <p className="text-xs text-muted-foreground">Mt total décompté</p>
+          <p className="font-semibold text-sm mt-1">{formatCFA(record.montantDecompteTotal)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Montant abattement</p>
+          <p className="font-semibold text-sm mt-1">{formatCFA(record.abattementMontant)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Mt décompté (net)</p>
+          <p className="font-semibold text-sm mt-1">{formatCFA(record.montantDecompteTotal - record.abattementMontant)}</p>
+        </div>
+      </div>
+
+      {record.lignes.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
+            data-testid="paiement-decompte-toggle-detail"
+          >
+            <span className="text-xs font-bold text-foreground uppercase tracking-wide flex items-center gap-2">
+              {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              Détails du paiement — {record.lignes.length} ligne(s)
+            </span>
+          </button>
+          {expanded && (
+            <div className="divide-y divide-border">
+              {record.lignes.map((l, i) => (
+                <div key={i} className="px-5 py-3 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium">{l.coursLabel}</p>
+                    <p className="text-xs text-muted-foreground">Date du cours : {formatDate(l.date)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">{formatCFA(l.montantApplique)} payés</p>
+                    <p className="text-xs text-muted-foreground">Durée : {l.duree}H</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {record.referenceBancaire && (
         <div className="bg-card border border-border rounded-xl overflow-hidden mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
