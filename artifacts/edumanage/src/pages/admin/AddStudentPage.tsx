@@ -7,9 +7,10 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { FILIERES, NIVEAUX, FRAIS_CONFIG } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { allocateMatricule, registerNewEtudiant, registerPaiement, peekNextMatricule } from "@/data/studentStore";
 import { useClasses } from "@/hooks/useStructureStore";
+import { useFraisConfigs } from "@/hooks/useFraisConfigStore";
 import {
   SERIES_BAC, STATUTS_INSCRIPTION, TYPES_ADMISSION, DOCUMENTS_INSCRIPTION,
   MODES_PAIEMENT, STATUTS_PAIEMENT, TYPES_FRAIS_INSCRIPTION, MODES_SCOLARITE,
@@ -80,6 +81,7 @@ interface Step5Data {
 export default function AddStudentPage() {
   const [, setLocation] = useLocation();
   const classes = useClasses();
+  const FRAIS_CONFIG = useFraisConfigs();
   const [currentStep, setCurrentStep] = useState(1);
   const [step1Data, setStep1Data] = useState<Step1Data | null>(null);
   const [step2Data, setStep2Data] = useState<Step2Data | null>(null);
@@ -129,7 +131,7 @@ export default function AddStudentPage() {
     return FRAIS_CONFIG.find(
       (f) => f.filiereId === step3Data.filiereId && f.niveau === niveau?.alias,
     );
-  }, [step3Data]);
+  }, [step3Data, FRAIS_CONFIG]);
 
   const factureLignes = useMemo(() => {
     if (!fraisRef) return [] as { label: string; montant: number }[];

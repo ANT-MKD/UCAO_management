@@ -145,14 +145,6 @@ export const MOYENNES_PROMO = [
   { id: "mp8", rang: 8, etudiant: "Oumar KANE", etudiantId: "et9", matricule: "2025-LPIG-0005", moyennes: [11.0, 9.5, 10.5], moyenneGenerale: 10.33, credits: 24, mention: "Passable", statut: "Admis" },
 ];
 
-export const FRAIS_CONFIG = [
-  { id: "fr1", filiere: "LPIG", filiereId: "f1", niveau: "L1", annee: "2025-2026", inscription: 150000, scolariteAnnuelle: 700000, fraisDivers: 25000 },
-  { id: "fr2", filiere: "LPIG", filiereId: "f1", niveau: "L2", annee: "2025-2026", inscription: 150000, scolariteAnnuelle: 750000, fraisDivers: 25000 },
-  { id: "fr3", filiere: "GESTION", filiereId: "f3", niveau: "L1", annee: "2025-2026", inscription: 120000, scolariteAnnuelle: 600000, fraisDivers: 20000 },
-  { id: "fr4", filiere: "DROIT", filiereId: "f2", niveau: "L1", annee: "2025-2026", inscription: 130000, scolariteAnnuelle: 640000, fraisDivers: 20000 },
-  { id: "fr5", filiere: "COMPTA", filiereId: "f4", niveau: "BTS1", annee: "2025-2026", inscription: 100000, scolariteAnnuelle: 560000, fraisDivers: 15000 },
-];
-
 export const PAIEMENTS = [
   { id: "pa1", date: "2025-09-03", etudiant: "Moussa SY", etudiantId: "et1", classe: "L1-INFO-A", rubrique: "Frais d'inscription", montant: 150000, moyen: "Wave", reference: "WAVE-20250903-001", soldeRestant: 0, statut: "paye" },
   { id: "pa2", date: "2025-09-05", etudiant: "Aminata DIALLO", etudiantId: "et2", classe: "L1-INFO-A", rubrique: "Frais d'inscription", montant: 150000, moyen: "OrangeMoney", reference: "OM-20250905-002", soldeRestant: 75000, statut: "partiel" },

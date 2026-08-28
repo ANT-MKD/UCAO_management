@@ -8,7 +8,8 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { CLASSES, FRAIS_CONFIG, FILIERES, NIVEAUX, MOYENNES_PROMO } from "@/data/mockData";
+import { CLASSES, FILIERES, NIVEAUX, MOYENNES_PROMO } from "@/data/mockData";
+import { useFraisConfigs } from "@/hooks/useFraisConfigStore";
 import {
   STATUTS_INSCRIPTION, MODES_PAIEMENT, STATUTS_PAIEMENT, MODES_SCOLARITE,
 } from "@/lib/inscriptionConstants";
@@ -47,6 +48,7 @@ interface Step4Data {
 export default function ReinscriptionPage() {
   const [, setLocation] = useLocation();
   const anneeActuelle = useAnneeActuelle();
+  const FRAIS_CONFIG = useFraisConfigs();
   const [currentStep, setCurrentStep] = useState(1);
   const [searchMatricule, setSearchMatricule] = useState("");
   const [student, setStudent] = useState<EtudiantRecord | null>(null);
@@ -105,7 +107,7 @@ export default function ReinscriptionPage() {
     return FRAIS_CONFIG.find(
       (f) => f.filiereId === selectedFiliere && f.niveau === niveau.alias && f.annee === anneeActuelle,
     );
-  }, [selectedFiliere, selectedNiveau, anneeActuelle]);
+  }, [selectedFiliere, selectedNiveau, anneeActuelle, FRAIS_CONFIG]);
 
   const montantSuggere = useMemo(() => {
     if (!fraisRef) return 0;

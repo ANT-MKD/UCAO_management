@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Save, Calendar } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { getFraisConfig, upsertFraisConfig } from "@/data/fraisConfigStore";
 import { formatCFA } from "@/lib/utils";
 
 const MOIS_SCOLARITE = ["Octobre", "Novembre", "Décembre", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin"];
@@ -26,6 +29,24 @@ export default function FraisFormPage({ id }: Props) {
     defaultValues: { filiereId: "", niveauId: "", annee: "2025-2026", inscription: 150000, scolariteAnnuelle: 600000, fraisDivers: 50000 },
   });
 
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    const existing = getFraisConfig(id);
+    if (!existing) {
+      toast.error("Grille tarifaire introuvable");
+      setLocation("/admin/frais");
+      return;
+    }
+    const niveauRec = NIVEAUX.find((n) => n.filiereId === existing.filiereId && n.alias === existing.niveau);
+    setValue("filiereId", existing.filiereId);
+    setValue("niveauId", niveauRec?.id ?? "");
+    setValue("annee", existing.annee);
+    setValue("inscription", existing.inscription);
+    setValue("scolariteAnnuelle", existing.scolariteAnnuelle);
+    setValue("fraisDivers", existing.fraisDivers);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, id]);
+
   const selectedFiliereId = watch("filiereId");
   const filteredNiveaux = selectedFiliereId ? NIVEAUX.filter((n) => n.filiereId === selectedFiliereId) : NIVEAUX;
 
@@ -36,7 +57,23 @@ export default function FraisFormPage({ id }: Props) {
   const totalAnnuel = inscription + scolariteAnnuelle + fraisDivers;
 
   const onSubmit = (data: FormData) => {
-    console.log("Frais saved:", data);
+    const filiere = FILIERES.find((f) => f.id === data.filiereId);
+    const niveauRec = NIVEAUX.find((n) => n.id === data.niveauId);
+    if (!filiere || !niveauRec) {
+      toast.error("Filière et niveau requis");
+      return;
+    }
+    upsertFraisConfig({
+      id: isEdit ? id : undefined,
+      filiere: filiere.code,
+      filiereId: filiere.id,
+      niveau: niveauRec.alias,
+      annee: data.annee,
+      inscription: Number(data.inscription) || 0,
+      scolariteAnnuelle: Number(data.scolariteAnnuelle) || 0,
+      fraisDivers: Number(data.fraisDivers) || 0,
+    });
+    toast.success(isEdit ? "Grille tarifaire mise à jour" : "Grille tarifaire créée");
     setLocation("/admin/frais");
   };
 

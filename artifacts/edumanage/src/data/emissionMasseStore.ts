@@ -1,4 +1,4 @@
-import { FRAIS_CONFIG } from "./mockData";
+import { getFraisConfigs } from "./fraisConfigStore";
 import { getEtudiants, emettreQuittanceBrute, cancelQuittanceEmise } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-emissions-masse-v1";
@@ -94,7 +94,7 @@ export function montantGrilleParRubrique(
   annee: string,
   rubriques: RubriqueEmission[],
 ): number {
-  const grille = FRAIS_CONFIG.find((f) => f.filiereId === filiereId && f.niveau === niveau && f.annee === annee);
+  const grille = getFraisConfigs().find((f) => f.filiereId === filiereId && f.niveau === niveau && f.annee === annee);
   if (!grille) return 0;
   return rubriques.reduce((sum, r) => {
     if (r === "inscription") return sum + grille.inscription;

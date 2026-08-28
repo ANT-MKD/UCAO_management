@@ -8,7 +8,7 @@ import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
 import { registerPaiement, payerQuittance, debiterAvoir } from "@/data/studentStore";
 import type { EtudiantRecord, PaiementLigne, PaiementRecord } from "@/data/studentStore";
 import { enregistrerEncaissement } from "@/data/encaissementStore";
-import { FRAIS_CONFIG } from "@/data/mockData";
+import { getFraisConfigs } from "@/data/fraisConfigStore";
 import { STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useClasses } from "@/hooks/useStructureStore";
@@ -29,7 +29,7 @@ function moyenColors(label: string): { color: string; bg: string } {
 type RubriqueOpt = { value: string; label: string; montant: number };
 
 function getRubriquesForStudent(student: EtudiantRecord): RubriqueOpt[] {
-  const frais = FRAIS_CONFIG.find((f) => f.filiereId === student.filiereId && f.niveau === student.niveau);
+  const frais = getFraisConfigs().find((f) => f.filiereId === student.filiereId && f.niveau === student.niveau);
   if (!frais) {
     return [
       { value: "inscription", label: "Inscription unique", montant: 150000 },

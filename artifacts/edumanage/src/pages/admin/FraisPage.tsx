@@ -1,19 +1,31 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Plus, Pencil, Trash2, DollarSign, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
-import { FRAIS_CONFIG } from "@/data/mockData";
+import { useFraisConfigs } from "@/hooks/useFraisConfigStore";
+import { supprimerFraisConfig, type FraisConfigRecord } from "@/data/fraisConfigStore";
 import { formatCFA } from "@/lib/utils";
+import { toast } from "sonner";
 
-type FraisConfig = typeof FRAIS_CONFIG[0];
+type FraisConfig = FraisConfigRecord;
 
 const MOIS_SCOLARITE = ["Oct", "Nov", "Déc", "Jan", "Fév", "Mar", "Avr", "Mai", "Juin"];
 
 export default function FraisPage() {
   const [, setLocation] = useLocation();
+  const FRAIS_CONFIG = useFraisConfigs();
+  const [deleteTarget, setDeleteTarget] = useState<FraisConfigRecord | null>(null);
   const totalAnnuel = FRAIS_CONFIG.reduce((sum, f) => sum + f.inscription + f.scolariteAnnuelle + f.fraisDivers, 0);
-  const avgMensualite = Math.round(FRAIS_CONFIG.reduce((sum, f) => sum + f.scolariteAnnuelle, 0) / FRAIS_CONFIG.length / 9);
+  const avgMensualite = FRAIS_CONFIG.length > 0 ? Math.round(FRAIS_CONFIG.reduce((sum, f) => sum + f.scolariteAnnuelle, 0) / FRAIS_CONFIG.length / 9) : 0;
+
+  const confirmerSuppression = () => {
+    if (!deleteTarget) return;
+    supprimerFraisConfig(deleteTarget.id);
+    toast.success("Grille tarifaire supprimée");
+    setDeleteTarget(null);
+  };
 
   const columns: Column<FraisConfig>[] = [
     { key: "filiere", header: "Filière", sortable: true, render: (r) => <span className="font-semibold text-foreground">{r.filiere}</span> },
@@ -38,7 +50,7 @@ export default function FraisPage() {
       render: (r) => (
         <div className="flex items-center gap-1">
           <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/frais/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
-          <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(r); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors" aria-label="Supprimer"><Trash2 size={14} /></button>
         </div>
       ),
     },
@@ -82,7 +94,7 @@ export default function FraisPage() {
       </div>
 
       {/* Tableau des grilles */}
-      <DataTable columns={columns} data={FRAIS_CONFIG as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher une filière..." />
+      <DataTable columns={columns as unknown as Column<Record<string, unknown>>[]} data={FRAIS_CONFIG as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher une filière..." />
 
       {/* Détail par filière */}
       <div className="mt-6 grid grid-cols-1 gap-4">
@@ -130,6 +142,21 @@ export default function FraisPage() {
           );
         })}
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-sm w-full space-y-4" style={{ boxShadow: "var(--shadow-lg)" }}>
+            <h3 className="text-sm font-semibold text-foreground">Supprimer cette grille tarifaire ?</h3>
+            <p className="text-xs text-muted-foreground">
+              {deleteTarget.filiere} — {deleteTarget.niveau} ({deleteTarget.annee}). Cette action est irréversible et n'affecte pas les étudiants déjà inscrits.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors">Annuler</button>
+              <button onClick={confirmerSuppression} data-testid="frais-config-supprimer-confirmer" className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-medium hover:bg-red-700 transition-colors">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
