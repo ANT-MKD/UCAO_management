@@ -27,7 +27,6 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   // Finances — Avoir
 
   // Finances — divers
-  "fin-maj-supprimer": { title: "Supprimer frais étudiant", section: "Finances · Mise à jour frais" },
   "fin-maj-ajouter-masse": { title: "Ajout frais en masse", section: "Finances · Mise à jour frais" },
   "fin-maj-suppression": { title: "Suppression frais", section: "Finances · Mise à jour frais" },
   "fin-reprise-nouvelle": { title: "Nouvelle reprise frais étudiant", section: "Finances · Reprise frais" },

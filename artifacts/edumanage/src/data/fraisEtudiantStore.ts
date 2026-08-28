@@ -1,4 +1,4 @@
-import { emettreQuittanceBrute } from "./studentStore";
+import { emettreQuittanceBrute, cancelQuittanceEmise } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-frais-etudiant-v1";
 
@@ -105,6 +105,15 @@ export function ajouterFraisEtudiant(
 export function supprimerFraisEtudiant(id: string): void {
   store = store.filter((l) => l.id !== id || !!l.quittanceId);
   persist();
+}
+
+/** Annule un frais déjà quittancé : restaure le solde dû de l'étudiant via cancelQuittanceEmise. */
+export function annulerFraisEtudiantQuittance(id: string): { ok: boolean; reason?: string } {
+  const ligne = store.find((l) => l.id === id);
+  if (!ligne) return { ok: false, reason: "Frais introuvable." };
+  if (!ligne.quittanceId) return { ok: false, reason: "Ce frais n'est pas encore quittancé." };
+  cancelQuittanceEmise(ligne.quittanceId);
+  return { ok: true };
 }
 
 /** Convertit une ligne "non quittancée" en une vraie quittance (le solde dû de l'étudiant augmente). */
