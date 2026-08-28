@@ -14,7 +14,7 @@ import { statutFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { useReprisFrais } from "@/hooks/useReprisFraisStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
-import { statutDerogation, PORTEE_LABELS } from "@/data/derogationPaiementStore";
+import { statutDerogation, PORTEE_LABELS, type StatutDerogation } from "@/data/derogationPaiementStore";
 import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
@@ -55,7 +55,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const reprisesFrais = useReprisFrais();
   const studentReprisesEnCours = reprisesFrais.filter((r) => r.etudiantId === id && r.statut !== "valide");
   const derogationsPaiement = useDerogationsPaiement();
-  const studentDerogationActive = derogationsPaiement.find((d) => d.etudiantId === id && statutDerogation(d) === "active");
+  const studentDerogations = derogationsPaiement.filter((d) => d.etudiantId === id);
+  const studentDerogationActive = studentDerogations.find((d) => statutDerogation(d) === "active");
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -430,6 +431,35 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                           <div className="font-bold text-foreground">{formatCFA(r.montant)}</div>
                           <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", meta.cls)}>{meta.label}</span>
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {studentDerogations.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-bold text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Dérogations des paiements</h3>
+                <div className="space-y-2">
+                  {[...studentDerogations].sort((a, b) => b.date.localeCompare(a.date)).map((d) => {
+                    const statut = statutDerogation(d);
+                    const STATUT_META: Record<StatutDerogation, { label: string; cls: string }> = {
+                      active: { label: "Active", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+                      expiree: { label: "Expirée", cls: "bg-muted text-muted-foreground" },
+                      revoquee: { label: "Révoquée", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
+                    };
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => setLocation(`/admin/derogation-paiement/${d.id}`)}
+                        className="flex items-center gap-4 p-3.5 bg-muted/30 rounded-xl border border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-foreground">{d.reference} — {PORTEE_LABELS[d.portee]}</div>
+                          <div className="text-xs text-muted-foreground">{formatDate(d.date)} · Valable jusqu&apos;au {formatDate(d.dateFin)}{statut === "revoquee" && d.motifRevocation ? ` · Motif révocation : ${d.motifRevocation}` : ""}</div>
+                        </div>
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", STATUT_META[statut].cls)}>{STATUT_META[statut].label}</span>
                       </div>
                     );
                   })}
