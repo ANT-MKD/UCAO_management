@@ -245,7 +245,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "scol-maj-cours",
         label: "Mise à jour cours",
         children: [
-          { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/ecs" },
+          { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/cours-etudiant" },
           { id: "scol-maj-cours-force", label: "Ajout cours forcé", href: wipHref("scol-maj-cours-force") },
         ],
       },

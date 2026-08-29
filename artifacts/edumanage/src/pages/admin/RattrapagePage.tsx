@@ -13,6 +13,8 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { createEvaluation, updateEvaluation, getPoidsForClasseEc } from "@/data/evaluationStore";
+import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
+import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
 
 type NoteEntry = { note: string; absent: boolean };
@@ -30,6 +32,7 @@ export default function RattrapagePage() {
   const CLASSES = useClasses();
   const scolariteConfigs = useScolariteConfigs();
   const evaluations = useEvaluations();
+  usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
@@ -123,7 +126,13 @@ export default function RattrapagePage() {
   // Ne montre que les étudiants réellement ajournés sur ce cours (moyenne effective — CC +
   // meilleur EF disponible, vrais poids — sous la moyenne de passage réelle de la filière) :
   // le rattrapage n'a de sens que pour eux.
-  const classeStudentsAll = etudiants.filter((e) => e.classeId === classeId);
+  const etudiantsRetiresIds = classeId && ecId ? new Set(getEtudiantsRetiresPourCours(classeId, ecId)) : new Set<string>();
+  const etudiantsAjoutesIds = classeId && ecId ? new Set(getEtudiantsAjoutesPourCours(classeId, ecId)) : new Set<string>();
+  const classeStudentsAll = etudiants.filter((e) => {
+    const estMembre = e.classeId === classeId;
+    const estAjoute = etudiantsAjoutesIds.has(e.id);
+    return (estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute;
+  });
   const { devoir: poidsDevoirReel, examen: poidsExamenReel } = ecId ? getPoidsForClasseEc(classeId, ecId) : {};
   const poidsCc = (poidsDevoirReel ?? POIDS_CC_DEFAUT) / 100;
   const poidsExamen = (poidsExamenReel ?? POIDS_EXAMEN_DEFAUT) / 100;
@@ -383,6 +392,11 @@ export default function RattrapagePage() {
                       <td className="px-4 py-3"><span className="font-mono text-xs text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{etu.matricule}</span></td>
                       <td className="px-4 py-3">
                         <span className={cn("font-medium", entry.absent ? "text-muted-foreground line-through" : "text-foreground")}>{etu.prenom} {etu.nom}</span>
+                        {etu.classeId !== classeId && (
+                          <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" title={`Ajouté à ce cours — classe réelle : ${etu.classe}`}>
+                            Ajouté ({etu.classe})
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <input

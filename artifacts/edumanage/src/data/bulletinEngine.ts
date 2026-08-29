@@ -2,6 +2,7 @@ import { getUes, getEcs } from "./curriculumStore";
 import { getEffectiveNote } from "./studentStore";
 import { getPoidsForClasseEc } from "./evaluationStore";
 import { getClasseById } from "./structureStore";
+import { estEcRetireePourEtudiant } from "./portefeuilleCoursStore";
 
 const POIDS_CC_DEFAUT = 30;
 const POIDS_EXAMEN_DEFAUT = 70;
@@ -52,7 +53,9 @@ export function computeBulletin(
   const ecsAll = getEcs();
 
   const ues: UeMoyenne[] = uesSession.map((ue): UeMoyenne => {
-    const ecsUe = ecsAll.filter((ec) => ec.ueId === ue.id);
+    // Un EC retiré du portefeuille de l'étudiant (déjà validé par équivalence/transfert, etc.)
+    // ne doit plus jamais compter ni rester "en attente" indéfiniment dans son bulletin.
+    const ecsUe = ecsAll.filter((ec) => ec.ueId === ue.id && !estEcRetireePourEtudiant(etudiantId, classeId, ec.id));
     const ecs: EcMoyenne[] = ecsUe.map((ec): EcMoyenne => {
       const cc = getEffectiveNote(etudiantId, classeId, ec.id, "CC")?.note;
       const ef = getEffectiveNote(etudiantId, classeId, ec.id, "EF")?.note;

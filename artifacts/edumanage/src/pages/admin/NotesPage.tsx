@@ -10,6 +10,8 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { updateEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
+import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
+import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
 
 type NoteEntry = {
@@ -28,6 +30,7 @@ export default function NotesPage() {
   const CLASSES = useClasses();
   const scolariteConfigs = useScolariteConfigs();
   const evaluations = useEvaluations();
+  usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
@@ -71,8 +74,16 @@ export default function NotesPage() {
     .filter((e) => e.professeurId === professeurId)
     .sort((a, b) => a.type.localeCompare(b.type) || a.dateCreation.localeCompare(b.dateCreation));
 
+  // Le roster d'un (classe, EC) n'est plus juste "tous les membres de la classe" : un étudiant
+  // retiré de ce cours (Mise à jour cours étudiants — déjà validé par équivalence, etc.) en
+  // sort, et un étudiant ajouté à ce cours (ex. redoublant reprenant un seul EC d'un niveau
+  // déjà quitté) y entre même s'il n'est plus membre de cette classe.
+  const etudiantsRetiresIds = classeId && ecId ? new Set(getEtudiantsRetiresPourCours(classeId, ecId)) : new Set<string>();
+  const etudiantsAjoutesIds = classeId && ecId ? new Set(getEtudiantsAjoutesPourCours(classeId, ecId)) : new Set<string>();
   const classeStudents = etudiants.filter((e) => {
-    if (e.classeId !== classeId) return false;
+    const estMembre = e.classeId === classeId;
+    const estAjoute = etudiantsAjoutesIds.has(e.id);
+    if (!((estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute)) return false;
     if (searchStudent) {
       const q = searchStudent.toLowerCase();
       if (!`${e.prenom} ${e.nom}`.toLowerCase().includes(q) && !e.matricule.toLowerCase().includes(q)) return false;
@@ -452,6 +463,11 @@ export default function NotesPage() {
                         <span className={cn("font-medium", entry.absent ? "text-muted-foreground line-through" : "text-foreground")}>
                           {etu.prenom} {etu.nom}
                         </span>
+                        {etu.classeId !== classeId && (
+                          <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" title={`Ajouté à ce cours — classe réelle : ${etu.classe}`}>
+                            Ajouté ({etu.classe})
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <input
