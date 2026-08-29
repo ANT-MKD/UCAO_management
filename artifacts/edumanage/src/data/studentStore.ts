@@ -969,7 +969,7 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
   }
 
   const actifs = store.etudiants.filter(
-    (e) => e.annee === source.libelle && e.statut !== "suspendu",
+    (e) => e.annee === source.libelle && e.statut !== "suspendu" && e.statut !== "abandon",
   );
 
   let count = 0;

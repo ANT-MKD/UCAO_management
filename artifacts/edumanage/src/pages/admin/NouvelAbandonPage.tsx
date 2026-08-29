@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { SEMESTRES } from "@/data/mockData";
 import { useStudentStore } from "@/hooks/useStudentStore";
-import { getPaiementsByEtudiant, type EtudiantRecord } from "@/data/studentStore";
+import { getPaiementsByEtudiant, getEtudiantByMatricule, type EtudiantRecord } from "@/data/studentStore";
 import { useAbandons } from "@/hooks/useAbandonStore";
 import { getAbandonActifPourEtudiant, creerAbandon } from "@/data/abandonStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,6 +56,17 @@ export default function NouvelAbandonPage() {
     setShowSuggestions(false);
     setSessionsSelectionnees(new Set());
   };
+
+  // Préremplit l'étudiant quand on arrive depuis le bouton "Nouvel abandon" de sa fiche
+  // (même mécanisme que "Réinscrire" sur cette même fiche, via ?matricule=).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const m = params.get("matricule");
+    if (!m) return;
+    const found = getEtudiantByMatricule(m);
+    if (found) handleSelectEtudiant(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sessionsDisponibles = useMemo(() => {
     if (!etudiant) return [];

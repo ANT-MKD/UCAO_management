@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX } from "lucide-react";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { formatCFA, formatDate, getMention } from "@/lib/utils";
@@ -15,6 +15,7 @@ import { useReprisFrais } from "@/hooks/useReprisFraisStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { statutDerogation, PORTEE_LABELS, type StatutDerogation } from "@/data/derogationPaiementStore";
+import { useAbandons } from "@/hooks/useAbandonStore";
 import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
@@ -57,6 +58,9 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const derogationsPaiement = useDerogationsPaiement();
   const studentDerogations = derogationsPaiement.filter((d) => d.etudiantId === id);
   const studentDerogationActive = studentDerogations.find((d) => statutDerogation(d) === "active");
+  const abandons = useAbandons();
+  const studentAbandons = abandons.filter((a) => a.etudiantId === id);
+  const studentAbandonActif = studentAbandons.find((a) => !a.reintegre);
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -125,6 +129,18 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               </div>
             )}
           </div>
+          {studentAbandonActif ? (
+            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-xl px-3 py-1.5 w-fit">
+              <UserX size={12} />
+              En abandon depuis le {formatDate(studentAbandonActif.dateAbandon)} — motif : {studentAbandonActif.motif}
+              <button onClick={() => setLocation("/admin/abandons")} className="underline hover:no-underline">Voir le dossier</button>
+            </div>
+          ) : studentAbandons.length > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted/40 rounded-xl px-3 py-1.5 w-fit">
+              <History size={12} />
+              A été en abandon puis réintégré(e) — <button onClick={() => setLocation("/admin/abandons")} className="underline hover:no-underline">voir l&apos;historique</button>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <button onClick={() => setLocation(`/admin/students/card?id=${encodeURIComponent(student.id)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors">
@@ -133,6 +149,11 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
           <button onClick={() => setLocation(`/admin/students/reinscription?matricule=${encodeURIComponent(student.matricule)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-indigo-300 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-50 transition-colors">
             <History size={13} /> Réinscrire
           </button>
+          {!studentAbandonActif && (
+            <button onClick={() => setLocation(`/admin/abandons/nouveau?matricule=${encodeURIComponent(student.matricule)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 rounded-xl text-xs font-medium hover:bg-red-50 transition-colors">
+              <UserX size={13} /> Nouvel abandon
+            </button>
+          )}
           <button onClick={() => setLocation(`/admin/paiements/new`)} className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-xl text-xs font-medium hover:bg-primary/90 transition-colors">
             <CreditCard size={13} /> Paiement
           </button>
