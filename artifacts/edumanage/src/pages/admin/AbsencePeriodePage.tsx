@@ -37,7 +37,8 @@ export default function AbsencePeriodePage() {
     (c) => c.filiereId === filiereId && c.niveau === niveau?.alias && c.annee === annee && !c.cloturee,
   );
   const semestresDisponibles = SEMESTRES.filter((s) => s.filiere === filiere?.code && s.niveau === niveau?.alias);
-  const classeStudents = etudiants.filter((e) => e.classeId === classeId);
+  // Un étudiant en abandon n'a plus de session à suivre — pas de déclaration de période pour lui.
+  const classeStudents = etudiants.filter((e) => e.classeId === classeId && e.statut !== "abandon");
 
   const handleFiliereChange = (value: string) => {
     setFiliereId(value);

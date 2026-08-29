@@ -1,4 +1,4 @@
-import { getCahiers, getEtudiantById } from "./studentStore";
+import { getCahiers, getEtudiantById, durationHours } from "./studentStore";
 import { getAbsencePeriodeCouvrant } from "./absencePeriodeStore";
 
 /** Une ligne d'assiduité = une absence ou un retard réellement constaté par un cahier de
@@ -81,4 +81,20 @@ export function getTauxPresencePourEtudiant(etudiantId: string): { present: numb
     if (p.statut === "present") present++;
   }
   return { present, total, pct: total > 0 ? Math.round((present / total) * 100) : 100 };
+}
+
+/** Heures d'absence réellement non justifiées d'un étudiant pour une classe/session — utilisées
+ * par Délibérations pour la décision d'exclusion disciplinaire. Une absence justifiée (par le
+ * cahier ou couverte par une déclaration de période) ne compte jamais contre l'étudiant. */
+export function getHeuresAbsenceNonJustifieePourEtudiant(etudiantId: string, classeId: string, semestreAlias: string): number {
+  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && c.classeId === classeId && c.semestre === semestreAlias);
+  let heures = 0;
+  for (const c of cahiers) {
+    const p = c.presences.find((x) => x.etudiantId === etudiantId);
+    if (!p || p.statut !== "absent" || p.justification) continue;
+    const periode = getAbsencePeriodeCouvrant(etudiantId, c.date);
+    if (periode?.justifie) continue;
+    heures += durationHours(c.heureDebut, c.heureFin);
+  }
+  return Math.round(heures * 10) / 10;
 }

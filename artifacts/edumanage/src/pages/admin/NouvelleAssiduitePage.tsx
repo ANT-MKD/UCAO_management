@@ -13,6 +13,8 @@ import {
   creerCahierSecoursAdmin,
   type CahierPresenceEntry,
 } from "@/data/studentStore";
+import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
+import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -25,6 +27,7 @@ export default function NouvelleAssiduitePage() {
   const CLASSES = useClasses();
   const seances = useSeances();
   useCahiers(); // souscription pour re-rendre quand un cahier (ou sa justification) change
+  usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
@@ -98,7 +101,14 @@ export default function NouvelleAssiduitePage() {
   const getEdit = (etudiantId: string) => edits[etudiantId] ?? { justifie: false, justificatif: "" };
 
   const startSecours = () => {
-    const classeStudents = etudiants.filter((e) => e.classeId === classeId);
+    const etudiantsRetiresIds = new Set(getEtudiantsRetiresPourCours(classeId, ecId));
+    const etudiantsAjoutesIds = new Set(getEtudiantsAjoutesPourCours(classeId, ecId));
+    const classeStudents = etudiants.filter((e) => {
+      if (e.statut === "abandon") return false;
+      const estMembre = e.classeId === classeId;
+      const estAjoute = etudiantsAjoutesIds.has(e.id);
+      return (estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute;
+    });
     setSecoursPresences(classeStudents.map((s) => ({ etudiantId: s.id, nom: `${s.prenom} ${s.nom}`, statut: "present" as const, justification: "" })));
     setModeSecours(true);
   };

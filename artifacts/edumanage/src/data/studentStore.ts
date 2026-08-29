@@ -1856,7 +1856,7 @@ function normalizeCahier(c: CahierSeanceRecord): CahierSeanceRecord {
   };
 }
 
-function durationHours(debut: string, fin: string): number {
+export function durationHours(debut: string, fin: string): number {
   const [sh, sm] = debut.split(":").map(Number);
   const [eh, em] = fin.split(":").map(Number);
   if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 2;

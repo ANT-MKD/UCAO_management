@@ -10,6 +10,9 @@ import { useStudentStore } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { computeBulletinPourClasse } from "@/data/bulletinEngine";
+import { getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
+import { useCahiers } from "@/hooks/useStudentStore";
+import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
 import { cn } from "@/lib/utils";
 
 type Decision = "admis" | "ajourne" | "rattrapage" | "exclu" | null;
@@ -46,6 +49,8 @@ export default function DeliberationsPage() {
   const etudiants = useStudentStore();
   const CLASSES = useClasses();
   const scolariteConfigs = useScolariteConfigs();
+  useCahiers(); // souscription pour re-rendre quand un cahier (donc l'assiduité réelle) change
+  useAbsencesPeriode(); // idem pour les couvertures par période
   const [selectedSemestreId, setSelectedSemestreId] = useState<string>("");
   const [selectedClasseId, setSelectedClasseId] = useState<string>("");
   const [selectedFiliereId, setSelectedFiliereId] = useState<string>("");
@@ -84,14 +89,14 @@ export default function DeliberationsPage() {
     // Moyennes réelles calculées par le même moteur que Bulletin étudiants (vraies UE/EC,
     // vraies notes CC+EF, vrais poids, rattrapage pris en compte) — plus de MOYENNES_PROMO ni
     // de Math.random() : l'ancienne version pouvait décider Admis/Ajourné sur un nombre tiré au
-    // hasard. L'assiduité n'a pas encore de module réel dans l'appli ; 0 absence par défaut,
-    // honnête, plutôt qu'un chiffre inventé.
+    // hasard. Les absences viennent maintenant des vrais cahiers de textes (heures non
+    // justifiées, une absence couverte par une déclaration de période ne compte pas).
     const sample: JuryRow[] = etudiants
       .filter((e) => e.classeId === selectedClasseId)
       .map((e): JuryRow => {
         const bulletin = computeBulletinPourClasse(e.id, selectedClasseId, semestre.alias);
         const moy = bulletin?.moyenneSession ?? 0;
-        const absences = 0;
+        const absences = getHeuresAbsenceNonJustifieePourEtudiant(e.id, selectedClasseId, semestre.alias);
         const decision = autoDecide(moy, absences, moyennePassage, moyenneEliminatoire);
         return {
           id: e.id,
@@ -273,7 +278,7 @@ export default function DeliberationsPage() {
             <div className="flex items-center gap-2">
               <Scale size={16} className="text-primary" />
               <h3 className="text-sm font-bold text-foreground">Décisions du jury</h3>
-              <span className="text-[11px] text-muted-foreground font-normal">— moyennes réelles (Bulletin étudiants) ; assiduité pas encore suivie, 0h par défaut</span>
+              <span className="text-[11px] text-muted-foreground font-normal">— moyennes réelles (Bulletin étudiants) ; heures d&apos;absence non justifiées réelles (Cahier de textes)</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Moyenne générale :</span>

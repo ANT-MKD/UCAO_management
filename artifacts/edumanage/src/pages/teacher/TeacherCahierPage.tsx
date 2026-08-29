@@ -3,6 +3,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSeances, useCahiers, useStudentStore } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
+import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
+import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
+import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
+import { getAbsencePeriodeCouvrant } from "@/data/absencePeriodeStore";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
@@ -28,6 +32,8 @@ export function TeacherCahierPage() {
   const students = useStudentStore();
   const ecs = useEcs();
   const ues = useUes();
+  usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
+  useAbsencesPeriode(); // souscription pour re-rendre quand une déclaration de période change
 
   const [seanceId, setSeanceId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -52,7 +58,17 @@ export function TeacherCahierPage() {
   const seance = seances.find((s) => s.id === seanceId);
   const ec = ecs.find((e) => e.id === seance?.ecId);
   const ue = ues.find((u) => u.id === ec?.ueId);
-  const classeStudents = students.filter((s) => s.classeId === seance?.classeId);
+  // Le roster respecte les mêmes règles que Saisie des Notes/Rattrapage : un étudiant en
+  // abandon n'a plus de cours à suivre, un étudiant retiré de cet EC (Mise à jour cours
+  // étudiants) en sort, un étudiant ajouté à cet EC y entre même hors de sa classe réelle.
+  const etudiantsRetiresIds = seance ? new Set(getEtudiantsRetiresPourCours(seance.classeId, seance.ecId)) : new Set<string>();
+  const etudiantsAjoutesIds = seance ? new Set(getEtudiantsAjoutesPourCours(seance.classeId, seance.ecId)) : new Set<string>();
+  const classeStudents = students.filter((s) => {
+    if (s.statut === "abandon") return false;
+    const estMembre = s.classeId === seance?.classeId;
+    const estAjoute = etudiantsAjoutesIds.has(s.id);
+    return (estMembre && !etudiantsRetiresIds.has(s.id)) || estAjoute;
+  });
   const stats = seance ? getCahierStatsForEc(seance.ecId) : null;
 
   useEffect(() => {
@@ -299,9 +315,21 @@ export function TeacherCahierPage() {
                   <span className="text-xs text-muted-foreground">Taux auto : <strong>{taux}%</strong> ({presentCount}/{presences.length})</span>
                 </div>
                 <div className="max-h-64 overflow-auto space-y-2">
-                  {presences.map((p) => (
+                  {presences.map((p) => {
+                    const periode = getAbsencePeriodeCouvrant(p.etudiantId, date);
+                    return (
                     <div key={p.etudiantId} className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
                       <span className="text-sm font-medium min-w-[140px]">{p.nom}</span>
+                      {periode && p.statut !== "absent" && (
+                        <button
+                          type="button"
+                          onClick={() => { setPresence(p.etudiantId, "absent"); setJustif(p.etudiantId, periode.motif); }}
+                          className="text-[11px] px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700"
+                          title={`Absence déclarée du ${periode.dateDebut} au ${periode.dateFin} — ${periode.motif}`}
+                        >
+                          Absence prévue (période) — appliquer
+                        </button>
+                      )}
                       {(["present", "absent", "retard"] as const).map((st) => (
                         <button
                           key={st}
@@ -339,7 +367,7 @@ export function TeacherCahierPage() {
                         />
                       )}
                     </div>
-                  ))}
+                  );})}
                   {presences.length === 0 && <p className="text-sm text-muted-foreground">Aucun étudiant dans cette classe.</p>}
                 </div>
               </div>
