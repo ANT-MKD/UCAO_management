@@ -12,7 +12,7 @@ export interface SeanceSlot {
   ec?: string;
 }
 
-export type ConflictType = "salle" | "prof" | "classe";
+export type ConflictType = "salle" | "prof" | "classe" | "cahier";
 
 export interface ScheduleConflict {
   type: ConflictType;

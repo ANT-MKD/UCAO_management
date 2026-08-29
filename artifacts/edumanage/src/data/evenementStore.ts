@@ -90,6 +90,21 @@ export function ajouterEvenement(payload: NewEvenementPayload): { evenement?: Ev
   return { evenement, conflicts: [] };
 }
 
+export function modifierEvenement(id: string, payload: NewEvenementPayload): { evenement?: EvenementRecord; conflicts: ScheduleConflict[] } {
+  const existing = evenements.find((e) => e.id === id);
+  if (!existing) return { conflicts: [] };
+  const jour = dateToJour(payload.date);
+  const semaineDu = mondayOf(payload.date);
+  const candidate = { id, date: payload.date, heureDebut: payload.heureDebut, heureFin: payload.heureFin, salleId: payload.salleId };
+  const conflicts = detectEvenementConflicts(getSeances(), evenements, candidate, jour, semaineDu);
+  if (conflicts.length > 0) return { conflicts };
+
+  const evenement: EvenementRecord = { ...existing, ...payload };
+  evenements = evenements.map((e) => (e.id === id ? evenement : e));
+  persist();
+  return { evenement, conflicts: [] };
+}
+
 export function supprimerEvenement(id: string) {
   evenements = evenements.filter((e) => e.id !== id);
   persist();

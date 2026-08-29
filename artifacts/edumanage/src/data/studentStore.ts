@@ -1710,6 +1710,20 @@ export function updateSeancePosition(
   const seance = store.seances.find((s) => s.id === id);
   if (!seance) return { ok: false, conflicts: [] };
 
+  // Un cahier de textes déjà soumis pour cette séance parle d'un jour/heure précis — la
+  // déplacer casserait silencieusement ce lien (le cahier resterait daté de l'ancien créneau).
+  const cahierExistant = store.cahiers.some((c) => c.seanceId === id && c.statut !== "brouillon");
+  if (cahierExistant) {
+    return {
+      ok: false,
+      conflicts: [{
+        type: "cahier",
+        seanceId: id,
+        label: "Un cahier de textes a déjà été soumis pour cette séance cette semaine — déplacement bloqué pour ne pas casser la cohérence",
+      }],
+    };
+  }
+
   const candidate: SeanceSlot = { ...seance, jour, heureDebut, heureFin };
   const conflicts = detectScheduleConflicts(store.seances, candidate, id);
   if (conflicts.length > 0) return { ok: false, conflicts };

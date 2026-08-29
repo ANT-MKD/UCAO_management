@@ -58,8 +58,6 @@ const StudentCardPage = lazy(() => import("@/pages/admin/StudentCardPage"));
 // Enseignants
 const TeachersPage = lazy(() => import("@/pages/admin/TeachersPage"));
 const TeacherCoursesPage = lazy(() => import("@/pages/admin/TeacherCoursesPage"));
-const TeacherPlanningPage = lazy(() => import("@/pages/admin/TeacherPlanningPage"));
-const TeacherPlanningFormPage = lazy(() => import("@/pages/admin/TeacherPlanningFormPage"));
 const TeacherRatePage = lazy(() => import("@/pages/admin/TeacherRatePage"));
 const TeacherVolumePage = lazy(() => import("@/pages/admin/TeacherVolumePage"));
 const TeacherCourseStatusPage = lazy(() => import("@/pages/admin/TeacherCourseStatusPage"));
@@ -333,11 +331,8 @@ function AppRouter() {
       <Route path="/admin/teachers/courses">
         <Admin><TeacherCoursesPage /></Admin>
       </Route>
-      <Route path="/admin/teachers/planning/new">
-        <Admin><TeacherPlanningFormPage /></Admin>
-      </Route>
       <Route path="/admin/teachers/planning">
-        <Admin><TeacherPlanningPage /></Admin>
+        <Redirect to="/admin/schedule?mode=prof" />
       </Route>
       <Route path="/admin/teachers/rates">
         <Admin><TeacherRatePage /></Admin>

@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import {
   Plus, ChevronLeft, ChevronRight, GripVertical, AlertTriangle, Users, MapPin,
-  GraduationCap, Search, CalendarPlus, Copy,
+  GraduationCap, Search, CalendarPlus, Copy, Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -14,7 +14,7 @@ import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { useEvenements } from "@/hooks/useEvenementStore";
-import { ajouterEvenement } from "@/data/evenementStore";
+import { ajouterEvenement, modifierEvenement, supprimerEvenement, type EvenementRecord } from "@/data/evenementStore";
 import {
   filterTeachers,
   matchesProf,
@@ -71,6 +71,8 @@ const formInputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-
 
 export default function SchedulePage() {
   const [, setLocation] = useLocation();
+  const searchStr = useSearch();
+  const initialParams = useMemo(() => new URLSearchParams(searchStr), []); // eslint-disable-line react-hooks/exhaustive-deps
   const seances = useSeances();
   const CLASSES = useClasses();
   const SALLES = useSalles();
@@ -79,10 +81,15 @@ export default function SchedulePage() {
   useJoursFeries(); // souscription pour re-rendre quand la liste des jours fériés change
   const teachers = ENSEIGNANTS as EnseignantRecord[];
 
-  const [viewMode, setViewMode] = useState<ViewMode>("classe");
+  // Point d'entrée depuis le menu "Planning professeurs" (redirigé vers ce mode plutôt que
+  // de maintenir une page séparée redondante) : ?mode=prof&teacherId=... présélectionne.
+  const initialTeacherId = initialParams.get("teacherId") ?? "";
+  const initialTeacher = initialTeacherId ? teachers.find((t) => t.id === initialTeacherId) : undefined;
+
+  const [viewMode, setViewMode] = useState<ViewMode>(initialParams.get("mode") === "prof" ? "prof" : "classe");
   const [viewTarget, setViewTarget] = useState("");
-  const [profQuery, setProfQuery] = useState("");
-  const [selectedProfId, setSelectedProfId] = useState("");
+  const [profQuery, setProfQuery] = useState(initialTeacher ? teacherDisplayLabel(initialTeacher) : "");
+  const [selectedProfId, setSelectedProfId] = useState(initialTeacherId);
   const [showProfSuggestions, setShowProfSuggestions] = useState(false);
   const [weekViewMode, setWeekViewMode] = useState<"semaine" | "jour">("semaine");
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -90,8 +97,9 @@ export default function SchedulePage() {
   const [conflictMsg, setConflictMsg] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Évènement — création
+  // Évènement — création / édition
   const [showEvenementModal, setShowEvenementModal] = useState(false);
+  const [editingEvenementId, setEditingEvenementId] = useState<string | undefined>(undefined);
   const [evObjet, setEvObjet] = useState("");
   const [evDate, setEvDate] = useState(new Date().toISOString().slice(0, 10));
   const [evTypeId, setEvTypeId] = useState("");
@@ -102,6 +110,7 @@ export default function SchedulePage() {
   const [evSurveillant, setEvSurveillant] = useState("");
   const [evRemarque, setEvRemarque] = useState("");
   const [evConflicts, setEvConflicts] = useState<string[]>([]);
+  const [deleteEvenementTarget, setDeleteEvenementTarget] = useState<EvenementRecord | null>(null);
 
   const selectedProf = teachers.find((t) => t.id === selectedProfId) ?? null;
   const profSuggestions = useMemo(() => filterTeachers(teachers, profQuery).slice(0, 8), [teachers, profQuery]);
@@ -217,6 +226,34 @@ export default function SchedulePage() {
     if (!evTypeId && evenementTypes[0]) setEvTypeId(evenementTypes[0].id);
   }, [evTypeId, evenementTypes]);
 
+  function resetEvenementForm() {
+    setEditingEvenementId(undefined);
+    setEvObjet("");
+    setEvDate(new Date().toISOString().slice(0, 10));
+    setEvClasseId("");
+    setEvSalleId("");
+    setEvHeureDebut("08:00");
+    setEvHeureFin("10:00");
+    setEvSurveillant("");
+    setEvRemarque("");
+    setEvConflicts([]);
+  }
+
+  function openEditEvenement(ev: EvenementRecord) {
+    setEditingEvenementId(ev.id);
+    setEvObjet(ev.objet);
+    setEvDate(ev.date);
+    setEvTypeId(ev.typeId);
+    setEvClasseId(ev.classeId ?? "");
+    setEvSalleId(ev.salleId ?? "");
+    setEvHeureDebut(ev.heureDebut);
+    setEvHeureFin(ev.heureFin);
+    setEvSurveillant(ev.surveillant ?? "");
+    setEvRemarque(ev.remarque ?? "");
+    setEvConflicts([]);
+    setShowEvenementModal(true);
+  }
+
   function submitEvenement() {
     setEvConflicts([]);
     if (!evObjet.trim() || !evDate || !evenementTypeSelected) {
@@ -225,7 +262,7 @@ export default function SchedulePage() {
     }
     const classe = CLASSES.find((c) => c.id === evClasseId);
     const salle = SALLES.find((s) => s.id === evSalleId);
-    const result = ajouterEvenement({
+    const payload = {
       objet: evObjet.trim(),
       date: evDate,
       typeId: evenementTypeSelected.id,
@@ -238,18 +275,15 @@ export default function SchedulePage() {
       heureFin: evHeureFin,
       surveillant: evenementTypeSelected.necessiteSurveillant ? evSurveillant.trim() || undefined : undefined,
       remarque: evRemarque.trim() || undefined,
-    });
+    };
+    const result = editingEvenementId ? modifierEvenement(editingEvenementId, payload) : ajouterEvenement(payload);
     if (result.conflicts.length > 0) {
       setEvConflicts(result.conflicts.map((c) => c.label));
       return;
     }
-    toast.success("Évènement ajouté");
+    toast.success(editingEvenementId ? "Évènement modifié" : "Évènement ajouté");
     setShowEvenementModal(false);
-    setEvObjet("");
-    setEvClasseId("");
-    setEvSalleId("");
-    setEvSurveillant("");
-    setEvRemarque("");
+    resetEvenementForm();
   }
 
   const canDisplay = viewMode === "prof" ? !!selectedProf : !!viewTarget;
@@ -262,7 +296,7 @@ export default function SchedulePage() {
         subtitle="Propre à chaque semaine — vue par classe, salle ou professeur, conflits détectés au déplacement"
         actions={
           <div className="flex items-center gap-2">
-            <button data-testid="edt-ajouter-evenement" onClick={() => setShowEvenementModal(true)} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+            <button data-testid="edt-ajouter-evenement" onClick={() => { resetEvenementForm(); setShowEvenementModal(true); }} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
               <CalendarPlus size={15} /> Ajouter un évènement
             </button>
             <button data-testid="edt-ajouter-seance" onClick={() => setLocation("/admin/schedule/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
@@ -515,9 +549,9 @@ export default function SchedulePage() {
                         <div
                           key={ev.id}
                           data-testid={`edt-evenement-${ev.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          title={ev.remarque || ev.objet}
-                          className="absolute left-1 right-1 rounded-lg px-2 py-1.5 overflow-hidden border-dashed"
+                          onClick={(e) => { e.stopPropagation(); openEditEvenement(ev); }}
+                          title={`${ev.remarque || ev.objet} — cliquer pour modifier ou supprimer`}
+                          className="absolute left-1 right-1 rounded-lg px-2 py-1.5 overflow-hidden border-dashed cursor-pointer hover:brightness-95"
                           style={{
                             top: `${top}px`, height: `${Math.max(height, 40)}px`,
                             background: colors.bg, border: `2px dashed ${colors.border}`,
@@ -545,7 +579,12 @@ export default function SchedulePage() {
         </>
       )}
 
-      <FormModal open={showEvenementModal} onClose={() => setShowEvenementModal(false)} title="Ajouter un évènement" size="md">
+      <FormModal
+        open={showEvenementModal}
+        onClose={() => { setShowEvenementModal(false); resetEvenementForm(); }}
+        title={editingEvenementId ? "Modifier l'évènement" : "Ajouter un évènement"}
+        size="md"
+      >
         <div className="space-y-4">
           {evConflicts.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
@@ -605,16 +644,60 @@ export default function SchedulePage() {
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Remarque</label>
             <textarea value={evRemarque} onChange={(e) => setEvRemarque(e.target.value)} rows={2} className={formInputClass} />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowEvenementModal(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
-              Annuler
-            </button>
-            <button type="button" onClick={submitEvenement} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90" data-testid="ev-sauvegarder">
-              Sauvegarder
-            </button>
+          <div className="flex justify-between gap-2 pt-2">
+            {editingEvenementId ? (
+              <button
+                type="button"
+                data-testid="ev-supprimer"
+                onClick={() => {
+                  const ev = evenements.find((e) => e.id === editingEvenementId);
+                  if (ev) setDeleteEvenementTarget(ev);
+                }}
+                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50"
+              >
+                <Trash2 size={14} /> Supprimer
+              </button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setShowEvenementModal(false); resetEvenementForm(); }} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                Annuler
+              </button>
+              <button type="button" onClick={submitEvenement} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90" data-testid="ev-sauvegarder">
+                Sauvegarder
+              </button>
+            </div>
           </div>
         </div>
       </FormModal>
+
+      {deleteEvenementTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteEvenementTarget(null)} />
+          <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6">
+            <h2 className="text-base font-semibold mb-1">Supprimer « {deleteEvenementTarget.objet} » ?</h2>
+            <p className="text-xs text-muted-foreground mb-4">Cette action est irréversible.</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteEvenementTarget(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
+                Annuler
+              </button>
+              <button
+                type="button"
+                data-testid="ev-confirmer-suppression"
+                onClick={() => {
+                  supprimerEvenement(deleteEvenementTarget.id);
+                  toast.success("Évènement supprimé");
+                  setDeleteEvenementTarget(null);
+                  setShowEvenementModal(false);
+                  resetEvenementForm();
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

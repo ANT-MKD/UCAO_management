@@ -75,7 +75,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "prof-liste", label: "Liste professeurs", href: "/admin/teachers" },
       { id: "prof-ajouter", label: "Ajouter professeurs", href: "/admin/teachers/new" },
       { id: "prof-cours", label: "Cours programmés", href: "/admin/teachers/courses" },
-      { id: "prof-planning", label: "Planning professeurs", href: "/admin/teachers/planning" },
+      { id: "prof-planning", label: "Planning professeurs", href: "/admin/schedule?mode=prof" },
       { id: "prof-taux", label: "Taux horaire / Forfait", href: "/admin/teachers/rates" },
       { id: "prof-vh", label: "Mise à jour V.H", href: "/admin/teachers/volumes" },
       { id: "prof-statut-cours", label: "Mise à jour statut cours", href: "/admin/teachers/course-status" },
