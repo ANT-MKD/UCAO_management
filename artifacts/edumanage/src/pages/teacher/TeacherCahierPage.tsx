@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSeances, useCahiers, useStudentStore } from "@/hooks/useStudentStore";
@@ -10,11 +10,27 @@ import { getAbsencePeriodeCouvrant } from "@/data/absencePeriodeStore";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
+  getCahierPourSeanceEtDate,
   type CahierPresenceEntry,
   type CahierAttachment,
+  type CahierSeanceRecord,
+  type SeanceRecord,
 } from "@/data/studentStore";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+const STATUT_CLS: Record<string, string> = {
+  soumis: "bg-amber-50 text-amber-700",
+  valide: "bg-emerald-50 text-emerald-700",
+  rejete: "bg-red-50 text-red-700",
+  brouillon: "bg-slate-100 text-slate-600",
+};
+
+/** Jour de semaine (1=Lundi…6=Samedi) d'une date ISO — même convention que SeanceRecord.jour,
+ * qui coïncide avec Date.getDay() (0=Dimanche…6=Samedi) sauf pour le dimanche (hors cours). */
+function jourDeLaSemaine(dateIso: string): number {
+  return new Date(`${dateIso}T00:00:00`).getDay();
+}
 
 function matchProf(label: string, userName?: string) {
   if (!userName) return false;
@@ -37,6 +53,8 @@ export function TeacherCahierPage() {
 
   const [seanceId, setSeanceId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [editingCahierId, setEditingCahierId] = useState<string | undefined>(undefined);
+  const skipResetRef = useRef(false);
   const [sujet, setSujet] = useState("");
   const [resume, setResume] = useState("");
   const [competences, setCompetences] = useState("");
@@ -72,6 +90,10 @@ export function TeacherCahierPage() {
   const stats = seance ? getCahierStatsForEc(seance.ecId) : null;
 
   useEffect(() => {
+    if (skipResetRef.current) {
+      skipResetRef.current = false;
+      return;
+    }
     if (!seance) {
       setPresences([]);
       return;
@@ -149,8 +171,9 @@ export function TeacherCahierPage() {
       etatSeance,
       motifAnnulation: etatSeance === "annulee" ? motifAnnulation : undefined,
       asDraft,
+      cahierId: editingCahierId,
     });
-    toast.success(asDraft ? "Brouillon enregistré" : "Cahier soumis — en attente de validation admin");
+    toast.success(asDraft ? "Brouillon enregistré" : editingCahierId ? "Cahier mis à jour et soumis à nouveau" : "Cahier soumis — en attente de validation admin");
     if (!asDraft) {
       setSujet("");
       setResume("");
@@ -162,12 +185,64 @@ export function TeacherCahierPage() {
       setEvalTypes([]);
       setEvalDetail("");
       setMotifAnnulation("");
+      setEditingCahierId(undefined);
+    }
+  }
+
+  /** Recharge un cahier déjà existant (brouillon, soumis ou rejeté) dans le formulaire pour le
+   * modifier — jamais un cahier validé, déjà transmis comptabilité/vacations. Le seanceId/date
+   * changent aussi ; skipResetRef évite que l'effet de remise à zéro des présences écrase les
+   * présences réellement saisies du cahier rechargé. */
+  function loadCahierForEdit(c: CahierSeanceRecord) {
+    skipResetRef.current = true;
+    setEditingCahierId(c.id);
+    setSeanceId(c.seanceId);
+    setDate(c.date);
+    setSujet(c.sujet);
+    setResume(c.resume);
+    setCompetences(c.competences);
+    setLiens((c.liensExternes || []).join("\n"));
+    setPhotos((c.photosTableau || []).join("\n"));
+    setPieces(c.piecesJointes || []);
+    setPresences(c.presences);
+    setDevoirDonne(c.travail?.devoirDonne ?? "");
+    setDateLimite(c.travail?.dateLimite ?? "");
+    setFichierRemise(c.travail?.fichierARemettre ?? "");
+    setBareme(c.travail?.bareme ?? "");
+    setStatutRemises(c.travail?.statutRemises ?? "non_ouvert");
+    setEvalTypes(c.evaluation?.types ?? []);
+    setEvalDetail(c.evaluation?.detail ?? "");
+    setEtatSeance(c.etatSeance);
+    setMotifAnnulation(c.motifAnnulation ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /** Choix rapide d'une séance depuis le récapitulatif "reste à faire" : si un cahier existe déjà
+   * pour cette séance à cette date, on le recharge pour consultation/correction ; sinon on se
+   * contente de sélectionner la séance pour la saisir. */
+  function selectSeanceChip(s: SeanceRecord) {
+    const existing = getCahierPourSeanceEtDate(s.id, date);
+    if (existing) {
+      loadCahierForEdit(existing);
+    } else {
+      setEditingCahierId(undefined);
+      setSeanceId(s.id);
     }
   }
 
   const mineCahiers = cahiers.filter((c) => matchProf(c.prof, currentUser?.name));
   const presentCount = presences.filter((p) => p.statut === "present").length;
   const taux = presences.length ? Math.round((presentCount / presences.length) * 1000) / 10 : 0;
+
+  // "Reste à faire" : les séances du prof programmées le jour de semaine de la date choisie,
+  // avec pour chacune si un cahier (soumis/validé/rejeté) existe déjà à cette date précise.
+  const jourChoisi = date ? jourDeLaSemaine(date) : -1;
+  const seancesDuJour = mine.filter((s) => s.jour === jourChoisi);
+  const seancesAvecStatut = seancesDuJour.map((s) => ({
+    seance: s,
+    cahier: getCahierPourSeanceEtDate(s.id, date),
+  }));
+  const nbFaites = seancesAvecStatut.filter((x) => x.cahier).length;
 
   const infoGeneral = useMemo(() => {
     if (!seance) return null;
@@ -192,6 +267,21 @@ export function TeacherCahierPage() {
       <div className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Cahier de texte électronique</h2>
         <p className="text-sm text-muted-foreground mt-1">Corrélé à l&apos;EDT, la maquette UE/EC et la classe pédagogique</p>
+        {editingCahierId && (
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
+            <span className="text-xs text-amber-800">Modification d&apos;un cahier existant — la soumission mettra à jour ce cahier au lieu d&apos;en créer un nouveau.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingCahierId(undefined);
+                setSeanceId("");
+              }}
+              className="text-xs font-medium text-amber-800 underline shrink-0"
+            >
+              Annuler / nouveau cahier
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
@@ -200,15 +290,50 @@ export function TeacherCahierPage() {
           <select
             className={inputClass}
             value={seanceId}
-            onChange={(e) => setSeanceId(e.target.value)}
+            onChange={(e) => {
+              setEditingCahierId(undefined);
+              setSeanceId(e.target.value);
+            }}
           >
             <option value="">Choisir une séance…</option>
-            {mine.map((s) => (
-              <option key={s.id} value={s.id}>
-                {JOURS[s.jour]} {s.heureDebut}–{s.heureFin} — {s.ec} ({s.classe}) · {s.salle}
-              </option>
-            ))}
+            {mine.map((s) => {
+              const cahierDuJour = getCahierPourSeanceEtDate(s.id, date);
+              return (
+                <option key={s.id} value={s.id}>
+                  {cahierDuJour ? "✓ " : ""}{JOURS[s.jour]} {s.heureDebut}–{s.heureFin} — {s.ec} ({s.classe}) · {s.salle}
+                  {cahierDuJour ? ` — déjà ${cahierDuJour.statut === "rejete" ? "rejeté" : "soumis"} le ${date}` : ""}
+                </option>
+              );
+            })}
           </select>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/30 p-3">
+          <p className="text-xs font-medium mb-2">
+            Reste à faire le {date} ({JOURS[jourChoisi] || "—"}) : {nbFaites}/{seancesAvecStatut.length} cahier(s) traité(s)
+          </p>
+          {seancesAvecStatut.length === 0 && (
+            <p className="text-xs text-muted-foreground">Aucune séance programmée ce jour-là.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {seancesAvecStatut.map(({ seance: s, cahier }) => (
+              <button
+                type="button"
+                key={s.id}
+                onClick={() => selectSeanceChip(s)}
+                className={`text-[11px] px-2 py-1 rounded-lg border ${
+                  cahier
+                    ? cahier.statut === "rejete"
+                      ? "bg-red-50 border-red-200 text-red-700"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
+                }`}
+                title={cahier ? "Cliquer pour revoir/corriger ce cahier" : "Cliquer pour saisir ce cahier"}
+              >
+                {cahier ? (cahier.statut === "rejete" ? "✗ Rejeté" : "✓ Fait") : "○ À faire"} — {s.heureDebut} {s.ec} ({s.classe})
+              </button>
+            ))}
+          </div>
         </div>
 
         {infoGeneral && (
@@ -432,16 +557,25 @@ export function TeacherCahierPage() {
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <h3 className="font-bold text-sm mb-3">Mes cahiers soumis</h3>
-        {mineCahiers.map((c) => (
-          <div key={c.id} className="border-b border-border py-3 text-sm">
-            <div className="flex flex-wrap justify-between gap-2">
-              <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-muted">{c.statut} · {c.etatSeance}</span>
+        <p className="text-xs text-muted-foreground -mt-2 mb-3">Cliquez sur un cahier non validé pour le rouvrir et le corriger.</p>
+        {mineCahiers.map((c) => {
+          const modifiable = c.statut !== "valide";
+          return (
+            <div
+              key={c.id}
+              onClick={() => modifiable && loadCahierForEdit(c)}
+              className={`border-b border-border py-3 text-sm ${modifiable ? "cursor-pointer hover:bg-muted/40 rounded-lg px-2 -mx-2" : ""} ${editingCahierId === c.id ? "bg-amber-50" : ""}`}
+              title={modifiable ? "Rouvrir ce cahier pour le modifier" : "Cahier validé — non modifiable"}
+            >
+              <div className="flex flex-wrap justify-between gap-2">
+                <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${STATUT_CLS[c.statut] ?? "bg-muted"}`}>{c.statut} · {c.etatSeance}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">{c.date} · {c.typeSeance} · présence {c.tauxPresence}%</p>
+              <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{c.date} · {c.typeSeance} · présence {c.tauxPresence}%</p>
-            <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>
-          </div>
-        ))}
+          );
+        })}
         {mineCahiers.length === 0 && <p className="text-sm text-muted-foreground">Aucun cahier.</p>}
       </div>
     </div>

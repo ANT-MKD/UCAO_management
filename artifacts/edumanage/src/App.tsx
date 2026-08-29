@@ -183,6 +183,7 @@ const StudentDashboardPage = lazy(() => import("@/pages/student/StudentDashboard
 const StudentMessagesPage = lazy(() => import("@/pages/student/StudentMessagesPage"));
 const StudentRequestsPage = lazy(() => import("@/pages/student/StudentRequestsPage"));
 const CahiersAdminPage = lazy(() => import("@/pages/admin/CahiersAdminPage"));
+const CahierDetailPage = lazy(() => import("@/pages/admin/CahierDetailPage"));
 const TeacherLayoutMod = lazy(() => import("@/pages/teacher/TeacherLayout").then((m) => ({ default: m.TeacherLayout })));
 const TeacherDashboardPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherDashboardPage })));
 const TeacherSchedulePage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherSchedulePage })));
@@ -610,6 +611,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/cahiers">
         <Admin><CahiersAdminPage /></Admin>
+      </Route>
+      <Route path="/admin/cahiers/:id">
+        {(p) => <Admin><CahierDetailPage id={p.id} /></Admin>}
       </Route>
       <Route path="/admin/statistics">
         <Redirect to="/admin/dashboard#reporting" />

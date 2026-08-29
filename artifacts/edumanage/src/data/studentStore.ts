@@ -1966,7 +1966,7 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
     updatedAt: new Date().toISOString(),
   };
 
-  const existingIdx = store.cahiers.findIndex((c) => c.id === base.id || (!payload.cahierId && c.seanceId === payload.seanceId && c.statut === "brouillon"));
+  const existingIdx = store.cahiers.findIndex((c) => c.id === base.id || (!payload.cahierId && c.seanceId === payload.seanceId && c.date === base.date && c.statut === "brouillon"));
   if (existingIdx >= 0) {
     base.id = store.cahiers[existingIdx].id;
     base.createdAt = store.cahiers[existingIdx].createdAt;
