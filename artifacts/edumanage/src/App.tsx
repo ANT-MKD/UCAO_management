@@ -77,6 +77,7 @@ const TeacherFormPage = lazy(() => import("@/pages/admin/TeacherFormPage"));
 
 // Évaluations
 const NotesPage = lazy(() => import("@/pages/admin/NotesPage"));
+const NotesEtudiantPage = lazy(() => import("@/pages/admin/NotesEtudiantPage"));
 const MoyennesPage = lazy(() => import("@/pages/admin/MoyennesPage"));
 const DeliberationsPage = lazy(() => import("@/pages/admin/DeliberationsPage"));
 const ParametrageScolaritePage = lazy(() => import("@/pages/admin/ParametrageScolaritePage"));
@@ -615,6 +616,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/teachers">
         <Admin><TeachersPage /></Admin>
+      </Route>
+      <Route path="/admin/notes/etudiant">
+        <Admin><NotesEtudiantPage /></Admin>
       </Route>
       <Route path="/admin/notes">
         <Admin><NotesPage /></Admin>

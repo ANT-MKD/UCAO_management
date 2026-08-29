@@ -1434,6 +1434,11 @@ export function getNotesByClasseEc(classeId: string, ecId: string): NoteRecord[]
   return store.notes.filter((n) => n.classeId === classeId && n.ecId === ecId);
 }
 
+export function deleteNote(id: string): void {
+  store.notes = store.notes.filter((n) => n.id !== id);
+  persist();
+}
+
 export interface GridNoteInput {
   etudiantId: string;
   cc?: number;

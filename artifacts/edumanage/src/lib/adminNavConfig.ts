@@ -235,7 +235,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Notes",
         children: [
           { id: "scol-notes-saisie", label: "Saisie notes", href: "/admin/notes" },
-          { id: "scol-notes-etudiants", label: "Notes étudiants", href: "/admin/moyennes" },
+          { id: "scol-notes-etudiants", label: "Notes étudiants", href: "/admin/notes/etudiant" },
+          { id: "scol-notes-moyennes", label: "Moyennes par promotion", href: "/admin/moyennes" },
           { id: "scol-notes-rattrapage", label: "Rattrapage", href: wipHref("scol-notes-rattrapage") },
         ],
       },
