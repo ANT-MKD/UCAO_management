@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { Eye, Download, Send, FileText, X, Printer } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { MOYENNES_PROMO, FILIERES, SEMESTRES } from "@/data/mockData";
-import { useReleves, useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { FILIERES, SEMESTRES } from "@/data/mockData";
+import { useReleves, useStudentStore, useAnneesAcademiques, useNotes } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import type { ReleveRecord } from "@/data/studentStore";
+import { useEvaluations } from "@/hooks/useEvaluationStore";
+import type { ReleveRecord, EtudiantRecord } from "@/data/studentStore";
+import { computeBulletin, type UeMoyenne } from "@/data/bulletinEngine";
 import { formatDate, getMention, cn } from "@/lib/utils";
 
 type ReleverEntry = ReleveRecord;
@@ -15,60 +17,79 @@ const STATUT_LABELS = {
   en_attente: { label: "En attente", cls: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
 };
 
-const UE_LINES = [
-  { ue: "UE Fondements Informatique", ecs: [
-    { libelle: "Architecture des Ordinateurs", cc: 13.5, ef: 14.0, credits: 2 },
-    { libelle: "Systèmes d'Exploitation", cc: 15.0, ef: 14.5, credits: 4 },
-  ]},
-  { ue: "UE Algorithmique & Programmation", ecs: [
-    { libelle: "Algorithmique I", cc: 14.5, ef: 13.0, credits: 4 },
-    { libelle: "Programmation C", cc: 13.0, ef: 12.0, credits: 4 },
-  ]},
-  { ue: "UE Mathématiques", ecs: [
-    { libelle: "Mathématiques pour l'Informatique", cc: 12.0, ef: 11.5, credits: 4 },
-    { libelle: "Statistiques Descriptives", cc: 11.0, ef: 10.5, credits: 2 },
-  ]},
-  { ue: "UE Communication", ecs: [
-    { libelle: "Français Professionnel", cc: 14.0, ef: 13.5, credits: 2 },
-    { libelle: "Anglais Technique", cc: 12.5, ef: 11.0, credits: 2 },
-  ]},
-];
-
-function moyenneUE(ecs: { cc: number; ef: number; credits: number }[]): number {
-  const totalPoints = ecs.reduce((s, ec) => s + ((ec.cc + ec.ef) / 2) * ec.credits, 0);
-  const totalCredits = ecs.reduce((s, ec) => s + ec.credits, 0);
-  return totalCredits > 0 ? totalPoints / totalCredits : 0;
+interface BulletinResolu {
+  etudiant: EtudiantRecord;
+  ues: UeMoyenne[];
+  moyenne: number;
+  mention: string;
+  creditsObtenus: number;
+  creditsTotal: number;
+  rang?: number;
+  totalClasse: number;
 }
 
-function buildPrintHtml(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | undefined) {
-  const moy = promo?.moyenneGenerale ?? 13.33;
-  const mention = promo?.mention ?? getMention(moy);
-  const creditsTotal = promo?.credits ?? 30;
-  const rang = promo?.rang ?? "—";
+/** Résout un ReleveRecord (qui ne stocke qu'un nom de filière et de classe, pas leurs id) vers
+ * le vrai bulletin de l'étudiant via le même moteur que Bulletin étudiants — remplace UE_LINES
+ * et MOYENNES_PROMO, entièrement fabriqués et identiques pour n'importe quel étudiant. */
+function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]): BulletinResolu | undefined {
+  const etudiant = etudiants.find((e) => e.id === entry.etudiantId);
+  if (!etudiant) return undefined;
+  const filiereObj = FILIERES.find((f) => f.code === entry.filiere) ?? FILIERES.find((f) => f.id === etudiant.filiereId);
+  const semestreObj = SEMESTRES.find((s) => `${s.nom} (${s.alias})` === entry.semestre);
+  if (!filiereObj || !semestreObj) return undefined;
+
+  const bulletin = computeBulletin(etudiant.id, etudiant.classeId, filiereObj.id, etudiant.niveau, semestreObj.alias);
+  if (bulletin.moyenneSession === undefined) return undefined;
+
+  // Rang réel au sein de la classe actuelle de l'étudiant, sur la même session.
+  const roster = etudiants.filter((e) => e.classeId === etudiant.classeId);
+  const moyennesClasse = roster
+    .map((e) => ({ id: e.id, moy: computeBulletin(e.id, etudiant.classeId, filiereObj.id, etudiant.niveau, semestreObj.alias).moyenneSession }))
+    .filter((r): r is { id: string; moy: number } => r.moy !== undefined)
+    .sort((a, b) => b.moy - a.moy);
+  const rangIndex = moyennesClasse.findIndex((r) => r.id === etudiant.id);
+
+  return {
+    etudiant,
+    ues: bulletin.ues,
+    moyenne: bulletin.moyenneSession,
+    mention: getMention(bulletin.moyenneSession),
+    creditsObtenus: bulletin.creditsObtenus,
+    creditsTotal: bulletin.creditsTotal,
+    rang: rangIndex >= 0 ? rangIndex + 1 : undefined,
+    totalClasse: moyennesClasse.length,
+  };
+}
+
+function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 
+  if (!resolved) {
+    return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Relevé indisponible</title></head>
+      <body style="font-family:sans-serif;padding:40px;text-align:center;color:#6b7280;">
+        <p>Bulletin indisponible pour ${entry.etudiant} — notes insuffisantes pour cette session.</p>
+      </body></html>`;
+  }
+  const { moyenne: moy, mention, creditsObtenus, creditsTotal, rang, totalClasse } = resolved;
+
   let tableRows = "";
-  UE_LINES.forEach(({ ue, ecs }) => {
-    const mUE = moyenneUE(ecs);
-    const totalCredUE = ecs.reduce((s, ec) => s + ec.credits, 0);
-    const valide = mUE >= 10;
+  resolved.ues.forEach((ue) => {
     tableRows += `
       <tr style="background:#f0f4ff;font-weight:700;">
-        <td style="padding:7px 10px;font-size:11px;color:#1e3a8a;border-bottom:1px solid #dde3f0;">${ue}</td>
-        <td style="padding:7px 10px;text-align:center;font-size:11px;color:${mUE >= 10 ? "#059669" : "#dc2626"};font-weight:800;border-bottom:1px solid #dde3f0;">${mUE.toFixed(2)}</td>
+        <td style="padding:7px 10px;font-size:11px;color:#1e3a8a;border-bottom:1px solid #dde3f0;">${ue.code} - ${ue.libelle}</td>
+        <td style="padding:7px 10px;text-align:center;font-size:11px;color:${ue.moyenne !== undefined ? (ue.moyenne >= 10 ? "#059669" : "#dc2626") : "#9ca3af"};font-weight:800;border-bottom:1px solid #dde3f0;">${ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "En attente"}</td>
         <td style="padding:7px 10px;text-align:center;font-size:11px;color:#6b7280;border-bottom:1px solid #dde3f0;">—</td>
         <td style="padding:7px 10px;text-align:center;font-size:11px;color:#6b7280;border-bottom:1px solid #dde3f0;">—</td>
-        <td style="padding:7px 10px;text-align:center;font-size:11px;border-bottom:1px solid #dde3f0;">${totalCredUE}</td>
-        <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #dde3f0;"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:9999px;background:${valide ? "#d1fae5" : "#fee2e2"};color:${valide ? "#065f46" : "#991b1b"};">${valide ? "VALIDÉ" : "NON VALIDÉ"}</span></td>
+        <td style="padding:7px 10px;text-align:center;font-size:11px;border-bottom:1px solid #dde3f0;">${ue.credits}</td>
+        <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #dde3f0;">${ue.moyenne !== undefined ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:9999px;background:${ue.validee ? "#d1fae5" : "#fee2e2"};color:${ue.validee ? "#065f46" : "#991b1b"};">${ue.validee ? "VALIDÉ" : "NON VALIDÉ"}</span>` : ""}</td>
       </tr>`;
-    ecs.forEach(ec => {
-      const noteEC = (ec.cc + ec.ef) / 2;
+    ue.ecs.forEach((ec) => {
       tableRows += `
         <tr style="border-bottom:1px solid #f1f5f9;">
           <td style="padding:6px 10px 6px 24px;font-size:10.5px;color:#374151;">↳ ${ec.libelle}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:${noteEC >= 10 ? "#059669" : "#dc2626"};font-weight:700;">${noteEC.toFixed(2)}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.cc.toFixed(1)}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.ef.toFixed(1)}</td>
+          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:${ec.moyenne !== undefined ? (ec.moyenne >= 10 ? "#059669" : "#dc2626") : "#d1d5db"};font-weight:700;">${ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.cc !== undefined ? ec.cc.toFixed(1) : "—"}</td>
+          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.ef !== undefined ? ec.ef.toFixed(1) : "—"}</td>
           <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.credits}</td>
           <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#9ca3af;">—</td>
         </tr>`;
@@ -149,8 +170,8 @@ function buildPrintHtml(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | u
     <div class="identity-item"><label>Matricule</label><span style="font-family:monospace;">${entry.matricule}</span></div>
     <div class="identity-item"><label>Filière</label><span>${entry.filiere}</span></div>
     <div class="identity-item"><label>Classe</label><span>${entry.classe}</span></div>
-    <div class="identity-item"><label>Année académique</label><span>2025-2026</span></div>
-    <div class="identity-item"><label>Semestre</label><span>Semestre 1 (S1)</span></div>
+    <div class="identity-item"><label>Année académique</label><span>${resolved.etudiant.annee}</span></div>
+    <div class="identity-item"><label>Semestre</label><span>${entry.semestre}</span></div>
   </div>
 
   <!-- NOTES TABLE -->
@@ -160,8 +181,8 @@ function buildPrintHtml(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | u
       <tr>
         <th style="text-align:left;">UE / Élément Constitutif</th>
         <th>Moyenne</th>
-        <th>CC (40%)</th>
-        <th>Examen (60%)</th>
+        <th>CC</th>
+        <th>Examen</th>
         <th>Crédits</th>
         <th>Résultat</th>
       </tr>
@@ -173,7 +194,7 @@ function buildPrintHtml(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | u
         <td>${moy.toFixed(2)} / 20</td>
         <td>—</td>
         <td>—</td>
-        <td>${creditsTotal} / 30</td>
+        <td>${creditsObtenus} / ${creditsTotal}</td>
         <td style="color:#6ee7b7;">${mention.toUpperCase()}</td>
       </tr>
     </tfoot>
@@ -185,9 +206,9 @@ function buildPrintHtml(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | u
     <div class="divider"></div>
     <div class="result-item"><div class="label">Mention</div><div class="value mention">${mention}</div></div>
     <div class="divider"></div>
-    <div class="result-item"><div class="label">Crédits validés</div><div class="value">${creditsTotal}<span style="font-size:12px;opacity:0.7;"> /30</span></div></div>
+    <div class="result-item"><div class="label">Crédits validés</div><div class="value">${creditsObtenus}<span style="font-size:12px;opacity:0.7;"> /${creditsTotal}</span></div></div>
     <div class="divider"></div>
-    <div class="result-item"><div class="label">Rang promo</div><div class="value">${rang}${typeof rang === "number" ? "<span style='font-size:12px;opacity:0.7;'>e</span>" : ""}</div></div>
+    <div class="result-item"><div class="label">Rang promo</div><div class="value">${rang ?? "—"}${typeof rang === "number" ? `<span style='font-size:12px;opacity:0.7;'>e / ${totalClasse}</span>` : ""}</div></div>
     <div class="divider"></div>
     <div class="result-item"><div class="label">Décision jury</div><div class="value mention" style="color:${moy >= 10 ? "#6ee7b7" : "#fca5a5"};">${moy >= 10 ? "ADMIS(E)" : "AJOURNÉ(E)"}</div></div>
   </div>
@@ -220,8 +241,8 @@ function buildPrintHtml(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | u
 </html>`;
 }
 
-function printReleve(entry: ReleverEntry, promo: typeof MOYENNES_PROMO[0] | undefined) {
-  const html = buildPrintHtml(entry, promo);
+function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
+  const html = buildPrintHtml(entry, resolved);
   const win = window.open("", "_blank", "width=900,height=1100");
   if (!win) return;
   win.document.write(html);
@@ -233,6 +254,8 @@ export default function RelevesPage() {
   const etudiants = useStudentStore();
   const classes = useClasses();
   const annees = useAnneesAcademiques();
+  useNotes();
+  useEvaluations();
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [previewEntry, setPreviewEntry] = useState<ReleverEntry | null>(null);
@@ -510,7 +533,7 @@ export default function RelevesPage() {
                         <Eye size={14} />
                       </button>
                       <button
-                        onClick={() => printReleve(r, MOYENNES_PROMO.find((m) => m.etudiantId === r.etudiantId))}
+                        onClick={() => printReleve(r, resolveBulletin(r, etudiants))}
                         className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                         title="Télécharger / Imprimer PDF"
                       >
@@ -534,11 +557,30 @@ export default function RelevesPage() {
 
       {/* ===== PREVIEW MODAL ===== */}
       {previewEntry && (() => {
-        const promo = MOYENNES_PROMO.find((m) => m.etudiantId === previewEntry.etudiantId);
-        const moy = promo?.moyenneGenerale ?? 13.33;
-        const mention = promo?.mention ?? getMention(moy);
-        const creditsTotal = promo?.credits ?? 30;
-        const rang = promo?.rang ?? "—";
+        const resolved = resolveBulletin(previewEntry, etudiants);
+
+        if (!resolved) {
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPreviewEntry(null)}>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu indisponible</h3>
+                  <button onClick={() => setPreviewEntry(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                    <X size={16} className="text-gray-500" />
+                  </button>
+                </div>
+                <div className="p-6 text-sm text-muted-foreground">
+                  Bulletin indisponible pour {previewEntry.etudiant} — notes insuffisantes pour la session « {previewEntry.semestre} ».
+                </div>
+                <div className="flex justify-end px-6 py-4 border-t border-gray-200 dark:border-slate-700">
+                  <button onClick={() => setPreviewEntry(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        const { moyenne: moy, mention, creditsObtenus, creditsTotal, rang, totalClasse } = resolved;
 
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPreviewEntry(null)}>
@@ -547,7 +589,7 @@ export default function RelevesPage() {
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
                 <div>
                   <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu — Relevé de Notes Officiel</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{previewEntry.etudiant} · {previewEntry.matricule} · S1 2025-2026</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{previewEntry.etudiant} · {previewEntry.matricule} · {previewEntry.semestre}</p>
                 </div>
                 <button onClick={() => setPreviewEntry(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
                   <X size={16} className="text-gray-500" />
@@ -585,8 +627,8 @@ export default function RelevesPage() {
                       ["Matricule", previewEntry.matricule],
                       ["Filière", previewEntry.filiere],
                       ["Classe", previewEntry.classe],
-                      ["Année académique", "2025-2026"],
-                      ["Semestre", "Semestre 1 (S1)"],
+                      ["Année académique", resolved.etudiant.annee],
+                      ["Semestre", previewEntry.semestre],
                     ].map(([label, val]) => (
                       <div key={label}>
                         <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Arial", marginBottom: 2 }}>{label}</div>
@@ -602,48 +644,43 @@ export default function RelevesPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5, marginBottom: 14, border: "1px solid #dde3f0", borderRadius: 8, overflow: "hidden" }}>
                     <thead>
                       <tr style={{ background: "#4f46e5", color: "white" }}>
-                        {["UE / Élément Constitutif", "Moyenne", "CC (40%)", "Examen (60%)", "Crédits", "Résultat"].map((h) => (
+                        {["UE / Élément Constitutif", "Moyenne", "CC", "Examen", "Crédits", "Résultat"].map((h) => (
                           <th key={h} style={{ padding: "7px 9px", fontFamily: "Arial", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", textAlign: h === "UE / Élément Constitutif" ? "left" : "center" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {UE_LINES.map(({ ue, ecs }) => {
-                        const mUE = moyenneUE(ecs);
-                        const credUE = ecs.reduce((sum, ec) => sum + ec.credits, 0);
-                        return [
-                          <tr key={ue} style={{ background: "#f0f4ff", fontWeight: 700 }}>
-                            <td style={{ padding: "6px 9px", fontSize: 10.5, color: "#1e3a8a", borderBottom: "1px solid #dde3f0" }}>{ue}</td>
-                            <td style={{ padding: "6px 9px", textAlign: "center", fontSize: 11, color: mUE >= 10 ? "#059669" : "#dc2626", fontWeight: 800, borderBottom: "1px solid #dde3f0" }}>{mUE.toFixed(2)}</td>
-                            <td style={{ padding: "6px 9px", textAlign: "center", color: "#9ca3af", borderBottom: "1px solid #dde3f0" }}>—</td>
-                            <td style={{ padding: "6px 9px", textAlign: "center", color: "#9ca3af", borderBottom: "1px solid #dde3f0" }}>—</td>
-                            <td style={{ padding: "6px 9px", textAlign: "center", fontSize: 10, color: "#6b7280", borderBottom: "1px solid #dde3f0" }}>{credUE}</td>
-                            <td style={{ padding: "6px 9px", textAlign: "center", borderBottom: "1px solid #dde3f0" }}>
-                              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 9999, background: mUE >= 10 ? "#d1fae5" : "#fee2e2", color: mUE >= 10 ? "#065f46" : "#991b1b" }}>{mUE >= 10 ? "VALIDÉ" : "NON VALIDÉ"}</span>
-                            </td>
-                          </tr>,
-                          ...ecs.map((ec) => {
-                            const noteEC = (ec.cc + ec.ef) / 2;
-                            return (
-                              <tr key={ec.libelle} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                <td style={{ padding: "5px 9px 5px 22px", fontSize: 10, color: "#374151" }}>↳ {ec.libelle}</td>
-                                <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10.5, color: noteEC >= 10 ? "#059669" : "#dc2626", fontWeight: 700 }}>{noteEC.toFixed(2)}</td>
-                                <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#6b7280" }}>{ec.cc.toFixed(1)}</td>
-                                <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#6b7280" }}>{ec.ef.toFixed(1)}</td>
-                                <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#9ca3af" }}>{ec.credits}</td>
-                                <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#d1d5db" }}>—</td>
-                              </tr>
-                            );
-                          })
-                        ];
-                      })}
+                      {resolved.ues.map((ue) => [
+                        <tr key={ue.id} style={{ background: "#f0f4ff", fontWeight: 700 }}>
+                          <td style={{ padding: "6px 9px", fontSize: 10.5, color: "#1e3a8a", borderBottom: "1px solid #dde3f0" }}>{ue.code} - {ue.libelle}</td>
+                          <td style={{ padding: "6px 9px", textAlign: "center", fontSize: 11, color: ue.moyenne !== undefined ? (ue.moyenne >= 10 ? "#059669" : "#dc2626") : "#9ca3af", fontWeight: 800, borderBottom: "1px solid #dde3f0" }}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "En attente"}</td>
+                          <td style={{ padding: "6px 9px", textAlign: "center", color: "#9ca3af", borderBottom: "1px solid #dde3f0" }}>—</td>
+                          <td style={{ padding: "6px 9px", textAlign: "center", color: "#9ca3af", borderBottom: "1px solid #dde3f0" }}>—</td>
+                          <td style={{ padding: "6px 9px", textAlign: "center", fontSize: 10, color: "#6b7280", borderBottom: "1px solid #dde3f0" }}>{ue.credits}</td>
+                          <td style={{ padding: "6px 9px", textAlign: "center", borderBottom: "1px solid #dde3f0" }}>
+                            {ue.moyenne !== undefined && (
+                              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 9999, background: ue.validee ? "#d1fae5" : "#fee2e2", color: ue.validee ? "#065f46" : "#991b1b" }}>{ue.validee ? "VALIDÉ" : "NON VALIDÉ"}</span>
+                            )}
+                          </td>
+                        </tr>,
+                        ...ue.ecs.map((ec) => (
+                          <tr key={ec.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "5px 9px 5px 22px", fontSize: 10, color: "#374151" }}>↳ {ec.libelle}</td>
+                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10.5, color: ec.moyenne !== undefined ? (ec.moyenne >= 10 ? "#059669" : "#dc2626") : "#d1d5db", fontWeight: 700 }}>{ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#6b7280" }}>{ec.cc !== undefined ? ec.cc.toFixed(1) : "—"}</td>
+                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#6b7280" }}>{ec.ef !== undefined ? ec.ef.toFixed(1) : "—"}</td>
+                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#9ca3af" }}>{ec.credits}</td>
+                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#d1d5db" }}>—</td>
+                          </tr>
+                        )),
+                      ])}
                     </tbody>
                     <tfoot>
                       <tr style={{ background: "#111827", color: "white" }}>
                         <td style={{ padding: "9px 9px", fontFamily: "Arial", fontSize: 11, fontWeight: 900 }}>MOYENNE GÉNÉRALE PONDÉRÉE</td>
                         <td style={{ padding: "9px 9px", textAlign: "center", fontSize: 12, fontWeight: 900 }}>{moy.toFixed(2)} / 20</td>
                         <td colSpan={2} style={{ textAlign: "center", fontSize: 10, color: "#9ca3af" }}>—</td>
-                        <td style={{ padding: "9px 9px", textAlign: "center", fontSize: 11, fontWeight: 900 }}>{creditsTotal} / 30</td>
+                        <td style={{ padding: "9px 9px", textAlign: "center", fontSize: 11, fontWeight: 900 }}>{creditsObtenus} / {creditsTotal}</td>
                         <td style={{ padding: "9px 9px", textAlign: "center" }}>
                           <span style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7" }}>{mention.toUpperCase()}</span>
                         </td>
@@ -656,8 +693,8 @@ export default function RelevesPage() {
                     {[
                       { label: "Moyenne", value: `${moy.toFixed(2)}/20` },
                       { label: "Mention", value: mention },
-                      { label: "Crédits", value: `${creditsTotal}/30` },
-                      { label: "Rang", value: `${rang}e` },
+                      { label: "Crédits", value: `${creditsObtenus}/${creditsTotal}` },
+                      { label: "Rang", value: rang !== undefined ? `${rang}e / ${totalClasse}` : "—" },
                       { label: "Décision", value: moy >= 10 ? "ADMIS(E)" : "AJOURNÉ(E)", color: moy >= 10 ? "#6ee7b7" : "#fca5a5" },
                     ].map((item, i) => (
                       <div key={i} style={{ flex: 1, textAlign: "center", ...(i > 0 ? { borderLeft: "1px solid rgba(255,255,255,0.2)" } : {}) }}>
@@ -694,7 +731,7 @@ export default function RelevesPage() {
                 <div className="flex gap-3">
                   <button onClick={() => setPreviewEntry(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
                   <button
-                    onClick={() => printReleve(previewEntry, promo)}
+                    onClick={() => printReleve(previewEntry, resolved)}
                     className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
                   >
                     <Printer size={14} /> Imprimer / Exporter PDF

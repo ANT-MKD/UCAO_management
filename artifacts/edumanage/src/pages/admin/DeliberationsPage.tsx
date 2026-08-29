@@ -5,10 +5,11 @@ import {
   ChevronDown, Lock, FileText, Download, Users, Award, TrendingUp
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { SEMESTRES, MOYENNES_PROMO, FILIERES } from "@/data/mockData";
+import { SEMESTRES, FILIERES } from "@/data/mockData";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
+import { computeBulletinPourClasse } from "@/data/bulletinEngine";
 import { cn } from "@/lib/utils";
 
 type Decision = "admis" | "ajourne" | "rattrapage" | "exclu" | null;
@@ -20,6 +21,7 @@ interface JuryRow {
   prenom: string;
   moyenne: number;
   credits: number;
+  creditsTotal: number;
   absences: number;
   decision: Decision;
 }
@@ -75,25 +77,34 @@ export default function DeliberationsPage() {
   }, [rows, decisionFilter, moyenneMin, searchQuery]);
 
   const handleCharger = () => {
-    if (!selectedSemestreId || !selectedClasseId) return;
+    if (!selectedSemestreId || !selectedClasseId || !semestre) return;
     const config = scolariteConfigs.find((c) => c.filiereId === classe?.filiereId);
     const moyennePassage = config?.moyennePassage ?? 10;
     const moyenneEliminatoire = config?.moyenneEliminatoire ?? 0;
-    const sample = etudiants.filter((e) => e.classeId === selectedClasseId).map((e, i) => {
-      const moy = MOYENNES_PROMO[i % MOYENNES_PROMO.length]?.moyenneGenerale ?? (10 + Math.random() * 8);
-      const absences = Math.floor(Math.random() * 14);
-      const decision = autoDecide(moy, absences, moyennePassage, moyenneEliminatoire);
-      return {
-        id: e.id,
-        matricule: e.matricule,
-        nom: e.nom,
-        prenom: e.prenom,
-        moyenne: parseFloat(moy.toFixed(2)),
-        credits: moy >= 10 ? 30 : Math.floor(moy * 2.5),
-        absences,
-        decision,
-      } as JuryRow;
-    });
+    // Moyennes réelles calculées par le même moteur que Bulletin étudiants (vraies UE/EC,
+    // vraies notes CC+EF, vrais poids, rattrapage pris en compte) — plus de MOYENNES_PROMO ni
+    // de Math.random() : l'ancienne version pouvait décider Admis/Ajourné sur un nombre tiré au
+    // hasard. L'assiduité n'a pas encore de module réel dans l'appli ; 0 absence par défaut,
+    // honnête, plutôt qu'un chiffre inventé.
+    const sample: JuryRow[] = etudiants
+      .filter((e) => e.classeId === selectedClasseId)
+      .map((e): JuryRow => {
+        const bulletin = computeBulletinPourClasse(e.id, selectedClasseId, semestre.alias);
+        const moy = bulletin?.moyenneSession ?? 0;
+        const absences = 0;
+        const decision = autoDecide(moy, absences, moyennePassage, moyenneEliminatoire);
+        return {
+          id: e.id,
+          matricule: e.matricule,
+          nom: e.nom,
+          prenom: e.prenom,
+          moyenne: parseFloat(moy.toFixed(2)),
+          credits: bulletin?.creditsObtenus ?? 0,
+          creditsTotal: bulletin?.creditsTotal ?? 0,
+          absences,
+          decision,
+        };
+      });
     setRows(sample);
     setSessionLoaded(true);
     setCloture(false);
@@ -258,10 +269,11 @@ export default function DeliberationsPage() {
       {/* Jury table */}
       {sessionLoaded && rows.length > 0 && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Scale size={16} className="text-primary" />
               <h3 className="text-sm font-bold text-foreground">Décisions du jury</h3>
+              <span className="text-[11px] text-muted-foreground font-normal">— moyennes réelles (Bulletin étudiants) ; assiduité pas encore suivie, 0h par défaut</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Moyenne générale :</span>
@@ -311,7 +323,7 @@ export default function DeliberationsPage() {
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className="text-sm font-semibold text-foreground">{row.credits}</span>
-                        <span className="text-xs text-muted-foreground">/30</span>
+                        <span className="text-xs text-muted-foreground">/{row.creditsTotal}</span>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className={cn("text-sm font-semibold", row.absences > 10 ? "text-red-500" : "text-foreground")}>

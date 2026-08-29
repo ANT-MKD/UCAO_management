@@ -7,11 +7,13 @@ import {
   SEANCES as SEED_SEANCES,
   ENSEIGNANTS,
   MOYENNES_PROMO,
+  SEMESTRES,
 } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
 import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getDerogationsPaiement, derogationActivePour } from "./derogationPaiementStore";
+import { getEvaluations } from "./evaluationStore";
 
 export interface EtudiantRecord {
   id: string;
@@ -1558,11 +1560,18 @@ export function getReleves(): ReleveRecord[] {
   return store.releves;
 }
 
-export function generateRelevesForClasseEc(classeId: string, ecId: string, semestre = "S1 2025-2026"): void {
+export function generateRelevesForClasseEc(classeId: string, ecId: string): void {
   const published = store.notes.filter(
     (n) => n.classeId === classeId && n.ecId === ecId && n.statut === "publie",
   );
   const studentIds = [...new Set(published.map((n) => n.etudiantId))];
+
+  // La session réelle est déduite de l'évaluation posée pour cette classe/EC (Nouvelle évaluation),
+  // jamais d'une chaîne fabriquée — sans quoi resolveBulletin() ne peut plus faire correspondre
+  // ce relevé à un vrai semestre (voir RelevesPage.tsx).
+  const evaluation = getEvaluations().find((e) => e.classeId === classeId && e.ecId === ecId);
+  const semestreObj = evaluation ? SEMESTRES.find((s) => s.id === evaluation.semestreId) : undefined;
+  const semestre = semestreObj ? `${semestreObj.nom} (${semestreObj.alias})` : "Semestre inconnu";
 
   for (const etudiantId of studentIds) {
     const etudiant = getEtudiantById(etudiantId);

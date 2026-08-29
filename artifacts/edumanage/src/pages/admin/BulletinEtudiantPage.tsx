@@ -5,47 +5,20 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useEcs, useUes } from "@/hooks/useCurriculumStore";
+import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
-import { getPoidsForClasseEc } from "@/data/evaluationStore";
-import { getEffectiveNote, type EtudiantRecord } from "@/data/studentStore";
+import { computeBulletin } from "@/data/bulletinEngine";
+import type { EtudiantRecord } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-
-const POIDS_CC_DEFAUT = 30;
-const POIDS_EXAMEN_DEFAUT = 70;
-
-interface EcLigne {
-  id: string;
-  code: string;
-  libelle: string;
-  credits: number;
-  cc?: number;
-  ef?: number;
-  moyenne?: number;
-  creditsObtenus: number;
-  validee: boolean;
-}
-
-interface UeLigne {
-  id: string;
-  code: string;
-  libelle: string;
-  credits: number;
-  ecs: EcLigne[];
-  moyenne?: number;
-  creditsObtenus: number;
-  validee: boolean;
-}
 
 export default function BulletinEtudiantPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   useNotes(); // souscription pour re-rendre quand les notes (dont le rattrapage) changent
+  useEvaluations(); // souscription pour re-rendre quand les poids/évaluations changent
   const classes = useClasses();
-  const ecs = useEcs();
-  const ues = useUes();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -124,39 +97,13 @@ export default function BulletinEtudiantPage() {
   );
   const semestresDisponibles = SEMESTRES.filter((s) => s.filiere === filiere?.code && s.niveau === niveau?.alias);
 
-  const uesSession = ues.filter((u) => u.filiereId === filiereId && u.niveau === niveau?.alias && u.semestre === semestre?.alias);
+  const canShowBulletin = !!etudiantId && !!classeId && !!niveau && !!semestre;
 
-  const bulletin: UeLigne[] = uesSession.map((ue): UeLigne => {
-    const ecsUe = ecs.filter((ec) => ec.ueId === ue.id);
-    const ecLignes: EcLigne[] = ecsUe.map((ec): EcLigne => {
-      const cc = getEffectiveNote(etudiantId, classeId, ec.id, "CC")?.note;
-      const ef = getEffectiveNote(etudiantId, classeId, ec.id, "EF")?.note;
-      const { devoir, examen } = getPoidsForClasseEc(classeId, ec.id);
-      const poidsCc = (devoir ?? POIDS_CC_DEFAUT) / 100;
-      const poidsExamen = (examen ?? POIDS_EXAMEN_DEFAUT) / 100;
-      const moyenne = cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;
-      const validee = moyenne !== undefined && moyenne >= 10;
-      return { id: ec.id, code: ec.code, libelle: ec.libelle, credits: ec.credits, cc, ef, moyenne, creditsObtenus: validee ? ec.credits : 0, validee };
-    });
-    const ecsAvecMoyenne = ecLignes.filter((l) => l.moyenne !== undefined);
-    const totalCreditsAvecMoyenne = ecsAvecMoyenne.reduce((s, l) => s + l.credits, 0);
-    const moyenneUe = totalCreditsAvecMoyenne > 0
-      ? ecsAvecMoyenne.reduce((s, l) => s + l.moyenne! * l.credits, 0) / totalCreditsAvecMoyenne
-      : undefined;
-    const valideeUe = moyenneUe !== undefined && moyenneUe >= 10;
-    return {
-      id: ue.id, code: ue.code, libelle: ue.libelle, credits: ue.credits, ecs: ecLignes,
-      moyenne: moyenneUe, creditsObtenus: valideeUe ? ue.credits : 0, validee: valideeUe,
-    };
-  });
-
-  const uesAvecMoyenne = bulletin.filter((u) => u.moyenne !== undefined);
-  const totalCreditsUeAvecMoyenne = uesAvecMoyenne.reduce((s, u) => s + u.credits, 0);
-  const moyenneSession = totalCreditsUeAvecMoyenne > 0
-    ? uesAvecMoyenne.reduce((s, u) => s + u.moyenne! * u.credits, 0) / totalCreditsUeAvecMoyenne
-    : undefined;
-  const creditsObtenusTotal = bulletin.reduce((s, u) => s + u.creditsObtenus, 0);
-  const creditsTotal = bulletin.reduce((s, u) => s + u.credits, 0);
+  // Moteur partagé avec Moyennes par promotion, Délibérations et Relevés & Bulletins — une
+  // seule vraie source de calcul, jamais de logique dupliquée ou de valeur fabriquée.
+  const { ues: bulletin, moyenneSession, creditsObtenus: creditsObtenusTotal, creditsTotal } = canShowBulletin
+    ? computeBulletin(etudiantId, classeId, filiereId, niveau.alias, semestre.alias)
+    : { ues: [], moyenneSession: undefined, creditsObtenus: 0, creditsTotal: 0 };
 
   const toggleUe = (id: string) => {
     setExpandedUe((prev) => {
@@ -165,8 +112,6 @@ export default function BulletinEtudiantPage() {
       return next;
     });
   };
-
-  const canShowBulletin = !!etudiantId && !!semestreId;
 
   return (
     <div>
