@@ -32,6 +32,7 @@ export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
   "fin-pec-regularisation": { title: "Régularisation prise en charge", section: "Finances · Prise en charge" },
 
   // Scolarité
+  "scol-notes-bulletin": { title: "Bulletin étudiants", section: "Scolarité · Notes" },
   "scol-notes-rattrapage": { title: "Rattrapage", section: "Scolarité · Notes" },
   "scol-maj-cours-force": { title: "Ajout cours forcé", section: "Scolarité · Mise à jour cours" },
   "scol-abandon": { title: "Abandon", section: "Scolarité" },
