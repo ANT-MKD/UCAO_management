@@ -241,14 +241,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "scol-notes-rattrapage", label: "Rattrapage", href: "/admin/notes/rattrapage" },
         ],
       },
-      {
-        id: "scol-maj-cours",
-        label: "Mise à jour cours",
-        children: [
-          { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/cours-etudiant" },
-          { id: "scol-maj-cours-force", label: "Ajout cours forcé", href: wipHref("scol-maj-cours-force") },
-        ],
-      },
+      { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/cours-etudiant" },
       { id: "scol-abandon", label: "Abandon", href: wipHref("scol-abandon") },
       { id: "scol-absence", label: "Absence", href: wipHref("scol-absence") },
       { id: "scol-retard", label: "Retard", href: wipHref("scol-retard") },
