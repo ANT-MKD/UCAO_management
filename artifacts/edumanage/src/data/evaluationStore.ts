@@ -206,8 +206,8 @@ export function getPoidsAutreType(
 }
 
 /** Poids réels (Devoir/Examen) posés pour un cours et une classe, tous semestres confondus
- * (chaque EC n'appartenant qu'à un seul semestre en pratique). Utilisé par Saisie des Notes
- * pour remplacer le partage 30/70 par défaut dès qu'une planification existe. */
+ * (chaque EC n'appartenant qu'à un seul semestre en pratique). Utilisé par Bulletin étudiants
+ * pour combiner CC+EF en une moyenne d'EC, avec repli 30/70 par défaut. */
 export function getPoidsForClasseEc(classeId: string, ecId: string): { devoir?: number; examen?: number } {
   const devoir = store.evaluations.find((e) => e.classeId === classeId && e.ecId === ecId && e.type === "devoir")?.poids;
   const examen = store.evaluations.find((e) => e.classeId === classeId && e.ecId === ecId && e.type === "examen")?.poids;
