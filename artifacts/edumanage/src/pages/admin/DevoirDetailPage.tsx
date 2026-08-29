@@ -41,7 +41,9 @@ export default function DevoirDetailPage({ id }: { id: string }) {
   const bareme = scolariteConfigs.find((c) => c.filiereId === evaluation.filiereId)?.noteBareme ?? 20;
 
   const noteType = noteTypeFor(evaluation.type);
-  const matched = notes.filter((n) => n.classeId === evaluation.classeId && n.ecId === evaluation.ecId && n.type === noteType);
+  // Filtré aussi par session : un examen normal et sa reprise de rattrapage ont chacun leurs
+  // propres notes, jamais mélangées entre elles.
+  const matched = notes.filter((n) => n.classeId === evaluation.classeId && n.ecId === evaluation.ecId && n.type === noteType && n.session === evaluation.session);
   const values = matched.map((n) => n.note);
   const stats = values.length > 0 ? {
     min: Math.min(...values),
@@ -100,7 +102,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
             <h3 className="font-bold text-foreground text-sm">Code {evaluation.type === "devoir" ? "devoir" : "examen"} : {evaluation.code} effectué le : {evaluation.dateCreation}</h3>
           </div>
           <div className="px-5 py-2">
-            {infoRow("Type évaluation", evaluation.type === "devoir" ? "Devoir" : "Examen")}
+            {infoRow("Type évaluation", `${evaluation.type === "devoir" ? "Devoir" : "Examen"}${evaluation.session === "rattrapage" ? " (Rattrapage)" : ""}`)}
             {infoRow("Description", `Noté sur ${bareme}, pondération ${evaluation.poids}% de la moyenne du cours`)}
             <div className="flex items-center justify-between py-2">
               {stats ? (

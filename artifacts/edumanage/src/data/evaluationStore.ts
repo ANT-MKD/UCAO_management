@@ -25,6 +25,9 @@ export interface EvaluationRecord {
   dateCreation: string;
   modifiePar?: string;
   modifieLe?: string;
+  /** Reprise de l'examen en session de rattrapage : type reste "examen", jamais utilisé pour
+   * un devoir. Une entrée normale et sa reprise coexistent, chacune avec ses propres notes. */
+  session?: "rattrapage";
 }
 
 interface EvaluationStore {
@@ -120,6 +123,7 @@ export interface EvaluationPayload {
   type: EvaluationRecord["type"];
   poids: number;
   creePar?: string;
+  session?: "rattrapage";
 }
 
 export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
@@ -130,9 +134,10 @@ export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
     ? ENSEIGNANTS.find((en) => en.id === payload.professeurId)
     : undefined;
 
-  // Code lisible affiché aux utilisateurs : préfixe 1 pour un devoir, 2 pour un examen
-  // (repris de l'ancien système), suivi d'un suffixe temporel pour l'unicité.
-  const code = `${payload.type === "devoir" ? "1" : "2"}${Date.now().toString().slice(-8)}`;
+  // Code lisible affiché aux utilisateurs : préfixe 1 pour un devoir, 2 pour un examen normal,
+  // 3 pour un rattrapage (repris de l'ancien système), suivi d'un suffixe temporel pour l'unicité.
+  const prefixe = payload.session === "rattrapage" ? "3" : payload.type === "devoir" ? "1" : "2";
+  const code = `${prefixe}${Date.now().toString().slice(-8)}`;
 
   const evaluation: EvaluationRecord = {
     id: `eval-${Date.now()}`,
@@ -154,6 +159,7 @@ export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
     poids: payload.poids,
     creePar: payload.creePar,
     dateCreation: new Date().toISOString().slice(0, 10),
+    session: payload.session,
   };
 
   store.evaluations.push(evaluation);
@@ -203,6 +209,13 @@ export function getPoidsAutreType(
   return store.evaluations.find(
     (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.type === autreType && e.id !== excludeId,
   )?.poids;
+}
+
+/** La session de rattrapage déjà créée pour cet examen, si elle existe. */
+export function getRattrapageEvaluation(classeId: string, ecId: string, semestreId: string): EvaluationRecord | undefined {
+  return store.evaluations.find(
+    (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.session === "rattrapage",
+  );
 }
 
 /** Poids réels (Devoir/Examen) posés pour un cours et une classe, tous semestres confondus

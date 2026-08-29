@@ -185,6 +185,9 @@ export interface NoteRecord {
   statut: "brouillon_prof" | "soumis_admin" | "valide_admin" | "publie";
   classeId: string;
   annee: string;
+  /** Note d'examen retentée en session de rattrapage : distincte de l'EF normal (jamais
+   * écrasé), mais la plus récente fait foi pour le calcul de la moyenne finale. */
+  session?: "rattrapage";
 }
 
 export type UserRole = "admin" | "teacher" | "student";
@@ -1434,6 +1437,17 @@ export function getNotesByClasseEc(classeId: string, ecId: string): NoteRecord[]
   return store.notes.filter((n) => n.classeId === classeId && n.ecId === ecId);
 }
 
+/** La note qui doit compter pour le calcul final : pour un EF, la reprise de rattrapage si
+ * elle existe l'emporte toujours sur l'examen normal (jamais l'inverse), sans jamais effacer
+ * l'historique — les deux NoteRecord coexistent dans le store. */
+export function getEffectiveNote(etudiantId: string, classeId: string, ecId: string, type: "CC" | "EF"): NoteRecord | undefined {
+  const matches = store.notes.filter((n) => n.etudiantId === etudiantId && n.classeId === classeId && n.ecId === ecId && n.type === type);
+  if (type === "EF") {
+    return matches.find((n) => n.session === "rattrapage") ?? matches.find((n) => n.session === undefined);
+  }
+  return matches.find((n) => n.session === undefined) ?? matches[0];
+}
+
 export function deleteNote(id: string): void {
   store.notes = store.notes.filter((n) => n.id !== id);
   persist();
@@ -1452,6 +1466,7 @@ export function saveNotesGrid(
   ecLabel: string,
   inputs: GridNoteInput[],
   publish: boolean,
+  session?: "rattrapage",
 ): void {
   const annee = getAnneeActuelle();
   for (const input of inputs) {
@@ -1463,8 +1478,10 @@ export function saveNotesGrid(
     if (input.examen !== undefined && !Number.isNaN(input.examen)) pairs.push({ type: "EF", note: input.examen });
 
     for (const { type, note } of pairs) {
+      // La note de rattrapage ne doit jamais matcher (ni écraser) l'EF normal : elle vit dans
+      // un NoteRecord distinct, retrouvé uniquement par le même triplet + session.
       const existing = store.notes.find(
-        (n) => n.etudiantId === input.etudiantId && n.ecId === ecId && n.type === type,
+        (n) => n.etudiantId === input.etudiantId && n.ecId === ecId && n.type === type && n.session === session,
       );
       const statut = publish ? "publie" as const : "brouillon_prof" as const;
       if (existing) {
@@ -1472,7 +1489,7 @@ export function saveNotesGrid(
         existing.statut = statut;
       } else {
         store.notes.push({
-          id: `no-${input.etudiantId}-${ecId}-${type}-${Date.now()}`,
+          id: `no-${input.etudiantId}-${ecId}-${type}-${session ?? "normale"}-${Date.now()}`,
           etudiant: `${etudiant.prenom} ${etudiant.nom}`,
           etudiantId: etudiant.id,
           matricule: etudiant.matricule,
@@ -1483,6 +1500,7 @@ export function saveNotesGrid(
           statut,
           classeId,
           annee,
+          session,
         });
       }
     }
@@ -1494,10 +1512,10 @@ export function saveNotesGrid(
   persist();
 }
 
-export function publishNotesForClasseEc(classeId: string, ecId: string): number {
+export function publishNotesForClasseEc(classeId: string, ecId: string, session?: "rattrapage"): number {
   let count = 0;
   for (const n of store.notes) {
-    if (n.classeId === classeId && n.ecId === ecId && n.statut === "valide_admin") {
+    if (n.classeId === classeId && n.ecId === ecId && n.statut === "valide_admin" && n.session === session) {
       n.statut = "publie";
       count++;
     }
@@ -1507,10 +1525,10 @@ export function publishNotesForClasseEc(classeId: string, ecId: string): number 
   return count;
 }
 
-export function submitNotesForValidation(classeId: string, ecId: string): number {
+export function submitNotesForValidation(classeId: string, ecId: string, session?: "rattrapage"): number {
   let count = 0;
   for (const n of store.notes) {
-    if (n.classeId === classeId && n.ecId === ecId && n.statut === "brouillon_prof") {
+    if (n.classeId === classeId && n.ecId === ecId && n.statut === "brouillon_prof" && n.session === session) {
       n.statut = "soumis_admin";
       count++;
     }
@@ -1523,10 +1541,10 @@ export function submitNotesForValidation(classeId: string, ecId: string): number
   return count;
 }
 
-export function validateNotesByAdmin(classeId: string, ecId: string, actorUserId: string): number {
+export function validateNotesByAdmin(classeId: string, ecId: string, actorUserId: string, session?: "rattrapage"): number {
   let count = 0;
   for (const n of store.notes) {
-    if (n.classeId === classeId && n.ecId === ecId && n.statut === "soumis_admin") {
+    if (n.classeId === classeId && n.ecId === ecId && n.statut === "soumis_admin" && n.session === session) {
       n.statut = "valide_admin";
       count++;
     }

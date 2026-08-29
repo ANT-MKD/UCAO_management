@@ -71,7 +71,7 @@ export default function NotesEtudiantPage() {
     .map((n): NoteRow => {
       const classe = getClasseById(n.classeId);
       const evType: "devoir" | "examen" = n.type === "CC" ? "devoir" : "examen";
-      const ev = evaluations.find((e) => e.classeId === n.classeId && e.ecId === n.ecId && e.type === evType);
+      const ev = evaluations.find((e) => e.classeId === n.classeId && e.ecId === n.ecId && e.type === evType && e.session === n.session);
       return {
         id: n.id,
         date: ev?.dateCreation ?? "—",
@@ -82,7 +82,7 @@ export default function NotesEtudiantPage() {
         filiere: classe?.filiere ?? "—",
         niveau: classe?.niveau ?? "—",
         annee: n.annee,
-        type: n.type === "CC" ? "Devoir" : "Examen",
+        type: `${n.type === "CC" ? "Devoir" : "Examen"}${n.session === "rattrapage" ? " (Rattrapage)" : ""}`,
         note: n.note,
       };
     })

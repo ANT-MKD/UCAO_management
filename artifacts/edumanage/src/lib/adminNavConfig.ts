@@ -238,7 +238,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "scol-notes-etudiants", label: "Notes étudiants", href: "/admin/notes/etudiant" },
           { id: "scol-notes-moyennes", label: "Moyennes par promotion", href: "/admin/moyennes" },
           { id: "scol-notes-bulletin", label: "Bulletin étudiants", href: "/admin/notes/bulletin" },
-          { id: "scol-notes-rattrapage", label: "Rattrapage", href: wipHref("scol-notes-rattrapage") },
+          { id: "scol-notes-rattrapage", label: "Rattrapage", href: "/admin/notes/rattrapage" },
         ],
       },
       {

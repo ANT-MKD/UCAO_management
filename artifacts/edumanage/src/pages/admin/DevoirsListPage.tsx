@@ -81,7 +81,7 @@ export default function DevoirsListPage() {
 
   const statsFor = (ev: EvaluationRecord) => {
     const noteType = noteTypeFor(ev.type);
-    const matched = notes.filter((n) => n.classeId === ev.classeId && n.ecId === ev.ecId && n.type === noteType);
+    const matched = notes.filter((n) => n.classeId === ev.classeId && n.ecId === ev.ecId && n.type === noteType && n.session === ev.session);
     if (matched.length === 0) return null;
     const values = matched.map((n) => n.note);
     return {
@@ -201,7 +201,7 @@ export default function DevoirsListPage() {
                       <td className="px-4 py-3 text-foreground">{ev.cours}</td>
                       <td className="px-4 py-3">
                         <p className="font-semibold text-foreground">
-                          {ev.type === "devoir" ? "Devoir" : "Examen"}{" "}
+                          {ev.type === "devoir" ? "Devoir" : "Examen"}{ev.session === "rattrapage" ? " (Rattrapage)" : ""}{" "}
                           <button onClick={() => setLocation(`/admin/evaluation/devoir/${ev.id}`)} className="text-primary hover:underline font-mono text-xs" style={{ fontFamily: "JetBrains Mono, monospace" }}>
                             {ev.code}
                           </button>

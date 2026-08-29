@@ -1,25 +1,27 @@
 import { useState, useCallback } from "react";
-import { Save, Upload, CheckCircle, AlertCircle, TrendingUp, Users, Info } from "lucide-react";
+import { Save, CheckCircle, AlertCircle, TrendingUp, Info, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
-import { saveNotesGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, type GridNoteInput } from "@/data/studentStore";
+import {
+  saveNotesGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc,
+  getEffectiveNote, type GridNoteInput,
+} from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { updateEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
+import { createEvaluation, updateEvaluation, getPoidsForClasseEc } from "@/data/evaluationStore";
 import { cn } from "@/lib/utils";
 
-type NoteEntry = {
-  note: string;
-  absent: boolean;
-};
+type NoteEntry = { note: string; absent: boolean };
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+const POIDS_CC_DEFAUT = 30;
+const POIDS_EXAMEN_DEFAUT = 70;
 
-export default function NotesPage() {
+export default function RattrapagePage() {
   const { currentUser } = useAuth();
   const etudiants = useStudentStore();
   const notes = useNotes();
@@ -35,9 +37,6 @@ export default function NotesPage() {
   const [classeId, setClasseId] = useState("");
   const [semestreId, setSemestreId] = useState("");
   const [ecId, setEcId] = useState("");
-  const [professeurId, setProfesseurId] = useState("");
-  const [evaluationId, setEvaluationId] = useState("");
-  const [statutFilter, setStatutFilter] = useState("");
   const [searchStudent, setSearchStudent] = useState("");
   const [entries, setEntries] = useState<Record<string, NoteEntry>>({});
   const [saved, setSaved] = useState(false);
@@ -45,8 +44,8 @@ export default function NotesPage() {
   const filiere = FILIERES.find((f) => f.id === filiereId);
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
   const semestre = SEMESTRES.find((s) => s.id === semestreId);
-  const evaluationChoisie = evaluations.find((e) => e.id === evaluationId);
   const bareme = scolariteConfigs.find((c) => c.filiereId === filiereId)?.noteBareme ?? 20;
+  const moyennePassage = scolariteConfigs.find((c) => c.filiereId === filiereId)?.moyennePassage ?? 10;
 
   const niveauxFiliere = NIVEAUX.filter((n) => n.filiereId === filiereId);
   const classesDisponibles = CLASSES.filter(
@@ -58,123 +57,99 @@ export default function NotesPage() {
     return !!ue && ue.filiereId === filiereId && ue.niveau === niveau?.alias && ue.semestre === semestre?.alias;
   });
 
-  // Les évaluations réellement planifiées (Nouvelle évaluation) pour ce cours/classe/session
-  // remplacent l'ancien "Mode de saisie" libre (CC/EF/Projet/Rattrapage, sans lien avec la réalité).
-  // Les sessions de rattrapage ont leur propre page dédiée, exclues d'ici pour ne pas les mélanger.
-  const evaluationsPourCours = evaluations.filter(
-    (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.session === undefined,
+  // Seul un examen normal déjà administré peut être rattrapé.
+  const evaluationOriginal = evaluations.find(
+    (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.type === "examen" && e.session === undefined,
   );
-  const professeurOptions = Array.from(
-    new Map(evaluationsPourCours.filter((e) => e.professeurId).map((e) => [e.professeurId!, { id: e.professeurId!, label: e.professeur }])).values(),
+  const evaluationRattrapage = evaluations.find(
+    (e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.type === "examen" && e.session === "rattrapage",
   );
-  const evaluationsDuProf = evaluationsPourCours
-    .filter((e) => e.professeurId === professeurId)
-    .sort((a, b) => a.type.localeCompare(b.type) || a.dateCreation.localeCompare(b.dateCreation));
-
-  const classeStudents = etudiants.filter((e) => {
-    if (e.classeId !== classeId) return false;
-    if (searchStudent) {
-      const q = searchStudent.toLowerCase();
-      if (!`${e.prenom} ${e.nom}`.toLowerCase().includes(q) && !e.matricule.toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
-
-  const noteType: "CC" | "EF" | undefined = evaluationChoisie ? (evaluationChoisie.type === "devoir" ? "CC" : "EF") : undefined;
-  const canShowTable = !!evaluationId;
-
-  const getEntry = (id: string): NoteEntry => entries[id] ?? { note: "", absent: false };
-
-  const updateEntry = useCallback((id: string, patch: Partial<NoteEntry>) => {
-    setEntries((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { note: "", absent: false }), ...patch } }));
-  }, []);
-
-  const toggleAbsent = (id: string) => {
-    const e = getEntry(id);
-    updateEntry(id, { absent: !e.absent });
-  };
 
   const handleFiliereChange = (value: string) => {
     setFiliereId(value);
-    setAnnee(""); setNiveauId(""); setClasseId(""); setSemestreId(""); setEcId("");
-    setProfesseurId(""); setEvaluationId(""); setEntries({});
+    setAnnee(""); setNiveauId(""); setClasseId(""); setSemestreId(""); setEcId(""); setEntries({});
   };
   const handleAnneeChange = (value: string) => {
     setAnnee(value);
-    setNiveauId(""); setClasseId(""); setSemestreId(""); setEcId("");
-    setProfesseurId(""); setEvaluationId(""); setEntries({});
+    setNiveauId(""); setClasseId(""); setSemestreId(""); setEcId(""); setEntries({});
   };
   const handleNiveauChange = (value: string) => {
     setNiveauId(value);
-    setClasseId(""); setSemestreId(""); setEcId("");
-    setProfesseurId(""); setEvaluationId(""); setEntries({});
+    setClasseId(""); setSemestreId(""); setEcId(""); setEntries({});
   };
   const handleClasseChange = (value: string) => {
     setClasseId(value);
-    setSemestreId(""); setEcId("");
-    setProfesseurId(""); setEvaluationId(""); setEntries({});
+    setSemestreId(""); setEcId(""); setEntries({});
   };
   const handleSemestreChange = (value: string) => {
     setSemestreId(value);
-    setEcId("");
-    setProfesseurId(""); setEvaluationId(""); setEntries({});
-  };
-  const prefillFromEvaluation = (ev: EvaluationRecord | undefined) => {
-    if (!ev) { setEntries({}); return; }
-    const type = ev.type === "devoir" ? "CC" : "EF";
-    const existing = notes.filter((n) => n.classeId === ev.classeId && n.ecId === ev.ecId && n.type === type && n.session === ev.session);
-    const prefill: Record<string, NoteEntry> = {};
-    for (const n of existing) prefill[n.etudiantId] = { note: String(n.note), absent: false };
-    setEntries(prefill);
+    setEcId(""); setEntries({});
   };
   const handleCoursChange = (value: string) => {
     setEcId(value);
-    const matches = evaluations.filter((e) => e.classeId === classeId && e.ecId === value && e.semestreId === semestreId && e.professeurId);
-    const profsUniques = Array.from(new Set(matches.map((e) => e.professeurId)));
-    const profAuto = profsUniques.length === 1 ? profsUniques[0]! : "";
-    setProfesseurId(profAuto);
-    if (profAuto) {
-      const matchesPourProf = matches.filter((e) => e.professeurId === profAuto);
-      const evAuto = matchesPourProf.length === 1 ? matchesPourProf[0] : undefined;
-      setEvaluationId(evAuto?.id ?? "");
-      prefillFromEvaluation(evAuto);
-    } else {
-      setEvaluationId(""); setEntries({});
-    }
+    setEntries({});
   };
-  const handleProfesseurChange = (value: string) => {
-    setProfesseurId(value);
-    const matches = evaluations.filter((e) => e.classeId === classeId && e.ecId === ecId && e.semestreId === semestreId && e.professeurId === value);
-    const evAuto = matches.length === 1 ? matches[0] : undefined;
-    setEvaluationId(evAuto?.id ?? "");
-    prefillFromEvaluation(evAuto);
-  };
-  const handleEvaluationChange = (value: string) => {
-    setEvaluationId(value);
-    prefillFromEvaluation(evaluations.find((e) => e.id === value));
+
+  const handleCreerRattrapage = () => {
+    if (!evaluationOriginal || !niveau || !semestre) return;
+    createEvaluation({
+      filiereId, annee, niveauId, niveau: niveau.alias, classeId,
+      semestreId, semestre: `${semestre.nom} (${semestre.alias})`, ecId,
+      professeurId: evaluationOriginal.professeurId, professeur: evaluationOriginal.professeur,
+      type: "examen", poids: evaluationOriginal.poids,
+      creePar: currentUser?.name ?? "Administration", session: "rattrapage",
+    });
   };
 
   const handleUpdateDetails = (patch: { dateCreation?: string; description?: string }) => {
-    if (!evaluationChoisie) return;
-    updateEvaluation(evaluationChoisie.id, {
-      semestreId: evaluationChoisie.semestreId,
-      semestre: evaluationChoisie.semestre,
-      ecId: evaluationChoisie.ecId,
-      type: evaluationChoisie.type,
-      poids: evaluationChoisie.poids,
+    if (!evaluationRattrapage) return;
+    updateEvaluation(evaluationRattrapage.id, {
+      semestreId: evaluationRattrapage.semestreId,
+      semestre: evaluationRattrapage.semestre,
+      ecId: evaluationRattrapage.ecId,
+      type: evaluationRattrapage.type,
+      poids: evaluationRattrapage.poids,
       modifiePar: currentUser?.name ?? "Administration",
       ...patch,
     });
   };
 
-  // Stats calculation
+  const getEntry = (id: string): NoteEntry => entries[id] ?? { note: "", absent: false };
+  const updateEntry = useCallback((id: string, patch: Partial<NoteEntry>) => {
+    setEntries((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { note: "", absent: false }), ...patch } }));
+  }, []);
+  const toggleAbsent = (id: string) => updateEntry(id, { absent: !getEntry(id).absent });
+
+  // Ne montre que les étudiants réellement ajournés sur ce cours (moyenne effective — CC +
+  // meilleur EF disponible, vrais poids — sous la moyenne de passage réelle de la filière) :
+  // le rattrapage n'a de sens que pour eux.
+  const classeStudentsAll = etudiants.filter((e) => e.classeId === classeId);
+  const { devoir: poidsDevoirReel, examen: poidsExamenReel } = ecId ? getPoidsForClasseEc(classeId, ecId) : {};
+  const poidsCc = (poidsDevoirReel ?? POIDS_CC_DEFAUT) / 100;
+  const poidsExamen = (poidsExamenReel ?? POIDS_EXAMEN_DEFAUT) / 100;
+  // Ajourné = moyenne normale (CC + EF, tous deux déjà saisis) réellement sous la moyenne de
+  // passage. Un étudiant dont l'examen normal n'a pas encore été noté n'apparaît pas ici — ce
+  // n'est pas un cas de rattrapage, c'est une saisie normale à faire d'abord.
+  const ajournes = classeStudentsAll.filter((etu) => {
+    const cc = getEffectiveNote(etu.id, classeId, ecId, "CC")?.note;
+    const ef = getEffectiveNote(etu.id, classeId, ecId, "EF")?.note;
+    if (cc === undefined || ef === undefined) return false;
+    return cc * poidsCc + ef * poidsExamen < moyennePassage;
+  });
+  const classeStudents = ajournes.filter((e) => {
+    if (!searchStudent) return true;
+    const q = searchStudent.toLowerCase();
+    return `${e.prenom} ${e.nom}`.toLowerCase().includes(q) || e.matricule.toLowerCase().includes(q);
+  });
+
+  const canShowTable = !!evaluationRattrapage;
+
   const validNotes = classeStudents.flatMap((s) => {
     const e = getEntry(s.id);
     if (e.absent) return [];
     const val = parseFloat(e.note);
     return !isNaN(val) ? [val] : [];
   });
-
   const nbAbsents = classeStudents.filter((s) => getEntry(s.id).absent).length;
   const nbSaisis = validNotes.length;
   const moyenne = nbSaisis > 0 ? validNotes.reduce((a, b) => a + b, 0) / nbSaisis : null;
@@ -187,57 +162,46 @@ export default function NotesPage() {
     classeStudents.map((s) => {
       const e = getEntry(s.id);
       const val = e.note ? parseFloat(e.note) : undefined;
-      return {
-        etudiantId: s.id,
-        cc: evaluationChoisie?.type === "devoir" ? val : undefined,
-        examen: evaluationChoisie?.type === "examen" ? val : undefined,
-        absent: e.absent,
-      };
+      return { etudiantId: s.id, examen: val, absent: e.absent };
     });
 
   const handleSave = (publish: boolean) => {
-    if (!classeId || !ecId || !evaluationChoisie) return;
+    if (!classeId || !ecId || !evaluationRattrapage) return;
     const ecLabel = ECS.find((e) => e.id === ecId)?.libelle ?? "";
-    saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish);
+    saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish, "rattrapage");
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
-
   const handleSubmitValidation = () => {
     if (!classeId || !ecId) return;
-    submitNotesForValidation(classeId, ecId);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    submitNotesForValidation(classeId, ecId, "rattrapage");
+    setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
-
   const handleAdminValidate = () => {
     if (!classeId || !ecId || !currentUser) return;
-    validateNotesByAdmin(classeId, ecId, currentUser.id);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    validateNotesByAdmin(classeId, ecId, currentUser.id, "rattrapage");
+    setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
-
   const handlePublish = () => {
     if (!classeId || !ecId) return;
-    publishNotesForClasseEc(classeId, ecId);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    publishNotesForClasseEc(classeId, ecId, "rattrapage");
+    setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
 
   return (
     <div>
       <PageHeader
-        breadcrumb={[{ label: "Admin" }, { label: "Évaluation" }, { label: "Saisie des Notes" }]}
-        title="Saisie des Notes"
-        subtitle="Saisissez les notes d'une évaluation réellement planifiée — gestion des absences intégrée"
+        breadcrumb={[{ label: "Admin" }, { label: "Évaluation" }, { label: "Rattrapage" }]}
+        title="Rattrapage"
+        subtitle="Reprise de l'examen pour les étudiants ajournés — la nouvelle note remplace l'examen normal dans le calcul final"
       />
 
       <div className="grid lg:grid-cols-2 gap-5 mb-5">
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <h3 className="font-semibold text-foreground text-sm">Évaluation</h3>
+          <h3 className="font-semibold text-foreground text-sm">Cours à rattraper</h3>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="saisie-filiere">
+            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="rattrapage-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
@@ -245,14 +209,14 @@ export default function NotesPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-annee">
+              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-annee">
                 <option value="">Sélectionner</option>
                 {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-niveau">
+              <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-niveau">
                 <option value="">Sélectionner</option>
                 {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
               </select>
@@ -261,14 +225,14 @@ export default function NotesPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-              <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-classe">
+              <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-classe">
                 <option value="">Sélectionner</option>
                 {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-              <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-semestre">
+              <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-semestre">
                 <option value="">Sélectionner</option>
                 {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
@@ -276,78 +240,57 @@ export default function NotesPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-            <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-cours">
+            <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-cours">
               <option value="">Sélectionner</option>
               {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
-            <select value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-professeur">
-              <option value="">Sélectionner</option>
-              {professeurOptions.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
-            {ecId && professeurOptions.length === 0 && (
-              <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1"><Info size={11} /> Aucune évaluation planifiée pour ce cours et cette session.</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Évaluation *</label>
-            <select value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!professeurId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-evaluation">
-              <option value="">Sélectionner</option>
-              {evaluationsDuProf.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.type === "devoir" ? "Devoir" : "Examen"} du {new Date(ev.dateCreation).toLocaleDateString("fr-FR")}
-                </option>
-              ))}
-            </select>
-            {professeurId && evaluationsDuProf.length === 0 && (
-              <p className="text-[11px] text-amber-600 mt-1">
-                Aucune évaluation pour ce professeur — <a href="/admin/evaluation/nouvelle" className="underline">créez-en une via Nouvelle évaluation</a>.
-              </p>
-            )}
-          </div>
+          {ecId && !evaluationOriginal && (
+            <p className="text-[11px] text-amber-600 flex items-center gap-1"><Info size={11} /> Aucun examen normal n&apos;a encore été planifié pour ce cours — le rattrapage nécessite un examen déjà administré.</p>
+          )}
+          {evaluationOriginal && (
+            <p className="text-[11px] text-muted-foreground">Professeur : <strong className="text-foreground">{evaluationOriginal.professeur}</strong></p>
+          )}
         </div>
 
         <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <div className="px-5 py-3 bg-primary/10 border-b border-border">
+          <div className="px-5 py-3 bg-amber-500/10 border-b border-border">
             <h3 className="font-bold text-foreground text-sm">
-              {evaluationChoisie ? `${evaluationChoisie.type === "devoir" ? "Devoir" : "Examen"} du ${new Date(evaluationChoisie.dateCreation).toLocaleDateString("fr-FR")}` : "Détails"}
+              {evaluationRattrapage ? `Rattrapage du ${new Date(evaluationRattrapage.dateCreation).toLocaleDateString("fr-FR")}` : "Session de rattrapage"}
             </h3>
           </div>
-          {!evaluationChoisie ? (
-            <div className="py-12 text-center text-sm text-muted-foreground px-5">Choisissez une évaluation pour afficher ses détails.</div>
+          {!evaluationOriginal ? (
+            <div className="py-12 text-center text-sm text-muted-foreground px-5">Choisissez un cours dont l&apos;examen normal a déjà été noté.</div>
+          ) : !evaluationRattrapage ? (
+            <div className="py-10 text-center px-5 space-y-3">
+              <p className="text-sm text-muted-foreground">Aucune session de rattrapage n&apos;existe encore pour cet examen.</p>
+              <button
+                onClick={handleCreerRattrapage}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-medium hover:bg-amber-600 transition-colors"
+                data-testid="rattrapage-creer"
+              >
+                <RotateCcw size={14} /> Créer la session de rattrapage
+              </button>
+            </div>
           ) : (
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Code</span>
-                <span className="font-mono text-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{evaluationChoisie.code}</span>
+                <span className="font-mono text-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{evaluationRattrapage.code}</span>
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
-                <input
-                  type="date"
-                  value={evaluationChoisie.dateCreation}
-                  onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })}
-                  className={inputClass}
-                  data-testid="saisie-date-effective"
-                />
+                <input type="date" value={evaluationRattrapage.dateCreation} onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })} className={inputClass} data-testid="rattrapage-date-effective" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-                <textarea
-                  value={evaluationChoisie.description ?? ""}
-                  onChange={(e) => handleUpdateDetails({ description: e.target.value })}
-                  rows={3}
-                  className={inputClass}
-                  data-testid="saisie-description"
-                />
+                <textarea value={evaluationRattrapage.description ?? ""} onChange={(e) => handleUpdateDetails({ description: e.target.value })} rows={3} className={inputClass} data-testid="rattrapage-description" />
               </div>
               <div className="flex items-center justify-between text-sm pt-2 border-t border-border">
                 <span className="text-muted-foreground">Noté sur</span>
                 <span className="font-bold text-foreground">{bareme}</span>
               </div>
-              <p className="text-[11px] text-muted-foreground">Cette évaluation compte pour {evaluationChoisie.poids}% de la moyenne du cours.</p>
+              <p className="text-[11px] text-muted-foreground">Cette note remplace l&apos;examen normal ({evaluationRattrapage.poids}% de la moyenne du cours) dans le calcul final.</p>
             </div>
           )}
         </div>
@@ -358,12 +301,15 @@ export default function NotesPage() {
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
             <Save size={24} className="text-muted-foreground" />
           </div>
-          <h3 className="font-semibold text-foreground mb-1">Choisissez une évaluation</h3>
-          <p className="text-sm text-muted-foreground">Sélectionnez la filière, la classe, le cours puis l&apos;évaluation à noter</p>
+          <h3 className="font-semibold text-foreground mb-1">Aucune session de rattrapage sélectionnée</h3>
+          <p className="text-sm text-muted-foreground">Choisissez un cours dont l&apos;examen normal existe, puis créez ou sélectionnez sa session de rattrapage</p>
+        </div>
+      ) : classeStudents.length === 0 && ajournes.length === 0 ? (
+        <div className="py-12 text-center bg-card border border-border rounded-xl text-sm text-muted-foreground" style={{ boxShadow: "var(--shadow-sm)" }}>
+          Aucun étudiant ajourné sur ce cours — personne n&apos;a besoin de rattrapage.
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Stats panel */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp size={11} /> Moyenne</p>
@@ -393,25 +339,16 @@ export default function NotesPage() {
             </div>
           </div>
 
-          {/* Table de saisie */}
           <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
               <div>
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
-                  {ECS.find((e) => e.id === ecId)?.libelle} — {evaluationChoisie?.type === "devoir" ? "Devoir" : "Examen"}
+                  {ECS.find((e) => e.id === ecId)?.libelle} — Rattrapage
                 </h3>
-                <p className="text-xs text-muted-foreground">{classeStudents.length} étudiants dans la liste</p>
+                <p className="text-xs text-muted-foreground">{ajournes.length} étudiant(s) ajourné(s) (moyenne &lt; {moyennePassage})</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
-                <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  <option value="">Tous statuts</option>
-                  <option value="brouillon_prof">Brouillon</option>
-                  <option value="publie">Publié</option>
-                </select>
-                <button className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
-                  <Upload size={13} /> Importer CSV
-                </button>
                 {saved && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
                     <CheckCircle size={14} /> Enregistré
@@ -438,44 +375,28 @@ export default function NotesPage() {
                   const hasNote = !isNaN(noteVal) && !entry.absent;
                   const isAdmis = hasNote && noteVal >= 10;
                   const isAjourne = hasNote && noteVal < 10;
-                  const noteExistante = notes.find((n) => n.etudiantId === etu.id && n.classeId === classeId && n.ecId === ecId && n.type === noteType && n.session === evaluationChoisie?.session);
-                  if (statutFilter && noteExistante?.statut !== statutFilter) return null;
+                  const noteExistante = notes.find((n) => n.etudiantId === etu.id && n.classeId === classeId && n.ecId === ecId && n.type === "EF" && n.session === "rattrapage");
                   const rowBg = entry.absent ? "bg-red-50/40 dark:bg-red-950/20" : isAjourne ? "bg-red-50/30 dark:bg-red-950/10" : "";
-
                   return (
                     <tr key={etu.id} className={cn("border-b border-border last:border-0 transition-colors", rowBg)}>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{i + 1}</td>
+                      <td className="px-4 py-3"><span className="font-mono text-xs text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{etu.matricule}</span></td>
                       <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{etu.matricule}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn("font-medium", entry.absent ? "text-muted-foreground line-through" : "text-foreground")}>
-                          {etu.prenom} {etu.nom}
-                        </span>
+                        <span className={cn("font-medium", entry.absent ? "text-muted-foreground line-through" : "text-foreground")}>{etu.prenom} {etu.nom}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <input
-                          type="number"
-                          min={0}
-                          max={bareme}
-                          step={0.25}
-                          disabled={entry.absent}
-                          value={entry.note}
+                          type="number" min={0} max={bareme} step={0.25} disabled={entry.absent} value={entry.note}
                           onChange={(e) => updateEntry(etu.id, { note: e.target.value })}
                           className={cn(
                             "w-20 text-center px-2 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background",
                             entry.absent ? "opacity-30 cursor-not-allowed border-border" : isAdmis ? "border-emerald-300" : isAjourne ? "border-red-300" : "border-border",
                           )}
-                          placeholder="—"
-                          data-testid={`saisie-note-${etu.id}`}
+                          placeholder="—" data-testid={`rattrapage-note-${etu.id}`}
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => toggleAbsent(etu.id)}
-                          className={cn("w-8 h-5 rounded-full transition-all duration-200 relative", entry.absent ? "bg-red-500" : "bg-muted border border-border")}
-                          data-testid={`saisie-absent-${etu.id}`}
-                        >
+                        <button onClick={() => toggleAbsent(etu.id)} className={cn("w-8 h-5 rounded-full transition-all duration-200 relative", entry.absent ? "bg-red-500" : "bg-muted border border-border")} data-testid={`rattrapage-absent-${etu.id}`}>
                           <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200", entry.absent ? "left-3.5" : "left-0.5")} />
                         </button>
                       </td>
@@ -501,21 +422,15 @@ export default function NotesPage() {
             </table>
 
             <div className="flex gap-3 px-5 py-4 border-t border-border flex-wrap">
-              <button onClick={() => handleSave(false)} className="flex items-center gap-2 px-5 py-2.5 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors" data-testid="saisie-brouillon">
+              <button onClick={() => handleSave(false)} className="flex items-center gap-2 px-5 py-2.5 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors" data-testid="rattrapage-brouillon">
                 <Save size={14} /> Enregistrer brouillon
               </button>
-              <button onClick={() => handleSave(true)} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="saisie-publier">
+              <button onClick={() => handleSave(true)} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="rattrapage-publier">
                 <CheckCircle size={14} /> Publier les notes
               </button>
-              <button onClick={handleSubmitValidation} className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">
-                Soumettre admin
-              </button>
-              <button onClick={handleAdminValidate} className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">
-                Valider admin
-              </button>
-              <button onClick={handlePublish} className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">
-                Publier validées
-              </button>
+              <button onClick={handleSubmitValidation} className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">Soumettre admin</button>
+              <button onClick={handleAdminValidate} className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">Valider admin</button>
+              <button onClick={handlePublish} className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">Publier validées</button>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { getPoidsForClasseEc } from "@/data/evaluationStore";
-import type { EtudiantRecord } from "@/data/studentStore";
+import { getEffectiveNote, type EtudiantRecord } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -42,7 +42,7 @@ interface UeLigne {
 export default function BulletinEtudiantPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
-  const notes = useNotes();
+  useNotes(); // souscription pour re-rendre quand les notes (dont le rattrapage) changent
   const classes = useClasses();
   const ecs = useEcs();
   const ues = useUes();
@@ -129,8 +129,8 @@ export default function BulletinEtudiantPage() {
   const bulletin: UeLigne[] = uesSession.map((ue): UeLigne => {
     const ecsUe = ecs.filter((ec) => ec.ueId === ue.id);
     const ecLignes: EcLigne[] = ecsUe.map((ec): EcLigne => {
-      const cc = notes.find((n) => n.etudiantId === etudiantId && n.classeId === classeId && n.ecId === ec.id && n.type === "CC")?.note;
-      const ef = notes.find((n) => n.etudiantId === etudiantId && n.classeId === classeId && n.ecId === ec.id && n.type === "EF")?.note;
+      const cc = getEffectiveNote(etudiantId, classeId, ec.id, "CC")?.note;
+      const ef = getEffectiveNote(etudiantId, classeId, ec.id, "EF")?.note;
       const { devoir, examen } = getPoidsForClasseEc(classeId, ec.id);
       const poidsCc = (devoir ?? POIDS_CC_DEFAUT) / 100;
       const poidsExamen = (examen ?? POIDS_EXAMEN_DEFAUT) / 100;

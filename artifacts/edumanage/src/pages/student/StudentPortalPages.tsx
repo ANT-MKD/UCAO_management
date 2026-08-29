@@ -76,16 +76,20 @@ export function StudentGradesPage() {
       map.get(key)!.rows.push(n);
     }
     for (const block of map.values()) {
-      const byEc = new Map<string, { cc?: number; ef?: number }>();
+      // Une reprise de rattrapage (EF) l'emporte toujours sur l'examen normal, quel que soit
+      // l'ordre d'itération — jamais l'inverse, cohérent avec getEffectiveNote côté admin.
+      const byEc = new Map<string, { cc?: number; efNormal?: number; efRattrapage?: number }>();
       for (const n of block.rows) {
         const cur = byEc.get(n.ecId) ?? {};
         if (n.type === "CC") cur.cc = n.note;
-        else cur.ef = n.note;
+        else if (n.session === "rattrapage") cur.efRattrapage = n.note;
+        else cur.efNormal = n.note;
         byEc.set(n.ecId, cur);
       }
       const moyennes = [...byEc.values()].map((v) => {
-        if (v.cc !== undefined && v.ef !== undefined) return v.cc * 0.3 + v.ef * 0.7;
-        return v.cc ?? v.ef ?? 0;
+        const ef = v.efRattrapage ?? v.efNormal;
+        if (v.cc !== undefined && ef !== undefined) return v.cc * 0.3 + ef * 0.7;
+        return v.cc ?? ef ?? 0;
       });
       if (moyennes.length) block.moyenne = moyennes.reduce((a, b) => a + b, 0) / moyennes.length;
     }
@@ -114,7 +118,9 @@ export function StudentGradesPage() {
               <div key={n.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-2">
                 <div>
                   <p className="font-medium">{n.ec}</p>
-                  <p className="text-xs text-muted-foreground">{n.type === "EF" ? "Examen (70%)" : n.type === "CC" ? "CC (30%)" : n.type}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {n.type === "EF" ? (n.session === "rattrapage" ? "Examen rattrapage (70%)" : "Examen (70%)") : n.type === "CC" ? "CC (30%)" : n.type}
+                  </p>
                 </div>
                 <span className={`font-bold ${n.note >= 10 ? "text-emerald-600" : "text-red-500"}`}>{n.note}/20</span>
               </div>
