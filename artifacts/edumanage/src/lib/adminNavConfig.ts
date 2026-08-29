@@ -263,7 +263,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Emploi du temps",
     icon: CalendarDays,
     children: [
-      { id: "edt-param", label: "Paramétrage de l'emploi du temps", href: "/admin/schedule/new" },
+      { id: "edt-param", label: "Paramétrage de l'emploi du temps", href: "/admin/schedule/parametrage" },
       { id: "edt-grille", label: "Emploi du temps", href: "/admin/schedule" },
     ],
   },

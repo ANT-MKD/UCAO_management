@@ -39,6 +39,7 @@ const ECFormPage = lazy(() => import("@/pages/admin/ECFormPage"));
 // Planning
 const SchedulePage = lazy(() => import("@/pages/admin/SchedulePage"));
 const ScheduleFormPage = lazy(() => import("@/pages/admin/ScheduleFormPage"));
+const ScheduleParametragePage = lazy(() => import("@/pages/admin/ScheduleParametragePage"));
 const AnneesAcademiquesPage = lazy(() => import("@/pages/admin/AnneesAcademiquesPage"));
 
 // Reporting & finances
@@ -295,6 +296,12 @@ function AppRouter() {
       {/* Planning */}
       <Route path="/admin/schedule/new">
         <Admin><ScheduleFormPage /></Admin>
+      </Route>
+      <Route path="/admin/schedule/parametrage/:section">
+        {(p) => <Admin><ScheduleParametragePage section={p.section} /></Admin>}
+      </Route>
+      <Route path="/admin/schedule/parametrage">
+        <Redirect to="/admin/schedule/parametrage/jours-feries" />
       </Route>
 
       {/* Finances — transactions */}

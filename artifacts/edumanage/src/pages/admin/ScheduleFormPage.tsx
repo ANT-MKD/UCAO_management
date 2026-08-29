@@ -7,6 +7,7 @@ import { ENSEIGNANTS } from "@/data/mockData";
 import { addSeance } from "@/data/studentStore";
 import { useEcs } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import { cn } from "@/lib/utils";
 
 const JOURS = [
@@ -18,8 +19,6 @@ const JOURS = [
   { value: 6, label: "Samedi" },
 ];
 
-const TYPES = ["CM", "TD", "TP", "EX"] as const;
-
 interface SeanceForm {
   ecId: string;
   classeId: string;
@@ -28,13 +27,9 @@ interface SeanceForm {
   jour: number;
   heureDebut: string;
   heureFin: string;
-  type: typeof TYPES[number];
+  type: string;
   notes?: string;
 }
-
-const TYPE_COLORS: Record<string, string> = {
-  CM: "#4f46e5", TD: "#10b981", TP: "#8b5cf6", EX: "#ef4444",
-};
 
 export default function ScheduleFormPage() {
   const [, setLocation] = useLocation();
@@ -42,6 +37,7 @@ export default function ScheduleFormPage() {
   const ECS = useEcs();
   const CLASSES = useClasses();
   const SALLES = useSalles();
+  const TYPES_SEANCE = useTypesSeance();
   const [conflicts, setConflicts] = useState<string[]>([]);
 
   const form = useForm<SeanceForm>({
@@ -53,7 +49,7 @@ export default function ScheduleFormPage() {
       jour: 1,
       heureDebut: "08:00",
       heureFin: "10:00",
-      type: "CM",
+      type: TYPES_SEANCE[0]?.code ?? "CM",
       notes: "",
     },
   });
@@ -63,6 +59,7 @@ export default function ScheduleFormPage() {
   const classe = CLASSES.find((c) => c.id === values.classeId);
   const salle = SALLES.find((s) => s.id === values.salleId);
   const jourLabel = JOURS.find((j) => j.value === Number(values.jour))?.label;
+  const typeColor = TYPES_SEANCE.find((t) => t.code === values.type)?.couleur ?? "#4f46e5";
 
   const onSubmit = form.handleSubmit((data) => {
     setConflicts([]);
@@ -139,7 +136,7 @@ export default function ScheduleFormPage() {
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de séance *</label>
                 <select {...form.register("type")} className={inputClass}>
-                  {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {TYPES_SEANCE.map((t) => <option key={t.id} value={t.code}>{t.code} — {t.intitule}</option>)}
                 </select>
               </div>
             </div>
@@ -221,10 +218,10 @@ export default function ScheduleFormPage() {
               <div className="space-y-3 text-sm">
                 <div
                   className="rounded-xl p-4 border-l-4"
-                  style={{ borderColor: TYPE_COLORS[values.type], background: `${TYPE_COLORS[values.type]}10` }}
+                  style={{ borderColor: typeColor, background: `${typeColor}10` }}
                 >
                   <p className="font-bold text-foreground">{ec?.libelle ?? "—"}</p>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block" style={{ background: `${TYPE_COLORS[values.type]}20`, color: TYPE_COLORS[values.type] }}>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block" style={{ background: `${typeColor}20`, color: typeColor }}>
                     {values.type}
                   </span>
                 </div>

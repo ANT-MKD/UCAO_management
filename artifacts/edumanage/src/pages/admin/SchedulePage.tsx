@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { updateSeancePosition } from "@/data/studentStore";
 import { useSeances } from "@/hooks/useStudentStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "classe" | "salle" | "prof";
@@ -13,12 +14,13 @@ const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 const PX_PER_H = 80;
 
-const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  CM: { bg: "#eef2ff", border: "#4f46e5", text: "#4f46e5" },
-  TD: { bg: "#ecfdf5", border: "#10b981", text: "#10b981" },
-  TP: { bg: "#f5f3ff", border: "#8b5cf6", text: "#8b5cf6" },
-  EX: { bg: "#fef2f2", border: "#ef4444", text: "#ef4444" },
-};
+const FALLBACK_COLOR = "#4f46e5";
+
+/** Fond/texte dérivés de la couleur du type (édition modifiable dans Paramétrage emploi du
+ * temps > Type emploi du temps) — jamais une palette codée en dur ici. */
+function shadeFromColor(hex: string): { bg: string; border: string; text: string } {
+  return { bg: `${hex}18`, border: hex, text: hex };
+}
 
 const MODE_CONFIG: { key: ViewMode; label: string; icon: typeof Users }[] = [
   { key: "classe", label: "Par classe", icon: GraduationCap },
@@ -55,6 +57,7 @@ export default function SchedulePage() {
   const seances = useSeances();
   const CLASSES = useClasses();
   const SALLES = useSalles();
+  const TYPES_SEANCE = useTypesSeance();
   const [viewMode, setViewMode] = useState<ViewMode>("classe");
   const [viewTarget, setViewTarget] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -176,11 +179,14 @@ export default function SchedulePage() {
       </div>
 
       <div className="flex gap-3 mb-4 flex-wrap">
-        {Object.entries(TYPE_COLORS).map(([type, c]) => (
-          <div key={type} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: c.text }}>
-            <span className="w-3 h-3 rounded-sm" style={{ background: c.bg, border: `2px solid ${c.border}` }} />{type}
-          </div>
-        ))}
+        {TYPES_SEANCE.map((t) => {
+          const c = shadeFromColor(t.couleur);
+          return (
+            <div key={t.id} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: c.text }}>
+              <span className="w-3 h-3 rounded-sm" style={{ background: c.bg, border: `2px solid ${c.border}` }} />{t.code}
+            </div>
+          );
+        })}
         <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1"><GripVertical size={12} /> Glisser-déposer (avec validation anti-conflit)</span>
       </div>
 
@@ -227,7 +233,8 @@ export default function SchedulePage() {
                   ))}
 
                   {daySeances.map((s) => {
-                    const colors = TYPE_COLORS[s.type] ?? TYPE_COLORS.CM;
+                    const typeRecord = TYPES_SEANCE.find((t) => t.code === s.type);
+                    const colors = shadeFromColor(typeRecord?.couleur ?? FALLBACK_COLOR);
                     const top = timeToPixels(s.heureDebut);
                     const height = getDuration(s.heureDebut, s.heureFin);
                     const isDragging = draggingId === s.id;

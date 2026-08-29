@@ -7,6 +7,8 @@ import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { getAbsencePeriodeCouvrant } from "@/data/absencePeriodeStore";
+import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
+import { useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
@@ -50,6 +52,7 @@ export function TeacherCahierPage() {
   const ues = useUes();
   usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
   useAbsencesPeriode(); // souscription pour re-rendre quand une déclaration de période change
+  useJoursFeries(); // souscription pour re-rendre quand la liste des jours fériés change
 
   const [seanceId, setSeanceId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -243,6 +246,7 @@ export function TeacherCahierPage() {
     cahier: getCahierPourSeanceEtDate(s.id, date),
   }));
   const nbFaites = seancesAvecStatut.filter((x) => x.cahier).length;
+  const jourFerie = date ? getJourFerieCouvrant(date) : undefined;
 
   const infoGeneral = useMemo(() => {
     if (!seance) return null;
@@ -307,6 +311,12 @@ export function TeacherCahierPage() {
             })}
           </select>
         </div>
+
+        {jourFerie && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Le {date} est déclaré jour férié — {jourFerie.intitule}.
+          </div>
+        )}
 
         <div className="rounded-xl border border-border bg-muted/30 p-3">
           <p className="text-xs font-medium mb-2">
