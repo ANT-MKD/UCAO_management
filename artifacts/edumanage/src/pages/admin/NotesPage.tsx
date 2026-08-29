@@ -81,6 +81,7 @@ export default function NotesPage() {
   const etudiantsRetiresIds = classeId && ecId ? new Set(getEtudiantsRetiresPourCours(classeId, ecId)) : new Set<string>();
   const etudiantsAjoutesIds = classeId && ecId ? new Set(getEtudiantsAjoutesPourCours(classeId, ecId)) : new Set<string>();
   const classeStudents = etudiants.filter((e) => {
+    if (e.statut === "abandon") return false;
     const estMembre = e.classeId === classeId;
     const estAjoute = etudiantsAjoutesIds.has(e.id);
     if (!((estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute)) return false;

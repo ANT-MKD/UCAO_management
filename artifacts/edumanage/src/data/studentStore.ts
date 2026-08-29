@@ -872,6 +872,10 @@ export function checkReinscriptionEligibility(etudiantId: string): Reinscription
     blocked = true;
     reasons.push("Étudiant suspendu");
   }
+  if (etudiant.statut === "abandon") {
+    blocked = true;
+    reasons.push("Étudiant en abandon — réintégration requise avant réinscription");
+  }
   if (etudiant.soldeDu > 0) {
     const derogation = derogationActivePour(getDerogationsPaiement(), etudiantId, "reinscription");
     if (derogation) {
@@ -1389,6 +1393,29 @@ export function setEtudiantsAccess(
   }
   if (count > 0) persist();
   return count;
+}
+
+/** Bascule le statut d'un étudiant en "abandon" (dossier créé via Nouvel abandon) — mémorise
+ * le statut précédent pour permettre à reintegrerEtudiantStatut() de le restaurer exactement. */
+export function marquerEtudiantAbandon(etudiantId: string): string | undefined {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  if (!etudiant) return undefined;
+  const statutAvant = etudiant.statut;
+  etudiant.statut = "abandon";
+  const ins = store.inscriptions.find((i) => i.etudiantId === etudiantId && i.annee === etudiant.annee);
+  if (ins) ins.statut = "abandon";
+  persist();
+  return statutAvant;
+}
+
+/** Restaure le statut d'un étudiant après réintégration d'un dossier d'abandon. */
+export function reintegrerEtudiantStatut(etudiantId: string, statutAvant: string): void {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  if (!etudiant) return;
+  etudiant.statut = statutAvant || "actif";
+  const ins = store.inscriptions.find((i) => i.etudiantId === etudiantId && i.annee === etudiant.annee);
+  if (ins) ins.statut = etudiant.statut;
+  persist();
 }
 
 /** Affecte l'étudiant à une classe pédagogique après paiement confirmé */

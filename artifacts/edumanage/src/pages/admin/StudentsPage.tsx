@@ -20,6 +20,7 @@ const STATUT_OPTIONS = [
   { value: "en_attente", label: "En attente" },
   { value: "inscrit", label: "Inscrit" },
   { value: "suspendu", label: "Suspendu" },
+  { value: "abandon", label: "Abandon" },
 ];
 
 const ANNEE_OPTIONS = [

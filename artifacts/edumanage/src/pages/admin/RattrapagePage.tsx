@@ -129,6 +129,7 @@ export default function RattrapagePage() {
   const etudiantsRetiresIds = classeId && ecId ? new Set(getEtudiantsRetiresPourCours(classeId, ecId)) : new Set<string>();
   const etudiantsAjoutesIds = classeId && ecId ? new Set(getEtudiantsAjoutesPourCours(classeId, ecId)) : new Set<string>();
   const classeStudentsAll = etudiants.filter((e) => {
+    if (e.statut === "abandon") return false;
     const estMembre = e.classeId === classeId;
     const estAjoute = etudiantsAjoutesIds.has(e.id);
     return (estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute;
