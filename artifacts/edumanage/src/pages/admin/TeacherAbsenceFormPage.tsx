@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useSeances } from "@/hooks/useStudentStore";
 import { addTeacherAbsence, type TeacherAbsenceType } from "@/data/teacherAbsenceStore";
-import { filterTeachers, teacherDisplayLabel, matchesProf, dateToJour, type EnseignantRecord } from "@/lib/teacherUtils";
+import { filterTeachers, teacherDisplayLabel, matchesProf, dateToJour, mondayOf, type EnseignantRecord } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -55,8 +55,9 @@ export default function TeacherAbsenceFormPage() {
   const matchingSeances = useMemo(() => {
     if (!selected) return [];
     const jour = dateToJour(date);
+    const semaineDu = mondayOf(date);
     return seances.filter(
-      (s) => matchesProf(selected, s.prof) && s.jour === jour && s.annee === anneeScolaire,
+      (s) => matchesProf(selected, s.prof) && s.jour === jour && s.semaineDu === semaineDu && s.annee === anneeScolaire,
     );
   }, [selected, seances, date, anneeScolaire]);
 

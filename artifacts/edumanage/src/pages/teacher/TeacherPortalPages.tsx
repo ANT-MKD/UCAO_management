@@ -1,11 +1,14 @@
 ﻿import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSeances, useNotes, useCahiers, useStudentStore } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import { saveNotesGrid, submitNotesForValidation } from "@/data/studentStore";
 import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
+import { mondayOf } from "@/lib/teacherUtils";
 import { addRallonge, type RallongeStatut } from "@/data/rallongeStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
@@ -32,7 +35,8 @@ export function TeacherDashboardPage() {
   const ecs = useEcs();
   const absences = useTeacherAbsences();
 
-  const mineSeances = seances.filter((s) => matchProf(s.prof, currentUser?.name));
+  const thisWeekMonday = mondayOf(new Date().toISOString().slice(0, 10));
+  const mineSeances = seances.filter((s) => matchProf(s.prof, currentUser?.name) && s.semaineDu === thisWeekMonday);
   const mineCahiers = cahiers.filter((c) => matchProf(c.prof, currentUser?.name));
   const mineEcs = ecs.filter((e) => matchProf(e.responsable, currentUser?.name));
   const mineAbsences = absences
@@ -95,38 +99,70 @@ export function TeacherDashboardPage() {
 export function TeacherSchedulePage() {
   const { currentUser } = useAuth();
   const seances = useSeances();
+  const typesSeance = useTypesSeance();
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7) + weekOffset * 7);
+  const weekMonday = weekStart.toISOString().slice(0, 10);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 5);
+  const weekLabel = `${weekStart.getDate()} – ${weekEnd.getDate()} ${weekStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
+
   const mine = seances
-    .filter((s) => matchProf(s.prof, currentUser?.name))
+    .filter((s) => matchProf(s.prof, currentUser?.name) && s.semaineDu === weekMonday)
     .sort((a, b) => a.jour - b.jour || a.heureDebut.localeCompare(b.heureDebut));
 
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden">
-      <div className="p-5 border-b border-border">
+      <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mon emploi du temps</h2>
+        <div className="flex items-center gap-2">
+          <button type="button" data-testid="mon-edt-week-prev" onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-sm font-medium px-2">Semaine du {weekLabel}</span>
+          <button type="button" data-testid="mon-edt-week-next" onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
+            <ChevronRight size={16} />
+          </button>
+          <button type="button" data-testid="mon-edt-week-today" onClick={() => setWeekOffset(0)} className="px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors">
+            Aujourd&apos;hui
+          </button>
+        </div>
       </div>
       {mine.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-10">Aucune sÃ©ance planifiÃ©e.</p>
+        <p className="text-sm text-muted-foreground text-center py-10">Aucune séance planifiée pour cette semaine.</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
               <th className="px-4 py-3">Jour</th>
               <th className="px-4 py-3">Horaire</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">EC</th>
               <th className="px-4 py-3">Classe</th>
               <th className="px-4 py-3">Salle</th>
             </tr>
           </thead>
           <tbody>
-            {mine.map((s) => (
-              <tr key={s.id} className="border-t border-border">
-                <td className="px-4 py-3">{JOURS[s.jour]}</td>
-                <td className="px-4 py-3 font-mono text-xs">{s.heureDebut}â€“{s.heureFin}</td>
-                <td className="px-4 py-3">{s.ec}</td>
-                <td className="px-4 py-3">{s.classe}</td>
-                <td className="px-4 py-3 text-muted-foreground">{s.salle}</td>
-              </tr>
-            ))}
+            {mine.map((s) => {
+              const typeRecord = typesSeance.find((t) => t.code === s.type);
+              return (
+                <tr key={s.id} className="border-t border-border">
+                  <td className="px-4 py-3">{JOURS[s.jour]}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{s.heureDebut}–{s.heureFin}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${typeRecord?.couleur ?? "#4f46e5"}18`, color: typeRecord?.couleur ?? "#4f46e5" }}>
+                      {s.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">{s.ec}</td>
+                  <td className="px-4 py-3">{s.classe}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{s.salle}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

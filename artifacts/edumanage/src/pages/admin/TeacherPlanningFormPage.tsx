@@ -8,17 +8,17 @@ import { addSeance } from "@/data/studentStore";
 import { useSeances } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import {
   matchesProf,
   minutesToHHMM,
   seanceDurationMinutes,
   teacherProfLabel,
   dateToJour,
+  mondayOf,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
-
-const TYPES = ["CM", "TD", "TP", "EX"] as const;
 
 interface CourseOption {
   id: string;
@@ -33,7 +33,7 @@ interface PlanningForm {
   objet: string;
   salleId: string;
   date: string;
-  type: typeof TYPES[number];
+  type: string;
   heureDebut: string;
   heureFin: string;
   remarque?: string;
@@ -65,6 +65,7 @@ export default function TeacherPlanningFormPage() {
   const ues = useUes();
   const classes = useClasses();
   const salles = useSalles();
+  const typesSeance = useTypesSeance().filter((t) => t.categorie === "emploi_du_temps");
   const teachers = ENSEIGNANTS as EnseignantRecord[];
 
   const teacher = teachers.find((t) => t.id === teacherId) ?? null;
@@ -78,7 +79,7 @@ export default function TeacherPlanningFormPage() {
       objet: "",
       salleId: salles[0]?.id ?? "",
       date: defaultDate,
-      type: "CM",
+      type: typesSeance[0]?.code ?? "CM",
       heureDebut: defaultDebut,
       heureFin: defaultFin,
       remarque: "",
@@ -171,12 +172,17 @@ export default function TeacherPlanningFormPage() {
   const onSubmit = form.handleSubmit((data) => {
     if (!teacher || !selectedCourse) return;
     setConflicts([]);
+    if (dateToJour(data.date) === 7) {
+      setConflicts(["Aucun cours ne peut être planifié un dimanche — choisissez une date du lundi au samedi"]);
+      return;
+    }
     const result = addSeance({
       ecId: selectedCourse.ecId,
       classeId: selectedCourse.classeId,
       salleId: data.salleId,
       prof: teacherProfLabel(teacher),
       jour: dateToJour(data.date),
+      semaineDu: mondayOf(data.date),
       heureDebut: data.heureDebut,
       heureFin: data.heureFin,
       type: data.type,
@@ -316,9 +322,9 @@ export default function TeacherPlanningFormPage() {
                   Type <span className="text-red-500">*</span>
                 </label>
                 <select {...form.register("type")} className={inputClass}>
-                  {TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {typesSeance.map((t) => (
+                    <option key={t.id} value={t.code}>
+                      {t.code} — {t.intitule}
                     </option>
                   ))}
                 </select>

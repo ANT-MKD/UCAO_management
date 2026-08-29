@@ -221,6 +221,7 @@ function TypeSeanceSection() {
   const [categorie, setCategorie] = useState<TypeSeanceRecord["categorie"]>("emploi_du_temps");
   const [couleur, setCouleur] = useState("#4f46e5");
   const [trajet, setTrajet] = useState(false);
+  const [necessiteSurveillant, setNecessiteSurveillant] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TypeSeanceRecord | null>(null);
 
   const open = creating || !!editing;
@@ -231,6 +232,7 @@ function TypeSeanceSection() {
     setCategorie("emploi_du_temps");
     setCouleur("#4f46e5");
     setTrajet(false);
+    setNecessiteSurveillant(false);
     setCreating(true);
   };
   const startEdit = (r: TypeSeanceRecord) => {
@@ -239,6 +241,7 @@ function TypeSeanceSection() {
     setCategorie(r.categorie);
     setCouleur(r.couleur);
     setTrajet(r.trajet);
+    setNecessiteSurveillant(r.necessiteSurveillant);
     setEditing(r);
   };
   const close = () => {
@@ -252,10 +255,10 @@ function TypeSeanceSection() {
       return;
     }
     if (editing) {
-      typeSeanceStore.update(editing.id, { code: code.trim().toUpperCase(), intitule: intitule.trim(), categorie, couleur, trajet });
+      typeSeanceStore.update(editing.id, { code: code.trim().toUpperCase(), intitule: intitule.trim(), categorie, couleur, trajet, necessiteSurveillant });
       toast.success("Type d'emploi du temps modifié");
     } else {
-      typeSeanceStore.add({ code: code.trim().toUpperCase(), intitule: intitule.trim(), categorie, couleur, trajet });
+      typeSeanceStore.add({ code: code.trim().toUpperCase(), intitule: intitule.trim(), categorie, couleur, trajet, necessiteSurveillant });
       toast.success("Type d'emploi du temps ajouté");
     }
     close();
@@ -275,6 +278,7 @@ function TypeSeanceSection() {
                 <th className="text-left px-4 py-3">Type</th>
                 <th className="text-left px-4 py-3">Couleur</th>
                 <th className="text-center px-4 py-3">Trajet ?</th>
+                <th className="text-center px-4 py-3">Surveillant ?</th>
                 <th className="text-right px-4 py-3 w-24">Actions</th>
               </tr>
             </thead>
@@ -290,6 +294,11 @@ function TypeSeanceSection() {
                   <td className="px-4 py-3 text-center">
                     <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", r.trajet ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600")}>
                       {r.trajet ? "Oui" : "Non"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", r.necessiteSurveillant ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600")}>
+                      {r.necessiteSurveillant ? "Oui" : "Non"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -339,6 +348,10 @@ function TypeSeanceSection() {
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={trajet} onChange={(e) => setTrajet(e.target.checked)} className="rounded" data-testid="type-seance-trajet" />
             Trajet ?
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={necessiteSurveillant} onChange={(e) => setNecessiteSurveillant(e.target.checked)} className="rounded" data-testid="type-seance-surveillant" />
+            Nécessite un surveillant ? (pour un évènement de ce type)
           </label>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">

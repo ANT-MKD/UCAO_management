@@ -5,6 +5,8 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { ENSEIGNANTS } from "@/data/mockData";
 import { useSeances } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
+import { mondayOf } from "@/lib/teacherUtils";
 import { formatCFA, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +30,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("informations");
   const seances = useSeances();
+  const typesSeance = useTypesSeance();
   const decomptes = useDecomptes();
 
   const teacher = ENSEIGNANTS.find((e) => e.id === id);
@@ -160,12 +163,13 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
 
         {activeTab === "planning" && (() => {
           const JOURS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-          const teacherSeances = seances.filter((s) => s.prof.includes(teacher.nom));
-          const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-            CM: { bg: "#eef2ff", border: "#4f46e5", text: "#4f46e5" },
-            TD: { bg: "#ecfdf5", border: "#10b981", text: "#10b981" },
-            TP: { bg: "#f5f3ff", border: "#8b5cf6", text: "#8b5cf6" },
-          };
+          const thisWeekMonday = mondayOf(new Date().toISOString().slice(0, 10));
+          const teacherSeances = seances.filter((s) => s.prof.includes(teacher.nom) && s.semaineDu === thisWeekMonday);
+          function typeColorOf(type: string) {
+            const t = typesSeance.find((x) => x.code === type);
+            const hex = t?.couleur ?? "#4f46e5";
+            return { bg: `${hex}18`, border: hex, text: hex };
+          }
           const HOURS = Array.from({ length: 9 }, (_, i) => i + 8);
           function timeToH(t: string) { const [h, m] = t.split(":").map(Number); return h + m / 60; }
           const totalH = teacherSeances.reduce((s, se) => s + (timeToH(se.heureFin) - timeToH(se.heureDebut)), 0);
@@ -174,11 +178,14 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Planning hebdomadaire</h3>
                 <div className="flex gap-3 text-xs">
-                  {Object.entries(TYPE_COLORS).map(([t, c]) => (
-                    <span key={t} className="flex items-center gap-1.5 font-medium" style={{ color: c.text }}>
-                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c.bg, border: `1.5px solid ${c.border}` }} />{t}
-                    </span>
-                  ))}
+                  {typesSeance.map((t) => {
+                    const c = typeColorOf(t.code);
+                    return (
+                      <span key={t.id} className="flex items-center gap-1.5 font-medium" style={{ color: c.text }}>
+                        <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c.bg, border: `1.5px solid ${c.border}` }} />{t.code}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
               {/* Volume stats */}
@@ -228,7 +235,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
                             const PX_PER_H = 56;
                             const top = (timeToH(s.heureDebut) - 8) * PX_PER_H;
                             const height = (timeToH(s.heureFin) - timeToH(s.heureDebut)) * PX_PER_H;
-                            const c = TYPE_COLORS[s.type] ?? TYPE_COLORS.CM;
+                            const c = typeColorOf(s.type);
                             return (
                               <div key={s.id} className="absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 overflow-hidden" style={{ top, height, background: c.bg, borderLeft: `2.5px solid ${c.border}` }}>
                                 <div className="text-[9px] font-bold truncate" style={{ color: c.text }}>{s.ec}</div>

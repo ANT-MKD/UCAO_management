@@ -23,6 +23,7 @@ import {
   computeVhPointe,
   seanceDurationMinutes,
   dateToJour,
+  mondayOf,
   matchesProf,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
@@ -116,13 +117,15 @@ export default function TeacherPointageFormPage() {
   const matchingSeances = useMemo(() => {
     if (!selected || !selectedCourse) return [];
     const jour = dateToJour(date);
+    const semaineDu = mondayOf(date);
     return seances.filter(
       (s) =>
         matchesProf(selected, s.prof) &&
         s.annee === anneeScolaire &&
         s.ecId === selectedCourse.ecId &&
         s.classeId === selectedCourse.classeId &&
-        s.jour === jour,
+        s.jour === jour &&
+        s.semaineDu === semaineDu,
     );
   }, [selected, selectedCourse, seances, anneeScolaire, date]);
 

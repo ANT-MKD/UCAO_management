@@ -9,6 +9,7 @@ import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/da
 import { getAbsencePeriodeCouvrant } from "@/data/absencePeriodeStore";
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { useJoursFeries } from "@/hooks/useScheduleSettingsStore";
+import { mondayOf } from "@/lib/teacherUtils";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
@@ -75,7 +76,7 @@ export function TeacherCahierPage() {
   const [etatSeance, setEtatSeance] = useState<"preparee" | "realisee" | "annulee">("realisee");
   const [motifAnnulation, setMotifAnnulation] = useState("");
 
-  const mine = seances.filter((s) => matchProf(s.prof, currentUser?.name));
+  const mine = seances.filter((s) => matchProf(s.prof, currentUser?.name) && s.semaineDu === mondayOf(date));
   const seance = seances.find((s) => s.id === seanceId);
   const ec = ecs.find((e) => e.id === seance?.ecId);
   const ue = ues.find((u) => u.id === ec?.ueId);
@@ -290,7 +291,21 @@ export function TeacherCahierPage() {
 
       <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
         <div>
-          <label className={labelClass}>Séance (depuis l&apos;emploi du temps)</label>
+          <label className={labelClass}>Date de la séance (l&apos;emploi du temps est propre à chaque semaine)</label>
+          <input
+            type="date"
+            className={inputClass}
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              setEditingCahierId(undefined);
+              setSeanceId("");
+            }}
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>Séance de la semaine du {mondayOf(date)}</label>
           <select
             className={inputClass}
             value={seanceId}
@@ -380,10 +395,6 @@ export function TeacherCahierPage() {
           <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
             <h3 className="font-bold text-sm">Contenu de la séance</h3>
             <div className="grid sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Date</label>
-                <input type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} />
-              </div>
               <div>
                 <label className={labelClass}>État de la séance</label>
                 <select className={inputClass} value={etatSeance} onChange={(e) => setEtatSeance(e.target.value as typeof etatSeance)}>

@@ -17,6 +17,7 @@ import {
 } from "@/data/mockData";
 import { useStudentStore, usePaiements, useSeances } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
+import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 
 const MOYEN_COLORS: Record<string, string> = {
@@ -83,7 +84,11 @@ export default function DashboardPage() {
   const dayName = today.toLocaleDateString("fr-FR", { weekday: "long" });
   const dayNum = today.getDate();
   const todayDayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-  const todaySeances = seances.filter((s) => s.jour === todayDayOfWeek).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+  const todayIso = today.toISOString().slice(0, 10);
+  const todayMonday = mondayOf(todayIso);
+  const todaySeances = seances
+    .filter((s) => s.jour === todayDayOfWeek && s.semaineDu === todayMonday)
+    .sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
   const enAttenteInscription = etudiants.filter((e) => e.statut === "preinscrit" || e.statut === "en_attente").length;

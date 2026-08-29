@@ -253,6 +253,9 @@ export interface SeanceRecord {
   classe: string;
   classeId: string;
   jour: number;
+  /** Lundi (date ISO) de la semaine à laquelle cette séance appartient — l'emploi du temps
+   * est confectionné semaine par semaine, pas un modèle qui se répète indéfiniment. */
+  semaineDu: string;
   heureDebut: string;
   heureFin: string;
   salle: string;
@@ -389,7 +392,7 @@ function seedEtudiants(): EtudiantRecord[] {
 }
 
 function seedSeances(): SeanceRecord[] {
-  return SEED_SEANCES.map((s) => ({ ...s, annee: "2025-2026" }));
+  return SEED_SEANCES.map((s) => ({ ...s, annee: "2025-2026", semaineDu: "2026-08-24" }));
 }
 
 function seedNotes(): NoteRecord[] {
@@ -1642,6 +1645,7 @@ export interface NewSeancePayload {
   salleId: string;
   prof: string;
   jour: number;
+  semaineDu: string;
   heureDebut: string;
   heureFin: string;
   type: string;
@@ -1668,6 +1672,7 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
     classe: classe?.nom ?? "",
     classeId: payload.classeId,
     jour: payload.jour,
+    semaineDu: payload.semaineDu,
     heureDebut: payload.heureDebut,
     heureFin: payload.heureFin,
     salle: salle?.nom ?? "",
@@ -1714,6 +1719,19 @@ export function updateSeancePosition(
   seance.heureFin = heureFin;
   persist();
   return { ok: true, conflicts: [] };
+}
+
+/** Duplique toutes les séances d'une semaine vers une autre — le point de départ du travail
+ * hebdomadaire de l'administration (le vendredi, pour la semaine suivante) : on ne repart
+ * jamais d'une grille vide, on copie la semaine précédente puis on ajuste. */
+export function dupliquerSemaine(sourceSemaineDu: string, targetSemaineDu: string): number {
+  const source = store.seances.filter((s) => s.semaineDu === sourceSemaineDu);
+  const copies = source.map((s) => ({ ...s, id: `se-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, semaineDu: targetSemaineDu }));
+  // Nouvelle référence de tableau : useSeances()/useSyncExternalStore compare par Object.is et
+  // ne re-rend pas si un simple push() renvoie la même référence de tableau.
+  store.seances = [...store.seances, ...copies];
+  if (source.length > 0) persist();
+  return source.length;
 }
 
 export function getStudentRequests(): StudentRequestRecord[] {

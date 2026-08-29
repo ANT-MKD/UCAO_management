@@ -5,24 +5,24 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS } from "@/data/mockData";
 import { updateSeancePosition } from "@/data/studentStore";
 import { useSeances } from "@/hooks/useStudentStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import {
   filterTeachers,
   matchesProf,
+  mondayOf,
   teacherDisplayLabel,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 
-const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6);
 const PX_PER_H = 56;
+const FALLBACK_COLOR = "#4f46e5";
 
-const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  CM: { bg: "#eef2ff", border: "#4f46e5", text: "#4f46e5" },
-  TD: { bg: "#ecfdf5", border: "#10b981", text: "#10b981" },
-  TP: { bg: "#f5f3ff", border: "#8b5cf6", text: "#8b5cf6" },
-  EX: { bg: "#fef2f2", border: "#ef4444", text: "#ef4444" },
-};
+function shadeFromColor(hex: string): { bg: string; border: string; text: string } {
+  return { bg: `${hex}18`, border: hex, text: hex };
+}
 
 function timeToPixels(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -59,6 +59,7 @@ export default function TeacherPlanningPage() {
   const teacherIdParam = params.get("id") ?? "";
 
   const seances = useSeances();
+  const typesSeance = useTypesSeance();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
 
   const [query, setQuery] = useState("");
@@ -88,24 +89,26 @@ export default function TeacherPlanningPage() {
     setLocation(`/admin/teachers/planning?id=${encodeURIComponent(t.id)}`);
   };
 
-  const teacherSeances = useMemo(() => {
-    if (!selected) return [];
-    return seances.filter((s) => matchesProf(selected, s.prof));
-  }, [seances, selected]);
-
   const now = new Date();
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7) + weekOffset * 7);
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
+  const weekMonday = weekStart.toISOString().slice(0, 10);
+  const weekDays = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
     return d;
   });
-  const weekEnd = weekDays[6];
+  const weekEnd = weekDays[5];
   const weekLabel = `${weekStart.getDate()} – ${weekEnd.getDate()} ${weekStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
 
-  const displayDays = viewMode === "jour" ? [weekDays[(now.getDay() + 6) % 7]] : weekDays;
-  const displayJourNums = viewMode === "jour" ? [(now.getDay() + 6) % 7 + 1] : [1, 2, 3, 4, 5, 6, 7];
+  const teacherSeances = useMemo(() => {
+    if (!selected) return [];
+    return seances.filter((s) => matchesProf(selected, s.prof) && s.semaineDu === weekMonday);
+  }, [seances, selected, weekMonday]);
+
+  const todayJourNum = Math.min((now.getDay() + 6) % 7 + 1, 6);
+  const displayDays = viewMode === "jour" ? [weekDays[todayJourNum - 1]] : weekDays;
+  const displayJourNums = viewMode === "jour" ? [todayJourNum] : [1, 2, 3, 4, 5, 6];
 
   const openNewPlanning = (jour: number, heureDebut: string, heureFin?: string) => {
     if (!selected) return;
@@ -262,12 +265,15 @@ export default function TeacherPlanningPage() {
             </div>
 
             <div className="flex gap-3 flex-wrap">
-              {Object.entries(TYPE_COLORS).map(([type, c]) => (
-                <div key={type} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: c.text }}>
-                  <span className="w-3 h-3 rounded-sm" style={{ background: c.bg, border: `2px solid ${c.border}` }} />
-                  {type}
-                </div>
-              ))}
+              {typesSeance.map((t) => {
+                const c = shadeFromColor(t.couleur);
+                return (
+                  <div key={t.id} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: c.text }}>
+                    <span className="w-3 h-3 rounded-sm" style={{ background: c.bg, border: `2px solid ${c.border}` }} />
+                    {t.code}
+                  </div>
+                );
+              })}
               <span className="text-xs text-muted-foreground ml-auto">
                 {teacherSeances.length} séance(s) — cliquez sur une case vide pour planifier
               </span>
@@ -336,7 +342,8 @@ export default function TeacherPlanningPage() {
                     ))}
 
                     {daySeances.map((s) => {
-                      const colors = TYPE_COLORS[s.type] ?? TYPE_COLORS.CM;
+                      const typeRecord = typesSeance.find((t) => t.code === s.type);
+                      const colors = shadeFromColor(typeRecord?.couleur ?? FALLBACK_COLOR);
                       const top = timeToPixels(s.heureDebut);
                       const height = getDuration(s.heureDebut, s.heureFin);
                       const isDragging = draggingId === s.id;
