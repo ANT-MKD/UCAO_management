@@ -102,6 +102,8 @@ export interface CahierPresenceEntry {
   nom: string;
   statut: "present" | "absent" | "retard";
   justification?: string;
+  /** Durée du retard en minutes — n'a de sens que si statut === "retard". */
+  retardMinutes?: number;
 }
 
 export interface CahierAttachment {
@@ -1992,4 +1994,47 @@ export function validateCahier(id: string, actorUserId: string, approve: boolean
   }
   logAudit(actorUserId, approve ? "validate_cahier" : "reject_cahier", "cahier", id);
   persist();
+}
+
+/** Marque une absence/retard déjà signalé par le prof dans son cahier comme justifié (ou non),
+ * avec une pièce/justificatif — Nouvelle assiduité ne ressaisit jamais qui était absent, ça
+ * reste la parole du cahier de textes ; seule la justification est modifiable ici. */
+export function justifierPresenceCahier(cahierId: string, etudiantId: string, justification: string, justifie: boolean): void {
+  const cahier = store.cahiers.find((c) => c.id === cahierId);
+  if (!cahier) return;
+  cahier.presences = cahier.presences.map((p) =>
+    p.etudiantId === etudiantId ? { ...p, justification: justifie ? justification : "" } : p,
+  );
+  persist();
+}
+
+/** Cahier "de secours" créé directement par l'administration quand un professeur n'a soumis
+ * aucun cahier de textes pour une séance déjà tenue — jamais confondu avec un vrai cahier :
+ * resume porte explicitement la mention, sujet reste vide (aucun contenu pédagogique à
+ * inventer), et le cahier existant du prof est toujours prioritaire si jamais soumis ensuite. */
+export function creerCahierSecoursAdmin(
+  seanceId: string,
+  date: string,
+  presences: CahierPresenceEntry[],
+  effectuePar: string,
+): CahierSeanceRecord {
+  const seance = store.seances.find((s) => s.id === seanceId);
+  return submitCahierSeance({
+    seanceId,
+    prof: seance?.prof ?? "",
+    date,
+    sujet: "",
+    resume: `Assiduité saisie par l'administration (${effectuePar}) — aucun cahier de textes soumis par l'enseignant pour cette séance.`,
+    presences,
+    etatSeance: "realisee",
+    asDraft: false,
+  });
+}
+
+/** Cahier réel déjà soumis (brouillon exclu) pour une séance à une date donnée — utilisé par
+ * Nouvelle assiduité pour retrouver les absents/retardataires réels du cahier, sans jamais les
+ * ressaisir manuellement. */
+export function getCahierPourSeanceEtDate(seanceId: string, date: string): CahierSeanceRecord | undefined {
+  const row = store.cahiers.find((c) => c.seanceId === seanceId && c.date === date && c.statut !== "brouillon");
+  return row ? normalizeCahier(row) : undefined;
 }

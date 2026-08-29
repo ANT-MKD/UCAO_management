@@ -4,8 +4,9 @@ import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Ca
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { formatCFA, formatDate, getMention } from "@/lib/utils";
-import { ABSENCES } from "@/data/mockData";
-import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes } from "@/hooks/useStudentStore";
+import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers } from "@/hooks/useStudentStore";
+import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
+import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
@@ -59,6 +60,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const studentDerogations = derogationsPaiement.filter((d) => d.etudiantId === id);
   const studentDerogationActive = studentDerogations.find((d) => statutDerogation(d) === "active");
   const abandons = useAbandons();
+  useCahiers(); // souscription pour re-rendre l'onglet Absences quand un cahier change
+  useAbsencesPeriode(); // idem pour les couvertures par période
   const studentAbandons = abandons.filter((a) => a.etudiantId === id);
   const studentAbandonActif = studentAbandons.find((a) => !a.reintegre);
   if (!student) {
@@ -502,19 +505,19 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
         )}
 
         {activeTab === "absences" && (() => {
-          const studentAbsences = ABSENCES.filter((a) => a.etudiantId === id);
-          const nbTotal = studentAbsences.length;
-          const nbJustif = studentAbsences.filter((a) => a.justifie).length;
+          const studentAssiduite = getAssiduiteRowsPourEtudiant(id);
+          const { pct: tauxPresence } = getTauxPresencePourEtudiant(id);
+          const nbTotal = studentAssiduite.length;
+          const nbJustif = studentAssiduite.filter((a) => a.justifie).length;
           const nbNonJustif = nbTotal - nbJustif;
-          const tauxPresence = Math.max(0, Math.round(((52 - nbTotal) / 52) * 100));
           return (
             <div>
               <div className="flex items-center justify-between mb-5">
-                <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Suivi des Absences — S1 2025-2026</h3>
+                <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Suivi des Absences — d&apos;après le cahier de textes</h3>
               </div>
               <div className="grid grid-cols-4 gap-3 mb-5">
                 {[
-                  { label: "Total absences", value: nbTotal, color: "text-foreground" },
+                  { label: "Total absences/retards", value: nbTotal, color: "text-foreground" },
                   { label: "Non justifiées", value: nbNonJustif, color: "text-red-500" },
                   { label: "Justifiées", value: nbJustif, color: "text-amber-600" },
                   { label: "Taux de présence", value: `${tauxPresence}%`, color: "text-emerald-600" },
@@ -534,11 +537,11 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                   <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${tauxPresence}%` }} />
                 </div>
               </div>
-              {studentAbsences.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Aucune absence enregistrée</p>
+              {studentAssiduite.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Aucune absence ni retard enregistré</p>
               ) : (
                 <div className="relative pl-6 border-l-2 border-amber-200 space-y-3">
-                  {[...studentAbsences].sort((a, b) => b.date.localeCompare(a.date)).map((ab) => (
+                  {studentAssiduite.map((ab) => (
                     <div key={ab.id} className="relative">
                       <div className={cn("absolute -left-[25px] top-4 w-3 h-3 rounded-full border-2 border-card", ab.justifie ? "bg-amber-400" : "bg-red-400")} />
                       <div className={cn("flex items-center gap-4 p-4 rounded-xl border ml-2",
@@ -547,17 +550,17 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         <div className="flex-1">
                           <div className="text-sm font-medium text-foreground">{ab.ec}</div>
                           <div className="text-xs text-muted-foreground">
-                            {new Date(ab.date).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} · {ab.heure}
+                            {new Date(ab.date).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} · {ab.classe}
                           </div>
                         </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{ab.type}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{ab.type === "absence" ? "Absence" : `Retard${ab.retardMinutes ? ` ${ab.retardMinutes}min` : ""}`}</span>
                         <div className="text-right">
                           <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full",
                             ab.justifie ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
                           )}>
                             {ab.justifie ? "Justifiée" : "Non justifiée"}
                           </span>
-                          {ab.motif && <div className="text-[10px] text-muted-foreground mt-0.5">{ab.motif}</div>}
+                          {ab.justification && <div className="text-[10px] text-muted-foreground mt-0.5">{ab.justification}</div>}
                         </div>
                       </div>
                     </div>

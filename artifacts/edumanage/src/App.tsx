@@ -85,6 +85,10 @@ const DeliberationsPage = lazy(() => import("@/pages/admin/DeliberationsPage"));
 const MiseAJourCoursEtudiantPage = lazy(() => import("@/pages/admin/MiseAJourCoursEtudiantPage"));
 const AbandonsPage = lazy(() => import("@/pages/admin/AbandonsPage"));
 const NouvelAbandonPage = lazy(() => import("@/pages/admin/NouvelAbandonPage"));
+const AssiduitesListPage = lazy(() => import("@/pages/admin/AssiduitesListPage"));
+const NouvelleAssiduitePage = lazy(() => import("@/pages/admin/NouvelleAssiduitePage"));
+const AbsencePeriodePage = lazy(() => import("@/pages/admin/AbsencePeriodePage"));
+const AbsencePeriodeListPage = lazy(() => import("@/pages/admin/AbsencePeriodeListPage"));
 const ParametrageScolaritePage = lazy(() => import("@/pages/admin/ParametrageScolaritePage"));
 const FicheInscriptionPage = lazy(() => import("@/pages/admin/FicheInscriptionPage"));
 const CorrectionInscriptionPage = lazy(() => import("@/pages/admin/CorrectionInscriptionPage"));
@@ -651,6 +655,18 @@ function AppRouter() {
       </Route>
       <Route path="/admin/abandons">
         <Admin><AbandonsPage /></Admin>
+      </Route>
+      <Route path="/admin/assiduites/nouvelle">
+        <Admin><NouvelleAssiduitePage /></Admin>
+      </Route>
+      <Route path="/admin/assiduites/periode/nouvelle">
+        <Admin><AbsencePeriodePage /></Admin>
+      </Route>
+      <Route path="/admin/assiduites/periode">
+        <Admin><AbsencePeriodeListPage /></Admin>
+      </Route>
+      <Route path="/admin/assiduites">
+        <Admin><AssiduitesListPage /></Admin>
       </Route>
       <Route path="/admin/frais">
         <Admin><FraisPage /></Admin>

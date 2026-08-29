@@ -71,11 +71,15 @@ export function TeacherCahierPage() {
   }, [seanceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setPresence(id: string, statut: CahierPresenceEntry["statut"]) {
-    setPresences((prev) => prev.map((p) => (p.etudiantId === id ? { ...p, statut, justification: statut === "absent" ? p.justification : "" } : p)));
+    setPresences((prev) => prev.map((p) => (p.etudiantId === id ? { ...p, statut, justification: statut === "absent" ? p.justification : "", retardMinutes: statut === "retard" ? p.retardMinutes : undefined } : p)));
   }
 
   function setJustif(id: string, justification: string) {
     setPresences((prev) => prev.map((p) => (p.etudiantId === id ? { ...p, justification } : p)));
+  }
+
+  function setRetardMinutes(id: string, retardMinutes: number) {
+    setPresences((prev) => prev.map((p) => (p.etudiantId === id ? { ...p, retardMinutes } : p)));
   }
 
   function addPiece(file: File | null) {
@@ -322,6 +326,16 @@ export function TeacherCahierPage() {
                           placeholder="Justification d'absence"
                           value={p.justification || ""}
                           onChange={(e) => setJustif(p.etudiantId, e.target.value)}
+                        />
+                      )}
+                      {p.statut === "retard" && (
+                        <input
+                          type="number"
+                          min={1}
+                          className="w-28 text-xs rounded-lg border border-border px-2 py-1 bg-background"
+                          placeholder="Durée (min)"
+                          value={p.retardMinutes ?? ""}
+                          onChange={(e) => setRetardMinutes(p.etudiantId, Number(e.target.value))}
                         />
                       )}
                     </div>
