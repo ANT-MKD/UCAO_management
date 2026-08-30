@@ -26,6 +26,8 @@ function buildQuittanceHtml(args: {
   etudiant: string;
   matricule: string;
   classe: string;
+  telephone: string;
+  email: string;
   montantQuittance: number;
   montantPaye: number;
   statut: string;
@@ -34,37 +36,106 @@ function buildQuittanceHtml(args: {
   reference: string;
 }): string {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const resteAPayer = Math.max(0, args.montantQuittance - args.montantPaye);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.numero}</title>
 <style>
-body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;justify-content:space-between;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
-th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
-th{background:#f4f4f8}
-.total-row td{font-weight:bold;background:#f9f9fc}
-.footer{margin-top:50px;font-size:11px;color:#666}
+* { box-sizing: border-box; }
+body{font-family:'Segoe UI',Arial,sans-serif;max-width:760px;margin:32px auto;padding:48px;color:#1a1a2e;font-size:13px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#4f46e5,#22c1a0);flex-shrink:0}
+.brand h1{font-size:16px;margin:0;color:#1a1a2e}
+.brand p{font-size:11px;margin:2px 0 0;color:#888}
+.receipt-title{text-align:right}
+.receipt-title h2{font-size:28px;letter-spacing:2px;margin:0;color:#4f46e5;font-weight:800}
+.receipt-title p{font-size:11px;margin:6px 0 0;color:#888}
+.receipt-title strong{color:#1a1a2e}
+.meta-row{display:flex;justify-content:space-between;margin-bottom:28px;gap:24px}
+.meta-row .label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px}
+.meta-row .name{font-size:14px;font-weight:700;color:#1a1a2e}
+.meta-row .sub{font-size:12px;color:#555;margin-top:2px}
+table{width:100%;border-collapse:collapse;margin-bottom:24px}
+th{background:#1a2f5e;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:11px 14px}
+th.num,td.num{text-align:right}
+td{padding:11px 14px;border-bottom:1px solid #ececf2;font-size:13px}
+tbody tr:last-child td{border-bottom:none}
+.bottom{display:flex;justify-content:space-between;gap:32px;align-items:flex-start;margin-top:8px}
+.payment-box{font-size:12px;color:#444;max-width:260px}
+.payment-box .label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:6px;font-weight:700}
+.payment-box div{margin:2px 0}
+.summary{min-width:230px;border:1px solid #ececf2;border-radius:8px;overflow:hidden}
+.summary .row{display:flex;justify-content:space-between;padding:9px 14px;font-size:12px;background:#f7f8fc}
+.summary .row + .row{border-top:1px solid #ececf2}
+.summary .row.due{color:#c0392b;font-weight:600}
+.summary .row.total{background:#1a2f5e;color:#fff;font-weight:800;font-size:14px}
+.thanks{margin-top:32px;font-size:13px;font-weight:600;color:#1a2f5e}
+.footer{margin-top:56px;display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;color:#888}
+.signature{text-align:center}
+.signature .line{width:170px;border-top:1px solid #ccc;margin-bottom:6px}
+.signature strong{color:#1a1a2e;font-size:12px}
+@media print { body{margin:0} }
 </style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">QUITTANCE N° ${args.numero}</div>
-<div class="meta">
-  <div>Émise le : <strong>${args.emise}</strong></div>
-  <div>Date limite : <strong>${args.limite || "—"}</strong></div>
-  <div>Statut : <strong>${args.statut}</strong></div>
+<div class="top">
+  <div class="brand">
+    <div class="mark"></div>
+    <div><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
+  </div>
+  <div class="receipt-title">
+    <h2>REÇU</h2>
+    <p>Date : <strong>${args.emise}</strong></p>
+    <p>N° : <strong>${args.numero}</strong></p>
+  </div>
 </div>
-<p>Adressée à : <strong>${args.matricule} — ${args.etudiant}</strong> (${args.classe})</p>
+
+<div class="meta-row">
+  <div>
+    <div class="label">Adressé à</div>
+    <div class="name">${args.etudiant}</div>
+    <div class="sub">${args.matricule}${args.classe ? ` — ${args.classe}` : ""}</div>
+    ${args.telephone ? `<div class="sub">${args.telephone}</div>` : ""}
+    ${args.email ? `<div class="sub">${args.email}</div>` : ""}
+  </div>
+  <div style="text-align:right">
+    <div class="label">Statut</div>
+    <div class="name">${args.statut}</div>
+    ${args.limite ? `<div class="sub">Date limite : ${args.limite}</div>` : ""}
+  </div>
+</div>
+
 <table>
-<thead><tr><th>Rubrique</th><th>Montant</th></tr></thead>
+<thead><tr><th>Rubrique</th><th class="num">Montant</th></tr></thead>
 <tbody>
-${args.lignes.map((l) => `<tr><td>${l.label}</td><td>${formatCFA(l.montant)}</td></tr>`).join("")}
-<tr class="total-row"><td>Montant quittancé</td><td>${formatCFA(args.montantQuittance)}</td></tr>
+${args.lignes.map((l) => `<tr><td>${l.label}</td><td class="num">${formatCFA(l.montant)}</td></tr>`).join("")}
 </tbody>
 </table>
-<p>Montant payé : <strong>${formatCFA(args.montantPaye)}</strong> — Mode : ${args.moyen} — Référence : ${args.reference}</p>
-<div class="footer">Fait à Dakar, le ${now}</div>
+
+<div class="bottom">
+  <div class="payment-box">
+    <div class="label">Méthode de paiement</div>
+    <div>Mode : ${args.moyen || "—"}</div>
+    <div>Référence : ${args.reference || "—"}</div>
+  </div>
+  <div class="summary">
+    <div class="row"><span>Sous-total</span><span>${formatCFA(args.montantQuittance)}</span></div>
+    <div class="row"><span>Montant payé</span><span>${formatCFA(args.montantPaye)}</span></div>
+    ${resteAPayer > 0 ? `<div class="row due"><span>Reste à payer</span><span>${formatCFA(resteAPayer)}</span></div>` : ""}
+    <div class="row total"><span>Total</span><span>${formatCFA(args.montantQuittance)}</span></div>
+  </div>
+</div>
+
+<p class="thanks">Merci pour votre confiance !</p>
+
+<div class="footer">
+  <div>
+    Institut Supérieur EduManage<br />
+    Dakar, Sénégal<br />
+    Fait le ${now}
+  </div>
+  <div class="signature">
+    <div class="line"></div>
+    <strong>Le Responsable Financier</strong>
+  </div>
+</div>
 </body></html>`;
 }
 
@@ -128,6 +199,8 @@ export default function PaiementDetailPage({ id }: { id: string }) {
         etudiant: record.etudiant,
         matricule: etu?.matricule ?? "",
         classe: record.classe,
+        telephone: etu?.telephone ?? "",
+        email: etu?.email ?? "",
         montantQuittance: mtQuittance,
         montantPaye: record.montant,
         statut,
