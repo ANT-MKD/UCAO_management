@@ -3,8 +3,8 @@ import { useLocation, useSearch } from "wouter";
 import { Search, Clock, AlertTriangle, Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
-import { useSeances, useCahiers } from "@/hooks/useStudentStore";
+import { ENSEIGNANTS } from "@/data/mockData";
+import { useSeances, useCahiers, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import { usePointages } from "@/hooks/usePointageStore";
@@ -32,13 +32,6 @@ import { cn } from "@/lib/utils";
 const TYPES = ["CM", "TD", "TP", "EX"] as const;
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES]
-  .sort((a, b) => b.libelle.localeCompare(a.libelle))
-  .map((a) => a.libelle);
-
-const DEFAULT_ANNEE =
-  ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0] ?? "2025-2026";
-
 const NO_SEANCE = "";
 
 function minutesToHours(minutes: number): number {
@@ -61,10 +54,16 @@ export default function TeacherPointageFormPage() {
   const pointages = usePointages();
   const savedVolumes = useTeacherVolumes();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(teacherIdParam);
-  const [anneeScolaire, setAnneeScolaire] = useState(anneeParam || DEFAULT_ANNEE);
+  const [anneeScolaire, setAnneeScolaire] = useState(anneeParam || defaultAnnee);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [courseQuery, setCourseQuery] = useState("");
@@ -375,7 +374,7 @@ export default function TeacherPointageFormPage() {
                 onChange={(e) => handleAnneeChange(e.target.value)}
                 className={`${inputClass} min-w-[140px] py-2`}
               >
-                {ANNEE_OPTIONS.map((a) => (
+                {anneeOptions.map((a) => (
                   <option key={a} value={a}>
                     {a}
                   </option>

@@ -3,9 +3,9 @@ import { useLocation } from "wouter";
 import { Send, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import {
   addEmissionMasse,
   findActiveEmissionForClasse,
@@ -16,8 +16,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, cn } from "@/lib/utils";
 
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0]?.libelle ?? "2025-2026";
 const RUBRIQUE_OPTIONS: RubriqueEmission[] = ["inscription", "scolarite", "fraisDivers"];
 
 function todayPlus(days: number): string {
@@ -34,9 +32,12 @@ export default function EmissionMasseFormPage() {
   const { currentUser } = useAuth();
   const classes = useClasses();
   const etudiants = useStudentStore();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(() => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)), [anneesAcademiques]);
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "2025-2026";
 
   const [filiereId, setFiliereId] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [rubriques, setRubriques] = useState<RubriqueEmission[]>(["scolarite"]);
@@ -168,7 +169,7 @@ export default function EmissionMasseFormPage() {
                 Année <span className="text-red-500">*</span>
               </label>
               <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="emm-annee">
-                {ANNEE_OPTIONS.map((a) => (
+                {anneeOptions.map((a) => (
                   <option key={a.id} value={a.libelle}>
                     {a.libelle}
                   </option>

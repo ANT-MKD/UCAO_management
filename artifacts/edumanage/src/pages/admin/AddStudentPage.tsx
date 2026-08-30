@@ -8,15 +8,17 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
-import { allocateMatricule, registerNewEtudiant, registerPaiement, peekNextMatricule } from "@/data/studentStore";
+import { allocateMatricule, registerNewEtudiant, registerPaiement, peekNextMatricule, type EtudiantRecord } from "@/data/studentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useFraisConfigs } from "@/hooks/useFraisConfigStore";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import {
   SERIES_BAC, STATUTS_INSCRIPTION, TYPES_ADMISSION, DOCUMENTS_INSCRIPTION,
   MODES_PAIEMENT, STATUTS_PAIEMENT, TYPES_FRAIS_INSCRIPTION, MODES_SCOLARITE,
   generateMotDePasseEtudiant,
 } from "@/lib/inscriptionConstants";
 import { cn, formatCFA } from "@/lib/utils";
+import { toast } from "sonner";
 
 const STEPS = [
   { id: 1, label: "État civil", icon: User },
@@ -82,6 +84,12 @@ export default function AddStudentPage() {
   const [, setLocation] = useLocation();
   const classes = useClasses();
   const FRAIS_CONFIG = useFraisConfigs();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
   const [currentStep, setCurrentStep] = useState(1);
   const [step1Data, setStep1Data] = useState<Step1Data | null>(null);
   const [step2Data, setStep2Data] = useState<Step2Data | null>(null);
@@ -92,7 +100,7 @@ export default function AddStudentPage() {
 
   const form1 = useForm<Step1Data>({ defaultValues: { sexe: "M", pays: "Sénégal", nationalite: "Sénégalaise" } });
   const form2 = useForm<Step2Data>({ defaultValues: { typeAdmission: "nouveau", dernierEtablissement: "" } });
-  const form3 = useForm<Step3Data>({ defaultValues: { annee: "2025-2026", statut: "preinscrit" } });
+  const form3 = useForm<Step3Data>({ defaultValues: { annee: defaultAnnee, statut: "preinscrit" } });
   const form5 = useForm<Step5Data>({
     defaultValues: {
       typesFrais: ["inscription"],
@@ -215,44 +223,50 @@ export default function AddStudentPage() {
       .filter(([, f]) => !!f)
       .map(([id]) => id);
 
-    const etudiant = registerNewEtudiant(
-      {
-        prenom: step1Data.prenom,
-        nom: step1Data.nom,
-        sexe: step1Data.sexe,
-        dateNaissance: step1Data.dateNaissance,
-        email: step1Data.email,
-        telephone: step1Data.telephone,
-        filiereId: step3Data.filiereId,
-        classeId: "",
-        niveau: niveau?.alias ?? "L1",
-        statut: "preinscrit",
-        annee: step3Data.annee,
-        soldeDu,
-        inscriptionUniquePayee: inscriptionPayee,
-        lieuNaissance: step1Data.lieuNaissance,
-        pays: step1Data.pays,
-        nationalite: step1Data.nationalite,
-        cni: step1Data.cni,
-        typeAdmission: step2Data?.typeAdmission,
-        documentsFournis: docsFournis,
-      },
-      finalMatricule,
-    );
+    let etudiant: EtudiantRecord;
+    try {
+      etudiant = registerNewEtudiant(
+        {
+          prenom: step1Data.prenom,
+          nom: step1Data.nom,
+          sexe: step1Data.sexe,
+          dateNaissance: step1Data.dateNaissance,
+          email: step1Data.email,
+          telephone: step1Data.telephone,
+          filiereId: step3Data.filiereId,
+          classeId: "",
+          niveau: niveau?.alias ?? "L1",
+          statut: "preinscrit",
+          annee: step3Data.annee,
+          soldeDu,
+          inscriptionUniquePayee: inscriptionPayee,
+          lieuNaissance: step1Data.lieuNaissance,
+          pays: step1Data.pays,
+          nationalite: step1Data.nationalite,
+          cni: step1Data.cni,
+          typeAdmission: step2Data?.typeAdmission,
+          documentsFournis: docsFournis,
+        },
+        finalMatricule,
+      );
 
-    if (step5Data.montantVerse > 0 || (paye && totalFacture > 0)) {
-      registerPaiement({
-        etudiantId: etudiant.id,
-        rubrique: "Facture unique",
-        montant: step5Data.montantVerse || totalFacture,
-        moyen: step5Data.modePaiement,
-        reference: step5Data.numeroRecu,
-        date: step5Data.dateOperation,
-        statut: step5Data.statutPaiement,
-        lignes,
-        classeId: classeApres || undefined,
-        recordOnly: true,
-      });
+      if (step5Data.montantVerse > 0 || (paye && totalFacture > 0)) {
+        registerPaiement({
+          etudiantId: etudiant.id,
+          rubrique: "Facture unique",
+          montant: step5Data.montantVerse || totalFacture,
+          moyen: step5Data.modePaiement,
+          reference: step5Data.numeroRecu,
+          date: step5Data.dateOperation,
+          statut: step5Data.statutPaiement,
+          lignes,
+          classeId: classeApres || undefined,
+          recordOnly: true,
+        });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Inscription impossible");
+      return;
     }
     setLocation(`/admin/students/${etudiant.id}`);
   };
@@ -467,8 +481,7 @@ export default function AddStudentPage() {
               </InputField>
               <InputField label="Année académique *">
                 <select {...form3.register("annee")} className={inputClass}>
-                  <option value="2025-2026">2025-2026</option>
-                  <option value="2024-2025">2024-2025</option>
+                  {anneeOptions.map((a) => <option key={a} value={a}>{a}</option>)}
                 </select>
               </InputField>
             </div>

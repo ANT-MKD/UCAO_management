@@ -3,18 +3,15 @@ import { useLocation } from "wouter";
 import { Send, AlertTriangle, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
+import { useStudentStore, usePaiements, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { addPECMasse, findActivePECMasseForClasse, type PECMasseEtudiantPayload } from "@/data/pecMasseStore";
 import type { TypePEC, PriseEnChargeLigne } from "@/data/priseEnChargeStore";
 import { montantQuittance } from "@/pages/admin/PaiementsPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, cn } from "@/lib/utils";
-
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0]?.libelle ?? "2025-2026";
 
 function todayPlus(days: number): string {
   const d = new Date();
@@ -32,10 +29,13 @@ export default function PECMasseFormPage() {
   const etudiants = useStudentStore();
   const paiements = usePaiements();
   const organismes = useOrganismesPEC();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(() => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)), [anneesAcademiques]);
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "2025-2026";
 
   const [organismeId, setOrganismeId] = useState("");
   const [filiereId, setFiliereId] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [type, setType] = useState<TypePEC>("montant");
@@ -238,7 +238,7 @@ export default function PECMasseFormPage() {
                 Année <span className="text-red-500">*</span>
               </label>
               <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="pecm-annee">
-                {ANNEE_OPTIONS.map((a) => (
+                {anneeOptions.map((a) => (
                   <option key={a.id} value={a.libelle}>
                     {a.libelle}
                   </option>

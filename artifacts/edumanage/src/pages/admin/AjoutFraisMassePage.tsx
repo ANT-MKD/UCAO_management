@@ -2,16 +2,13 @@ import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
 import { ajouterFraisEtudiantMasse, type NouvelleLigneFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { cn } from "@/lib/utils";
-
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0]?.libelle ?? "2025-2026";
 
 const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -30,9 +27,12 @@ export default function AjoutFraisMassePage() {
   const typesFraisComplet = useTypesFrais();
   const typesFrais = useMemo(() => typesFraisComplet.filter((t) => t.code !== "REP"), [typesFraisComplet]);
   const fraisEtudiant = useFraisEtudiant();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(() => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)), [anneesAcademiques]);
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "2025-2026";
 
   const [filiereId, setFiliereId] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [etudiantId, setEtudiantId] = useState("");
@@ -142,7 +142,7 @@ export default function AjoutFraisMassePage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
             <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="masse-ajout-annee">
-              {ANNEE_OPTIONS.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+              {anneeOptions.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>

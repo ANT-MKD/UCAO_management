@@ -3,9 +3,10 @@ import { Ban, Copy, Download, Eye, FileSpreadsheet, Plus, Save, Trash2, Upload }
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import {
   getGrilleFrais,
   upsertGrilleFrais,
@@ -18,9 +19,6 @@ import {
 import { parseGrilleFraisExcel, downloadGrilleFraisTemplate, exportGrillesFraisExcel } from "@/lib/grilleFraisImport";
 import { niveauLabel } from "@/lib/teacherCourseUtils";
 import { formatCFA, cn } from "@/lib/utils";
-
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle);
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0] ?? "2025-2026";
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -39,10 +37,16 @@ const EMPTY_FILTERS: OverviewFilters = { filiereId: "", niveau: "", annee: "", m
 export default function GrilleFraisPage() {
   const modelesFrais = useModelesFrais();
   const grillesFrais = useGrillesFrais();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
 
   const [filiereId, setFiliereId] = useState("");
   const [niveau, setNiveau] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [modeleFraisId, setModeleFraisId] = useState("");
 
   const [tauxTaxe, setTauxTaxe] = useState("18");
@@ -139,7 +143,7 @@ export default function GrilleFraisPage() {
     setDuplicateTarget(g);
     setDupFiliereId(g.filiereId);
     setDupNiveau(g.niveau);
-    setDupAnnee(ANNEE_OPTIONS.find((a) => a !== g.annee) ?? g.annee);
+    setDupAnnee(anneeOptions.find((a) => a !== g.annee) ?? g.annee);
     setDupModeleFraisId(g.modeleFraisId);
   };
 
@@ -275,7 +279,7 @@ export default function GrilleFraisPage() {
                 <th className="px-3 py-2">
                   <select value={overviewFilters.annee} onChange={(e) => patchOverviewFilter({ annee: e.target.value })} className={filterInputClass}>
                     <option value="">Toutes</option>
-                    {ANNEE_OPTIONS.map((a) => (
+                    {anneeOptions.map((a) => (
                       <option key={a} value={a}>{a}</option>
                     ))}
                   </select>
@@ -370,7 +374,7 @@ export default function GrilleFraisPage() {
             Année scolaire <span className="text-red-500">*</span>
           </label>
           <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-annee">
-            {ANNEE_OPTIONS.map((a) => (
+            {anneeOptions.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>
@@ -593,7 +597,7 @@ export default function GrilleFraisPage() {
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire</label>
                 <select value={dupAnnee} onChange={(e) => setDupAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
-                  {ANNEE_OPTIONS.map((a) => (
+                  {anneeOptions.map((a) => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>

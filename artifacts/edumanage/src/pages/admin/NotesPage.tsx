@@ -13,6 +13,7 @@ import { updateEvaluation, type EvaluationRecord } from "@/data/evaluationStore"
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type NoteEntry = {
   note: string;
@@ -210,30 +211,46 @@ export default function NotesPage() {
   const handleSave = (publish: boolean) => {
     if (!classeId || !ecId || !evaluationChoisie) return;
     const ecLabel = ECS.find((e) => e.id === ecId)?.libelle ?? "";
-    saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    try {
+      saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement impossible");
+    }
   };
 
   const handleSubmitValidation = () => {
     if (!classeId || !ecId) return;
-    submitNotesForValidation(classeId, ecId);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    try {
+      submitNotesForValidation(classeId, ecId);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Soumission impossible");
+    }
   };
 
   const handleAdminValidate = () => {
     if (!classeId || !ecId || !currentUser) return;
-    validateNotesByAdmin(classeId, ecId, currentUser.id);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    try {
+      validateNotesByAdmin(classeId, ecId, currentUser.id);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Validation impossible");
+    }
   };
 
   const handlePublish = () => {
     if (!classeId || !ecId) return;
-    publishNotesForClasseEc(classeId, ecId);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    try {
+      publishNotesForClasseEc(classeId, ecId);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Publication impossible");
+    }
   };
 
   return (

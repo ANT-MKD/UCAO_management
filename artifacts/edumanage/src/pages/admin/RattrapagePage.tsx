@@ -16,6 +16,7 @@ import { createEvaluation, updateEvaluation, getPoidsForClasseEc } from "@/data/
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type NoteEntry = { note: string; absent: boolean };
 
@@ -178,24 +179,40 @@ export default function RattrapagePage() {
   const handleSave = (publish: boolean) => {
     if (!classeId || !ecId || !evaluationRattrapage) return;
     const ecLabel = ECS.find((e) => e.id === ecId)?.libelle ?? "";
-    saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish, "rattrapage");
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    try {
+      saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish, "rattrapage");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement impossible");
+    }
   };
   const handleSubmitValidation = () => {
     if (!classeId || !ecId) return;
-    submitNotesForValidation(classeId, ecId, "rattrapage");
-    setSaved(true); setTimeout(() => setSaved(false), 2500);
+    try {
+      submitNotesForValidation(classeId, ecId, "rattrapage");
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Soumission impossible");
+    }
   };
   const handleAdminValidate = () => {
     if (!classeId || !ecId || !currentUser) return;
-    validateNotesByAdmin(classeId, ecId, currentUser.id, "rattrapage");
-    setSaved(true); setTimeout(() => setSaved(false), 2500);
+    try {
+      validateNotesByAdmin(classeId, ecId, currentUser.id, "rattrapage");
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Validation impossible");
+    }
   };
   const handlePublish = () => {
     if (!classeId || !ecId) return;
-    publishNotesForClasseEc(classeId, ecId, "rattrapage");
-    setSaved(true); setTimeout(() => setSaved(false), 2500);
+    try {
+      publishNotesForClasseEc(classeId, ecId, "rattrapage");
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Publication impossible");
+    }
   };
 
   return (

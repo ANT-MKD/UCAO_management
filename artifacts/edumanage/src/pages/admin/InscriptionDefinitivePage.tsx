@@ -106,6 +106,8 @@ export default function InscriptionDefinitivePage() {
       }
       toast.success(`${count} étudiant(s) définitivement inscrit(s) dans ${classeResolue?.nom} (${annee})`);
       setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Inscription impossible");
     } finally {
       setSaving(false);
     }

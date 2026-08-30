@@ -90,8 +90,12 @@ export default function NotesEtudiantPage() {
 
   const handleDelete = (row: NoteRow) => {
     if (!confirm(`Supprimer la note "${row.type}" de ${row.cours} (${row.note}) ?`)) return;
-    deleteNote(row.id);
-    toast.success("Note supprimée");
+    try {
+      deleteNote(row.id);
+      toast.success("Note supprimée");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Suppression impossible");
+    }
   };
 
   const columns: Column<NoteRow>[] = [

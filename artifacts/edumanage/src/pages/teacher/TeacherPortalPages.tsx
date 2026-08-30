@@ -224,13 +224,18 @@ export function TeacherGradesPage() {
       toast.error("Classe, EC et Ã©tudiant requis");
       return;
     }
-    saveNotesGrid(
-      classeId,
-      ec.id,
-      `${ec.code} â€” ${ec.libelle}`,
-      [{ etudiantId: s.id, cc: Number(cc), examen: Number(examen) }],
-      false,
-    );
+    try {
+      saveNotesGrid(
+        classeId,
+        ec.id,
+        `${ec.code} â€” ${ec.libelle}`,
+        [{ etudiantId: s.id, cc: Number(cc), examen: Number(examen) }],
+        false,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement impossible");
+      return;
+    }
     if (submit) {
       submitNotesForValidation(classeId, ec.id);
       toast.success("Notes soumises Ã  validation admin");

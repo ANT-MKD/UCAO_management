@@ -5,10 +5,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { statutPEC, montantPEC } from "@/pages/admin/PriseEnChargePage";
-import { ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { formatCFA, cn } from "@/lib/utils";
-
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEES_ACADEMIQUES[0]?.libelle ?? "";
 
 const STATUT_CLS: Record<string, string> = {
   Active: "bg-emerald-50 text-emerald-700",
@@ -20,7 +18,9 @@ export default function OrganismePECDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const organismes = useOrganismesPEC();
   const prisesEnCharge = usePrisesEnCharge();
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const anneesAcademiques = useAnneesAcademiques();
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "";
+  const [annee, setAnnee] = useState(defaultAnnee);
 
   const record = organismes.find((o) => o.id === id);
 
@@ -125,7 +125,7 @@ export default function OrganismePECDetailPage({ id }: { id: string }) {
           <div className="px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Étudiants pris en charge</h3>
             <select value={annee} onChange={(e) => setAnnee(e.target.value)} className="px-2.5 py-1.5 text-xs border border-border rounded-lg bg-background">
-              {ANNEES_ACADEMIQUES.map((a) => (
+              {anneesAcademiques.map((a) => (
                 <option key={a.id} value={a.libelle}>
                   {a.libelle}
                 </option>

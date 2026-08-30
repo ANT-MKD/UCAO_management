@@ -123,6 +123,7 @@ export default function AddPaiementPage() {
   const handleSubmit = () => {
     if (!selectedStudent) return;
     const encaissePar = currentUser?.name ?? "Administration";
+    try {
     if (payMode === "existante") {
       if (!selectedQuittance) return;
       const montantEvent = Number(montantVerse) || 0;
@@ -205,6 +206,9 @@ export default function AddPaiementPage() {
     }
     setSubmitted(true);
     setTimeout(() => setLocation(`/admin/students/${selectedStudent.id}`), 1500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Paiement impossible");
+    }
   };
 
   const restantQuittance = selectedQuittance ? montantQuittance(selectedQuittance) - selectedQuittance.montant : 0;

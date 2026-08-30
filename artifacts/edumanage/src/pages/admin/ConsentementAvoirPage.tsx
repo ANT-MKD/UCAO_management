@@ -72,40 +72,44 @@ export default function ConsentementAvoirPage() {
     const date = new Date().toISOString().split("T")[0];
     let nbFactures = 0;
 
-    for (const facture of facturesImpayees) {
-      const montantEvent = allocation.get(facture.id) ?? 0;
-      if (montantEvent <= 0) continue;
+    try {
+      for (const facture of facturesImpayees) {
+        const montantEvent = allocation.get(facture.id) ?? 0;
+        if (montantEvent <= 0) continue;
 
-      const quittanceLignes: PaiementRecord["lignes"] =
-        facture.lignes && facture.lignes.length > 0
-          ? facture.lignes
-          : [{ label: facture.rubrique, montant: facture.montant || montantQuittance(facture) }];
-      const dejaPayeAvant = facture.montant;
+        const quittanceLignes: PaiementRecord["lignes"] =
+          facture.lignes && facture.lignes.length > 0
+            ? facture.lignes
+            : [{ label: facture.rubrique, montant: facture.montant || montantQuittance(facture) }];
+        const dejaPayeAvant = facture.montant;
 
-      payerQuittance({ id: facture.id, montant: montantEvent, moyen: "AVOIR", reference: "", date });
-      enregistrerEncaissement({
-        quittanceId: facture.id,
-        quittanceReference: facture.numeroRecu,
-        quittanceDateEmission: facture.date,
-        quittanceDateLimite: facture.dateLimite,
-        montantQuittanceTotal: montantQuittance(facture),
-        quittanceLignes: quittanceLignes ?? [],
-        dejaPayeAvant,
-        etudiantId: selectedStudent.id,
-        payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
-        filiere: selectedStudent.filiere,
-        annee: selectedStudent.annee,
-        montant: montantEvent,
-        moyen: "AVOIR",
-        date,
-        encaissePar,
-      });
-      debiterAvoir(selectedStudent.id, montantEvent);
-      nbFactures++;
+        payerQuittance({ id: facture.id, montant: montantEvent, moyen: "AVOIR", reference: "", date });
+        enregistrerEncaissement({
+          quittanceId: facture.id,
+          quittanceReference: facture.numeroRecu,
+          quittanceDateEmission: facture.date,
+          quittanceDateLimite: facture.dateLimite,
+          montantQuittanceTotal: montantQuittance(facture),
+          quittanceLignes: quittanceLignes ?? [],
+          dejaPayeAvant,
+          etudiantId: selectedStudent.id,
+          payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
+          filiere: selectedStudent.filiere,
+          annee: selectedStudent.annee,
+          montant: montantEvent,
+          moyen: "AVOIR",
+          date,
+          encaissePar,
+        });
+        debiterAvoir(selectedStudent.id, montantEvent);
+        nbFactures++;
+      }
+
+      toast.success(`${nbFactures} facture(s) réglée(s) par avoir — total ${formatCFA(totalApplique)}`);
+      setCheckedIds([]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Règlement par avoir impossible");
     }
-
-    toast.success(`${nbFactures} facture(s) réglée(s) par avoir — total ${formatCFA(totalApplique)}`);
-    setCheckedIds([]);
   };
 
   return (

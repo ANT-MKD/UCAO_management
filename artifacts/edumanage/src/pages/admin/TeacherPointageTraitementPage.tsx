@@ -3,7 +3,6 @@ import { Check, Filter, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import {
-  ANNEES_ACADEMIQUES,
   ENSEIGNANTS,
   FILIERES,
   NIVEAUX,
@@ -11,6 +10,7 @@ import {
 } from "@/data/mockData";
 import { updatePointageStatut, type PointageRecord, type PointageStatut } from "@/data/pointageStore";
 import { usePointages } from "@/hooks/usePointageStore";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import {
@@ -48,10 +48,6 @@ const EMPTY_FILTERS: AdvancedFilters = {
   teacherId: "",
 };
 
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES]
-  .sort((a, b) => b.libelle.localeCompare(a.libelle))
-  .map((a) => a.libelle);
-
 const STATUT_LABEL: Record<Exclude<TraitementStatut, "">, string> = {
   soumis: "En attente",
   valide: "Validée",
@@ -86,6 +82,11 @@ export default function TeacherPointageTraitementPage() {
   const classes = useClasses();
   const salles = useSalles();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
 
   const [applied, setApplied] = useState<AdvancedFilters>(EMPTY_FILTERS);
   const [quickSearch, setQuickSearch] = useState("");
@@ -413,6 +414,11 @@ function AdvancedSearchModal({
   const [draft, setDraft] = useState<AdvancedFilters>(initial);
   const [teacherQuery, setTeacherQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
 
   useEffect(() => {
     const t = teachers.find((x) => x.id === draft.teacherId);
@@ -513,7 +519,7 @@ function AdvancedSearchModal({
                 className={inputClass}
               >
                 <option value="">— Sélectionner —</option>
-                {ANNEE_OPTIONS.map((a) => (
+                {anneeOptions.map((a) => (
                   <option key={a} value={a}>
                     {a}
                   </option>
@@ -589,7 +595,7 @@ function AdvancedSearchModal({
                 className={inputClass}
               >
                 <option value="">— Sélectionner —</option>
-                {ANNEE_OPTIONS.map((a) => (
+                {anneeOptions.map((a) => (
                   <option key={a} value={a}>
                     {a}
                   </option>

@@ -94,6 +94,8 @@ export default function CorrectionInscriptionPage() {
       );
       toast.success(`Inscription corrigée — ${selectedStudent.prenom} ${selectedStudent.nom} inscrit(e) dans ${classeResolue?.nom}`);
       setLocation(`/admin/students/${selectedStudent.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Correction impossible");
     } finally {
       setSaving(false);
     }

@@ -95,6 +95,8 @@ export interface AnneeAcademiqueRecord {
   libelle: string;
   actuelle: boolean;
   cloturee?: boolean;
+  /** Archivée : conservée pour consultation de l'historique, mais plus modifiable ni sélectionnable comme courante. */
+  archivee?: boolean;
 }
 
 export interface CahierPresenceEntry {
@@ -504,7 +506,7 @@ function buildFreshStore(): StoreData {
     etudiants,
     inscriptions: buildSeedInscriptions(etudiants),
     matriculeCounters: buildMatriculeCounters(etudiants),
-    annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: !a.actuelle && a.libelle < "2025-2026" })),
+    annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: !a.actuelle && a.libelle < "2025-2026", archivee: false })),
     paiements: seedPaiements(),
     notes: seedNotes(),
     seances: seedSeances(),
@@ -537,7 +539,7 @@ function loadStore(): StoreData {
           etudiants,
           inscriptions: parsed.inscriptions ?? fresh.inscriptions,
           matriculeCounters: parsed.matriculeCounters ?? fresh.matriculeCounters,
-          annees: (parsed.annees ?? fresh.annees).map((a) => ({ ...a, cloturee: a.cloturee ?? false })),
+          annees: (parsed.annees ?? fresh.annees).map((a) => ({ ...a, cloturee: a.cloturee ?? false, archivee: a.archivee ?? false })),
           paiements,
           notes: parsed.notes ?? fresh.notes,
           seances: parsed.seances ?? fresh.seances,
@@ -570,7 +572,18 @@ function writeStoreToLocalStorage(data: StoreData): boolean {
   }
 }
 
+/** ANNEES_ACADEMIQUES (data/mockData.ts) est importé et lu directement par une quarantaine
+ * d'autres fichiers (finance, notes, plannings...). store.annees est la copie réellement gérée
+ * (ajout, clôture, archivage) ; on la resynchronise en place dans ANNEES_ACADEMIQUES à chaque
+ * mutation pour que ces lectures existantes restent à jour, sur le même principe que
+ * filiereStore.ts/niveauStore.ts/semestreStore.ts. */
+function syncAnneesToMockData() {
+  const arr = ANNEES_ACADEMIQUES as unknown as AnneeAcademiqueRecord[];
+  arr.splice(0, arr.length, ...store.annees);
+}
+
 let store: StoreData = loadStore();
+syncAnneesToMockData();
 let inscriptionsCache = new Map<string, InscriptionRecord[]>();
 let paiementsByEtudiantCache = new Map<string, PaiementRecord[]>();
 let cahiersCache: CahierSeanceRecord[] | null = null;
@@ -582,6 +595,7 @@ function invalidateDerivedCaches() {
 }
 
 function persist() {
+  syncAnneesToMockData();
   writeStoreToLocalStorage(store);
   invalidateDerivedCaches();
   notify();
@@ -595,6 +609,7 @@ if (typeof window !== "undefined") {
     try {
       const parsed = JSON.parse(event.newValue) as StoreData;
       store = { ...buildFreshStore(), ...parsed };
+      syncAnneesToMockData();
       invalidateDerivedCaches();
       notify();
     } catch {
@@ -785,6 +800,7 @@ export interface NewEtudiantPayload {
 }
 
 export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: string): EtudiantRecord {
+  assertAnneeModifiable(payload.annee);
   const filiere = FILIERES.find((f) => f.id === payload.filiereId);
   const classe = payload.classeId ? getClasseById(payload.classeId) : undefined;
   const anneePremiere = parseMatriculeYear(matricule);
@@ -906,6 +922,7 @@ function creerInscriptionEtMettreAJourEtudiant(
   type: InscriptionRecord["type"],
   motif?: string,
 ): InscriptionRecord {
+  assertAnneeModifiable(payload.annee);
   const etudiant = getEtudiantById(payload.etudiantId);
   if (!etudiant) throw new Error("Étudiant introuvable");
 
@@ -966,11 +983,10 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
   const nextLabel = nextAnneeLabel(source.libelle);
   const exists = store.annees.some((a) => a.libelle === nextLabel);
   if (!exists) {
-    store.annees.push({
-      id: `aa-${Date.now()}`,
-      libelle: nextLabel,
-      actuelle: false,
-    });
+    store.annees = [
+      ...store.annees,
+      { id: `aa-${Date.now()}`, libelle: nextLabel, actuelle: false },
+    ];
   }
 
   const actifs = store.etudiants.filter(
@@ -1014,12 +1030,17 @@ export function setAnneeActuelle(id: string) {
 }
 
 export function addAnneeAcademique(libelle: string) {
-  store.annees.push({ id: `aa-${Date.now()}`, libelle, actuelle: false });
+  store.annees = [...store.annees, { id: `aa-${Date.now()}`, libelle, actuelle: false }];
   persist();
 }
 
 export function archiveAnnee(id: string) {
-  store.annees = store.annees.filter((a) => a.id !== id);
+  store.annees = store.annees.map((a) => (a.id === id ? { ...a, archivee: true, actuelle: false } : a));
+  persist();
+}
+
+export function desarchiverAnnee(id: string) {
+  store.annees = store.annees.map((a) => (a.id === id ? { ...a, archivee: false } : a));
   persist();
 }
 
@@ -1065,6 +1086,7 @@ export interface RegisterPaiementPayload {
 export function registerPaiement(payload: RegisterPaiementPayload): PaiementRecord {
   const etudiant = getEtudiantById(payload.etudiantId);
   if (!etudiant) throw new Error("Étudiant introuvable");
+  assertAnneeModifiable(etudiant.annee);
 
   const year = new Date(payload.date || Date.now()).getFullYear();
   store.receiptCounter = (store.receiptCounter ?? 0) + 1;
@@ -1197,6 +1219,7 @@ export interface EmettreQuittanceBrutePayload {
 export function emettreQuittanceBrute(payload: EmettreQuittanceBrutePayload): PaiementRecord {
   const etudiant = getEtudiantById(payload.etudiantId);
   if (!etudiant) throw new Error("Étudiant introuvable");
+  assertAnneeModifiable(etudiant.annee);
 
   const year = new Date(payload.date || Date.now()).getFullYear();
   store.receiptCounter = (store.receiptCounter ?? 0) + 1;
@@ -1260,12 +1283,13 @@ export interface PayerQuittancePayload {
 export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord | undefined {
   const p = store.paiements.find((pp) => pp.id === payload.id);
   if (!p || p.statut === "annule") return undefined;
+  const etudiant = getEtudiantById(p.etudiantId);
+  if (etudiant) assertAnneeModifiable(etudiant.annee);
 
   const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
   const nouveauMontantPaye = Math.min(montantFacture, p.montant + Math.max(0, payload.montant));
   const diff = nouveauMontantPaye - p.montant;
 
-  const etudiant = getEtudiantById(p.etudiantId);
   if (etudiant && diff > 0) {
     etudiant.soldeDu = Math.max(0, etudiant.soldeDu - diff);
     const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
@@ -1449,16 +1473,27 @@ export function assignEtudiantToClasse(etudiantId: string, classeId: string) {
 }
 
 export function cloturerAnnee(id: string) {
-  const annee = store.annees.find((a) => a.id === id);
-  if (!annee) return;
-  annee.cloturee = true;
-  annee.actuelle = false;
+  store.annees = store.annees.map((a) => (a.id === id ? { ...a, cloturee: true, actuelle: false } : a));
   persist();
 }
 
 export function isAnneeCloturee(libelle?: string): boolean {
   const label = libelle ?? getAnneeActuelle();
   return !!store.annees.find((a) => a.libelle === label)?.cloturee;
+}
+
+export class AnneeClotureeError extends Error {
+  constructor(annee: string) {
+    super(`L'année académique ${annee} est clôturée — aucune modification n'est plus possible.`);
+    this.name = "AnneeClotureeError";
+  }
+}
+
+/** Garde-fou appelé par tout point d'entrée qui crée ou modifie une donnée rattachée à une
+ * année académique (inscription, paiement, note) : une année clôturée devient réellement figée
+ * partout dans l'app, plutôt qu'un flag purement informatif. */
+function assertAnneeModifiable(annee: string) {
+  if (isAnneeCloturee(annee)) throw new AnneeClotureeError(annee);
 }
 
 // ——— Notes & relevés ———
@@ -1483,6 +1518,8 @@ export function getEffectiveNote(etudiantId: string, classeId: string, ecId: str
 }
 
 export function deleteNote(id: string): void {
+  const note = store.notes.find((n) => n.id === id);
+  if (note) assertAnneeModifiable(note.annee);
   store.notes = store.notes.filter((n) => n.id !== id);
   persist();
 }
@@ -1503,6 +1540,7 @@ export function saveNotesGrid(
   session?: "rattrapage",
 ): void {
   const annee = getAnneeActuelle();
+  assertAnneeModifiable(annee);
   for (const input of inputs) {
     const etudiant = getEtudiantById(input.etudiantId);
     if (!etudiant || input.absent) continue;
@@ -1547,6 +1585,8 @@ export function saveNotesGrid(
 }
 
 export function publishNotesForClasseEc(classeId: string, ecId: string, session?: "rattrapage"): number {
+  const anneeRef = store.notes.find((n) => n.classeId === classeId && n.ecId === ecId)?.annee;
+  if (anneeRef) assertAnneeModifiable(anneeRef);
   let count = 0;
   for (const n of store.notes) {
     if (n.classeId === classeId && n.ecId === ecId && n.statut === "valide_admin" && n.session === session) {
@@ -1560,6 +1600,8 @@ export function publishNotesForClasseEc(classeId: string, ecId: string, session?
 }
 
 export function submitNotesForValidation(classeId: string, ecId: string, session?: "rattrapage"): number {
+  const anneeRef = store.notes.find((n) => n.classeId === classeId && n.ecId === ecId)?.annee;
+  if (anneeRef) assertAnneeModifiable(anneeRef);
   let count = 0;
   for (const n of store.notes) {
     if (n.classeId === classeId && n.ecId === ecId && n.statut === "brouillon_prof" && n.session === session) {
@@ -1576,6 +1618,8 @@ export function submitNotesForValidation(classeId: string, ecId: string, session
 }
 
 export function validateNotesByAdmin(classeId: string, ecId: string, actorUserId: string, session?: "rattrapage"): number {
+  const anneeRef = store.notes.find((n) => n.classeId === classeId && n.ecId === ecId)?.annee;
+  if (anneeRef) assertAnneeModifiable(anneeRef);
   let count = 0;
   for (const n of store.notes) {
     if (n.classeId === classeId && n.ecId === ecId && n.statut === "soumis_admin" && n.session === session) {

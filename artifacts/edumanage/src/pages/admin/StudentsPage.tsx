@@ -7,7 +7,7 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES } from "@/data/mockData";
-import { useStudentStore, useAnneeActuelle } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneeActuelle, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
 import { formatCFA } from "@/lib/utils";
 
@@ -21,12 +21,6 @@ const STATUT_OPTIONS = [
   { value: "inscrit", label: "Inscrit" },
   { value: "suspendu", label: "Suspendu" },
   { value: "abandon", label: "Abandon" },
-];
-
-const ANNEE_OPTIONS = [
-  { value: "", label: "Toutes les années" },
-  { value: "2025-2026", label: "2025-2026" },
-  { value: "2024-2025", label: "2024-2025" },
 ];
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -44,6 +38,14 @@ export default function StudentsPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const anneeActuelle = useAnneeActuelle();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [
+      { value: "", label: "Toutes les années" },
+      ...[...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => ({ value: a.libelle, label: a.libelle })),
+    ],
+    [anneesAcademiques],
+  );
 
   // Filters
   const [filiereFilter, setFiliereFilter] = useState("");
@@ -209,7 +211,7 @@ export default function StudentsPage() {
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             data-testid="filter-annee"
           >
-            {ANNEE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {anneeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
 

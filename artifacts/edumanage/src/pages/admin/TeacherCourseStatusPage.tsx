@@ -3,8 +3,8 @@ import { useLocation, useSearch } from "wouter";
 import { Search, Save } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
-import { useSeances, useCahiers } from "@/hooks/useStudentStore";
+import { ENSEIGNANTS } from "@/data/mockData";
+import { useSeances, useCahiers, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useTeacherVolumes } from "@/hooks/useTeacherVolumeStore";
@@ -45,13 +45,6 @@ const COMPTA_OPTIONS: { value: TypeComptabilisation; label: string }[] = [
   { value: "a_terme", label: "A terme" },
 ];
 
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES]
-  .sort((a, b) => b.libelle.localeCompare(a.libelle))
-  .map((a) => a.libelle);
-
-const DEFAULT_ANNEE =
-  ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0] ?? "2025-2026";
-
 export default function TeacherCourseStatusPage() {
   const [, setLocation] = useLocation();
   const searchStr = useSearch();
@@ -68,10 +61,16 @@ export default function TeacherCourseStatusPage() {
   const savedStatuses = useTeacherCourseStatuses();
   const pointages = usePointages();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(teacherIdParam);
-  const [anneeScolaire, setAnneeScolaire] = useState(anneeParam || DEFAULT_ANNEE);
+  const [anneeScolaire, setAnneeScolaire] = useState(anneeParam || defaultAnnee);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [rows, setRows] = useState<EditableRow[]>([]);
 
@@ -241,7 +240,7 @@ export default function TeacherCourseStatusPage() {
                 className={`${inputClass} min-w-[140px]`}
                 data-testid="teacher-status-annee"
               >
-                {ANNEE_OPTIONS.map((a) => (
+                {anneeOptions.map((a) => (
                   <option key={a} value={a}>
                     {a}
                   </option>

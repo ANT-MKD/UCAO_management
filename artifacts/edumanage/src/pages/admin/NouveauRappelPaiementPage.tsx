@@ -3,14 +3,11 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Bell, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
-import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
+import { useStudentStore, usePaiements, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { envoyerRappelPaiement, trouverRappelIdentique } from "@/data/rappelPaiementStore";
 import { useRappelsPaiement } from "@/hooks/useRappelPaiementStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
-
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle));
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0]?.libelle ?? "2025-2026";
 
 const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -24,11 +21,14 @@ export default function NouveauRappelPaiementPage() {
   const etudiants = useStudentStore();
   const paiements = usePaiements();
   useRappelsPaiement(); // s'abonne pour que la vérification de doublon reste à jour
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(() => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)), [anneesAcademiques]);
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "2025-2026";
 
   const [step, setStep] = useState<1 | 2>(1);
   const [filiereId, setFiliereId] = useState("");
   const [niveauId, setNiveauId] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [fraisEchusAvant, setFraisEchusAvant] = useState(new Date().toISOString().slice(0, 10));
   const [nouvelleEcheance, setNouvelleEcheance] = useState("");
   const [excludedIds, setExcludedIds] = useState<string[]>([]);
@@ -136,7 +136,7 @@ export default function NouveauRappelPaiementPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année Académique *</label>
               <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="rappel-annee">
-                {ANNEE_OPTIONS.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+                {anneeOptions.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
           </div>

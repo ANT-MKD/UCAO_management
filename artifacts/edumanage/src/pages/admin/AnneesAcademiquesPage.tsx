@@ -7,6 +7,7 @@ import {
   setAnneeActuelle,
   addAnneeAcademique,
   archiveAnnee,
+  desarchiverAnnee,
   cloturerAnnee,
 } from "@/data/studentStore";
 import { useAnneesAcademiques, useStudentStore } from "@/hooks/useStudentStore";
@@ -71,7 +72,7 @@ export default function AnneesAcademiquesPage() {
 
       <div className="space-y-4">
         {annees.map((a) => (
-          <div key={a.id} className={cn("bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4", a.actuelle ? "border-primary ring-1 ring-primary/20" : "border-border")} style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div key={a.id} className={cn("bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4", a.actuelle ? "border-primary ring-1 ring-primary/20" : "border-border", a.archivee && "opacity-60")} style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center gap-3 flex-1">
               <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", a.actuelle ? "bg-primary/10" : "bg-muted")}>
                 <Calendar size={22} className={a.actuelle ? "text-primary" : "text-muted-foreground"} />
@@ -81,6 +82,7 @@ export default function AnneesAcademiquesPage() {
                   <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>{a.libelle}</h3>
                   {a.actuelle && <StatusBadge status="actif" />}
                   {a.cloturee && <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Clôturée</span>}
+                  {a.archivee && <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Archivée</span>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {etudiants.filter((e) => e.annee === a.libelle).length} étudiants inscrits
@@ -88,32 +90,40 @@ export default function AnneesAcademiquesPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!a.actuelle && !a.cloturee && (
-                <button onClick={() => setAnneeActuelle(a.id)} className="px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors">
-                  Définir comme courante
+              {a.archivee ? (
+                <button onClick={() => desarchiverAnnee(a.id)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors">
+                  <Archive size={12} /> Désarchiver
                 </button>
-              )}
-              {!a.cloturee && (
-                <button
-                  onClick={() => handlePromote(a.id)}
-                  disabled={promoting === a.id}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                >
-                  <ArrowRight size={12} /> {promoting === a.id ? "Reconduction..." : "Passer à N+1"}
-                </button>
-              )}
-              {!a.cloturee && (
-                <button
-                  onClick={() => handleCloture(a.id, a.libelle)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors"
-                >
-                  <Lock size={12} /> Clôturer
-                </button>
-              )}
-              {!a.actuelle && (
-                <button onClick={() => archiveAnnee(a.id)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
-                  <Archive size={12} /> Archiver
-                </button>
+              ) : (
+                <>
+                  {!a.actuelle && !a.cloturee && (
+                    <button onClick={() => setAnneeActuelle(a.id)} className="px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors">
+                      Définir comme courante
+                    </button>
+                  )}
+                  {!a.cloturee && (
+                    <button
+                      onClick={() => handlePromote(a.id)}
+                      disabled={promoting === a.id}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      <ArrowRight size={12} /> {promoting === a.id ? "Reconduction..." : "Passer à N+1"}
+                    </button>
+                  )}
+                  {!a.cloturee && (
+                    <button
+                      onClick={() => handleCloture(a.id, a.libelle)}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors"
+                    >
+                      <Lock size={12} /> Clôturer
+                    </button>
+                  )}
+                  {!a.actuelle && (
+                    <button onClick={() => archiveAnnee(a.id)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+                      <Archive size={12} /> Archiver
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

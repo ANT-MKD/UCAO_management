@@ -110,6 +110,8 @@ export default function BasculeAnneePage() {
       }
       toast.success(`${count} étudiant(s) basculé(s) vers ${classeCible?.nom} (${anneeCible})`);
       setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bascule impossible");
     } finally {
       setSaving(false);
     }

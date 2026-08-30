@@ -100,42 +100,46 @@ export default function DevisConvertirPage({ id }: { id: string }) {
     if (!canSubmit) return;
     const lignes = selectedLignes.map((l) => ({ label: l.intitule, montant: l.montantTTC }));
 
-    let etudiant: EtudiantRecord;
-    if (mode === "recherche" && selectedStudent) {
-      etudiant = selectedStudent;
-    } else {
-      const filiere = FILIERES.find((f) => f.id === record.filiereId);
-      const matricule = allocateMatricule(filiere?.code ?? "XXX");
-      etudiant = registerNewEtudiant(
-        {
-          prenom: prenom.trim(),
-          nom: nom.trim(),
-          sexe,
-          dateNaissance,
-          email: email.trim(),
-          telephone: telephone.trim() || undefined,
-          filiereId: record.filiereId,
-          classeId: "",
-          niveau: record.niveau,
-          statut: "preinscrit",
-          annee: record.annee,
-          soldeDu: 0,
-          inscriptionUniquePayee: false,
-        },
-        matricule,
-      );
+    try {
+      let etudiant: EtudiantRecord;
+      if (mode === "recherche" && selectedStudent) {
+        etudiant = selectedStudent;
+      } else {
+        const filiere = FILIERES.find((f) => f.id === record.filiereId);
+        const matricule = allocateMatricule(filiere?.code ?? "XXX");
+        etudiant = registerNewEtudiant(
+          {
+            prenom: prenom.trim(),
+            nom: nom.trim(),
+            sexe,
+            dateNaissance,
+            email: email.trim(),
+            telephone: telephone.trim() || undefined,
+            filiereId: record.filiereId,
+            classeId: "",
+            niveau: record.niveau,
+            statut: "preinscrit",
+            annee: record.annee,
+            soldeDu: 0,
+            inscriptionUniquePayee: false,
+          },
+          matricule,
+        );
+      }
+
+      emettreQuittanceBrute({
+        etudiantId: etudiant.id,
+        date: new Date().toISOString().slice(0, 10),
+        lignes,
+        reference: `Devis ${record.reference}`,
+      });
+
+      marquerDevisConverti(record.id, etudiant.id);
+      toast.success(`Devis converti — facture de ${formatCFA(totalSelectionne)} émise pour ${etudiant.prenom} ${etudiant.nom}`);
+      setLocation(`/admin/students/${etudiant.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Conversion impossible");
     }
-
-    emettreQuittanceBrute({
-      etudiantId: etudiant.id,
-      date: new Date().toISOString().slice(0, 10),
-      lignes,
-      reference: `Devis ${record.reference}`,
-    });
-
-    marquerDevisConverti(record.id, etudiant.id);
-    toast.success(`Devis converti — facture de ${formatCFA(totalSelectionne)} émise pour ${etudiant.prenom} ${etudiant.nom}`);
-    setLocation(`/admin/students/${etudiant.id}`);
   };
 
   return (

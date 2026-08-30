@@ -3,17 +3,15 @@ import { useLocation } from "wouter";
 import { FileCheck2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import { getGrilleFrais, getModelesFraisDisponibles } from "@/data/grilleFraisStore";
 import { genererDevis, type DevisLigne } from "@/data/devisStore";
 import { niveauLabel } from "@/lib/teacherCourseUtils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { formatCFA, cn } from "@/lib/utils";
-
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle);
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0] ?? "2025-2026";
 
 const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -32,9 +30,15 @@ export default function DevisFormPage() {
   const { currentUser } = useAuth();
   const modelesFrais = useModelesFrais();
   useGrillesFrais(); // s'abonne pour recalculer si la grille change
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
 
   const [filiereId, setFiliereId] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [niveau, setNiveau] = useState("");
   const [modeleFraisId, setModeleFraisId] = useState("");
   const [beneficiaire, setBeneficiaire] = useState("");
@@ -127,7 +131,7 @@ export default function DevisFormPage() {
               Choix année scolaire <span className="text-red-500">*</span>
             </label>
             <select value={annee} onChange={(e) => { setAnnee(e.target.value); setModeleFraisId(""); }} className={inputClass} data-testid="devis-annee">
-              {ANNEE_OPTIONS.map((a) => (
+              {anneeOptions.map((a) => (
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>

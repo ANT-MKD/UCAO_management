@@ -3,19 +3,12 @@ import { useLocation, useSearch } from "wouter";
 import { Search, Save } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
-import { useSeances } from "@/hooks/useStudentStore";
+import { ENSEIGNANTS } from "@/data/mockData";
+import { useSeances, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { addTeacherAbsence, type TeacherAbsenceType } from "@/data/teacherAbsenceStore";
 import { filterTeachers, teacherDisplayLabel, matchesProf, dateToJour, mondayOf, type EnseignantRecord } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-
-const ANNEE_OPTIONS = [...ANNEES_ACADEMIQUES]
-  .sort((a, b) => b.libelle.localeCompare(a.libelle))
-  .map((a) => a.libelle);
-
-const DEFAULT_ANNEE =
-  ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEE_OPTIONS[0] ?? "2025-2026";
 
 const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -29,11 +22,12 @@ export default function TeacherAbsenceFormPage() {
   const { currentUser } = useAuth();
   const seances = useSeances();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
+  const anneeActuelle = useAnneeActuelle();
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(teacherIdParam);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [anneeScolaire] = useState(DEFAULT_ANNEE);
+  const [anneeScolaire] = useState(anneeActuelle);
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [seanceId, setSeanceId] = useState("");

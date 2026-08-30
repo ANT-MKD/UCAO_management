@@ -112,6 +112,8 @@ export default function FicheInscriptionPage() {
       toast.success(`${count} étudiant(s) inscrit(s) dans ${classeResolue?.nom} (${annee})`);
       setSelectedIds(new Set());
       setSearchQuery("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Inscription impossible");
     } finally {
       setSaving(false);
     }

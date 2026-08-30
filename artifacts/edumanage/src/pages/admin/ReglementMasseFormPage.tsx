@@ -9,13 +9,11 @@ import { addReglementMasse, type ReglementMasseLigne } from "@/data/reglementMas
 import { statutPEC, resteAEncaisser } from "@/pages/admin/PriseEnChargePage";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useAuth } from "@/contexts/AuthContext";
-import { ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 const inputClass =
   "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-
-const DEFAULT_ANNEE = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEES_ACADEMIQUES[0]?.libelle ?? "";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -27,9 +25,11 @@ export default function ReglementMasseFormPage() {
   const prisesEnCharge = usePrisesEnCharge();
   const modesPaiement = useModesPaiementFinance();
   const { currentUser } = useAuth();
+  const anneesAcademiques = useAnneesAcademiques();
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "";
 
   const [organismeId, setOrganismeId] = useState("");
-  const [annee, setAnnee] = useState(DEFAULT_ANNEE);
+  const [annee, setAnnee] = useState(defaultAnnee);
   const [montantGlobal, setMontantGlobal] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [date, setDate] = useState(today());
@@ -162,7 +162,7 @@ export default function ReglementMasseFormPage() {
               className={inputClass}
               data-testid="regm-annee"
             >
-              {ANNEES_ACADEMIQUES.map((a) => (
+              {anneesAcademiques.map((a) => (
                 <option key={a.id} value={a.libelle}>
                   {a.libelle}
                 </option>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Users, TrendingUp, AlertTriangle, BarChart3, ArrowRight, Clock,
@@ -15,7 +15,7 @@ import {
   REVENUE_DATA, SUCCESS_RATE_DATA, SUCCESS_BY_SEMESTRE, ABSENCES_STATS,
   NOTIFICATIONS, FILIERES,
 } from "@/data/mockData";
-import { useStudentStore, usePaiements, useSeances } from "@/hooks/useStudentStore";
+import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
@@ -75,9 +75,15 @@ export default function DashboardPage() {
   const paiements = usePaiements();
   const seances = useSeances();
   const decomptes = useDecomptes();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeActuelle = useAnneeActuelle();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
   const [chartType, setChartType] = useState<"bar" | "line">("bar");
   const [pieType, setPieType] = useState<"donut" | "pie">("donut");
-  const [anneeFilter, setAnneeFilter] = useState("2025-2026");
+  const [anneeFilter, setAnneeFilter] = useState(anneeActuelle);
   const [filiereFilter, setFiliereFilter] = useState("");
 
   const today = new Date();
@@ -346,8 +352,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <select value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
-              <option value="2025-2026">2025-2026</option>
-              <option value="2024-2025">2024-2025</option>
+              {anneeOptions.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
             <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>
               <option value="">Toutes les filières</option>

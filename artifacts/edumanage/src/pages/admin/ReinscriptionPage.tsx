@@ -23,6 +23,7 @@ import { useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { derogationActivePour } from "@/data/derogationPaiementStore";
 import { cn, formatCFA, formatShortDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 const STEPS = [
   { id: 1, label: "Recherche", icon: Search },
@@ -163,16 +164,20 @@ export default function ReinscriptionPage() {
           ? Math.max(0, montantSuggere - step4Data.montant)
           : montantSuggere;
 
-    registerReinscription({
-      etudiantId: student.id,
-      annee: anneeActuelle,
-      filiereId: step3Data.filiereId,
-      classeId: step3Data.classeId,
-      niveau: niveau?.alias ?? student.niveau,
-      statut: step3Data.statut,
-      soldeDu,
-    });
-    setLocation(`/admin/students/${student.id}`);
+    try {
+      registerReinscription({
+        etudiantId: student.id,
+        annee: anneeActuelle,
+        filiereId: step3Data.filiereId,
+        classeId: step3Data.classeId,
+        niveau: niveau?.alias ?? student.niveau,
+        statut: step3Data.statut,
+        soldeDu,
+      });
+      setLocation(`/admin/students/${student.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Réinscription impossible");
+    }
   };
 
   const inputClass =
