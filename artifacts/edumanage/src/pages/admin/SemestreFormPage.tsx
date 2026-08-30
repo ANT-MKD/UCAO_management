@@ -2,7 +2,9 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Save } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { NIVEAUX, FILIERES } from "@/data/mockData";
+import { FILIERES } from "@/data/mockData";
+import { useNiveaux } from "@/hooks/useNiveauStore";
+import { addSemestre, updateSemestre, getSemestreById } from "@/data/semestreStore";
 
 interface FormData {
   nom: string;
@@ -17,13 +19,31 @@ interface Props { id?: string; }
 export default function SemestreFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!id;
+  const existing = id ? getSemestreById(id) : undefined;
+  const niveaux = useNiveaux();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    defaultValues: { nom: "", alias: "", niveauId: "", periode: "", statut: "futur" },
+    defaultValues: existing
+      ? { nom: existing.nom, alias: existing.alias, niveauId: existing.niveauId, periode: existing.periode, statut: existing.statut }
+      : { nom: "", alias: "", niveauId: "", periode: "", statut: "futur" },
   });
 
   const onSubmit = (data: FormData) => {
-    console.log("Semestre saved:", data);
+    const niveau = niveaux.find((n) => n.id === data.niveauId);
+    const payload = {
+      nom: data.nom.trim(),
+      alias: data.alias.trim().toUpperCase(),
+      niveauId: data.niveauId,
+      niveau: niveau?.alias ?? "",
+      filiere: niveau?.filiere ?? "",
+      periode: data.periode.trim(),
+      statut: data.statut,
+    };
+    if (isEdit && existing) {
+      updateSemestre(existing.id, payload);
+    } else {
+      addSemestre(payload);
+    }
     setLocation("/admin/semestres");
   };
 
@@ -58,7 +78,7 @@ export default function SemestreFormPage({ id }: Props) {
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
               <select {...register("niveauId", { required: "Niveau requis" })} className={inputClass}>
                 <option value="">Sélectionner un niveau</option>
-                {NIVEAUX.map((n) => {
+                {niveaux.map((n) => {
                   const f = FILIERES.find((f) => f.id === n.filiereId);
                   return <option key={n.id} value={n.id}>{n.nom} ({n.alias}) — {f?.code}</option>;
                 })}

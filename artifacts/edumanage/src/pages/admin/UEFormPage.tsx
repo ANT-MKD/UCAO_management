@@ -3,7 +3,10 @@ import { useForm } from "react-hook-form";
 import { ArrowLeft, Save } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, SEMESTRES } from "@/data/mockData";
-import { getUeById, upsertUe, type UeRecord } from "@/data/curriculumStore";
+import { getUeById, upsertUe } from "@/data/curriculumStore";
+import { useCategoriesCours } from "@/hooks/useAcademicSettingsStore";
+
+const NON_OBLIGATOIRE = ["Libre", "Optionnelle"];
 
 interface FormData {
   code: string;
@@ -12,8 +15,7 @@ interface FormData {
   filiereId: string;
   niveauId: string;
   semestreId: string;
-  type: UeRecord["type"];
-  obligatoire: boolean;
+  type: string;
   description?: string;
 }
 
@@ -23,6 +25,7 @@ export default function UEFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!id;
   const existing = id ? getUeById(id) : undefined;
+  const categories = useCategoriesCours();
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: existing
@@ -34,7 +37,6 @@ export default function UEFormPage({ id }: Props) {
           niveauId: NIVEAUX.find((n) => n.alias === existing.niveau && n.filiereId === existing.filiereId)?.id ?? "",
           semestreId: SEMESTRES.find((s) => s.alias === existing.semestre)?.id ?? "",
           type: existing.type,
-          obligatoire: existing.obligatoire,
           description: existing.description ?? "",
         }
       : {
@@ -44,8 +46,7 @@ export default function UEFormPage({ id }: Props) {
           filiereId: "",
           niveauId: "",
           semestreId: "",
-          type: "Obligatoire",
-          obligatoire: true,
+          type: categories[0]?.intitule ?? "Obligatoire",
           description: "",
         },
   });
@@ -54,7 +55,6 @@ export default function UEFormPage({ id }: Props) {
   const filteredNiveaux = selectedFiliereId ? NIVEAUX.filter((n) => n.filiereId === selectedFiliereId) : NIVEAUX;
   const selectedNiveauId = watch("niveauId");
   const filteredSemestres = selectedNiveauId ? SEMESTRES.filter((s) => s.niveauId === selectedNiveauId) : SEMESTRES;
-  const obligatoire = watch("obligatoire");
 
   const onSubmit = (data: FormData) => {
     const filiere = FILIERES.find((f) => f.id === data.filiereId);
@@ -69,8 +69,8 @@ export default function UEFormPage({ id }: Props) {
         filiereId: data.filiereId,
         niveau: niveau?.alias ?? "",
         semestre: semestre?.alias ?? "",
-        type: data.obligatoire ? "Obligatoire" : "Libre",
-        obligatoire: data.obligatoire,
+        type: data.type,
+        obligatoire: !NON_OBLIGATOIRE.includes(data.type),
         description: data.description,
       },
       id,
@@ -120,18 +120,10 @@ export default function UEFormPage({ id }: Props) {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Caractère *</label>
-              <select
-                value={obligatoire ? "obligatoire" : "libre"}
-                onChange={(e) => {
-                  const isOblig = e.target.value === "obligatoire";
-                  setValue("obligatoire", isOblig);
-                  setValue("type", isOblig ? "Obligatoire" : "Libre");
-                }}
-                className={inputClass}
-              >
-                <option value="obligatoire">Obligatoire</option>
-                <option value="libre">Libre</option>
+              <select {...register("type", { required: "Caractère requis" })} className={inputClass}>
+                {categories.map((c) => <option key={c.id} value={c.intitule}>{c.intitule}</option>)}
               </select>
+              {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>

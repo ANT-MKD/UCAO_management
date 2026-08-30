@@ -55,9 +55,8 @@ export default function UEsPage() {
       key: "type",
       header: "Caractère",
       render: (r) => {
-        const label = r.obligatoire ? "Obligatoire" : (r.type === "Libre" ? "Libre" : r.type);
-        const style = TYPE_COLORS[label] ?? { bg: "#f8fafc", color: "#64748b" };
-        return <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: style.bg, color: style.color }}>{label}</span>;
+        const style = TYPE_COLORS[r.type] ?? { bg: "#f8fafc", color: "#64748b" };
+        return <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: style.bg, color: style.color }}>{r.type}</span>;
       },
     },
     {

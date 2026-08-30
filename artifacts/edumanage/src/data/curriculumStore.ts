@@ -10,7 +10,8 @@ export interface UeRecord {
   filiereId: string;
   niveau: string;
   semestre: string;
-  type: "Obligatoire" | "Libre" | "Fondamentale" | "Spécialité" | "Transversale" | "Optionnelle";
+  /** Intitulé d'une catégorie configurée dans academicSettingsStore.ts (categorieCoursStore) */
+  type: string;
   obligatoire: boolean;
   description?: string;
   nbEc: number;

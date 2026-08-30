@@ -3,11 +3,13 @@ import { useForm } from "react-hook-form";
 import { ArrowLeft, Save } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES } from "@/data/mockData";
+import { addNiveau, updateNiveau, getNiveauById } from "@/data/niveauStore";
+import { useCycles } from "@/hooks/useAcademicSettingsStore";
 
 interface FormData {
   nom: string;
   alias: string;
-  cycle: "Licence" | "Master" | "BTS" | "Doctorat";
+  cycleId: string;
   filiereId: string;
 }
 
@@ -16,13 +18,36 @@ interface Props { id?: string; }
 export default function NiveauFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!id;
+  const existing = id ? getNiveauById(id) : undefined;
+  const cycles = useCycles();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    defaultValues: { nom: "", alias: "", cycle: "Licence", filiereId: "" },
+    defaultValues: existing
+      ? {
+          nom: existing.nom,
+          alias: existing.alias,
+          cycleId: existing.cycleId ?? cycles.find((c) => c.intitule === existing.cycle)?.id ?? "",
+          filiereId: existing.filiereId,
+        }
+      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "" },
   });
 
   const onSubmit = (data: FormData) => {
-    console.log("Niveau saved:", data);
+    const cycle = cycles.find((c) => c.id === data.cycleId);
+    const filiere = FILIERES.find((f) => f.id === data.filiereId);
+    const payload = {
+      nom: data.nom.trim(),
+      alias: data.alias.trim().toUpperCase(),
+      cycleId: data.cycleId || undefined,
+      cycle: cycle?.intitule ?? "",
+      filiereId: data.filiereId,
+      filiere: filiere?.code ?? "",
+    };
+    if (isEdit && existing) {
+      updateNiveau(existing.id, payload);
+    } else {
+      addNiveau(payload);
+    }
     setLocation("/admin/niveaux");
   };
 
@@ -55,12 +80,11 @@ export default function NiveauFormPage({ id }: Props) {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle LMD *</label>
-              <select {...register("cycle")} className={inputClass}>
-                <option value="Licence">Licence</option>
-                <option value="Master">Master</option>
-                <option value="BTS">BTS</option>
-                <option value="Doctorat">Doctorat</option>
+              <select {...register("cycleId", { required: "Cycle requis" })} className={inputClass}>
+                <option value="">Sélectionner un cycle</option>
+                {cycles.map((c) => <option key={c.id} value={c.id}>{c.intitule}</option>)}
               </select>
+              {errors.cycleId && <p className="text-xs text-red-500 mt-1">{errors.cycleId.message}</p>}
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>

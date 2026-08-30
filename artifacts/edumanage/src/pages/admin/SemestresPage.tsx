@@ -4,16 +4,16 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { SEMESTRES } from "@/data/mockData";
-
-type Semestre = typeof SEMESTRES[0];
+import { useSemestres } from "@/hooks/useSemestreStore";
+import { deleteSemestre, type SemestreRecord } from "@/data/semestreStore";
 
 export default function SemestresPage() {
   const [, setLocation] = useLocation();
-  const actifs = SEMESTRES.filter((s) => s.statut === "actif").length;
-  const clos = SEMESTRES.filter((s) => s.statut === "clos").length;
+  const semestres = useSemestres();
+  const actifs = semestres.filter((s) => s.statut === "actif").length;
+  const clos = semestres.filter((s) => s.statut === "clos").length;
 
-  const columns: Column<Semestre>[] = [
+  const columns: Column<SemestreRecord>[] = [
     { key: "nom", header: "Nom", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.nom}</span> },
     { key: "alias", header: "Alias", render: (r) => <span className="font-mono text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-lg">{r.alias}</span> },
     { key: "niveau", header: "Niveau", render: (r) => <span className="text-sm text-foreground">{r.niveau}</span> },
@@ -26,7 +26,15 @@ export default function SemestresPage() {
       render: (r) => (
         <div className="flex items-center gap-1">
           <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/semestres/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
-          <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Supprimer le semestre ${r.nom} (${r.alias}) ?`)) deleteSemestre(r.id);
+            }}
+            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       ),
     },
@@ -37,7 +45,7 @@ export default function SemestresPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Semestres" }]}
         title="Semestres"
-        subtitle={`${SEMESTRES.length} semestres configurés`}
+        subtitle={`${semestres.length} semestres configurés`}
         actions={
           <button onClick={() => setLocation("/admin/semestres/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
             <Plus size={15} /> Nouveau Semestre
@@ -45,11 +53,11 @@ export default function SemestresPage() {
         }
       />
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <KPICard icon={Calendar} label="Total Semestres" value={SEMESTRES.length} accentColor="#4f46e5" />
+        <KPICard icon={Calendar} label="Total Semestres" value={semestres.length} accentColor="#4f46e5" />
         <KPICard icon={Calendar} label="Actifs" value={actifs} accentColor="#10b981" />
         <KPICard icon={Lock} label="Clôturés" value={clos} accentColor="#64748b" />
       </div>
-      <DataTable columns={columns} data={SEMESTRES as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher un semestre..." />
+      <DataTable columns={columns as unknown as Column<Record<string, unknown>>[]} data={semestres as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher un semestre..." />
     </div>
   );
 }
