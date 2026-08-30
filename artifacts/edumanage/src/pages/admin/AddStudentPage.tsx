@@ -8,16 +8,18 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
-import { allocateMatricule, registerNewEtudiant, registerPaiement, peekNextMatricule, type EtudiantRecord } from "@/data/studentStore";
+import { allocateMatricule, registerNewEtudiant, registerPaiement, emettreQuittanceBrute, peekNextMatricule, type EtudiantRecord } from "@/data/studentStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useFraisConfigs } from "@/hooks/useFraisConfigStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
+import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, type LigneGrilleFrais } from "@/data/grilleFraisStore";
 import {
   SERIES_BAC, STATUTS_INSCRIPTION, TYPES_ADMISSION, DOCUMENTS_INSCRIPTION,
-  MODES_PAIEMENT, STATUTS_PAIEMENT, TYPES_FRAIS_INSCRIPTION, MODES_SCOLARITE,
+  MODES_PAIEMENT, STATUTS_PAIEMENT,
   generateMotDePasseEtudiant,
 } from "@/lib/inscriptionConstants";
-import { cn, formatCFA } from "@/lib/utils";
+import { cn, formatCFA, formatShortDate } from "@/lib/utils";
 import { toast } from "sonner";
 
 const STEPS = [
@@ -68,8 +70,6 @@ interface Step4Data {
 }
 
 interface Step5Data {
-  typesFrais: string[];
-  modeScolarite: "mensualite" | "annuelle";
   montantVerse: number;
   dateOperation: string;
   modePaiement: string;
@@ -83,7 +83,8 @@ interface Step5Data {
 export default function AddStudentPage() {
   const [, setLocation] = useLocation();
   const classes = useClasses();
-  const FRAIS_CONFIG = useFraisConfigs();
+  const modelesFrais = useModelesFrais();
+  useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
@@ -103,8 +104,6 @@ export default function AddStudentPage() {
   const form3 = useForm<Step3Data>({ defaultValues: { annee: defaultAnnee, statut: "preinscrit" } });
   const form5 = useForm<Step5Data>({
     defaultValues: {
-      typesFrais: ["inscription"],
-      modeScolarite: "mensualite",
       montantVerse: 0,
       dateOperation: new Date().toISOString().split("T")[0],
       modePaiement: "Wave",
@@ -116,7 +115,8 @@ export default function AddStudentPage() {
   });
 
   const [documents, setDocuments] = useState<Record<string, File | null>>({});
-  const [selectedTypesFrais, setSelectedTypesFrais] = useState<string[]>(["inscription"]);
+  const [modeleFraisId, setModeleFraisId] = useState("");
+  const [selectedEcheanceIds, setSelectedEcheanceIds] = useState<Set<string>>(new Set());
   const [motDePasse, setMotDePasse] = useState("");
 
   const selectedFiliere = form3.watch("filiereId");
@@ -133,43 +133,70 @@ export default function AddStudentPage() {
     return true;
   });
 
-  const fraisRef = useMemo(() => {
-    if (!step3Data) return null;
-    const niveau = NIVEAUX.find((n) => n.id === step3Data.niveauId);
-    return FRAIS_CONFIG.find(
-      (f) => f.filiereId === step3Data.filiereId && f.niveau === niveau?.alias,
-    );
-  }, [step3Data, FRAIS_CONFIG]);
+  const niveauAlias = step3Data ? NIVEAUX.find((n) => n.id === step3Data.niveauId)?.alias ?? "" : "";
+
+  const modelesDisponibles = useMemo(() => {
+    if (!step3Data || !niveauAlias) return [];
+    const ids = new Set(getModelesFraisDisponibles(step3Data.filiereId, niveauAlias, step3Data.annee));
+    return modelesFrais.filter((m) => ids.has(m.id));
+  }, [step3Data, niveauAlias, modelesFrais]);
+
+  const grille = step3Data && niveauAlias && modeleFraisId
+    ? getGrilleFrais(step3Data.filiereId, niveauAlias, step3Data.annee, modeleFraisId)
+    : undefined;
+
+  const lignesObligatoires = useMemo(
+    () => grille?.lignes.filter((l) => l.modalite === "avant_inscription") ?? [],
+    [grille],
+  );
+  const lignesEcheancier = useMemo(
+    () => grille?.lignes.filter((l) => l.modalite === "echeances") ?? [],
+    [grille],
+  );
+
+  interface EcheanceAffichee { id: string; ligne: LigneGrilleFrais; index: number; date: string; montant: number }
+  const toutesEcheances = useMemo(() => {
+    const anneeRef = step3Data?.annee ?? "";
+    const result: EcheanceAffichee[] = [];
+    for (const ligne of lignesEcheancier) {
+      for (const ech of calculerEcheances(ligne, anneeRef)) {
+        result.push({ id: `${ligne.id}#${ech.index}`, ligne, index: ech.index, date: ech.date, montant: ech.montant });
+      }
+    }
+    return result;
+  }, [lignesEcheancier, step3Data?.annee]);
+
+  const echeancesSelectionnees = toutesEcheances.filter((e) => selectedEcheanceIds.has(e.id));
+  const echeancesRestantes = toutesEcheances.filter((e) => !selectedEcheanceIds.has(e.id));
+
+  const montantObligatoire = lignesObligatoires.reduce((s, l) => s + l.montant, 0);
+  const montantEcheancesSelectionnees = echeancesSelectionnees.reduce((s, e) => s + e.montant, 0);
+  const montantSuggere = montantObligatoire + montantEcheancesSelectionnees;
+  const montantTotalTousFrais = montantObligatoire + toutesEcheances.reduce((s, e) => s + e.montant, 0);
 
   const factureLignes = useMemo(() => {
-    if (!fraisRef) return [] as { label: string; montant: number }[];
-    const lines: { label: string; montant: number }[] = [];
-    const mode = form5.watch("modeScolarite");
-    if (selectedTypesFrais.includes("inscription")) {
-      lines.push({ label: "Inscription unique", montant: fraisRef.inscription });
-    }
-    if (selectedTypesFrais.includes("scolarite")) {
-      lines.push({
-        label: mode === "annuelle" ? "Scolarité annuelle" : "Scolarité (mensualité)",
-        montant: mode === "annuelle" ? fraisRef.scolariteAnnuelle : Math.round(fraisRef.scolariteAnnuelle / 10),
+    const lignesAffichees: { label: string; montant: number }[] = lignesObligatoires.map((l) => ({ label: l.intitule, montant: l.montant }));
+    for (const e of echeancesSelectionnees) {
+      lignesAffichees.push({
+        label: `${e.ligne.intitule} — Échéance ${e.index}/${e.ligne.nbEcheances} (${formatShortDate(e.date)})`,
+        montant: e.montant,
       });
     }
-    if (selectedTypesFrais.includes("mutuelle")) {
-      lines.push({ label: "Mutuelle santé", montant: 15000 });
-    }
-    if (selectedTypesFrais.includes("tenue")) {
-      lines.push({ label: "Tenue / frais divers", montant: fraisRef.fraisDivers + 25000 });
-    }
-    if (selectedTypesFrais.includes("pack_complet")) {
-      lines.push({ label: "Pack complet (inscription + tenue)", montant: fraisRef.inscription + fraisRef.fraisDivers + 25000 });
-    }
-    return lines;
-  }, [fraisRef, selectedTypesFrais, form5.watch("modeScolarite")]);
+    return lignesAffichees;
+  }, [lignesObligatoires, echeancesSelectionnees]);
 
-  const montantSuggere = useMemo(
-    () => factureLignes.reduce((s, l) => s + l.montant, 0),
-    [factureLignes],
-  );
+  const toggleEcheance = (id: string) => {
+    setSelectedEcheanceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectionnerToutesLesEcheances = () => {
+    setSelectedEcheanceIds(new Set(toutesEcheances.map((e) => e.id)));
+  };
 
   const ensureMatricule = (filiereId: string) => {
     if (!matricule) {
@@ -192,9 +219,8 @@ export default function AddStudentPage() {
   const handleStep5 = form5.handleSubmit((data) => {
     setStep5Data({
       ...data,
-      typesFrais: selectedTypesFrais,
       motDePasseGenere: motDePasse,
-      montantVerse: data.montantVerse || montantSuggere,
+      montantVerse: montantSuggere,
     });
     setCurrentStep(6);
   });
@@ -207,16 +233,6 @@ export default function AddStudentPage() {
     setMatricule(finalMatricule);
 
     const paye = step5Data.statutPaiement === "paye";
-    const lignes = factureLignes.length
-      ? factureLignes
-      : [{ label: "Frais d'inscription", montant: step5Data.montantVerse }];
-    const totalFacture = lignes.reduce((s, l) => s + l.montant, 0);
-    const soldeDu = paye ? Math.max(0, totalFacture - step5Data.montantVerse) : totalFacture;
-
-    const inscriptionPayee =
-      paye &&
-      (selectedTypesFrais.includes("inscription") || selectedTypesFrais.includes("pack_complet"));
-
     const classeApres = paye ? step5Data.classeIdApresPaiement : "";
 
     const docsFournis = Object.entries(documents)
@@ -238,8 +254,8 @@ export default function AddStudentPage() {
           niveau: niveau?.alias ?? "L1",
           statut: "preinscrit",
           annee: step3Data.annee,
-          soldeDu,
-          inscriptionUniquePayee: inscriptionPayee,
+          soldeDu: 0,
+          inscriptionUniquePayee: false,
           lieuNaissance: step1Data.lieuNaissance,
           pays: step1Data.pays,
           nationalite: step1Data.nationalite,
@@ -250,18 +266,40 @@ export default function AddStudentPage() {
         finalMatricule,
       );
 
-      if (step5Data.montantVerse > 0 || (paye && totalFacture > 0)) {
-        registerPaiement({
+      // Ce qui est réglé maintenant (frais obligatoires + échéances cochées) : encaissé si
+      // "Payé", sinon simplement facturé (émis, non encaissé) comme les échéances restantes.
+      if (factureLignes.length > 0) {
+        if (paye) {
+          registerPaiement({
+            etudiantId: etudiant.id,
+            rubrique: "Facture d'inscription",
+            montant: montantSuggere,
+            moyen: step5Data.modePaiement,
+            reference: step5Data.numeroRecu,
+            date: step5Data.dateOperation,
+            statut: "paye",
+            lignes: factureLignes,
+            classeId: classeApres || undefined,
+            recordOnly: true,
+          });
+        } else {
+          emettreQuittanceBrute({
+            etudiantId: etudiant.id,
+            date: step5Data.dateOperation,
+            lignes: factureLignes,
+            reference: step5Data.numeroRecu || `Facture inscription ${finalMatricule}`,
+          });
+        }
+      }
+
+      // Échéances non cochées : facturées à leur date d'échéance, à régler plus tard.
+      for (const e of echeancesRestantes) {
+        emettreQuittanceBrute({
           etudiantId: etudiant.id,
-          rubrique: "Facture unique",
-          montant: step5Data.montantVerse || totalFacture,
-          moyen: step5Data.modePaiement,
-          reference: step5Data.numeroRecu,
-          date: step5Data.dateOperation,
-          statut: step5Data.statutPaiement,
-          lignes,
-          classeId: classeApres || undefined,
-          recordOnly: true,
+          date: e.date,
+          dateLimite: e.date,
+          lignes: [{ label: `${e.ligne.intitule} — Échéance ${e.index}/${e.ligne.nbEcheances}`, montant: e.montant }],
+          reference: `${e.ligne.intitule} — Échéance ${e.index}/${e.ligne.nbEcheances}`,
         });
       }
     } catch (err) {
@@ -269,12 +307,6 @@ export default function AddStudentPage() {
       return;
     }
     setLocation(`/admin/students/${etudiant.id}`);
-  };
-
-  const toggleTypeFrais = (id: string) => {
-    setSelectedTypesFrais((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
-    );
   };
 
   const InputField = ({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) => (
@@ -576,58 +608,103 @@ export default function AddStudentPage() {
           <form onSubmit={handleStep5} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Paiement des Frais d'Inscription</h3>
 
-            {fraisRef && (
-              <div className="p-3 bg-muted/30 rounded-xl text-xs text-muted-foreground border border-border">
-                Barème {fraisRef.filiere} {fraisRef.niveau} : Inscription {formatCFA(fraisRef.inscription)} · Scolarité annuelle {formatCFA(fraisRef.scolariteAnnuelle)}
-              </div>
+            <InputField label="Modèle de frais *">
+              <select
+                value={modeleFraisId}
+                onChange={(e) => { setModeleFraisId(e.target.value); setSelectedEcheanceIds(new Set()); }}
+                className={inputClass}
+              >
+                <option value="">Sélectionner</option>
+                {modelesDisponibles.map((m) => <option key={m.id} value={m.id}>{m.intitule}</option>)}
+              </select>
+              {modelesDisponibles.length === 0 && (
+                <p className="text-[11px] text-amber-600 mt-1">
+                  Aucune grille tarifaire configurée pour cette filière/niveau/année. Configurez-la dans Finances &gt; Configuration des frais (grille tarifaire).
+                </p>
+              )}
+            </InputField>
+
+            {modeleFraisId && !grille && modelesDisponibles.length > 0 && (
+              <p className="text-xs text-amber-600">Aucune grille tarifaire pour ce modèle de frais sur cette filière/niveau/année.</p>
             )}
 
-            <InputField label="Type de frais">
-              <div className="space-y-2">
-                {TYPES_FRAIS_INSCRIPTION.map((t) => (
-                  <label key={t.id} className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedTypesFrais.includes(t.id)}
-                      onChange={() => toggleTypeFrais(t.id)}
-                      className="w-4 h-4 rounded text-primary"
-                    />
-                    {t.label}
-                  </label>
-                ))}
-                {selectedTypesFrais.includes("scolarite") && (
-                  <div className="ml-6 flex gap-4 mt-2">
-                    {MODES_SCOLARITE.map((m) => (
-                      <label key={m.value} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                        <input type="radio" {...form5.register("modeScolarite")} value={m.value} className="w-3.5 h-3.5" />
-                        {m.label}
-                      </label>
+            {grille && (
+              <>
+                {lignesObligatoires.length > 0 && (
+                  <div className="rounded-xl border border-border p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-foreground">Frais obligatoires (payables à l'inscription)</p>
+                    {lignesObligatoires.map((l) => (
+                      <div key={l.id} className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">{l.intitule}</span>
+                        <span className="font-medium">{formatCFA(l.montant)}</span>
+                      </div>
                     ))}
                   </div>
                 )}
-              </div>
-            </InputField>
 
-            {montantSuggere > 0 && (
-              <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                <p className="text-xs font-semibold text-foreground">Facture unique — détail</p>
-                {factureLignes.map((l) => (
-                  <div key={l.label} className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">{l.label}</span>
-                    <span className="font-medium">{formatCFA(l.montant)}</span>
+                {lignesEcheancier.length > 0 && (
+                  <div className="rounded-xl border border-border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-foreground">Frais échelonnés — cochez les échéances réglées maintenant</p>
+                      <button type="button" onClick={selectionnerToutesLesEcheances} className="text-[11px] font-medium text-primary hover:underline">
+                        Payer la totalité (toutes les échéances)
+                      </button>
+                    </div>
+                    {lignesEcheancier.map((l) => (
+                      <div key={l.id} className="space-y-1">
+                        <p className="text-xs font-medium text-foreground">{l.intitule} <span className="text-muted-foreground font-normal">({l.nbEcheances} échéances)</span></p>
+                        <div className="grid sm:grid-cols-2 gap-1.5">
+                          {calculerEcheances(l, step3Data?.annee ?? "").map((ech) => {
+                            const id = `${l.id}#${ech.index}`;
+                            return (
+                              <label key={id} className="flex items-center gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-lg hover:bg-muted">
+                                <input type="checkbox" checked={selectedEcheanceIds.has(id)} onChange={() => toggleEcheance(id)} className="w-3.5 h-3.5 rounded text-primary" />
+                                <span className="flex-1 text-muted-foreground">Échéance {ech.index}/{l.nbEcheances} — {formatShortDate(ech.date)}</span>
+                                <span className="font-medium">{formatCFA(ech.montant)}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <div className="flex justify-between text-sm font-bold border-t border-border pt-1.5 mt-1">
-                  <span>Total</span>
-                  <span className="text-primary">{formatCFA(montantSuggere)}</span>
-                </div>
-              </div>
+                )}
+
+                {factureLignes.length > 0 && (
+                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-foreground">Facture — réglée maintenant</p>
+                    {factureLignes.map((l) => (
+                      <div key={l.label} className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">{l.label}</span>
+                        <span className="font-medium">{formatCFA(l.montant)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm font-bold border-t border-border pt-1.5 mt-1">
+                      <span>Total à régler maintenant</span>
+                      <span className="text-primary">{formatCFA(montantSuggere)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {echeancesRestantes.length > 0 && (
+                  <div className="rounded-xl border border-dashed border-border p-3 space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">Échéances restantes (facturées, à régler plus tard)</p>
+                    {echeancesRestantes.map((e) => (
+                      <div key={e.id} className="flex justify-between text-[11px] text-muted-foreground">
+                        <span>{e.ligne.intitule} — Échéance {e.index}/{e.ligne.nbEcheances} ({formatShortDate(e.date)})</span>
+                        <span>{formatCFA(e.montant)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-xs font-semibold border-t border-border pt-1 mt-1">
+                      <span>Total restant dû</span>
+                      <span>{formatCFA(montantTotalTousFrais - montantSuggere)}</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <InputField label="Montant versé (FCFA) *">
-                <input {...form5.register("montantVerse", { required: true, valueAsNumber: true, min: 0 })} type="number" className={inputClass} placeholder={String(montantSuggere || 0)} />
-              </InputField>
               <InputField label="Date d'opération *">
                 <input {...form5.register("dateOperation", { required: true })} type="date" className={inputClass} />
               </InputField>
@@ -738,7 +815,7 @@ export default function AddStudentPage() {
               {step5Data && (
                 <>
                   <div className="border-t border-border pt-2 space-y-1">
-                    <p className="text-xs font-semibold text-muted-foreground mb-1">Facture unique</p>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">Facture — réglée maintenant</p>
                     {factureLignes.map((l) => (
                       <div key={l.label} className="flex justify-between text-xs">
                         <span className="text-muted-foreground">{l.label}</span>
@@ -762,6 +839,21 @@ export default function AddStudentPage() {
                       </div>
                     )}
                   </div>
+                  {echeancesRestantes.length > 0 && (
+                    <div className="border-t border-border pt-2 space-y-1">
+                      <p className="text-xs font-semibold text-muted-foreground mb-1">Échéances restantes à régler</p>
+                      {echeancesRestantes.map((e) => (
+                        <div key={e.id} className="flex justify-between text-[11px] text-muted-foreground">
+                          <span>{e.ligne.intitule} — Échéance {e.index}/{e.ligne.nbEcheances} ({formatShortDate(e.date)})</span>
+                          <span>{formatCFA(e.montant)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between text-xs font-bold pt-1">
+                        <span>Total restant dû</span>
+                        <span>{formatCFA(montantTotalTousFrais - montantSuggere)}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Mot de passe étudiant</span>
                     <span className="font-mono text-xs" style={{ fontFamily: "JetBrains Mono, monospace" }}>{motDePasse ? "••••••••" : "Non généré"}</span>

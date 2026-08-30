@@ -25,6 +25,56 @@ export function makeGrilleFraisId(filiereId: string, niveau: string, annee: stri
   return `${filiereId}:${niveau}:${annee}:${modeleFraisId}`;
 }
 
+export interface EcheanceCalculee {
+  /** Position 1-based parmi les échéances de la ligne (ex: 3 sur 8). */
+  index: number;
+  date: string;
+  montant: number;
+}
+
+function addMonthsIso(dateStr: string, months: number): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Répartit `total` en `n` parts entières, en ajoutant le reliquat d'arrondi aux premières parts. */
+function splitMontantEgal(total: number, n: number): number[] {
+  const base = Math.floor(total / n);
+  const remainder = total - base * n;
+  return Array.from({ length: n }, (_, i) => (i < remainder ? base + 1 : base));
+}
+
+/** `dateLimite` d'une ligne grille est un jour/mois ("10/12") sans année : on déduit l'année
+ * civile réelle à partir de l'année scolaire (ex: "2025-2026") — septembre à décembre tombent
+ * sur la première année, janvier à août sur la seconde. */
+function dateLimiteVersISO(anneeScolaire: string, dateLimite: string): string | undefined {
+  const [jourStr, moisStr] = dateLimite.split("/");
+  const jour = Number(jourStr);
+  const mois = Number(moisStr);
+  const [an1, an2] = anneeScolaire.split("-").map(Number);
+  if (!jour || !mois || !an1) return undefined;
+  const annee = mois >= 9 ? an1 : (an2 || an1 + 1);
+  return `${annee}-${String(mois).padStart(2, "0")}-${String(jour).padStart(2, "0")}`;
+}
+
+/** Calcule les échéances réelles (date + montant) d'une ligne en modalité "echeances", en
+ * répartissant son montant sur nbEcheances mois consécutifs se terminant à sa dateLimite. Une
+ * ligne "avant_inscription", ou sans dateLimite exploitable, renvoie une échéance unique. */
+export function calculerEcheances(ligne: LigneGrilleFrais, anneeScolaire: string): EcheanceCalculee[] {
+  const n = Math.max(1, ligne.nbEcheances ?? 1);
+  const dateFinale = ligne.dateLimite ? dateLimiteVersISO(anneeScolaire, ligne.dateLimite) : undefined;
+  if (n <= 1 || !dateFinale) {
+    return [{ index: 1, date: dateFinale ?? new Date().toISOString().slice(0, 10), montant: ligne.montant }];
+  }
+  const montants = splitMontantEgal(ligne.montant, n);
+  return montants.map((montant, i) => ({
+    index: i + 1,
+    date: addMonthsIso(dateFinale, -(n - 1 - i)),
+    montant,
+  }));
+}
+
 function seed(): GrilleFraisRecord[] {
   return [
     {
