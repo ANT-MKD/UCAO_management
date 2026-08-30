@@ -20,12 +20,14 @@ const DashboardPage = lazy(() => import("@/pages/admin/DashboardPage"));
 
 // Académiques - listes
 const FilieresPage = lazy(() => import("@/pages/admin/FilieresPage"));
+const FiliereDetailPage = lazy(() => import("@/pages/admin/FiliereDetailPage"));
 const NiveauxPage = lazy(() => import("@/pages/admin/NiveauxPage"));
 const SemestresPage = lazy(() => import("@/pages/admin/SemestresPage"));
 const ClassesPage = lazy(() => import("@/pages/admin/ClassesPage"));
 const SallesPage = lazy(() => import("@/pages/admin/SallesPage"));
 const UEsPage = lazy(() => import("@/pages/admin/UEsPage"));
 const ECsPage = lazy(() => import("@/pages/admin/ECsPage"));
+const AcademicParametragePage = lazy(() => import("@/pages/admin/AcademicParametragePage"));
 
 // Académiques - formulaires dédiés
 const FilieresFormPage = lazy(() => import("@/pages/admin/FilieresFormPage"));
@@ -241,6 +243,14 @@ function AppRouter() {
       </Route>
       <Route path="/admin/filieres/:id/edit">
         {(p) => <Admin><FilieresFormPage id={p.id} /></Admin>}
+      </Route>
+      <Route path="/admin/filieres/:id">
+        {(p) => <Admin><FiliereDetailPage id={p.id} /></Admin>}
+      </Route>
+
+      {/* Paramétrage académique */}
+      <Route path="/admin/parametrage-academique/:section">
+        {(p) => <Admin><AcademicParametragePage section={p.section} /></Admin>}
       </Route>
 
       {/* Niveaux */}
@@ -586,6 +596,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/filieres">
         <Admin><FilieresPage /></Admin>
+      </Route>
+      <Route path="/admin/parametrage-academique">
+        <Redirect to="/admin/parametrage-academique/cycle" />
       </Route>
       <Route path="/admin/niveaux">
         <Admin><NiveauxPage /></Admin>

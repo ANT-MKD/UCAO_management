@@ -1,4 +1,5 @@
 import { UES as SEED_UES, ECS as SEED_ECS } from "./mockData";
+import { getFiliereByCode } from "./filiereStore";
 
 export interface UeRecord {
   id: string;
@@ -19,6 +20,8 @@ export interface EcRecord {
   id: string;
   code: string;
   libelle: string;
+  /** Intitulé abrégé, distinct du code (ex. code "1CPT1140", abrégé "ICPT") */
+  abrege?: string;
   ue: string;
   ueId: string;
   coeff: number;
@@ -52,7 +55,9 @@ export function subscribeCurriculum(fn: () => void) {
 function seedUes(): UeRecord[] {
   return SEED_UES.map((u) => ({
     ...u,
-    filiereId: u.filiere === "LPIG" ? "f1" : u.filiere === "DROIT" ? "f2" : u.filiere === "GESTION" ? "f3" : "f4",
+    // Rattachement réel à la filière par son code, plutôt qu'une correspondance codée en dur
+    // sur seulement 3 filières (les autres tombaient toutes par erreur sur "f4"/COMPTA).
+    filiereId: getFiliereByCode(u.filiere)?.id ?? "",
     type: (u.type as UeRecord["type"]) ?? "Obligatoire",
     obligatoire: u.type !== "Optionnelle",
     description: "",
@@ -178,6 +183,7 @@ export function deleteUe(id: string) {
 export interface EcPayload {
   code: string;
   libelle: string;
+  abrege?: string;
   ueId: string;
   coeff: number;
   credits: number;

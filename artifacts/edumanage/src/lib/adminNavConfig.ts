@@ -46,6 +46,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Académiques",
     icon: Library,
     children: [
+      { id: "acad-parametrage", label: "Paramétrage académique", href: "/admin/parametrage-academique" },
       { id: "acad-filieres", label: "Filières", href: "/admin/filieres" },
       { id: "acad-niveaux", label: "Niveaux", href: "/admin/niveaux" },
       { id: "acad-semestres", label: "Semestres", href: "/admin/semestres" },
