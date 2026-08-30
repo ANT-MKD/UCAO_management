@@ -86,7 +86,9 @@ export default function ScheduleFormPage() {
       return;
     }
     setSubmitted(true);
-    setTimeout(() => setLocation("/admin/schedule"), 1500);
+    // Revenir sur la semaine où la séance vient d'être créée, pas systématiquement la semaine
+    // courante — sinon une séance ajoutée pour une autre semaine semble ne jamais s'afficher.
+    setTimeout(() => setLocation(`/admin/schedule?week=${mondayOf(data.date)}`), 1500);
   });
 
   const inputClass =

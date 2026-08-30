@@ -18,6 +18,7 @@ import { ajouterEvenement, modifierEvenement, supprimerEvenement, type Evenement
 import {
   filterTeachers,
   matchesProf,
+  mondayOf,
   teacherDisplayLabel,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
@@ -93,7 +94,19 @@ export default function SchedulePage() {
   const [showProfSuggestions, setShowProfSuggestions] = useState(false);
   const [weekViewMode, setWeekViewMode] = useState<"semaine" | "jour">("semaine");
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [weekOffset, setWeekOffset] = useState(0);
+  // Revenir sur la semaine visée après un ajout de séance/évènement (?week=<lundi ISO>),
+  // plutôt que de retomber systématiquement sur la semaine courante — sinon une séance créée
+  // pour une autre semaine que celle affichée semble "ne pas s'afficher".
+  const [weekOffset, setWeekOffset] = useState(() => {
+    const weekParam = initialParams.get("week");
+    if (!weekParam) return 0;
+    const now = new Date();
+    const thisWeekMonday = new Date(now);
+    thisWeekMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const target = new Date(`${weekParam}T12:00:00`);
+    const diffDays = Math.round((target.getTime() - thisWeekMonday.getTime()) / 86400000);
+    return Math.round(diffDays / 7);
+  });
   const [conflictMsg, setConflictMsg] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -229,7 +242,9 @@ export default function SchedulePage() {
   function resetEvenementForm() {
     setEditingEvenementId(undefined);
     setEvObjet("");
-    setEvDate(new Date().toISOString().slice(0, 10));
+    // Défaut sur la semaine actuellement affichée (pas "aujourd'hui") — sinon un évènement créé
+    // en consultant une autre semaine que la semaine courante semble ne jamais s'afficher.
+    setEvDate(weekMonday);
     setEvClasseId("");
     setEvSalleId("");
     setEvHeureDebut("08:00");
@@ -299,7 +314,7 @@ export default function SchedulePage() {
             <button data-testid="edt-ajouter-evenement" onClick={() => { resetEvenementForm(); setShowEvenementModal(true); }} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
               <CalendarPlus size={15} /> Ajouter un évènement
             </button>
-            <button data-testid="edt-ajouter-seance" onClick={() => setLocation("/admin/schedule/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+            <button data-testid="edt-ajouter-seance" onClick={() => setLocation(`/admin/schedule/new?date=${weekMonday}`)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
               <Plus size={15} /> Ajouter une séance
             </button>
           </div>
