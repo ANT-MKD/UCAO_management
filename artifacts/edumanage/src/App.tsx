@@ -45,7 +45,6 @@ const ScheduleParametragePage = lazy(() => import("@/pages/admin/ScheduleParamet
 const AnneesAcademiquesPage = lazy(() => import("@/pages/admin/AnneesAcademiquesPage"));
 
 // Reporting & finances
-const AddTransactionPage = lazy(() => import("@/pages/admin/AddTransactionPage"));
 const AttestationsPage = lazy(() => import("@/pages/admin/AttestationsPage"));
 const UsersPage = lazy(() => import("@/pages/admin/UsersPage"));
 
@@ -170,7 +169,6 @@ const EmissionMasseFormPage = lazy(() => import("@/pages/admin/EmissionMasseForm
 const EmissionMasseDetailPage = lazy(() => import("@/pages/admin/EmissionMasseDetailPage"));
 const VacationsPage = lazy(() => import("@/pages/admin/VacationsPage"));
 const VacationFormPage = lazy(() => import("@/pages/admin/VacationFormPage"));
-const TransactionsPage = lazy(() => import("@/pages/admin/TransactionsPage"));
 
 // Paramètres
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
@@ -308,11 +306,6 @@ function AppRouter() {
       </Route>
       <Route path="/admin/schedule/parametrage">
         <Redirect to="/admin/schedule/parametrage/jours-feries" />
-      </Route>
-
-      {/* Finances — transactions */}
-      <Route path="/admin/transactions/new">
-        <Admin><AddTransactionPage /></Admin>
       </Route>
 
       {/* Étudiants */}
@@ -726,9 +719,6 @@ function AppRouter() {
       </Route>
       <Route path="/admin/vacations">
         <Admin><VacationsPage /></Admin>
-      </Route>
-      <Route path="/admin/transactions">
-        <Admin><TransactionsPage /></Admin>
       </Route>
       <Route path="/admin/settings">
         <Admin><SettingsPage /></Admin>

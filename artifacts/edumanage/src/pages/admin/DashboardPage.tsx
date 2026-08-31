@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { KPICard } from "@/components/admin/KPICard";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { formatCFA, formatDate } from "@/lib/utils";
+import { formatCFA, formatDate, moyenPaiementColor } from "@/lib/utils";
 import {
   REVENUE_DATA, SUCCESS_RATE_DATA, SUCCESS_BY_SEMESTRE, ABSENCES_STATS,
   NOTIFICATIONS, FILIERES,
@@ -19,13 +19,6 @@ import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnn
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
-
-const MOYEN_COLORS: Record<string, string> = {
-  Wave: "#2563eb", OrangeMoney: "#ea580c", Virement: "#4f46e5", Especes: "#10b981",
-};
-const MOYEN_LABELS: Record<string, string> = {
-  Wave: "Wave", OrangeMoney: "Orange Money", Virement: "Virement", Especes: "Espèces",
-};
 
 const ALERT_STYLES: Record<string, { dot: string; border: string; bg: string }> = {
   danger: { dot: "#ef4444", border: "#fecaca", bg: "#fef2f2" },
@@ -256,9 +249,9 @@ export default function DashboardPage() {
                   <div className="text-sm font-bold text-foreground tabular-nums">{formatCFA(p.montant)}</div>
                   <span
                     className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
-                    style={{ background: `${MOYEN_COLORS[p.moyen] ?? "#64748b"}18`, color: MOYEN_COLORS[p.moyen] ?? "#64748b" }}
+                    style={{ background: moyenPaiementColor(p.moyen).bg, color: moyenPaiementColor(p.moyen).color }}
                   >
-                    {MOYEN_LABELS[p.moyen] ?? p.moyen}
+                    {p.moyen}
                   </span>
                 </div>
                 <ChevronRight size={14} className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors flex-shrink-0" />

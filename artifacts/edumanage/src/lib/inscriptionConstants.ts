@@ -22,14 +22,6 @@ export const DOCUMENTS_INSCRIPTION = [
   { id: "justificatifPaiement", label: "Justificatif de paiement" },
 ] as const;
 
-export const MODES_PAIEMENT = [
-  { key: "Especes", label: "Espèces" },
-  { key: "Wave", label: "Wave" },
-  { key: "OrangeMoney", label: "Orange Money" },
-  { key: "Virement", label: "Virement" },
-  { key: "Cheque", label: "Chèque" },
-] as const;
-
 export const STATUTS_PAIEMENT = [
   { value: "paye", label: "Payé" },
   { value: "annule", label: "Annulé" },

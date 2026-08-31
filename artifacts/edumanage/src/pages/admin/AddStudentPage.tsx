@@ -11,12 +11,12 @@ import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { allocateMatricule, registerNewEtudiant, registerPaiement, emettreQuittanceBrute, peekNextMatricule, type EtudiantRecord } from "@/data/studentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
-import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
+import { useModelesFrais, useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, nbEcheancesEffectif, type LigneGrilleFrais } from "@/data/grilleFraisStore";
 import {
   SERIES_BAC, STATUTS_INSCRIPTION, TYPES_ADMISSION, DOCUMENTS_INSCRIPTION,
-  MODES_PAIEMENT, STATUTS_PAIEMENT,
+  STATUTS_PAIEMENT,
   generateMotDePasseEtudiant,
 } from "@/lib/inscriptionConstants";
 import { cn, formatCFA, formatShortDate } from "@/lib/utils";
@@ -84,6 +84,7 @@ export default function AddStudentPage() {
   const [, setLocation] = useLocation();
   const classes = useClasses();
   const modelesFrais = useModelesFrais();
+  const modesPaiement = useModesPaiementFinance();
   useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(
@@ -711,7 +712,7 @@ export default function AddStudentPage() {
               </InputField>
               <InputField label="Mode de paiement *">
                 <select {...form5.register("modePaiement")} className={inputClass}>
-                  {MODES_PAIEMENT.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  {modesPaiement.map((m) => <option key={m.id} value={m.intitule}>{m.intitule}</option>)}
                 </select>
               </InputField>
               <InputField label="Statut du paiement *">

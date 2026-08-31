@@ -10,6 +10,7 @@ import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
+import { useFacturesAutreService } from "@/hooks/useFactureAutreServiceStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { usePersonnel } from "@/hooks/usePersonnelStore";
 import { useExportsComptables } from "@/hooks/useExportComptableStore";
@@ -44,6 +45,7 @@ export default function ExportComptablePage() {
   const avoirsRemboursements = useRemboursementsAvoir();
   const reductions = useReductionsFrais();
   const prisesEnCharge = usePrisesEnCharge();
+  const facturesAutresServices = useFacturesAutreService();
   const etudiants = useStudentStore();
   const personnel = usePersonnel();
   const exports = useExportsComptables();
@@ -69,13 +71,13 @@ export default function ExportComptablePage() {
   const lignes = useMemo(() => {
     if (!periodeDebut || !periodeFin || categories.length === 0) return [];
     return construireLignesComptables(
-      { encaissements, paiementsProfesseur, avoirsDepots, avoirsRemboursements, reductions, prisesEnCharge, etudiantLabel, personnelLabel },
+      { encaissements, paiementsProfesseur, avoirsDepots, avoirsRemboursements, reductions, prisesEnCharge, facturesAutresServices, etudiantLabel, personnelLabel },
       periodeDebut,
       periodeFin,
       categories,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [encaissements, paiementsProfesseur, avoirsDepots, avoirsRemboursements, reductions, prisesEnCharge, etudiants, personnel, periodeDebut, periodeFin, categories]);
+  }, [encaissements, paiementsProfesseur, avoirsDepots, avoirsRemboursements, reductions, prisesEnCharge, facturesAutresServices, etudiants, personnel, periodeDebut, periodeFin, categories]);
 
   const totaux = calculerTotaux(lignes);
 
@@ -176,7 +178,7 @@ export default function ExportComptablePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Export comptable" }]}
         title="Export comptable"
-        subtitle="Consolide les mouvements financiers réels (encaissements, paiements professeur, avoirs, réductions, prises en charge) sur une période"
+        subtitle="Consolide les mouvements financiers réels (encaissements, paiements professeur, avoirs, réductions, prises en charge, factures autres services) sur une période"
       />
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>

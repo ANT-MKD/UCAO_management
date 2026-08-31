@@ -15,17 +15,7 @@ import { useModesPaiementFinance, useModelesFrais } from "@/hooks/useFinanceSett
 import { useClasses } from "@/hooks/useStructureStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { montantQuittance } from "@/pages/admin/PaiementsPage";
-import { formatCFA, formatShortDate, cn } from "@/lib/utils";
-
-function moyenColors(label: string): { color: string; bg: string } {
-  const l = label.toLowerCase();
-  if (l.includes("wave")) return { color: "#2563eb", bg: "#eff6ff" };
-  if (l.includes("orange")) return { color: "#ea580c", bg: "#fff7ed" };
-  if (l.includes("vir")) return { color: "#4f46e5", bg: "#eef2ff" };
-  if (l.includes("esp")) return { color: "#16a34a", bg: "#f0fdf4" };
-  if (l.includes("ch")) return { color: "#64748b", bg: "#f8fafc" };
-  return { color: "#64748b", bg: "#f8fafc" };
-}
+import { formatCFA, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 
 /** Une ligne facturable de la facture unique : soit une ligne "avant inscription" entière de la
  * grille tarifaire, soit une échéance individuelle d'une ligne "échéances" (calculée par
@@ -427,7 +417,7 @@ export default function AddPaiementPage() {
               <label className="block text-xs font-medium text-muted-foreground mb-3">Mode de paiement *</label>
               <div className="grid grid-cols-3 gap-2">
                 {modesPaiement.map((m) => {
-                  const colors = moyenColors(m.intitule);
+                  const colors = moyenPaiementColor(m.intitule);
                   return (
                     <button
                       key={m.id}
@@ -584,7 +574,7 @@ export default function AddPaiementPage() {
               <label className="block text-xs font-medium text-muted-foreground mb-3">Mode de paiement *</label>
               <div className="grid grid-cols-3 gap-2">
                 {modesPaiement.map((m) => {
-                  const colors = moyenColors(m.intitule);
+                  const colors = moyenPaiementColor(m.intitule);
                   return (
                   <button
                     key={m.id}

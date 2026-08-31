@@ -11,13 +11,16 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { CLASSES, FILIERES, NIVEAUX, MOYENNES_PROMO } from "@/data/mockData";
 import { getGrilleFrais } from "@/data/grilleFraisStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import {
-  STATUTS_INSCRIPTION, MODES_PAIEMENT, STATUTS_PAIEMENT, MODES_SCOLARITE,
+  STATUTS_INSCRIPTION, STATUTS_PAIEMENT, MODES_SCOLARITE,
 } from "@/lib/inscriptionConstants";
 import {
   getEtudiantByMatricule,
   registerReinscription,
   checkReinscriptionEligibility,
+  registerPaiement,
+  emettreQuittanceBrute,
   type EtudiantRecord,
 } from "@/data/studentStore";
 import { useAnneeActuelle } from "@/hooks/useStudentStore";
@@ -53,6 +56,7 @@ export default function ReinscriptionPage() {
   const [, setLocation] = useLocation();
   const anneeActuelle = useAnneeActuelle();
   useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
+  const modesPaiement = useModesPaiementFinance();
   const [currentStep, setCurrentStep] = useState(1);
   const [searchMatricule, setSearchMatricule] = useState("");
   const [student, setStudent] = useState<EtudiantRecord | null>(null);
@@ -158,14 +162,19 @@ export default function ReinscriptionPage() {
   const handleConfirm = () => {
     if (!student || !step3Data || !step4Data) return;
     const niveau = NIVEAUX.find((n) => n.id === step3Data.niveauId);
-    const soldeDu =
-      step4Data.statutPaiement === "paye"
-        ? 0
-        : step4Data.statutPaiement === "partiel"
-          ? Math.max(0, montantSuggere - step4Data.montant)
-          : montantSuggere;
+    // montantSuggere n'est qu'une suggestion (dérivée de la grille tarifaire si le modèle de
+    // frais de l'étudiant est connu) — le montant réellement encaissé est celui saisi par
+    // l'admin, sans le plafonner à 0 quand aucune grille n'est trouvée (étudiant historique sans
+    // modeleFraisId, par exemple).
+    const montantPaye = step4Data.statutPaiement === "impaye" ? 0 : Math.max(0, step4Data.montant);
+    const resteDu = montantSuggere > 0 ? Math.max(0, montantSuggere - montantPaye) : 0;
+    const today = new Date().toISOString().split("T")[0];
+    const modeLabel = MODES_SCOLARITE.find((m) => m.value === step4Data.modeScolarite)?.label ?? "Scolarité";
 
     try {
+      // Solde remis à 0 puis reconstruit par les mêmes primitives que l'inscription initiale
+      // (registerPaiement/emettreQuittanceBrute) — pour qu'un vrai reçu/quittance existe au lieu
+      // de se contenter d'écraser soldeDu.
       registerReinscription({
         etudiantId: student.id,
         annee: anneeActuelle,
@@ -173,8 +182,31 @@ export default function ReinscriptionPage() {
         classeId: step3Data.classeId,
         niveau: niveau?.alias ?? student.niveau,
         statut: step3Data.statut,
-        soldeDu,
+        soldeDu: 0,
       });
+
+      if (montantPaye > 0) {
+        registerPaiement({
+          etudiantId: student.id,
+          rubrique: `Réinscription — ${modeLabel}`,
+          montant: montantPaye,
+          moyen: step4Data.moyenPaiement,
+          reference: step4Data.reference || "",
+          date: today,
+          statut: "paye",
+          lignes: [{ label: `Réinscription — ${modeLabel}`, montant: montantPaye }],
+          recordOnly: true,
+        });
+      }
+      if (resteDu > 0) {
+        emettreQuittanceBrute({
+          etudiantId: student.id,
+          date: today,
+          lignes: [{ label: `Réinscription — ${modeLabel} (solde)`, montant: resteDu }],
+          reference: `Réinscription ${student.matricule} — solde`,
+        });
+      }
+
       setLocation(`/admin/students/${student.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Réinscription impossible");
@@ -416,8 +448,8 @@ export default function ReinscriptionPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen</label>
               <select {...form4.register("moyenPaiement")} className={inputClass}>
-                {MODES_PAIEMENT.map((m) => (
-                  <option key={m.key} value={m.key}>{m.label}</option>
+                {modesPaiement.map((m) => (
+                  <option key={m.id} value={m.intitule}>{m.intitule}</option>
                 ))}
               </select>
             </div>
@@ -447,7 +479,7 @@ export default function ReinscriptionPage() {
           <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
             <Check size={28} />
           </div>
-          <h3 className="font-bold text-xl mb-2">Réinscription validée (mock)</h3>
+          <h3 className="font-bold text-xl mb-2">Confirmer la réinscription</h3>
           <p className="text-sm text-muted-foreground mb-4">
             {student.prenom} {student.nom} — {student.matricule}
             <br />

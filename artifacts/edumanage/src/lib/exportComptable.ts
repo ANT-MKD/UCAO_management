@@ -5,6 +5,7 @@ import type { AvoirDepotRecord } from "@/data/avoirDepotStore";
 import type { RemboursementAvoirRecord } from "@/data/remboursementAvoirStore";
 import type { ReductionFraisRecord } from "@/data/reductionFraisStore";
 import type { PriseEnChargeRecord } from "@/data/priseEnChargeStore";
+import type { FactureAutreServiceRecord } from "@/data/factureAutreServiceStore";
 
 export type CategorieExport =
   | "encaissements"
@@ -12,7 +13,8 @@ export type CategorieExport =
   | "avoirs_depots"
   | "avoirs_remboursements"
   | "reductions"
-  | "prises_en_charge";
+  | "prises_en_charge"
+  | "factures_autres_services";
 
 export const CATEGORIE_LABELS: Record<CategorieExport, string> = {
   encaissements: "Encaissements",
@@ -21,6 +23,7 @@ export const CATEGORIE_LABELS: Record<CategorieExport, string> = {
   avoirs_remboursements: "Avoirs — remboursements",
   reductions: "Réductions",
   prises_en_charge: "Prises en charge",
+  factures_autres_services: "Factures autres services",
 };
 
 export const TOUTES_CATEGORIES = Object.keys(CATEGORIE_LABELS) as CategorieExport[];
@@ -49,6 +52,7 @@ export interface SourcesExportComptable {
   avoirsRemboursements: RemboursementAvoirRecord[];
   reductions: ReductionFraisRecord[];
   prisesEnCharge: PriseEnChargeRecord[];
+  facturesAutresServices: FactureAutreServiceRecord[];
   etudiantLabel: (id: string) => string;
   personnelLabel: (id: string) => string;
 }
@@ -129,6 +133,20 @@ export function construireLignesComptables(
         tiers: pec.organisme, libelle: `Prise en charge — ${pec.etudiant}`,
         modeReglement: "Prise en charge", referenceBancaire: pec.referenceExterne ?? "",
         montant: pec.montantEncaisse, statut: pec.annulee ? "Annulé" : "Validé",
+      });
+    }
+  }
+
+  if (categories.includes("factures_autres_services")) {
+    for (const f of sources.facturesAutresServices) {
+      if (f.montant <= 0) continue; // rien d'encaissé sur cette facture pour l'instant
+      const date = f.datePaiement ?? f.date;
+      if (!inPeriode(date, periodeDebut, periodeFin)) continue;
+      lignes.push({
+        categorie: "factures_autres_services", sens: "recette", date, reference: f.reference,
+        tiers: f.beneficiaire, libelle: `Facture autre service — ${f.remarque || f.reference}`,
+        modeReglement: f.moyen ?? "", referenceBancaire: f.referenceBancairePaiement ?? "",
+        montant: f.montant, statut: f.statut === "annule" ? "Annulé" : "Validé",
       });
     }
   }

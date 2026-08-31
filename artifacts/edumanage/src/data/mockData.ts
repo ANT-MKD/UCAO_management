@@ -171,24 +171,6 @@ export const VACATIONS = [
   { id: "va5", mois: "Novembre 2025", enseignant: "Dr. Moussa SY", enseignantId: "en3", modules: ["Programmation C"], heuresCm: 25, heuresTd: 20, tauxHoraire: 12000, montantTotal: 540000, statut: "valide", moyen: "OrangeMoney" },
 ];
 
-export const TRANSACTIONS = [
-  { id: "tr1", date: "2025-09-01", type: "Recette", categorie: "Scolarité", beneficiaire: "Moussa SY", libelle: "Règlement frais inscription", montant: 150000, moyen: "Wave", reference: "WAVE-001" },
-  { id: "tr2", date: "2025-09-05", type: "Dépense", categorie: "Fournitures", beneficiaire: "Papeterie Dakar", libelle: "Achat fournitures bureautiques", montant: 45000, moyen: "Especes", reference: "BON-001" },
-  { id: "tr3", date: "2025-09-10", type: "Dépense", categorie: "Entretien", beneficiaire: "Nettoyage Pro SARL", libelle: "Nettoyage locaux septembre", montant: 85000, moyen: "Virement", reference: "VIR-001" },
-  { id: "tr4", date: "2025-10-01", type: "Recette", categorie: "Scolarité", beneficiaire: "Fatou NDIAYE", libelle: "Scolarité S1 Gestion L1", montant: 300000, moyen: "Wave", reference: "WAVE-002" },
-  { id: "tr5", date: "2025-10-05", type: "Dépense", categorie: "Salaires", beneficiaire: "Cheikh FALL", libelle: "Vacation octobre 2025", montant: 750000, moyen: "Virement", reference: "VIR-002" },
-  { id: "tr6", date: "2025-10-10", type: "Recette", categorie: "Scolarité", beneficiaire: "Rokhaya BA", libelle: "Inscription + Scolarité S1", montant: 450000, moyen: "Wave", reference: "WAVE-003" },
-  { id: "tr7", date: "2025-10-15", type: "Dépense", categorie: "Entretien", beneficiaire: "Électricité Sénégal", libelle: "Facture électricité octobre", montant: 125000, moyen: "Virement", reference: "VIR-003" },
-  { id: "tr8", date: "2025-11-01", type: "Recette", categorie: "Scolarité", beneficiaire: "Moussa SY", libelle: "Scolarité S1 Info L1", montant: 350000, moyen: "Wave", reference: "WAVE-004" },
-  { id: "tr9", date: "2025-11-05", type: "Dépense", categorie: "Fournitures", beneficiaire: "Matériel Informatique Dakar", libelle: "Remplacement 5 souris + claviers", montant: 65000, moyen: "Especes", reference: "BON-002" },
-  { id: "tr10", date: "2025-11-10", type: "Recette", categorie: "Scolarité", beneficiaire: "Oumar KANE", libelle: "Inscription + Scolarité complète", montant: 500000, moyen: "Virement", reference: "VIR-004" },
-  { id: "tr11", date: "2025-11-15", type: "Recette", categorie: "Scolarité", beneficiaire: "Adja SARR", libelle: "Scolarité S1", montant: 300000, moyen: "Wave", reference: "WAVE-005" },
-  { id: "tr12", date: "2025-11-20", type: "Dépense", categorie: "Salaires", beneficiaire: "Ibrahima DIOP", libelle: "Vacation novembre - Réseaux", montant: 200000, moyen: "Wave", reference: "WAVE-006" },
-  { id: "tr13", date: "2025-12-01", type: "Recette", categorie: "Scolarité", beneficiaire: "Khadija FALL", libelle: "Scolarité S1 Droit L1", montant: 220000, moyen: "Wave", reference: "WAVE-007" },
-  { id: "tr14", date: "2025-12-05", type: "Dépense", categorie: "Entretien", beneficiaire: "Maintenance Générale SN", libelle: "Réparation climatiseur amphi A", montant: 180000, moyen: "Virement", reference: "VIR-005" },
-  { id: "tr15", date: "2025-12-10", type: "Recette", categorie: "Scolarité", beneficiaire: "Pape SECK", libelle: "Scolarité S1 Info L3", montant: 375000, moyen: "Virement", reference: "VIR-006" },
-];
-
 export const NOTIFICATIONS = [
   { id: "nt1", type: "danger", message: "3 étudiants avec des impayés de plus de 30 jours", temps: "il y a 2h", lue: false },
   { id: "nt2", type: "warning", message: "5 notes en attente de validation - Semestre 1", temps: "il y a 4h", lue: false },

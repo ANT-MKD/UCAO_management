@@ -122,6 +122,7 @@ export default function DevisConvertirPage({ id }: { id: string }) {
             annee: record.annee,
             soldeDu: 0,
             inscriptionUniquePayee: false,
+            modeleFraisId: record.modeleFraisId,
           },
           matricule,
         );
