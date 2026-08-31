@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, Copy, Download, Eye, FileSpreadsheet, Plus, Save, Trash2, Upload } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Ban, Copy, Download, Eye, FileSpreadsheet, Plus, Save, Trash2, Upload, CalendarClock, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
-import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
+import { useModelesFrais, useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import {
@@ -12,8 +12,11 @@ import {
   upsertGrilleFrais,
   supprimerGrilleFrais,
   makeLigneGrilleFraisId,
+  calculerEcheances,
+  nbEcheancesEffectif,
   type GrilleFraisRecord,
   type LigneGrilleFrais,
+  type EcheancePersonnalisee,
   type ModaliteFrais,
 } from "@/data/grilleFraisStore";
 import { parseGrilleFraisExcel, downloadGrilleFraisTemplate, exportGrillesFraisExcel } from "@/lib/grilleFraisImport";
@@ -36,6 +39,7 @@ const EMPTY_FILTERS: OverviewFilters = { filiereId: "", niveau: "", annee: "", m
 
 export default function GrilleFraisPage() {
   const modelesFrais = useModelesFrais();
+  const typesFrais = useTypesFrais();
   const grillesFrais = useGrillesFrais();
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(
@@ -111,14 +115,57 @@ export default function GrilleFraisPage() {
     setLignes((prev) => prev.filter((l) => l.id !== id));
   };
 
+  /** Active/désactive le mode échéances personnalisées d'une ligne. À l'activation, on part du
+   * partage automatique actuel (nbEcheances/dateLimite) comme point de départ à ajuster. */
+  const togglePersonnaliserEcheances = (l: LigneGrilleFrais) => {
+    if (l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0) {
+      updateLigne(l.id, { echeancesPersonnalisees: undefined });
+      return;
+    }
+    const depart = calculerEcheances(l, annee).map((e) => ({ date: e.date, montant: e.montant }));
+    updateLigne(l.id, { echeancesPersonnalisees: depart });
+  };
+
+  const updateEcheancePerso = (ligneId: string, idx: number, patch: Partial<EcheancePersonnalisee>) => {
+    setLignes((prev) =>
+      prev.map((l) => {
+        if (l.id !== ligneId || !l.echeancesPersonnalisees) return l;
+        const echeances = l.echeancesPersonnalisees.map((e, i) => (i === idx ? { ...e, ...patch } : e));
+        const montant = echeances.reduce((s, e) => s + (Number(e.montant) || 0), 0);
+        return { ...l, echeancesPersonnalisees: echeances, montant };
+      }),
+    );
+  };
+
+  const addEcheancePerso = (ligneId: string) => {
+    setLignes((prev) =>
+      prev.map((l) => (l.id === ligneId ? { ...l, echeancesPersonnalisees: [...(l.echeancesPersonnalisees ?? []), { date: "", montant: 0 }] } : l)),
+    );
+  };
+
+  const removeEcheancePerso = (ligneId: string, idx: number) => {
+    setLignes((prev) =>
+      prev.map((l) => {
+        if (l.id !== ligneId || !l.echeancesPersonnalisees) return l;
+        const echeances = l.echeancesPersonnalisees.filter((_, i) => i !== idx);
+        const montant = echeances.reduce((s, e) => s + (Number(e.montant) || 0), 0);
+        return { ...l, echeancesPersonnalisees: echeances, montant };
+      }),
+    );
+  };
+
   const handleSave = () => {
     if (!combinaisonComplete) return;
     if (lignes.some((l) => !l.intitule.trim() || l.montant <= 0)) {
       toast.error("Chaque ligne doit avoir un intitulé et un montant supérieur à 0");
       return;
     }
-    if (lignes.some((l) => l.modalite === "echeances" && (!l.nbEcheances || l.nbEcheances < 1))) {
-      toast.error("Indiquez un nombre d'échéances pour chaque ligne payable en échéances");
+    if (lignes.some((l) => l.modalite === "echeances" && !(l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0) && (!l.nbEcheances || l.nbEcheances < 1))) {
+      toast.error("Indiquez un nombre d'échéances (ou personnalisez-les) pour chaque ligne payable en échéances");
+      return;
+    }
+    if (lignes.some((l) => l.echeancesPersonnalisees && l.echeancesPersonnalisees.some((e) => !e.date || e.montant <= 0))) {
+      toast.error("Chaque échéance personnalisée doit avoir une date et un montant supérieur à 0");
       return;
     }
     upsertGrilleFrais({
@@ -438,17 +485,26 @@ export default function GrilleFraisPage() {
                   </tr>
                 ) : (
                   lignes.map((l) => {
-                    const arrondiInexact = l.modalite === "echeances" && !!l.nbEcheances && l.montant % l.nbEcheances !== 0;
+                    const personnalisee = !!l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0;
+                    const arrondiInexact = l.modalite === "echeances" && !personnalisee && !!l.nbEcheances && l.montant % l.nbEcheances !== 0;
                     return (
-                      <tr key={l.id} className="border-b border-border last:border-0 align-top">
+                      <Fragment key={l.id}>
+                      <tr className="border-b border-border last:border-0 align-top">
                         <td className="px-4 py-3">
-                          <input
-                            value={l.intitule}
-                            onChange={(e) => updateLigne(l.id, { intitule: e.target.value })}
+                          <select
+                            value={l.typeFraisId ?? ""}
+                            onChange={(e) => {
+                              const t = typesFrais.find((tf) => tf.id === e.target.value);
+                              updateLigne(l.id, { typeFraisId: e.target.value || undefined, intitule: t ? t.intitule : l.intitule });
+                            }}
                             className={inputClass}
-                            placeholder="ex. Frais de scolarité"
-                            data-testid={`grille-ligne-intitule-${l.id}`}
-                          />
+                            data-testid={`grille-ligne-type-${l.id}`}
+                          >
+                            <option value="">{l.intitule ? `${l.intitule} (à relier)` : "— Sélectionner un type de frais —"}</option>
+                            {typesFrais.map((t) => (
+                              <option key={t.id} value={t.id}>{t.intitule}</option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-3 py-3">
                           <input
@@ -457,8 +513,13 @@ export default function GrilleFraisPage() {
                             value={l.montant || ""}
                             onChange={(e) => updateLigne(l.id, { montant: Number(e.target.value) || 0 })}
                             className={`${inputClass} text-right`}
+                            readOnly={personnalisee}
+                            disabled={personnalisee}
                             data-testid={`grille-ligne-montant-${l.id}`}
                           />
+                          {personnalisee && (
+                            <p className="text-[10px] text-muted-foreground mt-1 text-right">= somme des échéances</p>
+                          )}
                           {arrondiInexact && (
                             <p className="text-[10px] text-amber-600 mt-1 text-right">
                               ⚠ ne se divise pas exactement par {l.nbEcheances} (reste {l.montant % (l.nbEcheances ?? 1)} F)
@@ -477,33 +538,103 @@ export default function GrilleFraisPage() {
                         </td>
                         <td className="px-3 py-3 text-center">
                           {l.modalite === "echeances" && (
-                            <input
-                              type="number"
-                              min={1}
-                              value={l.nbEcheances ?? ""}
-                              onChange={(e) => updateLigne(l.id, { nbEcheances: Number(e.target.value) || undefined })}
-                              className={`${inputClass} text-center`}
-                              placeholder="Nb"
-                              data-testid={`grille-ligne-echeances-${l.id}`}
-                            />
+                            personnalisee ? (
+                              <span className="text-xs text-muted-foreground">{l.echeancesPersonnalisees!.length} perso.</span>
+                            ) : (
+                              <input
+                                type="number"
+                                min={1}
+                                value={l.nbEcheances ?? ""}
+                                onChange={(e) => updateLigne(l.id, { nbEcheances: Number(e.target.value) || undefined })}
+                                className={`${inputClass} text-center`}
+                                placeholder="Nb"
+                                data-testid={`grille-ligne-echeances-${l.id}`}
+                              />
+                            )
                           )}
                         </td>
                         <td className="px-3 py-3">
                           {l.modalite === "echeances" && (
-                            <input
-                              value={l.dateLimite ?? ""}
-                              onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
-                              className={inputClass}
-                              placeholder="JJ/MM"
-                            />
+                            personnalisee ? (
+                              <span className="text-xs text-muted-foreground">Dates personnalisées</span>
+                            ) : (
+                              <input
+                                value={l.dateLimite ?? ""}
+                                onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
+                                className={inputClass}
+                                placeholder="JJ/MM"
+                              />
+                            )
                           )}
                         </td>
                         <td className="px-3 py-3">
-                          <button type="button" onClick={() => removeLigne(l.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer">
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            {l.modalite === "echeances" && (
+                              <button
+                                type="button"
+                                onClick={() => togglePersonnaliserEcheances(l)}
+                                className={cn("p-1.5 rounded-lg hover:bg-muted transition-colors", personnalisee ? "text-primary" : "text-muted-foreground hover:text-primary")}
+                                aria-label="Personnaliser les échéances"
+                                title="Personnaliser chaque échéance (date et montant)"
+                                data-testid={`grille-ligne-perso-${l.id}`}
+                              >
+                                <CalendarClock size={14} />
+                              </button>
+                            )}
+                            <button type="button" onClick={() => removeLigne(l.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
+                      {personnalisee && (
+                        <tr className="border-b border-border last:border-0 bg-muted/20">
+                          <td colSpan={6} className="px-4 py-3">
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                Échéances personnalisées — {l.intitule || "cette ligne"}
+                              </p>
+                              {l.echeancesPersonnalisees!.map((e, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <input
+                                    type="date"
+                                    value={e.date}
+                                    onChange={(ev) => updateEcheancePerso(l.id, idx, { date: ev.target.value })}
+                                    className={`${inputClass} max-w-[170px]`}
+                                    data-testid={`grille-ligne-eperso-date-${l.id}-${idx}`}
+                                  />
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={e.montant || ""}
+                                    onChange={(ev) => updateEcheancePerso(l.id, idx, { montant: Number(ev.target.value) || 0 })}
+                                    className={`${inputClass} max-w-[160px] text-right`}
+                                    placeholder="Montant"
+                                    data-testid={`grille-ligne-eperso-montant-${l.id}-${idx}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEcheancePerso(l.id, idx)}
+                                    className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                                    aria-label="Supprimer cette échéance"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => addEcheancePerso(l.id)}
+                                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                                data-testid={`grille-ligne-eperso-ajouter-${l.id}`}
+                              >
+                                <Plus size={13} /> Ajouter une échéance
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })
                 )}

@@ -6,17 +6,16 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
+import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { getGrilleFrais, getModelesFraisDisponibles } from "@/data/grilleFraisStore";
 import {
   addEmissionMasse,
   findActiveEmissionForClasse,
-  montantGrilleParRubrique,
-  RUBRIQUE_EMISSION_LABELS,
-  type RubriqueEmission,
+  montantGrilleLignes,
 } from "@/data/emissionMasseStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, cn } from "@/lib/utils";
-
-const RUBRIQUE_OPTIONS: RubriqueEmission[] = ["inscription", "scolarite", "fraisDivers"];
 
 function todayPlus(days: number): string {
   const d = new Date();
@@ -33,6 +32,8 @@ export default function EmissionMasseFormPage() {
   const classes = useClasses();
   const etudiants = useStudentStore();
   const anneesAcademiques = useAnneesAcademiques();
+  const modelesFrais = useModelesFrais();
+  useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
   const anneeOptions = useMemo(() => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)), [anneesAcademiques]);
   const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "2025-2026";
 
@@ -40,11 +41,10 @@ export default function EmissionMasseFormPage() {
   const [annee, setAnnee] = useState(defaultAnnee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
-  const [rubriques, setRubriques] = useState<RubriqueEmission[]>(["scolarite"]);
-  const [nbMensualites, setNbMensualites] = useState("1");
+  const [modeleFraisId, setModeleFraisId] = useState("");
+  const [ligneIds, setLigneIds] = useState<string[]>([]);
   const [excludedIds, setExcludedIds] = useState<string[]>([]);
-  const [dateEcheance, setDateEcheance] = useState(todayPlus(0));
-  const [dateLimite, setDateLimite] = useState(todayPlus(30));
+  const [dateFacturation, setDateFacturation] = useState(todayPlus(0));
   const [commentaire, setCommentaire] = useState("");
 
   const filteredNiveaux = useMemo(() => NIVEAUX.filter((n) => n.filiereId === filiereId), [filiereId]);
@@ -56,13 +56,19 @@ export default function EmissionMasseFormPage() {
 
   const selectedClasse = filteredClasses.find((c) => c.id === classeId) ?? null;
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
-  const grilleTotal = montantGrilleParRubrique(filiereId, niveau?.alias ?? "", annee, rubriques);
+
+  const modelesDisponibles = useMemo(() => {
+    if (!filiereId || !niveau) return [];
+    const ids = new Set(getModelesFraisDisponibles(filiereId, niveau.alias, annee));
+    return modelesFrais.filter((m) => ids.has(m.id));
+  }, [filiereId, niveau, annee, modelesFrais]);
+
+  const grille = filiereId && niveau && modeleFraisId ? getGrilleFrais(filiereId, niveau.alias, annee, modeleFraisId) : undefined;
+  const grilleTotal = montantGrilleLignes(filiereId, niveau?.alias ?? "", annee, modeleFraisId, ligneIds);
   const classeStudents = selectedClasse
     ? etudiants.filter((e) => e.classeId === selectedClasse.id && e.statut !== "suspendu")
     : [];
   const includedStudents = classeStudents.filter((e) => !excludedIds.includes(e.id));
-  const nbMens = Math.max(1, Math.round(Number(nbMensualites) || 1));
-  const montantParEcheance = nbMens > 1 ? Math.round(grilleTotal / nbMens) : grilleTotal;
 
   const activeExisting = classeId ? findActiveEmissionForClasse(classeId, annee) : undefined;
 
@@ -70,24 +76,33 @@ export default function EmissionMasseFormPage() {
     setExcludedIds([]);
   }, [classeId]);
 
+  // Par défaut, toutes les lignes de la grille sont sélectionnées ; l'admin peut en décocher.
+  useEffect(() => {
+    setLigneIds(grille?.lignes.map((l) => l.id) ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grille?.id]);
+
   const handleFiliereChange = (id: string) => {
     setFiliereId(id);
     setNiveauId("");
     setClasseId("");
+    setModeleFraisId("");
   };
 
   const handleNiveauChange = (id: string) => {
     setNiveauId(id);
     setClasseId("");
+    setModeleFraisId("");
   };
 
   const handleAnneeChange = (v: string) => {
     setAnnee(v);
     setClasseId("");
+    setModeleFraisId("");
   };
 
-  const toggleRubrique = (r: RubriqueEmission) => {
-    setRubriques((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  const toggleLigne = (id: string) => {
+    setLigneIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const toggleExclude = (id: string) => {
@@ -99,12 +114,16 @@ export default function EmissionMasseFormPage() {
       toast.error("Sélectionnez la filière, le niveau et la classe");
       return;
     }
-    if (rubriques.length === 0) {
-      toast.error("Sélectionnez au moins une rubrique à facturer");
+    if (!modeleFraisId) {
+      toast.error("Sélectionnez un modèle de frais");
       return;
     }
-    if (!dateEcheance || !dateLimite) {
-      toast.error("Indiquez la date d'échéance et la date limite");
+    if (ligneIds.length === 0) {
+      toast.error("Sélectionnez au moins une ligne de la grille tarifaire à facturer");
+      return;
+    }
+    if (!dateFacturation) {
+      toast.error("Indiquez la date de facturation");
       return;
     }
     if (includedStudents.length === 0) {
@@ -122,12 +141,11 @@ export default function EmissionMasseFormPage() {
       niveau: niveau?.alias ?? "",
       classeId,
       classe: selectedClasse?.nom ?? "",
-      dateEcheance,
-      dateLimite,
+      modeleFraisId,
+      ligneIds,
+      dateFacturation,
       commentaire,
       emisPar: currentUser?.name ?? "Administration",
-      rubriques,
-      nbMensualites: nbMens,
       etudiantIds: includedStudents.map((e) => e.id),
     });
 
@@ -235,56 +253,53 @@ export default function EmissionMasseFormPage() {
         {selectedClasse && (
           <>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-2">
-                Rubriques à facturer <span className="text-red-500">*</span>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Modèle de frais <span className="text-red-500">*</span>
               </label>
-              <div className="grid sm:grid-cols-3 gap-2">
-                {RUBRIQUE_OPTIONS.map((r) => {
-                  const checked = rubriques.includes(r);
-                  return (
-                    <label
-                      key={r}
-                      className={cn(
-                        "flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors text-sm",
-                        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
-                      )}
-                    >
-                      <input type="checkbox" checked={checked} onChange={() => toggleRubrique(r)} className="rounded" />
-                      {RUBRIQUE_EMISSION_LABELS[r]}
-                    </label>
-                  );
-                })}
-              </div>
+              <select value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="emm-modele-frais">
+                <option value="">Sélectionner…</option>
+                {modelesDisponibles.map((m) => (
+                  <option key={m.id} value={m.id}>{m.intitule}</option>
+                ))}
+              </select>
+              {modeleFraisId && !grille && (
+                <p className="text-xs text-amber-600 mt-1.5">Aucune grille tarifaire configurée pour ce modèle sur cette filière/niveau/année.</p>
+              )}
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
+            {grille && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Répartition</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={nbMensualites}
-                    onChange={(e) => setNbMensualites(e.target.value)}
-                    className={cn(inputClass, "max-w-[100px]")}
-                  />
-                  <span className="text-xs text-muted-foreground">mensualité(s) — 1 = paiement unique</span>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">
+                  Lignes de la grille tarifaire à facturer <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {grille.lignes.map((l) => {
+                    const checked = ligneIds.includes(l.id);
+                    return (
+                      <label
+                        key={l.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-colors text-sm",
+                          checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                        )}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <input type="checkbox" checked={checked} onChange={() => toggleLigne(l.id)} className="rounded" />
+                          <span className="font-medium text-foreground">{l.intitule}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {l.modalite === "echeances" ? `Échéances (${l.echeancesPersonnalisees?.length ?? l.nbEcheances ?? 1})` : "Avant inscription"}
+                          </span>
+                        </span>
+                        <span className="text-sm font-semibold text-foreground">{formatCFA(l.montant)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
+                  <span>Montant par étudiant</span>
+                  <span className="text-primary">{formatCFA(grilleTotal)}</span>
                 </div>
               </div>
-              <div className="bg-muted/30 border border-border rounded-xl p-3 text-sm flex flex-col justify-center">
-                <span className="text-xs text-muted-foreground">Montant par étudiant</span>
-                <span className="font-semibold">
-                  {formatCFA(grilleTotal)}
-                  {nbMens > 1 && (
-                    <span className="text-muted-foreground font-normal"> ({nbMens} × {formatCFA(montantParEcheance)})</span>
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {rubriques.length > 0 && grilleTotal === 0 && (
-              <p className="text-xs text-amber-600">Aucune grille tarifaire configurée pour ce niveau/année — le montant sera de 0 FCFA.</p>
             )}
 
             <div>
@@ -315,19 +330,14 @@ export default function EmissionMasseFormPage() {
           </>
         )}
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Date échéance <span className="text-red-500">*</span>
-            </label>
-            <input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Date limite <span className="text-red-500">*</span>
-            </label>
-            <input type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className={inputClass} />
-          </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Date de facturation <span className="text-red-500">*</span>
+          </label>
+          <input type="date" value={dateFacturation} onChange={(e) => setDateFacturation(e.target.value)} className={inputClass} />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Date de la quittance des lignes « avant inscription ». Les lignes « échéances » sont facturées à leurs propres dates, définies dans la grille tarifaire.
+          </p>
         </div>
 
         <div>

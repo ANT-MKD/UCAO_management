@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, Check, Search, ClipboardCheck, ReceiptText } from "lucide-react";
 import { toast } from "sonner";
@@ -8,9 +8,10 @@ import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
 import { registerPaiement, payerQuittance, debiterAvoir } from "@/data/studentStore";
 import type { EtudiantRecord, PaiementLigne, PaiementRecord } from "@/data/studentStore";
 import { enregistrerEncaissement } from "@/data/encaissementStore";
-import { getFraisConfigs } from "@/data/fraisConfigStore";
+import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, nbEcheancesEffectif } from "@/data/grilleFraisStore";
+import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import { STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
-import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
+import { useModesPaiementFinance, useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { montantQuittance } from "@/pages/admin/PaiementsPage";
@@ -26,28 +27,38 @@ function moyenColors(label: string): { color: string; bg: string } {
   return { color: "#64748b", bg: "#f8fafc" };
 }
 
-type RubriqueOpt = { value: string; label: string; montant: number };
+/** Une ligne facturable de la facture unique : soit une ligne "avant inscription" entière de la
+ * grille tarifaire, soit une échéance individuelle d'une ligne "échéances" (calculée par
+ * calculerEcheances, qui respecte les échéances personnalisées si elles existent). */
+interface PayableItem {
+  id: string;
+  label: string;
+  montant: number;
+}
 
-function getRubriquesForStudent(student: EtudiantRecord): RubriqueOpt[] {
-  const frais = getFraisConfigs().find((f) => f.filiereId === student.filiereId && f.niveau === student.niveau);
-  if (!frais) {
-    return [
-      { value: "inscription", label: "Inscription unique", montant: 150000 },
-      { value: "scolarite_mensuelle", label: "Scolarité (mensualité)", montant: 70000 },
-      { value: "scolarite_annuelle", label: "Scolarité (annuelle)", montant: 700000 },
-      { value: "mutuelle", label: "Mutuelle santé", montant: 15000 },
-      { value: "tenue", label: "Tenue / frais divers", montant: 50000 },
-      { value: "pack_complet", label: "Pack complet (inscription + tenue)", montant: 200000 },
-    ];
+function getPayableItems(
+  filiereId: string,
+  niveau: string,
+  annee: string,
+  modeleFraisId: string,
+): PayableItem[] {
+  const grille = getGrilleFrais(filiereId, niveau, annee, modeleFraisId);
+  if (!grille) return [];
+  const items: PayableItem[] = [];
+  for (const l of grille.lignes) {
+    if (l.modalite === "avant_inscription") {
+      items.push({ id: l.id, label: l.intitule, montant: l.montant });
+      continue;
+    }
+    for (const ech of calculerEcheances(l, annee)) {
+      items.push({
+        id: `${l.id}#${ech.index}`,
+        label: `${l.intitule} — Échéance ${ech.index}/${nbEcheancesEffectif(l)}`,
+        montant: ech.montant,
+      });
+    }
   }
-  return [
-    { value: "inscription", label: "Inscription unique", montant: frais.inscription },
-    { value: "scolarite_mensuelle", label: "Scolarité (mensualité)", montant: Math.round(frais.scolariteAnnuelle / 10) },
-    { value: "scolarite_annuelle", label: "Scolarité (annuelle)", montant: frais.scolariteAnnuelle },
-    { value: "mutuelle", label: "Mutuelle santé", montant: 15000 },
-    { value: "tenue", label: "Tenue / frais divers", montant: frais.fraisDivers + 25000 },
-    { value: "pack_complet", label: "Pack complet (inscription + tenue)", montant: frais.inscription + frais.fraisDivers + 25000 },
-  ];
+  return items;
 }
 
 const STEP_LABELS = ["Sélectionner l'étudiant", "Facture unique", "Confirmation"];
@@ -58,6 +69,8 @@ export default function AddPaiementPage() {
   const classes = useClasses();
   const paiements = usePaiements();
   const modesPaiement = useModesPaiementFinance();
+  const modelesFrais = useModelesFrais();
+  useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
   const { currentUser } = useAuth();
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,7 +78,8 @@ export default function AddPaiementPage() {
   const [payMode, setPayMode] = useState<"nouvelle" | "existante">("nouvelle");
   const [selectedQuittance, setSelectedQuittance] = useState<PaiementRecord | null>(null);
   const [selectedMoyen, setSelectedMoyen] = useState("Wave");
-  const [selectedRubriques, setSelectedRubriques] = useState<string[]>(["inscription"]);
+  const [modeleFraisId, setModeleFraisId] = useState("");
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [montantVerse, setMontantVerse] = useState("");
   const [dateOperation, setDateOperation] = useState(new Date().toISOString().split("T")[0]);
   const [dateLimite, setDateLimite] = useState(() => {
@@ -78,7 +92,25 @@ export default function AddPaiementPage() {
   const [classeId, setClasseId] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const rubriques = selectedStudent ? getRubriquesForStudent(selectedStudent) : [];
+  const modelesDisponibles = useMemo(() => {
+    if (!selectedStudent) return [];
+    const ids = new Set(getModelesFraisDisponibles(selectedStudent.filiereId, selectedStudent.niveau, selectedStudent.annee));
+    return modelesFrais.filter((m) => ids.has(m.id));
+  }, [selectedStudent, modelesFrais]);
+
+  const grille = selectedStudent && modeleFraisId
+    ? getGrilleFrais(selectedStudent.filiereId, selectedStudent.niveau, selectedStudent.annee, modeleFraisId)
+    : undefined;
+
+  const payableItems: PayableItem[] = useMemo(
+    () => (selectedStudent && modeleFraisId ? getPayableItems(selectedStudent.filiereId, selectedStudent.niveau, selectedStudent.annee, modeleFraisId) : []),
+    [selectedStudent, modeleFraisId],
+  );
+
+  useEffect(() => {
+    setModeleFraisId(selectedStudent?.modeleFraisId ?? "");
+    setSelectedItemIds([]);
+  }, [selectedStudent]);
 
   const pendingQuittances = useMemo(() => {
     if (!selectedStudent) return [];
@@ -99,10 +131,10 @@ export default function AddPaiementPage() {
 
   const lignes: PaiementLigne[] = useMemo(
     () =>
-      rubriques
-        .filter((r) => selectedRubriques.includes(r.value))
-        .map((r) => ({ label: r.label, montant: r.montant })),
-    [rubriques, selectedRubriques],
+      payableItems
+        .filter((it) => selectedItemIds.includes(it.id))
+        .map((it) => ({ label: it.label, montant: it.montant })),
+    [payableItems, selectedItemIds],
   );
 
   const totalFacture = useMemo(() => lignes.reduce((s, l) => s + l.montant, 0), [lignes]);
@@ -324,11 +356,9 @@ export default function AddPaiementPage() {
             <button
               onClick={() => {
                 if (selectedStudent) {
-                  const rubs = getRubriquesForStudent(selectedStudent);
                   setPayMode("nouvelle");
                   setSelectedQuittance(null);
-                  setSelectedRubriques([rubs[0]?.value ?? "inscription"]);
-                  setMontantVerse(String(rubs[0]?.montant ?? ""));
+                  setMontantVerse("");
                   setClasseId(selectedStudent.classeId && !selectedStudent.classe.includes("attente") ? "" : "");
                   setStep(2);
                 }
@@ -461,47 +491,62 @@ export default function AddPaiementPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-2">Rubriques de la facture *</label>
-              <div className="space-y-2">
-                {rubriques.map((r) => {
-                  const checked = selectedRubriques.includes(r.value);
-                  return (
-                    <label
-                      key={r.value}
-                      className={cn(
-                        "flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
-                        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = checked
-                              ? selectedRubriques.filter((v) => v !== r.value)
-                              : [...selectedRubriques, r.value];
-                            if (next.length === 0) return;
-                            setSelectedRubriques(next);
-                            const total = rubriques
-                              .filter((x) => next.includes(x.value))
-                              .reduce((s, x) => s + x.montant, 0);
-                            setMontantVerse(String(total));
-                          }}
-                          className="w-4 h-4 rounded border-border text-primary"
-                        />
-                        <span className="text-sm font-medium text-foreground">{r.label}</span>
-                      </div>
-                      <span className="text-sm font-semibold text-foreground">{formatCFA(r.montant)}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
-                <span>Total facture</span>
-                <span className="text-primary">{formatCFA(totalFacture)}</span>
-              </div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais *</label>
+              <select
+                value={modeleFraisId}
+                onChange={(e) => { setModeleFraisId(e.target.value); setSelectedItemIds([]); }}
+                className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                data-testid="addpaiement-modele-frais"
+              >
+                <option value="">Sélectionner…</option>
+                {modelesDisponibles.map((m) => (
+                  <option key={m.id} value={m.id}>{m.intitule}</option>
+                ))}
+              </select>
+              {modeleFraisId && !grille && (
+                <p className="text-xs text-amber-600 mt-1.5">Aucune grille tarifaire configurée pour ce modèle sur cette filière/niveau/année.</p>
+              )}
             </div>
+
+            {grille && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Rubriques de la facture *</label>
+                <div className="space-y-2">
+                  {payableItems.map((it) => {
+                    const checked = selectedItemIds.includes(it.id);
+                    return (
+                      <label
+                        key={it.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                          checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = checked ? selectedItemIds.filter((v) => v !== it.id) : [...selectedItemIds, it.id];
+                              setSelectedItemIds(next);
+                              const total = payableItems.filter((x) => next.includes(x.id)).reduce((s, x) => s + x.montant, 0);
+                              setMontantVerse(String(total));
+                            }}
+                            className="w-4 h-4 rounded border-border text-primary"
+                          />
+                          <span className="text-sm font-medium text-foreground">{it.label}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground">{formatCFA(it.montant)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
+                  <span>Total facture</span>
+                  <span className="text-primary">{formatCFA(totalFacture)}</span>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-4">
               <div>

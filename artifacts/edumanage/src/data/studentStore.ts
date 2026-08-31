@@ -36,6 +36,9 @@ export interface EtudiantRecord {
   annee: string;
   anneePremiereInscription: number;
   inscriptionUniquePayee: boolean;
+  /** Modèle de frais choisi à l'inscription — détermine la grille tarifaire (Configuration des
+   * frais / grille tarifaire) applicable à ses paiements ultérieurs. */
+  modeleFraisId?: string;
   /** Dossier inscription enrichi (optionnel) */
   lieuNaissance?: string;
   pays?: string;
@@ -791,6 +794,7 @@ export interface NewEtudiantPayload {
   annee: string;
   soldeDu: number;
   inscriptionUniquePayee: boolean;
+  modeleFraisId?: string;
   lieuNaissance?: string;
   pays?: string;
   nationalite?: string;
@@ -825,6 +829,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
     annee: payload.annee,
     anneePremiereInscription: anneePremiere,
     inscriptionUniquePayee: payload.inscriptionUniquePayee,
+    modeleFraisId: payload.modeleFraisId,
     lieuNaissance: payload.lieuNaissance,
     pays: payload.pays,
     nationalite: payload.nationalite,

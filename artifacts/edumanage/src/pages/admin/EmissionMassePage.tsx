@@ -14,7 +14,7 @@ interface ColFilters {
   classe: string;
   emisLe: string;
   emisPar: string;
-  dateLimite: string;
+  dateFacturation: string;
 }
 
 const EMPTY_FILTERS: ColFilters = {
@@ -25,7 +25,7 @@ const EMPTY_FILTERS: ColFilters = {
   classe: "",
   emisLe: "",
   emisPar: "",
-  dateLimite: "",
+  dateFacturation: "",
 };
 
 const filterInputClass =
@@ -47,7 +47,7 @@ export default function EmissionMassePage() {
         if (f.classe && !e.classe.toLowerCase().includes(f.classe.toLowerCase())) return false;
         if (f.emisLe && !formatShortDate(e.emisLe).includes(f.emisLe)) return false;
         if (f.emisPar && !e.emisPar.toLowerCase().includes(f.emisPar.toLowerCase())) return false;
-        if (f.dateLimite && !formatShortDate(e.dateLimite).includes(f.dateLimite)) return false;
+        if (f.dateFacturation && !formatShortDate(e.dateFacturation).includes(f.dateFacturation)) return false;
         return true;
       })
       .sort((a, b) => b.emisLe.localeCompare(a.emisLe));
@@ -92,7 +92,7 @@ export default function EmissionMassePage() {
               <th className="text-left px-4 py-3">Classe</th>
               <th className="text-left px-4 py-3">Emis le</th>
               <th className="text-left px-4 py-3">Emis par</th>
-              <th className="text-left px-4 py-3">Date limite</th>
+              <th className="text-left px-4 py-3">Facturé le</th>
               <th className="text-right px-4 py-3 w-14" />
             </tr>
             <tr className="border-b border-border bg-card">
@@ -118,7 +118,7 @@ export default function EmissionMassePage() {
                 <input value={filters.emisPar} onChange={(e) => patchFilter({ emisPar: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.dateLimite} onChange={(e) => patchFilter({ dateLimite: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+                <input value={filters.dateFacturation} onChange={(e) => patchFilter({ dateFacturation: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
               </th>
               <th className="px-3 py-2">
                 {Object.values(filters).some(Boolean) && (
@@ -156,7 +156,7 @@ export default function EmissionMassePage() {
                   <td className="px-4 py-3">{e.classe}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(e.emisLe)}</td>
                   <td className="px-4 py-3">{e.emisPar}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(e.dateLimite)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(e.dateFacturation)}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={(ev) => {

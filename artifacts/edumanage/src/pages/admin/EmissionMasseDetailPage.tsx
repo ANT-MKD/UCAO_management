@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
 import { usePaiements } from "@/hooks/useStudentStore";
-import { cancelEmissionMasse, RUBRIQUE_EMISSION_LABELS } from "@/data/emissionMasseStore";
+import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
+import { cancelEmissionMasse } from "@/data/emissionMasseStore";
 import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
@@ -17,8 +18,7 @@ function buildEmissionHtml(args: {
   classe: string;
   emisLe: string;
   emisPar: string;
-  dateEcheance: string;
-  dateLimite: string;
+  ligneIntitules: string[];
   commentaire: string;
   lignes: { numeroRecu: string; etudiant: string; montant: number }[];
 }): string {
@@ -28,14 +28,15 @@ function buildEmissionHtml(args: {
     numero: args.reference,
     date: formatDate(args.emisLe),
     dateLabel: "Émis le",
-    metaDroiteExtra: [
-      { label: "Effectuée par", valeur: args.emisPar },
-      { label: "Échéance", valeur: formatDate(args.dateEcheance) },
-      { label: "Date limite", valeur: formatDate(args.dateLimite) },
-    ],
+    metaDroiteExtra: [{ label: "Effectuée par", valeur: args.emisPar }],
     destinataireLabel: "Cohorte concernée",
     destinataireNom: `${args.filiere} — ${args.niveau}`,
-    destinataireLignes: [`Classe : ${args.classe}`, `Année : ${args.annee}`, ...(args.commentaire ? [`Commentaire : ${args.commentaire}`] : [])],
+    destinataireLignes: [
+      `Classe : ${args.classe}`,
+      `Année : ${args.annee}`,
+      `Frais facturés : ${args.ligneIntitules.join(", ") || "—"}`,
+      ...(args.commentaire ? [`Commentaire : ${args.commentaire}`] : []),
+    ],
     tableauPersonnalise: {
       entetes: ["N° quittance", "Étudiant", "Montant"],
       lignes: args.lignes.map((l) => [l.numeroRecu, l.etudiant, formatCFA(l.montant)]),
@@ -48,6 +49,7 @@ export default function EmissionMasseDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const emissions = useEmissionsMasse();
   const paiements = usePaiements();
+  const modelesFrais = useModelesFrais();
   const [expanded, setExpanded] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
@@ -93,8 +95,7 @@ export default function EmissionMasseDetailPage({ id }: { id: string }) {
         classe: record.classe,
         emisLe: record.emisLe,
         emisPar: record.emisPar,
-        dateEcheance: record.dateEcheance,
-        dateLimite: record.dateLimite,
+        ligneIntitules: record.ligneIntitules,
         commentaire: record.commentaire,
         lignes: quittances.map((q) => ({
           numeroRecu: q.numeroRecu,
@@ -154,9 +155,9 @@ export default function EmissionMasseDetailPage({ id }: { id: string }) {
           <p className="text-xs text-muted-foreground">{record.emisPar}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">À payer avant le</p>
-          <p className="font-semibold text-sm mt-1">{formatDate(record.dateLimite)}</p>
-          <p className="text-xs text-muted-foreground">Échéance : {formatDate(record.dateEcheance)}</p>
+          <p className="text-xs text-muted-foreground">Modèle de frais / Facturé le</p>
+          <p className="font-semibold text-sm mt-1">{modelesFrais.find((m) => m.id === record.modeleFraisId)?.intitule ?? record.modeleFraisId}</p>
+          <p className="text-xs text-muted-foreground">{formatDate(record.dateFacturation)}</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Total facturé</p>
@@ -166,13 +167,8 @@ export default function EmissionMasseDetailPage({ id }: { id: string }) {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <h3 className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Rubriques facturées</h3>
-        <p className="text-sm">
-          {(record.rubriques ?? []).map((r) => RUBRIQUE_EMISSION_LABELS[r]).join(" + ") || "—"}
-          {record.nbMensualites > 1 && (
-            <span className="text-muted-foreground"> — étalées sur {record.nbMensualites} mensualités</span>
-          )}
-        </p>
+        <h3 className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Frais facturés (grille tarifaire)</h3>
+        <p className="text-sm">{record.ligneIntitules.join(" + ") || "—"}</p>
       </div>
 
       {record.commentaire && (

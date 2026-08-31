@@ -9,7 +9,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { CLASSES, FILIERES, NIVEAUX, MOYENNES_PROMO } from "@/data/mockData";
-import { useFraisConfigs } from "@/hooks/useFraisConfigStore";
+import { getGrilleFrais } from "@/data/grilleFraisStore";
+import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import {
   STATUTS_INSCRIPTION, MODES_PAIEMENT, STATUTS_PAIEMENT, MODES_SCOLARITE,
 } from "@/lib/inscriptionConstants";
@@ -51,7 +52,7 @@ interface Step4Data {
 export default function ReinscriptionPage() {
   const [, setLocation] = useLocation();
   const anneeActuelle = useAnneeActuelle();
-  const FRAIS_CONFIG = useFraisConfigs();
+  useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
   const [currentStep, setCurrentStep] = useState(1);
   const [searchMatricule, setSearchMatricule] = useState("");
   const [student, setStudent] = useState<EtudiantRecord | null>(null);
@@ -105,12 +106,12 @@ export default function ReinscriptionPage() {
 
   const fraisRef = useMemo(() => {
     const niveau = NIVEAUX.find((n) => n.id === selectedNiveau);
-    const filiere = FILIERES.find((f) => f.id === selectedFiliere);
-    if (!niveau || !filiere) return null;
-    return FRAIS_CONFIG.find(
-      (f) => f.filiereId === selectedFiliere && f.niveau === niveau.alias && f.annee === anneeActuelle,
-    );
-  }, [selectedFiliere, selectedNiveau, anneeActuelle, FRAIS_CONFIG]);
+    if (!niveau || !student?.modeleFraisId) return null;
+    const grille = getGrilleFrais(selectedFiliere, niveau.alias, anneeActuelle, student.modeleFraisId);
+    if (!grille) return null;
+    const scolariteAnnuelle = grille.lignes.filter((l) => l.modalite === "echeances").reduce((s, l) => s + l.montant, 0);
+    return scolariteAnnuelle > 0 ? { scolariteAnnuelle } : null;
+  }, [selectedFiliere, selectedNiveau, anneeActuelle, student]);
 
   const montantSuggere = useMemo(() => {
     if (!fraisRef) return 0;

@@ -1,15 +1,7 @@
-import { getFraisConfigs } from "./fraisConfigStore";
+import { getGrilleFrais, calculerEcheances, nbEcheancesEffectif } from "./grilleFraisStore";
 import { getEtudiants, emettreQuittanceBrute, cancelQuittanceEmise } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-emissions-masse-v1";
-
-export type RubriqueEmission = "inscription" | "scolarite" | "fraisDivers";
-
-export const RUBRIQUE_EMISSION_LABELS: Record<RubriqueEmission, string> = {
-  inscription: "Frais d'inscription",
-  scolarite: "Scolarité annuelle",
-  fraisDivers: "Frais divers",
-};
 
 export interface EmissionMasseRecord {
   id: string;
@@ -21,13 +13,14 @@ export interface EmissionMasseRecord {
   niveau: string;
   classeId: string;
   classe: string;
-  dateEcheance: string;
-  dateLimite: string;
+  modeleFraisId: string;
+  /** Libellés des lignes de la grille tarifaire facturées par cette émission (dénormalisés pour l'affichage). */
+  ligneIntitules: string[];
+  /** Date de facturation des lignes "avant inscription" — les lignes "échéances" utilisent leurs propres dates issues de la grille. */
+  dateFacturation: string;
   commentaire: string;
   emisLe: string;
   emisPar: string;
-  rubriques: RubriqueEmission[];
-  nbMensualites: number;
   quittanceIds: string[];
   annulee: boolean;
 }
@@ -88,32 +81,11 @@ export function findActiveEmissionForClasse(classeId: string, annee: string): Em
   return store.records.find((r) => r.classeId === classeId && r.annee === annee && !r.annulee);
 }
 
-export function montantGrilleParRubrique(
-  filiereId: string,
-  niveau: string,
-  annee: string,
-  rubriques: RubriqueEmission[],
-): number {
-  const grille = getFraisConfigs().find((f) => f.filiereId === filiereId && f.niveau === niveau && f.annee === annee);
+/** Total (par étudiant) des lignes sélectionnées de la grille tarifaire — utilisé pour l'aperçu du montant avant émission. */
+export function montantGrilleLignes(filiereId: string, niveau: string, annee: string, modeleFraisId: string, ligneIds: string[]): number {
+  const grille = getGrilleFrais(filiereId, niveau, annee, modeleFraisId);
   if (!grille) return 0;
-  return rubriques.reduce((sum, r) => {
-    if (r === "inscription") return sum + grille.inscription;
-    if (r === "scolarite") return sum + grille.scolariteAnnuelle;
-    return sum + grille.fraisDivers;
-  }, 0);
-}
-
-function addMonths(dateStr: string, months: number): string {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
-}
-
-/** Répartit `total` en `n` parts entières, en ajoutant le reliquat d'arrondi aux premières parts. */
-function splitMontant(total: number, n: number): number[] {
-  const base = Math.floor(total / n);
-  const remainder = total - base * n;
-  return Array.from({ length: n }, (_, i) => (i < remainder ? base + 1 : base));
+  return grille.lignes.filter((l) => ligneIds.includes(l.id)).reduce((s, l) => s + l.montant, 0);
 }
 
 export interface AddEmissionMassePayload {
@@ -124,26 +96,27 @@ export interface AddEmissionMassePayload {
   niveau: string;
   classeId: string;
   classe: string;
-  dateEcheance: string;
-  dateLimite: string;
+  modeleFraisId: string;
+  /** Lignes de la grille tarifaire (filiere/niveau/annee/modele) à facturer. */
+  ligneIds: string[];
+  dateFacturation: string;
   commentaire: string;
   emisPar: string;
-  rubriques: RubriqueEmission[];
-  /** 1 = paiement unique, >1 = étalé en N mensualités égales */
-  nbMensualites: number;
   /** Étudiants effectivement facturés (après exclusions) */
   etudiantIds: string[];
 }
 
 /**
  * Génère une quittance (facturée, non encaissée) pour chaque étudiant retenu, à partir des
- * rubriques choisies dans la grille tarifaire (Configuration des frais). Si nbMensualites > 1,
- * le montant est étalé sur autant de quittances par étudiant, une par échéance mensuelle.
+ * lignes choisies dans la grille tarifaire (Configuration des frais). Les lignes "avant
+ * inscription" sont regroupées en une quittance datée de `dateFacturation` ; chaque ligne
+ * "échéances" génère une quittance par échéance, aux dates calculées par la grille tarifaire.
  */
 export function addEmissionMasse(payload: AddEmissionMassePayload): EmissionMasseRecord {
-  const rubriquesLabel = payload.rubriques.map((r) => RUBRIQUE_EMISSION_LABELS[r]).join(" + ") || "Frais";
-  const totalMontant = montantGrilleParRubrique(payload.filiereId, payload.niveau, payload.annee, payload.rubriques);
-  const nbMensualites = Math.max(1, Math.round(payload.nbMensualites || 1));
+  const grille = getGrilleFrais(payload.filiereId, payload.niveau, payload.annee, payload.modeleFraisId);
+  const lignes = (grille?.lignes ?? []).filter((l) => payload.ligneIds.includes(l.id));
+  const lignesObligatoires = lignes.filter((l) => l.modalite === "avant_inscription");
+  const lignesEcheancier = lignes.filter((l) => l.modalite === "echeances");
 
   const etudiants = getEtudiants().filter((e) => payload.etudiantIds.includes(e.id));
   const emisLe = new Date().toISOString().slice(0, 10);
@@ -153,29 +126,29 @@ export function addEmissionMasse(payload: AddEmissionMassePayload): EmissionMass
 
   const quittanceIds: string[] = [];
   for (const etu of etudiants) {
-    if (nbMensualites <= 1) {
+    if (lignesObligatoires.length > 0) {
       quittanceIds.push(
         emettreQuittanceBrute({
           etudiantId: etu.id,
-          date: payload.dateEcheance,
-          dateLimite: payload.dateLimite,
-          lignes: [{ label: rubriquesLabel, montant: totalMontant }],
+          date: payload.dateFacturation,
+          dateLimite: payload.dateFacturation,
+          lignes: lignesObligatoires.map((l) => ({ label: l.intitule, montant: l.montant })),
           reference,
         }).id,
       );
-      continue;
     }
-    const parts = splitMontant(totalMontant, nbMensualites);
-    for (let i = 0; i < nbMensualites; i++) {
-      quittanceIds.push(
-        emettreQuittanceBrute({
-          etudiantId: etu.id,
-          date: addMonths(payload.dateEcheance, i),
-          dateLimite: addMonths(payload.dateLimite, i),
-          lignes: [{ label: `${rubriquesLabel} — Échéance ${i + 1}/${nbMensualites}`, montant: parts[i] }],
-          reference: `${reference}-${i + 1}`,
-        }).id,
-      );
+    for (const ligne of lignesEcheancier) {
+      for (const ech of calculerEcheances(ligne, payload.annee)) {
+        quittanceIds.push(
+          emettreQuittanceBrute({
+            etudiantId: etu.id,
+            date: ech.date,
+            dateLimite: ech.date,
+            lignes: [{ label: `${ligne.intitule} — Échéance ${ech.index}/${nbEcheancesEffectif(ligne)}`, montant: ech.montant }],
+            reference: `${reference}-${ligne.id}-${ech.index}`,
+          }).id,
+        );
+      }
     }
   }
 
@@ -189,13 +162,12 @@ export function addEmissionMasse(payload: AddEmissionMassePayload): EmissionMass
     niveau: payload.niveau,
     classeId: payload.classeId,
     classe: payload.classe,
-    dateEcheance: payload.dateEcheance,
-    dateLimite: payload.dateLimite,
+    modeleFraisId: payload.modeleFraisId,
+    ligneIntitules: lignes.map((l) => l.intitule),
+    dateFacturation: payload.dateFacturation,
     commentaire: payload.commentaire.trim(),
     emisLe,
     emisPar: payload.emisPar,
-    rubriques: payload.rubriques,
-    nbMensualites,
     quittanceIds,
     annulee: false,
   };

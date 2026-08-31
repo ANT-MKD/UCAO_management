@@ -13,7 +13,7 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
-import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, type LigneGrilleFrais } from "@/data/grilleFraisStore";
+import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, nbEcheancesEffectif, type LigneGrilleFrais } from "@/data/grilleFraisStore";
 import {
   SERIES_BAC, STATUTS_INSCRIPTION, TYPES_ADMISSION, DOCUMENTS_INSCRIPTION,
   MODES_PAIEMENT, STATUTS_PAIEMENT,
@@ -178,7 +178,7 @@ export default function AddStudentPage() {
     const lignesAffichees: { label: string; montant: number }[] = lignesObligatoires.map((l) => ({ label: l.intitule, montant: l.montant }));
     for (const e of echeancesSelectionnees) {
       lignesAffichees.push({
-        label: `${e.ligne.intitule} — Échéance ${e.index}/${e.ligne.nbEcheances} (${formatShortDate(e.date)})`,
+        label: `${e.ligne.intitule} — Échéance ${e.index}/${nbEcheancesEffectif(e.ligne)} (${formatShortDate(e.date)})`,
         montant: e.montant,
       });
     }
@@ -256,6 +256,7 @@ export default function AddStudentPage() {
           annee: step3Data.annee,
           soldeDu: 0,
           inscriptionUniquePayee: false,
+          modeleFraisId: modeleFraisId || undefined,
           lieuNaissance: step1Data.lieuNaissance,
           pays: step1Data.pays,
           nationalite: step1Data.nationalite,
@@ -298,8 +299,8 @@ export default function AddStudentPage() {
           etudiantId: etudiant.id,
           date: e.date,
           dateLimite: e.date,
-          lignes: [{ label: `${e.ligne.intitule} — Échéance ${e.index}/${e.ligne.nbEcheances}`, montant: e.montant }],
-          reference: `${e.ligne.intitule} — Échéance ${e.index}/${e.ligne.nbEcheances}`,
+          lignes: [{ label: `${e.ligne.intitule} — Échéance ${e.index}/${nbEcheancesEffectif(e.ligne)}`, montant: e.montant }],
+          reference: `${e.ligne.intitule} — Échéance ${e.index}/${nbEcheancesEffectif(e.ligne)}`,
         });
       }
     } catch (err) {
@@ -652,14 +653,14 @@ export default function AddStudentPage() {
                     </div>
                     {lignesEcheancier.map((l) => (
                       <div key={l.id} className="space-y-1">
-                        <p className="text-xs font-medium text-foreground">{l.intitule} <span className="text-muted-foreground font-normal">({l.nbEcheances} échéances)</span></p>
+                        <p className="text-xs font-medium text-foreground">{l.intitule} <span className="text-muted-foreground font-normal">({nbEcheancesEffectif(l)} échéances)</span></p>
                         <div className="grid sm:grid-cols-2 gap-1.5">
                           {calculerEcheances(l, step3Data?.annee ?? "").map((ech) => {
                             const id = `${l.id}#${ech.index}`;
                             return (
                               <label key={id} className="flex items-center gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-lg hover:bg-muted">
                                 <input type="checkbox" checked={selectedEcheanceIds.has(id)} onChange={() => toggleEcheance(id)} className="w-3.5 h-3.5 rounded text-primary" />
-                                <span className="flex-1 text-muted-foreground">Échéance {ech.index}/{l.nbEcheances} — {formatShortDate(ech.date)}</span>
+                                <span className="flex-1 text-muted-foreground">Échéance {ech.index}/{nbEcheancesEffectif(l)} — {formatShortDate(ech.date)}</span>
                                 <span className="font-medium">{formatCFA(ech.montant)}</span>
                               </label>
                             );
@@ -691,7 +692,7 @@ export default function AddStudentPage() {
                     <p className="text-xs font-semibold text-muted-foreground">Échéances restantes (facturées, à régler plus tard)</p>
                     {echeancesRestantes.map((e) => (
                       <div key={e.id} className="flex justify-between text-[11px] text-muted-foreground">
-                        <span>{e.ligne.intitule} — Échéance {e.index}/{e.ligne.nbEcheances} ({formatShortDate(e.date)})</span>
+                        <span>{e.ligne.intitule} — Échéance {e.index}/{nbEcheancesEffectif(e.ligne)} ({formatShortDate(e.date)})</span>
                         <span>{formatCFA(e.montant)}</span>
                       </div>
                     ))}
@@ -844,7 +845,7 @@ export default function AddStudentPage() {
                       <p className="text-xs font-semibold text-muted-foreground mb-1">Échéances restantes à régler</p>
                       {echeancesRestantes.map((e) => (
                         <div key={e.id} className="flex justify-between text-[11px] text-muted-foreground">
-                          <span>{e.ligne.intitule} — Échéance {e.index}/{e.ligne.nbEcheances} ({formatShortDate(e.date)})</span>
+                          <span>{e.ligne.intitule} — Échéance {e.index}/{nbEcheancesEffectif(e.ligne)} ({formatShortDate(e.date)})</span>
                           <span>{formatCFA(e.montant)}</span>
                         </div>
                       ))}

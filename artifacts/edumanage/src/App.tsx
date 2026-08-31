@@ -104,8 +104,6 @@ const PoidsEvaluationMassePage = lazy(() => import("@/pages/admin/PoidsEvaluatio
 const RelevesPage = lazy(() => import("@/pages/admin/RelevesPage"));
 
 // Finances
-const FraisPage = lazy(() => import("@/pages/admin/FraisPage"));
-const FraisFormPage = lazy(() => import("@/pages/admin/FraisFormPage"));
 const FinanceParametragePage = lazy(() => import("@/pages/admin/FinanceParametragePage"));
 const PaiementsPage = lazy(() => import("@/pages/admin/PaiementsPage"));
 const AddPaiementPage = lazy(() => import("@/pages/admin/AddPaiementPage"));
@@ -397,12 +395,6 @@ function AppRouter() {
       <Route path="/admin/finance-parametrage">
         <Redirect to="/admin/finance-parametrage/type-frais" />
       </Route>
-      <Route path="/admin/frais/new">
-        <Admin><FraisFormPage /></Admin>
-      </Route>
-      <Route path="/admin/frais/:id/edit">
-        {(p) => <Admin><FraisFormPage id={p.id} /></Admin>}
-      </Route>
       <Route path="/admin/paiements/new">
         <Admin><AddPaiementPage /></Admin>
       </Route>
@@ -688,7 +680,7 @@ function AppRouter() {
         <Admin><AssiduitesListPage /></Admin>
       </Route>
       <Route path="/admin/frais">
-        <Admin><FraisPage /></Admin>
+        <Redirect to="/admin/grille-frais" />
       </Route>
       <Route path="/admin/paiements">
         <Admin><PaiementsPage /></Admin>

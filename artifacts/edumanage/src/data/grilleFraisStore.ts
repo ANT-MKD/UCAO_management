@@ -2,13 +2,25 @@ const STORAGE_KEY = "edumanage-grille-frais-v1";
 
 export type ModaliteFrais = "avant_inscription" | "echeances";
 
+export interface EcheancePersonnalisee {
+  date: string;
+  montant: number;
+}
+
 export interface LigneGrilleFrais {
   id: string;
+  /** Référence vers financeSettingsStore.typeFraisStore — source de vérité du libellé.
+   * Optionnel pour rester compatible avec les lignes créées avant cette liaison (import Excel,
+   * anciennes grilles) : dans ce cas `intitule` reste le seul libellé disponible. */
+  typeFraisId?: string;
   intitule: string;
   montant: number;
   modalite: ModaliteFrais;
   nbEcheances?: number;
   dateLimite?: string;
+  /** Échéances définies manuellement (date + montant chacune) — remplace le partage automatique
+   * par nbEcheances/dateLimite quand présent. La somme doit égaler `montant`. */
+  echeancesPersonnalisees?: EcheancePersonnalisee[];
 }
 
 export interface GrilleFraisRecord {
@@ -58,10 +70,21 @@ function dateLimiteVersISO(anneeScolaire: string, dateLimite: string): string | 
   return `${annee}-${String(mois).padStart(2, "0")}-${String(jour).padStart(2, "0")}`;
 }
 
-/** Calcule les échéances réelles (date + montant) d'une ligne en modalité "echeances", en
- * répartissant son montant sur nbEcheances mois consécutifs se terminant à sa dateLimite. Une
- * ligne "avant_inscription", ou sans dateLimite exploitable, renvoie une échéance unique. */
+/** Calcule les échéances réelles (date + montant) d'une ligne en modalité "echeances". Si des
+ * échéances personnalisées ont été définies (date + montant par échéance), elles priment sur le
+ * partage automatique. Sinon, le montant est réparti sur nbEcheances mois consécutifs se
+ * terminant à sa dateLimite. Une ligne "avant_inscription", ou sans dateLimite exploitable,
+ * renvoie une échéance unique. */
+/** Nombre d'échéances effectif d'une ligne — la longueur des échéances personnalisées si elles
+ * existent, sinon nbEcheances. Sert à afficher "Échéance X/Y" de façon cohérente dans les deux cas. */
+export function nbEcheancesEffectif(ligne: LigneGrilleFrais): number {
+  return ligne.echeancesPersonnalisees?.length ?? ligne.nbEcheances ?? 1;
+}
+
 export function calculerEcheances(ligne: LigneGrilleFrais, anneeScolaire: string): EcheanceCalculee[] {
+  if (ligne.echeancesPersonnalisees && ligne.echeancesPersonnalisees.length > 0) {
+    return ligne.echeancesPersonnalisees.map((e, i) => ({ index: i + 1, date: e.date, montant: e.montant }));
+  }
   const n = Math.max(1, ligne.nbEcheances ?? 1);
   const dateFinale = ligne.dateLimite ? dateLimiteVersISO(anneeScolaire, ligne.dateLimite) : undefined;
   if (n <= 1 || !dateFinale) {
