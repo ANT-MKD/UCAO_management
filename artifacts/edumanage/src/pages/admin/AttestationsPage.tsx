@@ -3,6 +3,7 @@ import { Eye, Download, Printer, FileText, X, Search } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { ATTESTATIONS, ETUDIANTS } from "@/data/mockData";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatDate, cn } from "@/lib/utils";
 
 const STATUT_LABELS = {
@@ -14,29 +15,24 @@ const STATUT_LABELS = {
 const TYPES = ["Certificat de scolarité", "Attestation d'inscription", "Attestation de réussite"];
 
 function buildAttestationHtml(entry: typeof ATTESTATIONS[0]) {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${entry.type}</title>
-<style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0} .header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0;text-decoration:underline}
-.body{font-size:14px;line-height:1.8;text-align:justify}
-.footer{margin-top:60px;display:flex;justify-content:space-between;font-size:12px;color:#666}
-.stamp{border:2px solid #4f46e5;border-radius:50%;width:80px;height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4f46e5;text-align:center}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal · Agrément Ministère de l'Enseignement Supérieur</p></div>
-<div class="title">${entry.type.toUpperCase()}</div>
-<div class="body">
-<p>Je soussigné(e), le Directeur de l'Institut Supérieur EduManage, certifie par la présente que :</p>
-<p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
-<p>Matricule : <strong>${entry.matricule}</strong><br>
-Inscrit(e) en <strong>${entry.filiere}</strong> — Classe <strong>${entry.classe}</strong><br>
-Année académique : <strong>${entry.annee}</strong></p>
-<p>Est régulièrement inscrit(e) dans notre établissement pour l'année universitaire en cours et suit assidûment les cours dispensés.</p>
-<p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>
-</div>
-<div class="footer"><div>Fait à Dakar, le ${now}</div><div class="stamp">Cachet<br>Établissement</div></div>
-</body></html>`;
+  const today = new Date().toISOString().split("T")[0];
+  return buildPrintDocumentHtml({
+    badge: entry.type.toUpperCase(),
+    numeroLabel: "Réf.",
+    numero: entry.id.toUpperCase(),
+    date: formatDate(today),
+    destinataireLabel: "Concerne",
+    destinataireNom: entry.etudiant,
+    destinataireLignes: [`Matricule : ${entry.matricule}`, `${entry.filiere} — Classe ${entry.classe}`, `Année académique : ${entry.annee}`],
+    corps: `
+      <p>Je soussigné(e), le Directeur de l'Institut Supérieur EduManage, certifie par la présente que :</p>
+      <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
+      <p>Est régulièrement inscrit(e) dans notre établissement pour l'année universitaire en cours et suit assidûment les cours dispensés.</p>
+      <p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>
+    `,
+    messageMerci: "",
+    signatureLabel: "Le Directeur",
+  });
 }
 
 export default function AttestationsPage() {

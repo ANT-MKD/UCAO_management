@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { annulerDepotAvoir } from "@/data/avoirDepotStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 function buildDepotHtml(args: {
@@ -17,29 +18,19 @@ function buildDepotHtml(args: {
   moyenOrigine?: string;
   referenceBancaire?: string;
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">DÉPÔT AVOIR N° ${args.reference}</div>
-<div class="meta">
-  <div>Date : <strong>${formatDate(args.date)}</strong></div>
-  <div>Bénéficiaire : <strong>${args.payeur}</strong></div>
-  <div>Montant crédité : <strong>${formatCFA(args.montant)}</strong></div>
-  ${args.moyenOrigine ? `<div>Mode de règlement : <strong>${args.moyenOrigine}</strong></div>` : ""}
-  ${args.referenceBancaire ? `<div>Référence : <strong>${args.referenceBancaire}</strong></div>` : ""}
-</div>
-<p>Motif : ${args.motif}</p>
-<div class="footer">Fait à Dakar, le ${now}</div>
-</body></html>`;
+  return buildPrintDocumentHtml({
+    badge: "DÉPÔT AVOIR",
+    numero: args.reference,
+    date: formatDate(args.date),
+    destinataireLabel: "Bénéficiaire",
+    destinataireNom: args.payeur,
+    colonneLabel: "Motif",
+    lignes: [{ label: args.motif, montant: args.montant }],
+    encartLabel: args.moyenOrigine ? "Méthode de règlement" : undefined,
+    encartLignes: args.moyenOrigine ? [`Mode : ${args.moyenOrigine}`, ...(args.referenceBancaire ? [`Référence : ${args.referenceBancaire}`] : [])] : undefined,
+    summary: [{ label: "Montant crédité", montant: args.montant, emphasis: "total" }],
+    messageMerci: "Ce document atteste du dépôt effectué sur le solde avoir de l'étudiant.",
+  });
 }
 
 export default function AvoirDepotDetailPage({ id }: { id: string }) {

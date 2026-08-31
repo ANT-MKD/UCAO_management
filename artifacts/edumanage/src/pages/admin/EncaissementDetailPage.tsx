@@ -7,6 +7,7 @@ import { useEncaissements } from "@/hooks/useEncaissementStore";
 import { annulerEncaissement } from "@/data/encaissementStore";
 import { reverserReglementQuittance, crediterAvoir } from "@/data/studentStore";
 import { statutEncaissement } from "@/pages/admin/EncaissementsPage";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -28,41 +29,24 @@ function buildEncaissementHtml(args: {
   encaissePar: string;
   lignes: { label: string; montantApplique: number; montantLigneTotal: number }[];
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
-th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
-th{background:#f4f4f8}
-.total-row td{font-weight:bold;background:#f9f9fc}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">REÇU D&apos;ENCAISSEMENT N° ${args.reference}</div>
-<div class="meta">
-  <div>Date : <strong>${formatDate(args.date)}</strong></div>
-  <div>Payeur : <strong>${args.payeur}</strong></div>
-  <div>Quittance : <strong>${args.quittanceReference}</strong></div>
-  <div>Mode de paiement : <strong>${args.moyen}</strong></div>
-  ${args.referenceBancaire ? `<div>Référence : <strong>${args.referenceBancaire}</strong></div>` : ""}
-</div>
-<table>
-<thead><tr><th>Rubrique</th><th>Montant appliqué</th><th>Montant de la rubrique</th></tr></thead>
-<tbody>
-${args.lignes.map((l) => `<tr><td>${l.label}</td><td>${formatCFA(l.montantApplique)}</td><td>${formatCFA(l.montantLigneTotal)}</td></tr>`).join("")}
-<tr class="total-row"><td>Montant encaissé</td><td colspan="2">${formatCFA(args.montant)}</td></tr>
-</tbody>
-</table>
-<p>Montant total de la quittance : <strong>${formatCFA(args.montantQuittanceTotal)}</strong></p>
-<p>Encaissé par : ${args.encaissePar}</p>
-<div class="footer">Fait à Dakar, le ${now}</div>
-</body></html>`;
+  return buildPrintDocumentHtml({
+    badge: "ENCAISSEMENT",
+    numero: args.reference,
+    date: formatDate(args.date),
+    destinataireLabel: "Payeur",
+    destinataireNom: args.payeur,
+    destinataireLignes: [`Quittance : ${args.quittanceReference}`, `Encaissé par : ${args.encaissePar}`],
+    tableauPersonnalise: {
+      entetes: ["Rubrique", "Montant appliqué", "Montant de la rubrique"],
+      lignes: args.lignes.map((l) => [l.label, formatCFA(l.montantApplique), formatCFA(l.montantLigneTotal)]),
+    },
+    encartLabel: "Méthode de paiement",
+    encartLignes: [`Mode : ${args.moyen}`, ...(args.referenceBancaire ? [`Référence : ${args.referenceBancaire}`] : [])],
+    summary: [
+      { label: "Montant total de la quittance", montant: args.montantQuittanceTotal },
+      { label: "Montant encaissé", montant: args.montant, emphasis: "total" },
+    ],
+  });
 }
 
 export default function EncaissementDetailPage({ id }: { id: string }) {

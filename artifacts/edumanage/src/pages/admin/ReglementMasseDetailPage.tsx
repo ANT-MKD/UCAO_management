@@ -7,6 +7,7 @@ import { useReglementsMasse } from "@/hooks/useReglementMasseStore";
 import { cancelReglementMasse } from "@/data/reglementMasseStore";
 import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { statutReglementMasse } from "@/pages/admin/ReglementMassePage";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -23,40 +24,22 @@ function buildReglementHtml(args: {
   referenceBancaire?: string;
   lignes: { reference: string; etudiant: string; montant: number }[];
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const total = args.lignes.reduce((s, l) => s + l.montant, 0);
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
-th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
-th{background:#f4f4f8}
-.total-row td{font-weight:bold;background:#f9f9fc}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">RÈGLEMENT EN MASSE N° ${args.reference}</div>
-<div class="meta">
-  <div>Entité : <strong>${args.organisme}</strong></div>
-  <div>Année référence : <strong>${args.annee}</strong></div>
-  <div>Date : <strong>${formatDate(args.date)}</strong></div>
-  <div>Mode de paiement : <strong>${args.modePaiement}</strong></div>
-  ${args.referenceBancaire ? `<div>Référence bancaire : <strong>${args.referenceBancaire}</strong></div>` : ""}
-</div>
-<table>
-<thead><tr><th>Prise en charge</th><th>Étudiant</th><th>Montant réglé</th></tr></thead>
-<tbody>
-${args.lignes.map((l) => `<tr><td>${l.reference}</td><td>${l.etudiant}</td><td>${formatCFA(l.montant)}</td></tr>`).join("")}
-<tr class="total-row"><td colspan="2">Total réglé</td><td>${formatCFA(total)}</td></tr>
-</tbody>
-</table>
-<div class="footer">Fait à Dakar, le ${now}</div>
-</body></html>`;
+  return buildPrintDocumentHtml({
+    badge: "RÈGLEMENT MASSE",
+    numero: args.reference,
+    date: formatDate(args.date),
+    destinataireLabel: "Entité",
+    destinataireNom: args.organisme,
+    destinataireLignes: [`Année référence : ${args.annee}`],
+    tableauPersonnalise: {
+      entetes: ["Prise en charge", "Étudiant", "Montant réglé"],
+      lignes: args.lignes.map((l) => [l.reference, l.etudiant, formatCFA(l.montant)]),
+    },
+    encartLabel: "Méthode de paiement",
+    encartLignes: [`Mode : ${args.modePaiement}`, ...(args.referenceBancaire ? [`Référence : ${args.referenceBancaire}`] : [])],
+    summary: [{ label: "Total réglé", montant: total, emphasis: "total" }],
+  });
 }
 
 export default function ReglementMasseDetailPage({ id }: { id: string }) {

@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { annulerDecompte } from "@/data/decompteStore";
 import { useDecomptePaiements } from "@/hooks/useDecomptePaiementStore";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -25,44 +26,35 @@ function buildDecompteHtml(args: {
   statut: string;
   lignes: { coursLabel: string; date: string; duree: number; montantBrut: number; abattementPct: number; montantNet: number }[];
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  const rows = args.lignes
-    .map(
-      (l) =>
-        `<tr><td>${l.coursLabel}</td><td>${formatShortDate(l.date)}</td><td style="text-align:center">${l.duree}</td><td style="text-align:right">${formatCFA(l.montantBrut)}</td><td style="text-align:center">${l.abattementPct}%</td><td style="text-align:right">${formatCFA(l.montantNet)}</td></tr>`,
-    )
-    .join("");
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px}
-th,td{border:1px solid #ccc;padding:6px 8px}
-th{background:#f3f4f6;text-align:left}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">DÉCOMPTE N° ${args.reference}</div>
-<div class="meta">
-  <div>Date : <strong>${formatDate(args.date)}</strong></div>
-  <div>Professeur : <strong>${args.professeur}</strong></div>
-  <div>Type : <strong>${args.type}</strong></div>
-  <div>Montant décompté : <strong>${formatCFA(args.montantDecompte)}</strong></div>
-  <div>Net à payer : <strong>${formatCFA(args.netAPayer)}</strong></div>
-  <div>Montant payé : <strong>${formatCFA(args.montantPaye)}</strong></div>
-  <div>Reste à payer : <strong>${formatCFA(Math.max(0, args.netAPayer - args.montantPaye))}</strong></div>
-  <div>Statut : <strong>${args.statut}</strong></div>
-</div>
-<table>
-<thead><tr><th>Cours</th><th>Fait le</th><th>Durée (h)</th><th>Montant brut</th><th>Abatt.</th><th>Montant net</th></tr></thead>
-<tbody>${rows}</tbody>
-</table>
-<div class="footer">Fait à Dakar, le ${now}</div>
-</body></html>`;
+  const resteAPayer = Math.max(0, args.netAPayer - args.montantPaye);
+  return buildPrintDocumentHtml({
+    badge: "DÉCOMPTE",
+    numero: args.reference,
+    date: formatDate(args.date),
+    destinataireLabel: "Professeur",
+    destinataireNom: args.professeur,
+    destinataireLignes: [`Type : ${args.type}`],
+    metaDroiteLabel: "Statut",
+    metaDroiteValeur: args.statut,
+    tableauPersonnalise: {
+      entetes: ["Cours", "Fait le", "Durée (h)", "Montant brut", "Abatt.", "Montant net"],
+      lignes: args.lignes.map((l) => [
+        l.coursLabel,
+        formatShortDate(l.date),
+        String(l.duree),
+        formatCFA(l.montantBrut),
+        `${l.abattementPct}%`,
+        formatCFA(l.montantNet),
+      ]),
+    },
+    summary: [
+      { label: "Montant décompté", montant: args.montantDecompte },
+      { label: "Montant payé", montant: args.montantPaye },
+      ...(resteAPayer > 0 ? [{ label: "Reste à payer", montant: resteAPayer, emphasis: "due" as const }] : []),
+      { label: "Net à payer", montant: args.netAPayer, emphasis: "total" },
+    ],
+    signatureLabel: "Le Responsable RH / Finance",
+  });
 }
 
 export default function DecompteDetailPage({ id }: { id: string }) {

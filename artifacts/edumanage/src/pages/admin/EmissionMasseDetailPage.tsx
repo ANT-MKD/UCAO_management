@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
 import { usePaiements } from "@/hooks/useStudentStore";
 import { cancelEmissionMasse, RUBRIQUE_EMISSION_LABELS } from "@/data/emissionMasseStore";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 function buildEmissionHtml(args: {
@@ -21,46 +22,26 @@ function buildEmissionHtml(args: {
   commentaire: string;
   lignes: { numeroRecu: string; etudiant: string; montant: number }[];
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const total = args.lignes.reduce((s, l) => s + l.montant, 0);
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
-th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
-th{background:#f4f4f8}
-.total-row td{font-weight:bold;background:#f9f9fc}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">ÉMISSION EN MASSE N° ${args.reference}</div>
-<div class="meta">
-  <div>Filière : <strong>${args.filiere}</strong></div>
-  <div>Année : <strong>${args.annee}</strong></div>
-  <div>Niveau : <strong>${args.niveau}</strong></div>
-  <div>Classe : <strong>${args.classe}</strong></div>
-</div>
-<div class="meta">
-  <div>Émis le : <strong>${formatDate(args.emisLe)}</strong></div>
-  <div>Effectuée par : <strong>${args.emisPar}</strong></div>
-  <div>Date d'échéance : <strong>${formatDate(args.dateEcheance)}</strong></div>
-  <div>Date limite : <strong>${formatDate(args.dateLimite)}</strong></div>
-</div>
-${args.commentaire ? `<p>Commentaire : ${args.commentaire}</p>` : ""}
-<table>
-<thead><tr><th>N° quittance</th><th>Étudiant</th><th>Montant</th></tr></thead>
-<tbody>
-${args.lignes.map((l) => `<tr><td>${l.numeroRecu}</td><td>${l.etudiant}</td><td>${formatCFA(l.montant)}</td></tr>`).join("")}
-<tr class="total-row"><td colspan="2">Total facturé</td><td>${formatCFA(total)}</td></tr>
-</tbody>
-</table>
-<div class="footer">Fait à Dakar, le ${now}</div>
-</body></html>`;
+  return buildPrintDocumentHtml({
+    badge: "ÉMISSION",
+    numero: args.reference,
+    date: formatDate(args.emisLe),
+    dateLabel: "Émis le",
+    metaDroiteExtra: [
+      { label: "Effectuée par", valeur: args.emisPar },
+      { label: "Échéance", valeur: formatDate(args.dateEcheance) },
+      { label: "Date limite", valeur: formatDate(args.dateLimite) },
+    ],
+    destinataireLabel: "Cohorte concernée",
+    destinataireNom: `${args.filiere} — ${args.niveau}`,
+    destinataireLignes: [`Classe : ${args.classe}`, `Année : ${args.annee}`, ...(args.commentaire ? [`Commentaire : ${args.commentaire}`] : [])],
+    tableauPersonnalise: {
+      entetes: ["N° quittance", "Étudiant", "Montant"],
+      lignes: args.lignes.map((l) => [l.numeroRecu, l.etudiant, formatCFA(l.montant)]),
+    },
+    summary: [{ label: "Total facturé", montant: total, emphasis: "total" }],
+  });
 }
 
 export default function EmissionMasseDetailPage({ id }: { id: string }) {

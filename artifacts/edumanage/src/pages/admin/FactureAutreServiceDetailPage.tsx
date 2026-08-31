@@ -7,6 +7,7 @@ import { useFacturesAutreService } from "@/hooks/useFactureAutreServiceStore";
 import { payerFactureAutreService, cancelFactureAutreService } from "@/data/factureAutreServiceStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { montantFactureAS, statutFactureAS } from "@/pages/admin/FactureAutreServicePage";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -27,38 +28,29 @@ function buildFactureHtml(args: {
   montantTotal: number;
   montantPaye: number;
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;justify-content:space-between;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
-th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
-th{background:#f4f4f8}
-.total-row td{font-weight:bold;background:#f9f9fc}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">FACTURE AUTRE SERVICE N° ${args.reference}</div>
-<div class="meta">
-  <div>Émise le : <strong>${formatDate(args.date)}</strong></div>
-</div>
-<p>Bénéficiaire : <strong>${args.beneficiaire}</strong>${args.telephone ? ` — +221 ${args.telephone}` : ""}${args.adresse ? ` — ${args.adresse}` : ""}</p>
-<p>Remarque : ${args.remarque}</p>
-<table>
-<thead><tr><th>Article</th><th>Prix unitaire</th><th>Quantité</th><th>Montant</th></tr></thead>
-<tbody>
-${args.lignes.map((l) => `<tr><td>${l.article}</td><td>${formatCFA(l.prixUnitaire)}</td><td>${l.quantite}</td><td>${formatCFA(l.montant)}</td></tr>`).join("")}
-<tr class="total-row"><td colspan="3">Total facture</td><td>${formatCFA(args.montantTotal)}</td></tr>
-</tbody>
-</table>
-<p>Montant payé : <strong>${formatCFA(args.montantPaye)}</strong></p>
-<div class="footer">Fait à Dakar, le ${now}</div>
-</body></html>`;
+  return buildPrintDocumentHtml({
+    badge: "FACTURE",
+    numeroLabel: "N° facture",
+    numero: args.reference,
+    dateLabel: "Émise le",
+    date: formatDate(args.date),
+    destinataireLabel: "Bénéficiaire",
+    destinataireNom: args.beneficiaire,
+    destinataireLignes: [
+      ...(args.telephone ? [`Tél. +221 ${args.telephone}`] : []),
+      ...(args.adresse ? [args.adresse] : []),
+    ],
+    tableauPersonnalise: {
+      entetes: ["Article", "Prix unitaire", "Quantité", "Montant"],
+      lignes: args.lignes.map((l) => [l.article, formatCFA(l.prixUnitaire), String(l.quantite), formatCFA(l.montant)]),
+    },
+    encartLabel: "Remarque",
+    encartLignes: [args.remarque],
+    summary: [
+      { label: "Total facture", montant: args.montantTotal },
+      { label: "Montant payé", montant: args.montantPaye, emphasis: "total" },
+    ],
+  });
 }
 
 export default function FactureAutreServiceDetailPage({ id }: { id: string }) {

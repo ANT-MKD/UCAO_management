@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useDevisList } from "@/hooks/useDevisStore";
 import { annulerDevis } from "@/data/devisStore";
+import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 function ligneDescription(intitule: string, montant: number, modalite: string, nbEcheances: number | undefined, dateLimite: string | undefined, modeleLabel: string): string {
@@ -32,44 +33,28 @@ function buildDevisHtml(args: {
   totalTaxe: number;
   totalTTC: number;
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  const rows = args.lignesTxt
-    .map((l) => `<tr><td>${l.desc}</td><td style="text-align:right">${formatCFA(l.montantTTC)}</td></tr>`)
-    .join("");
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
-<style>
-body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
-.title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
-.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px}
-th,td{border:1px solid #ccc;padding:6px 8px}
-th{background:#f3f4f6;text-align:left}
-.totals{margin-top:16px;text-align:right;font-size:13px}
-.footer{margin-top:50px;font-size:11px;color:#666}
-</style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
-<div class="title">DEVIS N° ${args.reference}</div>
-<div class="meta">
-  <div>Date : <strong>${formatDate(args.date)}</strong></div>
-  <div>Filière : <strong>${args.filiereLabel}</strong></div>
-  <div>Niveau : <strong>${args.niveauLabel}</strong> — <strong>${args.annee}</strong></div>
-  <div>Adressé à : <strong>${args.beneficiaire}</strong></div>
-  <div>Téléphone : <strong>${args.telephone}</strong></div>
-  ${args.email ? `<div>Email : <strong>${args.email}</strong></div>` : ""}
-  ${args.adresse ? `<div>Adresse : <strong>${args.adresse}</strong></div>` : ""}
-  <div>Taxe appliquée : <strong>${args.tauxTaxe}%</strong></div>
-</div>
-<table><thead><tr><th>Intitulé</th><th>Montant TTC</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="totals">
-  <p>Total hors taxe : <strong>${formatCFA(args.totalHT)}</strong></p>
-  <p>Total taxe : <strong>${formatCFA(args.totalTaxe)}</strong></p>
-  <p style="font-size:16px">Grand Total : <strong>${formatCFA(args.totalTTC)}</strong></p>
-</div>
-<div class="footer">Fait à Dakar, le ${now} — Document informatif, sans valeur d'engagement financier.</div>
-</body></html>`;
+  return buildPrintDocumentHtml({
+    badge: "DEVIS",
+    numero: args.reference,
+    date: formatDate(args.date),
+    destinataireNom: args.beneficiaire,
+    destinataireLignes: [
+      args.telephone,
+      ...(args.email ? [args.email] : []),
+      ...(args.adresse ? [args.adresse] : []),
+    ],
+    metaDroiteLabel: "Filière",
+    metaDroiteValeur: args.filiereLabel,
+    metaDroiteSousLignes: [`${args.niveauLabel} — ${args.annee}`, `Taxe appliquée : ${args.tauxTaxe}%`],
+    colonneLabel: "Intitulé",
+    lignes: args.lignesTxt.map((l) => ({ label: l.desc, montant: l.montantTTC })),
+    summary: [
+      { label: "Total hors taxe", montant: args.totalHT },
+      { label: "Total taxe", montant: args.totalTaxe },
+      { label: "Grand Total (TTC)", montant: args.totalTTC, emphasis: "total" },
+    ],
+    messageMerci: "Document informatif, sans valeur d'engagement financier.",
+  });
 }
 
 export default function DevisDetailPage({ id }: { id: string }) {
