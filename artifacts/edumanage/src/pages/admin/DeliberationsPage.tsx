@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { SEMESTRES, FILIERES } from "@/data/mockData";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
+import { useReglesValidation } from "@/hooks/useReglesValidationStore";
+import { decideValidation } from "@/data/reglesValidationStore";
 import { computeBulletinPourClasse } from "@/data/bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
 import { useCahiers } from "@/hooks/useStudentStore";
@@ -36,19 +37,11 @@ const DECISION_CONFIG: Record<NonNullable<Decision>, { label: string; color: str
   exclu: { label: "Exclu", color: "text-zinc-700 dark:text-zinc-400", bg: "bg-zinc-100 dark:bg-zinc-900/50", icon: Ban, border: "border-zinc-300 dark:border-zinc-700" },
 };
 
-function autoDecide(moy: number, absences: number, moyennePassage: number, moyenneEliminatoire: number): Decision {
-  if (absences > 10) return "exclu";
-  if (moyenneEliminatoire > 0 && moy < moyenneEliminatoire) return "exclu";
-  if (moy >= moyennePassage) return "admis";
-  if (moy >= moyennePassage - 2) return "rattrapage";
-  return "ajourne";
-}
-
 export default function DeliberationsPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const CLASSES = useClasses();
-  const scolariteConfigs = useScolariteConfigs();
+  const reglesValidation = useReglesValidation();
   useCahiers(); // souscription pour re-rendre quand un cahier (donc l'assiduité réelle) change
   useAbsencesPeriode(); // idem pour les couvertures par période
   const [selectedSemestreId, setSelectedSemestreId] = useState<string>("");
@@ -83,21 +76,24 @@ export default function DeliberationsPage() {
 
   const handleCharger = () => {
     if (!selectedSemestreId || !selectedClasseId || !semestre) return;
-    const config = scolariteConfigs.find((c) => c.filiereId === classe?.filiereId);
-    const moyennePassage = config?.moyennePassage ?? 10;
-    const moyenneEliminatoire = config?.moyenneEliminatoire ?? 0;
+    const regle = reglesValidation.find((r) => r.filiereId === classe?.filiereId && r.type === "semestre");
     // Moyennes réelles calculées par le même moteur que Bulletin étudiants (vraies UE/EC,
     // vraies notes CC+EF, vrais poids, rattrapage pris en compte) — plus de MOYENNES_PROMO ni
     // de Math.random() : l'ancienne version pouvait décider Admis/Ajourné sur un nombre tiré au
     // hasard. Les absences viennent maintenant des vrais cahiers de textes (heures non
-    // justifiées, une absence couverte par une déclaration de période ne compte pas).
+    // justifiées, une absence couverte par une déclaration de période ne compte pas). La
+    // décision applique désormais la règle de validation réellement configurée pour la filière
+    // (crédit et/ou moyenne — Paramétrage bulletin), avec repli sur validation par moyenne ≥ 10
+    // si rien n'est configuré.
     const sample: JuryRow[] = etudiants
       .filter((e) => e.classeId === selectedClasseId)
       .map((e): JuryRow => {
         const bulletin = computeBulletinPourClasse(e.id, selectedClasseId, semestre.alias);
         const moy = bulletin?.moyenneSession ?? 0;
         const absences = getHeuresAbsenceNonJustifieePourEtudiant(e.id, selectedClasseId, semestre.alias);
-        const decision = autoDecide(moy, absences, moyennePassage, moyenneEliminatoire);
+        const decision = regle
+          ? decideValidation(moy, bulletin?.creditsObtenus ?? 0, absences, regle)
+          : (absences > 10 ? "exclu" : moy >= 10 ? "admis" : moy >= 8 ? "rattrapage" : "ajourne");
         return {
           id: e.id,
           matricule: e.matricule,
@@ -219,12 +215,13 @@ export default function DeliberationsPage() {
               <Users size={11} /> {classe.nom} · {classe.inscrits} inscrits
             </span>
             {(() => {
-              const config = scolariteConfigs.find((c) => c.filiereId === classe.filiereId);
-              const moyennePassage = config?.moyennePassage ?? 10;
-              const moyenneEliminatoire = config?.moyenneEliminatoire ?? 0;
+              const regle = reglesValidation.find((r) => r.filiereId === classe.filiereId && r.type === "semestre");
+              const moyennePassage = regle?.moyennePassage ?? 10;
+              const moyenneEliminatoire = regle?.moyenneEliminatoire ?? 0;
+              const critereCredit = regle?.validationParCredit ? ` · Crédits ≥ ${regle.creditPassage}` : "";
               return (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-3 py-1 rounded-full" data-testid="deliberation-seuils-filiere">
-                  <Scale size={11} /> Passage ≥ {moyennePassage}{moyenneEliminatoire > 0 ? ` · Éliminatoire < ${moyenneEliminatoire}` : ""}
+                  <Scale size={11} /> Passage ≥ {moyennePassage}{moyenneEliminatoire > 0 ? ` · Éliminatoire < ${moyenneEliminatoire}` : ""}{critereCredit}
                 </span>
               );
             })()}

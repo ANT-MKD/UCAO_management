@@ -12,6 +12,7 @@ interface FormData {
   code: string;
   libelle: string;
   credits: number;
+  coeff?: number;
   filiereId: string;
   niveauId: string;
   semestreId: string;
@@ -33,6 +34,7 @@ export default function UEFormPage({ id }: Props) {
           code: existing.code,
           libelle: existing.libelle,
           credits: existing.credits,
+          coeff: existing.coeff,
           filiereId: existing.filiereId,
           niveauId: NIVEAUX.find((n) => n.alias === existing.niveau && n.filiereId === existing.filiereId)?.id ?? "",
           semestreId: SEMESTRES.find((s) => s.alias === existing.semestre)?.id ?? "",
@@ -43,6 +45,7 @@ export default function UEFormPage({ id }: Props) {
           code: "",
           libelle: "",
           credits: 6,
+          coeff: undefined,
           filiereId: "",
           niveauId: "",
           semestreId: "",
@@ -65,6 +68,7 @@ export default function UEFormPage({ id }: Props) {
         code: data.code.toUpperCase().trim(),
         libelle: data.libelle.trim(),
         credits: data.credits,
+        coeff: data.coeff || undefined,
         filiere: filiere?.code ?? "",
         filiereId: data.filiereId,
         niveau: niveau?.alias ?? "",
@@ -104,6 +108,20 @@ export default function UEFormPage({ id }: Props) {
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits ECTS *</label>
               <input {...register("credits", { required: "Crédits requis", valueAsNumber: true, min: { value: 1, message: "Minimum 1" }, max: { value: 30, message: "Maximum 30" } })} type="number" min={1} max={30} className={inputClass} />
               {errors.credits && <p className="text-xs text-red-500 mt-1">{errors.credits.message}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Coefficient (optionnel)</label>
+              <input
+                {...register("coeff", { valueAsNumber: true, min: { value: 0, message: "Minimum 0" }, max: { value: 30, message: "Maximum 30" } })}
+                type="number"
+                min={0}
+                max={30}
+                step={0.1}
+                placeholder="reprend les crédits si vide"
+                className={inputClass}
+              />
+              {errors.coeff && <p className="text-xs text-red-500 mt-1">{errors.coeff.message}</p>}
+              <p className="text-[11px] text-muted-foreground mt-1">Utilisé par les méthodes de calcul « au coefficient » du paramétrage bulletin. Si vide, les crédits ECTS sont utilisés.</p>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Unité d'enseignement *</label>

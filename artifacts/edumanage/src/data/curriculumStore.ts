@@ -6,6 +6,10 @@ export interface UeRecord {
   code: string;
   libelle: string;
   credits: number;
+  /** Coefficient de pondération de l'UE, distinct du crédit — utilisé par les méthodes de calcul
+   * "coefficient" (Paramétrage bulletin). Optionnel : les méthodes qui en ont besoin retombent
+   * sur `credits` si non renseigné. */
+  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
@@ -149,6 +153,7 @@ export interface UePayload {
   code: string;
   libelle: string;
   credits: number;
+  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;

@@ -7,7 +7,9 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import type { ReleveRecord, EtudiantRecord } from "@/data/studentStore";
 import { computeBulletin, type UeMoyenne } from "@/data/bulletinEngine";
-import { formatDate, getMention, cn } from "@/lib/utils";
+import { resoudreMention } from "@/data/mentionsStore";
+import { useMentions } from "@/hooks/useMentionsStore";
+import { formatDate, cn } from "@/lib/utils";
 
 type ReleverEntry = ReleveRecord;
 
@@ -53,7 +55,7 @@ function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]): Bull
     etudiant,
     ues: bulletin.ues,
     moyenne: bulletin.moyenneSession,
-    mention: getMention(bulletin.moyenneSession),
+    mention: resoudreMention("moyenneSession", bulletin.moyenneSession, bulletin.moyenneSession >= 10).mention ?? "—",
     creditsObtenus: bulletin.creditsObtenus,
     creditsTotal: bulletin.creditsTotal,
     rang: rangIndex >= 0 ? rangIndex + 1 : undefined,
@@ -256,6 +258,7 @@ export default function RelevesPage() {
   const annees = useAnneesAcademiques();
   useNotes();
   useEvaluations();
+  useMentions(); // s'abonne pour recalculer les mentions/appréciations si la configuration change
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [previewEntry, setPreviewEntry] = useState<ReleverEntry | null>(null);

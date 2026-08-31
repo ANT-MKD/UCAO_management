@@ -7,7 +7,9 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { computeBulletin } from "@/data/bulletinEngine";
-import { getMention, cn } from "@/lib/utils";
+import { resoudreMention } from "@/data/mentionsStore";
+import { useMentions } from "@/hooks/useMentionsStore";
+import { cn } from "@/lib/utils";
 
 const MENTION_COLORS: Record<string, string> = {
   "Très Bien": "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300",
@@ -24,6 +26,7 @@ export default function MoyennesPage() {
   const etudiants = useStudentStore();
   useNotes(); // souscription pour re-rendre quand les notes (dont le rattrapage) changent
   useEvaluations(); // souscription pour re-rendre quand les poids/évaluations changent
+  useMentions(); // souscription pour re-rendre quand les mentions/appréciations changent
 
   const [selectedAnnee, setSelectedAnnee] = useState("2025-2026");
   const [selectedFiliere, setSelectedFiliere] = useState("");
@@ -55,7 +58,7 @@ export default function MoyennesPage() {
     const rows = roster.map((e) => {
       const bulletin = computeBulletin(e.id, selectedClasse, classeObj.filiereId, classeObj.niveau, semestre.alias);
       const moyenneGenerale = bulletin.moyenneSession;
-      const mention = moyenneGenerale !== undefined ? getMention(moyenneGenerale) : undefined;
+      const mention = moyenneGenerale !== undefined ? resoudreMention("moyenneSession", moyenneGenerale, moyenneGenerale >= 10).mention : undefined;
       const statut = moyenneGenerale !== undefined ? (moyenneGenerale >= 10 ? "Admis" : "Ajourné") : undefined;
       return {
         id: e.id, etudiant: `${e.prenom} ${e.nom}`, matricule: e.matricule,

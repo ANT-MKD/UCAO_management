@@ -1,17 +1,65 @@
 import { FILIERES } from "./mockData";
+import { getMethodesCalculActivesParNiveau } from "./bulletinMethodesStore";
 
 const STORAGE_KEY = "edumanage-scolarite-config-v1";
+
+/** Codes de repli si aucune méthode n'est configurée pour la filière — reproduisent exactement
+ * le calcul jusque-là câblé en dur dans bulletinEngine.ts, pour ne rien changer aux bulletins
+ * déjà produits tant que l'admin n'a rien reconfiguré. */
+const METHODE_DEFAUT: Record<"moyenneUe" | "moyenneSession" | "moyenneAnnee" | "moyenneProgramme", string> = {
+  moyenneUe: "calculMoyenneCredit",
+  moyenneSession: "calculMoyenneCredit",
+  moyenneAnnee: "calculMoyenneCredit",
+  moyenneProgramme: "calculMoyenneDefault",
+};
 
 export interface ScolariteConfigRecord {
   id: string;
   filiereId: string;
   filiere: string;
   noteBareme: number;
+  /** Méthode calcul bulletin : true = BulletinLMD (validation par cumul de crédits), false =
+   * BulletinNonLMD (validation classique, uniquement par moyenne). Consommé par les règles de
+   * validation (délibérations). */
   cumulCredit: boolean;
   moyennePassage: number;
   moyenneEliminatoire: number;
+  /** Méthode de calcul de la moyenne d'UE — référence un MethodeCalculRecord (niveau "moyenneUe").
+   * Non renseigné = repli sur le calcul historique (pondération par crédits). */
+  methodeCalculMoyUeId?: string;
+  /** Méthode de calcul de la moyenne de session — référence un MethodeCalculRecord (niveau "moyenneSession"). */
+  methodeCalculMoySessionId?: string;
+  /** Méthode de calcul de la moyenne annuelle — référence un MethodeCalculRecord (niveau "moyenneAnnee"). */
+  methodeCalculMoyAnneeId?: string;
+  /** Méthode de calcul de la moyenne de programme — référence un MethodeCalculRecord (niveau "moyenneProgramme"). */
+  methodeCalculMoyProgrammeId?: string;
+  /** Calcule et affiche un grade lettré (A/B/C...) en plus de la moyenne numérique sur les bulletins.
+   * Optionnel : les configurations persistées avant l'ajout de ce champ retombent sur `false`. */
+  calculGrade?: boolean;
   modifiePar?: string;
   modifieLe?: string;
+}
+
+/** Résout le code technique (lib/bulletinCalculs.ts) réellement appliqué pour une filière et un
+ * niveau donnés — retombe sur le comportement historique si rien n'est configuré, ou si la
+ * méthode référencée a été désactivée entre-temps. */
+export function resolveCodeMethodeCalcul(
+  config: ScolariteConfigRecord | undefined,
+  niveau: "moyenneUe" | "moyenneSession" | "moyenneAnnee" | "moyenneProgramme",
+): string {
+  const idField = ({
+    moyenneUe: "methodeCalculMoyUeId",
+    moyenneSession: "methodeCalculMoySessionId",
+    moyenneAnnee: "methodeCalculMoyAnneeId",
+    moyenneProgramme: "methodeCalculMoyProgrammeId",
+  } as const)[niveau];
+  const id = config?.[idField];
+  if (id) {
+    const actives = getMethodesCalculActivesParNiveau(niveau);
+    const methode = actives.find((m) => m.id === id);
+    if (methode) return methode.code;
+  }
+  return METHODE_DEFAUT[niveau];
 }
 
 export interface ValeursParDefaut {
@@ -40,6 +88,7 @@ function seedConfigs(): ScolariteConfigRecord[] {
     cumulCredit: DEFAUT.cumulCredit,
     moyennePassage: DEFAUT.moyennePassage,
     moyenneEliminatoire: DEFAUT.moyenneEliminatoire,
+    calculGrade: false,
     ...OVERRIDES[f.id],
   }));
 }
@@ -113,5 +162,22 @@ export function appliquerValeursParDefaut(id: string, modifiePar: string): void 
 
 export function updateValeursParDefaut(patch: ScolariteConfigPatch, modifiePar: string): void {
   store.valeursParDefaut = { ...patch, modifiePar, modifieLe: new Date().toISOString().slice(0, 10) };
+  persist();
+}
+
+export interface MethodesCalculPatch {
+  methodeCalculMoyUeId?: string;
+  methodeCalculMoySessionId?: string;
+  methodeCalculMoyAnneeId?: string;
+  methodeCalculMoyProgrammeId?: string;
+  calculGrade: boolean;
+}
+
+/** Met à jour uniquement le mapping des méthodes de calcul d'un programme (filière) — écran
+ * "Méthodes de calcul d'un programme" du Paramétrage bulletin, distinct du formulaire historique
+ * de scolarité (barème/passage/éliminatoire). */
+export function updateMethodesCalculFiliere(id: string, patch: MethodesCalculPatch, modifiePar: string): void {
+  const modifieLe = new Date().toISOString().slice(0, 10);
+  store.configs = store.configs.map((c) => (c.id === id ? { ...c, ...patch, modifiePar, modifieLe } : c));
   persist();
 }
