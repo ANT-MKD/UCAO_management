@@ -29,7 +29,6 @@ export interface GrilleFraisRecord {
   niveau: string;
   annee: string;
   modeleFraisId: string;
-  tauxTaxe: number;
   lignes: LigneGrilleFrais[];
 }
 
@@ -106,7 +105,6 @@ function seed(): GrilleFraisRecord[] {
       niveau: "L3",
       annee: "2025-2026",
       modeleFraisId: "mf-seed-2",
-      tauxTaxe: 18,
       lignes: [
         { id: "lgf-1", intitule: "Bureau des étudiants (BDE)", montant: 10000, modalite: "avant_inscription" },
         { id: "lgf-2", intitule: "Frais Sortie promotion", montant: 30000, modalite: "echeances", nbEcheances: 3, dateLimite: "10/05" },
@@ -173,7 +171,6 @@ export interface UpsertGrilleFraisPayload {
   niveau: string;
   annee: string;
   modeleFraisId: string;
-  tauxTaxe: number;
   lignes: LigneGrilleFrais[];
 }
 
@@ -186,7 +183,6 @@ export function upsertGrilleFrais(payload: UpsertGrilleFraisPayload): GrilleFrai
     niveau: payload.niveau,
     annee: payload.annee,
     modeleFraisId: payload.modeleFraisId,
-    tauxTaxe: payload.tauxTaxe,
     lignes: payload.lignes,
   };
   const idx = store.findIndex((g) => g.id === id);

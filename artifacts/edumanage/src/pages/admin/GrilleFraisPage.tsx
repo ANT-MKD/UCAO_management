@@ -53,7 +53,6 @@ export default function GrilleFraisPage() {
   const [annee, setAnnee] = useState(defaultAnnee);
   const [modeleFraisId, setModeleFraisId] = useState("");
 
-  const [tauxTaxe, setTauxTaxe] = useState("18");
   const [lignes, setLignes] = useState<LigneGrilleFrais[]>([]);
 
   const [importOpen, setImportOpen] = useState(false);
@@ -79,11 +78,9 @@ export default function GrilleFraisPage() {
   useEffect(() => {
     if (!combinaisonComplete) {
       setLignes([]);
-      setTauxTaxe("18");
       return;
     }
     const existing = getGrilleFrais(filiereId, niveau, annee, modeleFraisId);
-    setTauxTaxe(existing ? String(existing.tauxTaxe) : "18");
     setLignes(existing ? existing.lignes : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filiereId, niveau, annee, modeleFraisId, grillesFrais]);
@@ -173,7 +170,6 @@ export default function GrilleFraisPage() {
       niveau,
       annee,
       modeleFraisId,
-      tauxTaxe: Number(tauxTaxe) || 0,
       lignes,
     });
     toast.success("Grille tarifaire enregistrée");
@@ -201,7 +197,6 @@ export default function GrilleFraisPage() {
       niveau: dupNiveau,
       annee: dupAnnee,
       modeleFraisId: dupModeleFraisId,
-      tauxTaxe: duplicateTarget.tauxTaxe,
       lignes: duplicateTarget.lignes.map((l) => ({ ...l, id: makeLigneGrilleFraisId() })),
     });
     toast.success("Grille dupliquée");
@@ -241,7 +236,6 @@ export default function GrilleFraisPage() {
           niveau: r.niveau,
           annee: r.annee,
           modeleFraisId: r.modeleFraisId,
-          tauxTaxe: r.tauxTaxe,
           lignes: r.lignes,
         });
       }
@@ -450,20 +444,6 @@ export default function GrilleFraisPage() {
         </div>
       ) : (
         <>
-          <div className="bg-card border border-border rounded-xl p-5 mb-5 flex items-center gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
-            <label className="text-sm font-medium text-foreground whitespace-nowrap">Taux de taxe (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.1}
-              value={tauxTaxe}
-              onChange={(e) => setTauxTaxe(e.target.value)}
-              className={`${inputClass} max-w-[120px]`}
-              data-testid="grille-frais-taux-taxe"
-            />
-          </div>
-
           <div className="bg-card border border-border rounded-xl overflow-x-auto mb-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <table className="w-full min-w-[900px] text-sm">
               <thead>
@@ -675,7 +655,7 @@ export default function GrilleFraisPage() {
       <FormModal open={importOpen} onClose={() => setImportOpen(false)} title="Importer une grille tarifaire" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Taux taxe, Intitulé, Montant, Modalité, Échéances, Date limite.
+            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date limite.
             Le fichier remplace intégralement les grilles pour les combinaisons qu&apos;il contient.
           </p>
           <div className="flex flex-wrap gap-2">

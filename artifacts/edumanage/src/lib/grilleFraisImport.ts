@@ -5,7 +5,7 @@ import type { GrilleFraisRecord, LigneGrilleFrais, ModaliteFrais } from "@/data/
 import { makeGrilleFraisId, makeLigneGrilleFraisId } from "@/data/grilleFraisStore";
 
 const HEADERS = [
-  "Filière", "Niveau", "Année", "Modèle de frais", "Taux taxe",
+  "Filière", "Niveau", "Année", "Modèle de frais",
   "Intitulé", "Montant", "Modalité", "Échéances", "Date limite",
 ] as const;
 
@@ -44,7 +44,7 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
   const sheet = workbook.Sheets[sheetName];
   const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
-  const groups = new Map<string, { filiereId: string; niveau: string; annee: string; modeleFraisId: string; tauxTaxe: number; lignes: LigneGrilleFrais[] }>();
+  const groups = new Map<string, { filiereId: string; niveau: string; annee: string; modeleFraisId: string; lignes: LigneGrilleFrais[] }>();
 
   for (const raw of json) {
     const filiereTxt = str(get(raw, "filiere", "filière"));
@@ -66,15 +66,12 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
     const modalite: ModaliteFrais = modaliteTxt.includes("echeance") || modaliteTxt.includes("échéance") ? "echeances" : "avant_inscription";
     const nbEcheances = modalite === "echeances" ? num(get(raw, "echeances", "échéances", "nb echeances")) || undefined : undefined;
     const dateLimite = modalite === "echeances" ? str(get(raw, "date limite")) || undefined : undefined;
-    const tauxTaxeRow = num(get(raw, "taux taxe", "taxe"));
 
     const key = makeGrilleFraisId(filiere.id, niveauRec.alias, annee, modele.id);
     let group = groups.get(key);
     if (!group) {
-      group = { filiereId: filiere.id, niveau: niveauRec.alias, annee, modeleFraisId: modele.id, tauxTaxe: tauxTaxeRow || 18, lignes: [] };
+      group = { filiereId: filiere.id, niveau: niveauRec.alias, annee, modeleFraisId: modele.id, lignes: [] };
       groups.set(key, group);
-    } else if (tauxTaxeRow > 0) {
-      group.tauxTaxe = tauxTaxeRow;
     }
     group.lignes.push({ id: makeLigneGrilleFraisId(), intitule, montant, modalite, nbEcheances, dateLimite });
   }
@@ -85,8 +82,8 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
 export function downloadGrilleFraisTemplate() {
   const sample: (string | number)[][] = [
     [...HEADERS],
-    ["LPIG", "L3", "2025-2026", "Privé", 18, "Frais d'inscription", 120000, "Avant inscription", "", ""],
-    ["LPIG", "L3", "2025-2026", "Privé", 18, "Frais de scolarité", 520000, "Échéances", 8, "10/12"],
+    ["LPIG", "L3", "2025-2026", "Privé", "Frais d'inscription", 120000, "Avant inscription", "", ""],
+    ["LPIG", "L3", "2025-2026", "Privé", "Frais de scolarité", 520000, "Échéances", 8, "10/12"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(sample);
   const wb = XLSX.utils.book_new();
@@ -105,7 +102,6 @@ export function exportGrillesFraisExcel(grilles: GrilleFraisRecord[], modelesFra
         g.niveau,
         g.annee,
         modele?.intitule ?? g.modeleFraisId,
-        g.tauxTaxe,
         l.intitule,
         l.montant,
         l.modalite === "echeances" ? "Échéances" : "Avant inscription",

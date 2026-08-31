@@ -41,6 +41,7 @@ export default function DevisFormPage() {
   const [annee, setAnnee] = useState(defaultAnnee);
   const [niveau, setNiveau] = useState("");
   const [modeleFraisId, setModeleFraisId] = useState("");
+  const [tauxTaxe, setTauxTaxe] = useState("18");
   const [beneficiaire, setBeneficiaire] = useState("");
   const [telephone, setTelephone] = useState("");
   const [email, setEmail] = useState("");
@@ -58,6 +59,8 @@ export default function DevisFormPage() {
   const grille = filiereId && niveau && annee && modeleFraisId ? getGrilleFrais(filiereId, niveau, annee, modeleFraisId) : undefined;
   const modeleLabel = modelesFrais.find((m) => m.id === modeleFraisId)?.intitule ?? "";
 
+  const tauxTaxeNum = Number(tauxTaxe) || 0;
+
   const lignes: DevisLigne[] = useMemo(() => {
     if (!grille) return [];
     return grille.lignes.map((l) => ({
@@ -66,9 +69,9 @@ export default function DevisFormPage() {
       modalite: l.modalite,
       nbEcheances: l.nbEcheances,
       dateLimite: l.dateLimite,
-      montantTTC: Math.round(l.montant * (1 + grille.tauxTaxe / 100)),
+      montantTTC: Math.round(l.montant * (1 + tauxTaxeNum / 100)),
     }));
-  }, [grille]);
+  }, [grille, tauxTaxeNum]);
 
   const totalHT = lignes.reduce((s, l) => s + l.montantHT, 0);
   const totalTTC = lignes.reduce((s, l) => s + l.montantTTC, 0);
@@ -90,7 +93,7 @@ export default function DevisFormPage() {
       telephone: telephone.trim(),
       email: email.trim() || undefined,
       adresse: adresse.trim() || undefined,
-      tauxTaxe: grille.tauxTaxe,
+      tauxTaxe: tauxTaxeNum,
       lignes,
       date: new Date().toISOString().slice(0, 10),
       ajouteePar: currentUser?.name ?? "Administration",
@@ -202,8 +205,19 @@ export default function DevisFormPage() {
 
         {grille && lignes.length > 0 && (
           <>
-            <div className="bg-slate-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">
-              Taxe appliquée : {grille.tauxTaxe}%
+            <div className="flex items-center gap-3 bg-slate-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">
+              <label htmlFor="devis-taux-taxe">Taux de taxe applicable à ce devis (%)</label>
+              <input
+                id="devis-taux-taxe"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={tauxTaxe}
+                onChange={(e) => setTauxTaxe(e.target.value)}
+                className="w-20 px-2 py-1 text-sm rounded-lg text-foreground bg-white"
+                data-testid="devis-taux-taxe"
+              />
             </div>
 
             <div className="border border-border rounded-xl overflow-hidden">
