@@ -3,8 +3,12 @@ import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertTriangle, Copy, Check } from "lucide-react";
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertTriangle, Copy, Check, KeyRound, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { findUserAccountByIdentifier, updateUserPassword } from "@/data/studentStore";
+import { genererPin, verifierEtConsommerPin } from "@/data/pinActivationStore";
+import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
 
 const loginSchema = z.object({
   identifier: z.string().min(1, "Identifiant requis"),
@@ -19,6 +23,8 @@ const DEMO_CREDS = [
   { role: "Étudiant", email: "etu@edumanage.com", hint: "ou matricule 2025-LPIG-0001", color: "#10b981", bg: "#ecfdf5" },
 ];
 
+type Mode = "login" | "forgot-request" | "forgot-reset";
+
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
@@ -26,6 +32,56 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+
+  const [mode, setMode] = useState<Mode>("login");
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [resetLabel, setResetLabel] = useState("");
+  const [demoPin, setDemoPin] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const handleForgotRequest = () => {
+    setForgotError("");
+    const compte = findUserAccountByIdentifier(forgotIdentifier);
+    if (!compte) {
+      setForgotError("Aucun compte ne correspond à cet identifiant.");
+      return;
+    }
+    const record = genererPin(compte.id, compte.displayName, compte.identifier);
+    envoyerMailSysteme({
+      destinataireUserId: compte.id,
+      destinataireLabel: compte.displayName,
+      destinataireEmail: compte.email,
+      objet: "Code de validation",
+      message: `Votre pin de réinitialisation de mot de passe: ${record.pin}`,
+    });
+    setResetUserId(compte.id);
+    setResetLabel(compte.displayName);
+    setDemoPin(record.pin);
+    setMode("forgot-reset");
+  };
+
+  const handleResetPassword = () => {
+    setForgotError("");
+    if (!resetUserId) return;
+    if (!pinInput.trim()) { setForgotError("Saisissez le code PIN reçu."); return; }
+    if (newPassword.length < 4) { setForgotError("Le mot de passe doit contenir au moins 4 caractères."); return; }
+    if (newPassword !== confirmPassword) { setForgotError("Les deux mots de passe ne correspondent pas."); return; }
+    const valide = verifierEtConsommerPin(resetUserId, pinInput.trim());
+    if (!valide) { setForgotError("Code PIN invalide, déjà utilisé ou expiré."); return; }
+    updateUserPassword(resetUserId, newPassword);
+    toast.success("Mot de passe réinitialisé — vous pouvez vous connecter.");
+    setMode("login");
+    setForgotIdentifier("");
+    setResetUserId(null);
+    setDemoPin("");
+    setPinInput("");
+    setNewPassword("");
+    setConfirmPassword("");
+  };
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -55,15 +111,20 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     await new Promise((r) => setTimeout(r, 800));
-    const user = login(data.identifier, data.password);
-    setLoading(false);
-    if (!user) {
-      setError("Identifiants incorrects. Utilisez un des comptes de démo ci-dessous.");
-      return;
+    try {
+      const user = login(data.identifier, data.password);
+      setLoading(false);
+      if (!user) {
+        setError("Identifiants incorrects. Utilisez un des comptes de démo ci-dessous.");
+        return;
+      }
+      if (user.role === "admin") setLocation("/admin/dashboard");
+      else if (user.role === "teacher") setLocation("/teacher/dashboard");
+      else setLocation("/student/dashboard");
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "Connexion impossible.");
     }
-    if (user.role === "admin") setLocation("/admin/dashboard");
-    else if (user.role === "teacher") setLocation("/teacher/dashboard");
-    else setLocation("/student/dashboard");
   };
 
   return (
@@ -110,6 +171,8 @@ export default function LoginPage() {
             </span>
           </div>
 
+          {mode === "login" && (
+          <>
           <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
             Content de vous revoir
           </h1>
@@ -166,7 +229,14 @@ export default function LoginPage() {
                 <input type="checkbox" className="rounded border-[#e2e8f0]" />
                 Se souvenir de moi
               </label>
-              <a href="#" className="text-xs text-[#4f46e5] hover:underline">Mot de passe oublié ?</a>
+              <button
+                type="button"
+                onClick={() => { setMode("forgot-request"); setForgotError(""); setForgotIdentifier(""); }}
+                className="text-xs text-[#4f46e5] hover:underline"
+                data-testid="link-mot-de-passe-oublie"
+              >
+                Mot de passe oublié ?
+              </button>
             </div>
 
             {/* Error */}
@@ -218,6 +288,136 @@ export default function LoginPage() {
               ))}
             </div>
           </div>
+          </>
+          )}
+
+          {mode === "forgot-request" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className="flex items-center gap-1.5 text-xs text-[#64748b] hover:text-[#4f46e5] mb-6"
+              >
+                <ArrowLeft size={13} /> Retour à la connexion
+              </button>
+              <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
+                Mot de passe oublié
+              </h1>
+              <p className="text-sm text-[#64748b] mb-8">Saisissez votre email ou matricule — un code de validation sera envoyé</p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Email ou Matricule</label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+                    <input
+                      value={forgotIdentifier}
+                      onChange={(e) => setForgotIdentifier(e.target.value)}
+                      type="text"
+                      placeholder="Email ou matricule"
+                      className="w-full pl-10 pr-4 py-3 text-sm border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
+                      data-testid="input-forgot-identifier"
+                    />
+                  </div>
+                </div>
+
+                {forgotError && (
+                  <div className="flex items-start gap-2.5 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
+                    <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-600 dark:text-red-400">{forgotError}</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleForgotRequest}
+                  disabled={!forgotIdentifier.trim()}
+                  className="w-full h-12 bg-[#4f46e5] hover:bg-[#4338ca] disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                  data-testid="button-forgot-request"
+                >
+                  <KeyRound size={15} /> Recevoir un code
+                </button>
+              </div>
+            </>
+          )}
+
+          {mode === "forgot-reset" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className="flex items-center gap-1.5 text-xs text-[#64748b] hover:text-[#4f46e5] mb-6"
+              >
+                <ArrowLeft size={13} /> Retour à la connexion
+              </button>
+              <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
+                Nouveau mot de passe
+              </h1>
+              <p className="text-sm text-[#64748b] mb-4">Pour {resetLabel} — saisissez le code reçu et votre nouveau mot de passe</p>
+
+              <div className="flex items-start gap-2.5 p-3 mb-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
+                <AlertTriangle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Aucune passerelle email réelle n'est branchée (mode démo) — code envoyé : <span className="font-mono font-bold" data-testid="demo-pin-value">{demoPin}</span>. Il est aussi visible dans Mails envoyés.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Code PIN</label>
+                  <div className="relative">
+                    <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+                    <input
+                      value={pinInput}
+                      onChange={(e) => setPinInput(e.target.value)}
+                      type="text"
+                      placeholder="0000"
+                      className="w-full pl-10 pr-4 py-3 text-sm font-mono border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
+                      data-testid="input-reset-pin"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Nouveau mot de passe</label>
+                  <input
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    type="password"
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 text-sm border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
+                    data-testid="input-new-password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Confirmer le mot de passe</label>
+                  <input
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    type="password"
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 text-sm border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
+                    data-testid="input-confirm-password"
+                  />
+                </div>
+
+                {forgotError && (
+                  <div className="flex items-start gap-2.5 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
+                    <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-600 dark:text-red-400">{forgotError}</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="w-full h-12 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                  data-testid="button-reset-password"
+                >
+                  <CheckCircle2 size={15} /> Réinitialiser le mot de passe
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

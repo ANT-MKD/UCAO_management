@@ -179,6 +179,9 @@ const VacationFormPage = lazy(() => import("@/pages/admin/VacationFormPage"));
 // Paramètres
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
 const AuditTrailPage = lazy(() => import("@/pages/admin/AuditTrailPage"));
+const EnvoiIdentifiantPage = lazy(() => import("@/pages/admin/EnvoiIdentifiantPage"));
+const PortailsPage = lazy(() => import("@/pages/admin/PortailsPage"));
+const PinActivationPage = lazy(() => import("@/pages/admin/PinActivationPage"));
 const AdminComingSoonPage = lazy(() => import("@/pages/admin/AdminComingSoonPage"));
 const MessagesPage = lazy(() => import("@/pages/admin/MessagesPage"));
 const RequestsPage = lazy(() => import("@/pages/admin/RequestsPage"));
@@ -749,6 +752,15 @@ function AppRouter() {
       </Route>
       <Route path="/admin/audit">
         <Admin><AuditTrailPage /></Admin>
+      </Route>
+      <Route path="/admin/security/envoi-identifiant">
+        <Admin><EnvoiIdentifiantPage /></Admin>
+      </Route>
+      <Route path="/admin/security/portails">
+        <Admin><PortailsPage /></Admin>
+      </Route>
+      <Route path="/admin/security/pin-activation">
+        <Admin><PinActivationPage /></Admin>
       </Route>
       <Route path="/admin/wip/:pageId">
         {(p) => <Admin><AdminComingSoonPage pageId={p.pageId} /></Admin>}

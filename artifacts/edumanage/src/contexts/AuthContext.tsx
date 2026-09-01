@@ -6,6 +6,7 @@ import {
   saveAuthSession,
   type UserRole,
 } from "@/data/studentStore";
+import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
 
 interface User {
   id: string;
@@ -48,6 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = (identifierOrEmail: string, password: string): User | null => {
     const account = authenticateUser(identifierOrEmail, password);
     if (!account) return null;
+    if (!isPortalActif(account.role)) {
+      throw new Error(`Le portail ${PORTAL_LABELS[account.role]} est actuellement désactivé (Sécurité → Portails). Contactez l'administration.`);
+    }
     const user: User = {
       id: account.id,
       name: account.displayName,

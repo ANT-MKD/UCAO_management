@@ -189,6 +189,41 @@ export function envoyerMail(payload: EnvoyerMailPayload): MailEnvoyeRecord {
   return mail;
 }
 
+export interface MailSystemePayload {
+  destinataireUserId: string;
+  destinataireLabel: string;
+  destinataireEmail?: string;
+  objet: string;
+  message: string;
+}
+
+/** Mails déclenchés par une action système (envoi d'identifiant, code PIN) — jamais un message
+ * composé par un utilisateur, donc jamais soumis à la validation "validateur_message" : traité
+ * immédiatement, auteur "Système", exactement comme les entrées "Système" de la référence. */
+export function envoyerMailSysteme(payload: MailSystemePayload): MailEnvoyeRecord {
+  const now = new Date().toISOString();
+  const mail: MailEnvoyeRecord = {
+    id: `mail-${Date.now()}`,
+    auteurId: "system",
+    auteurLabel: "Système",
+    date: now,
+    selections: [],
+    destinataires: [{ label: payload.destinataireLabel, email: payload.destinataireEmail, userId: payload.destinataireUserId }],
+    emailsSupplementaires: [],
+    objet: payload.objet,
+    message: payload.message,
+    fichiers: [],
+    statut: "traite",
+    validateurId: "system",
+    validateurLabel: "Système",
+    dateTraitement: now,
+  };
+  store = [mail, ...store];
+  persist();
+  notifierDestinataires(mail);
+  return mail;
+}
+
 export function validerMail(id: string, validateurId: string, validateurLabel: string): void {
   const mail = store.find((m) => m.id === id);
   if (!mail) return;

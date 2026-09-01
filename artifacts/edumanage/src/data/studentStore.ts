@@ -721,6 +721,28 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
   return user;
 }
 
+/** Retrouve un compte par identifiant/email sans vérifier de mot de passe — utilisé par l'étape 1
+ * du flux "mot de passe oublié" (on a besoin de savoir à qui envoyer le PIN avant d'en vérifier un). */
+export function findUserAccountByIdentifier(identifierOrEmail: string): UserAccountRecord | undefined {
+  const q = identifierOrEmail.trim().toLowerCase();
+  const qMatricule = identifierOrEmail.trim().toUpperCase();
+  return store.users.find(
+    (u) =>
+      u.email.toLowerCase() === q ||
+      u.identifier.toLowerCase() === q ||
+      u.identifier.toUpperCase() === qMatricule,
+  );
+}
+
+/** Applique réellement un nouveau mot de passe — utilisé par le flux de réinitialisation par code
+ * PIN (pinActivationStore) sur la page de connexion, pas seulement une simulation côté admin. */
+export function updateUserPassword(userId: string, newPassword: string): void {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) return;
+  user.password = newPassword;
+  persist();
+}
+
 export function pushNotification(userId: string, message: string) {
   store.notifications.unshift({
     id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
