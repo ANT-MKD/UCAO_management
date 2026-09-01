@@ -286,6 +286,10 @@ export interface ReleveRecord {
   statut: "genere" | "envoye" | "en_attente";
   dateGeneration: string;
   ecId: string;
+  /** Identifie réellement le semestre (SEMESTRES) — optionnel pour compat avec les relevés créés
+   * avant son introduction. Quand présent, c'est la vraie clé de déduplication (un relevé par
+   * étudiant et par semestre, plus fragmenté par EC) ; sinon repli sur ecId (comportement historique). */
+  semestreId?: string;
 }
 
 interface StoreData {
@@ -1728,25 +1732,63 @@ export function generateRelevesForClasseEc(classeId: string, ecId: string): void
   for (const etudiantId of studentIds) {
     const etudiant = getEtudiantById(etudiantId);
     if (!etudiant) continue;
-    const existing = store.releves.find((r) => r.etudiantId === etudiantId && r.ecId === ecId);
-    if (existing) {
-      existing.statut = "genere";
-      existing.dateGeneration = new Date().toISOString().slice(0, 10);
-    } else {
-      store.releves.push({
-        id: `rel-${etudiantId}-${ecId}`,
-        etudiantId,
-        etudiant: `${etudiant.prenom} ${etudiant.nom}`,
-        matricule: etudiant.matricule,
-        classe: etudiant.classe,
-        filiere: etudiant.filiere,
-        semestre,
-        statut: "genere",
-        dateGeneration: new Date().toISOString().slice(0, 10),
-        ecId,
-      });
-    }
+    upsertReleve({
+      etudiantId,
+      etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+      matricule: etudiant.matricule,
+      classe: etudiant.classe,
+      filiere: etudiant.filiere,
+      semestreId: semestreObj?.id,
+      semestre,
+      ecId,
+      statut: "genere",
+    });
   }
+}
+
+export interface UpsertRelevePayload {
+  etudiantId: string;
+  etudiant: string;
+  matricule: string;
+  classe: string;
+  filiere: string;
+  /** Optionnel pour compat avec les appelants qui ne connaissent pas encore le vrai semestre. */
+  semestreId?: string;
+  semestre: string;
+  ecId?: string;
+  statut: "genere" | "envoye" | "en_attente";
+}
+
+/** Crée ou met à jour LE relevé d'un étudiant pour un semestre — un seul par (étudiant, semestre)
+ * dès que semestreId est connu, au lieu d'un par EC noté (qui fragmentait la liste en autant de
+ * lignes identiques que d'EC publiés). Repli sur ecId pour les relevés créés avant l'ajout de
+ * semestreId, afin de ne pas dupliquer les entrées historiques au prochain passage. */
+export function upsertReleve(payload: UpsertRelevePayload): ReleveRecord {
+  const dateGeneration = new Date().toISOString().slice(0, 10);
+  const existing = payload.semestreId
+    ? store.releves.find((r) => r.etudiantId === payload.etudiantId && r.semestreId === payload.semestreId)
+    : store.releves.find((r) => r.etudiantId === payload.etudiantId && r.ecId === payload.ecId);
+  if (existing) {
+    Object.assign(existing, payload, { dateGeneration });
+    persist();
+    return existing;
+  }
+  const record: ReleveRecord = {
+    id: `rel-${payload.etudiantId}-${payload.semestreId ?? payload.ecId ?? Date.now()}`,
+    etudiantId: payload.etudiantId,
+    etudiant: payload.etudiant,
+    matricule: payload.matricule,
+    classe: payload.classe,
+    filiere: payload.filiere,
+    semestreId: payload.semestreId,
+    semestre: payload.semestre,
+    ecId: payload.ecId ?? "",
+    statut: payload.statut,
+    dateGeneration,
+  };
+  store.releves.push(record);
+  persist();
+  return record;
 }
 
 // ——— Emploi du temps ———
