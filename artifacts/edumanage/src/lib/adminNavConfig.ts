@@ -302,7 +302,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "sec-users", label: "Liste des utilisateurs", href: "/admin/users" },
       { id: "sec-user-add", label: "Ajouter nouvel utilisateur", href: "/admin/users" },
       { id: "sec-roles", label: "Gestion des rôles", href: "/admin/roles" },
-      { id: "sec-droits", label: "Droit accès", href: wipHref("sec-droits") },
+      { id: "sec-droits", label: "Droit accès", href: "/admin/security/droits-acces" },
       { id: "sec-envoi-identifiant", label: "Envoi identifiant", href: "/admin/security/envoi-identifiant" },
       { id: "sec-portails", label: "Portails", href: "/admin/security/portails" },
       { id: "sec-pin-activation", label: "Code pin activation", href: "/admin/security/pin-activation" },
