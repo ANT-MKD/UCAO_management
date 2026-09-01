@@ -141,6 +141,7 @@ export default function ValidationMailsPage() {
         <div className="space-y-3">
           <label className="block text-xs font-medium text-muted-foreground">Motif du rejet</label>
           <textarea value={motif} onChange={(e) => setMotif(e.target.value)} className="w-full min-h-[100px] px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="validation-motif-rejet" />
+          <p className="text-[11px] text-muted-foreground">L'auteur et les destinataires alert désignés (Paramétrage communication) seront notifiés.</p>
           <button onClick={handleRejeter} className="w-full px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-colors" data-testid="validation-confirmer-rejet">
             Confirmer le rejet
           </button>

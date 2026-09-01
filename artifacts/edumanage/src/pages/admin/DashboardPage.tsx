@@ -17,6 +17,7 @@ import {
 } from "@/data/mockData";
 import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
+import { useMailsEnvoyes } from "@/hooks/useMailEnvoyeStore";
 import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 import { PubliciteBanner } from "@/components/PubliciteBanner";
@@ -69,6 +70,7 @@ export default function DashboardPage() {
   const paiements = usePaiements();
   const seances = useSeances();
   const decomptes = useDecomptes();
+  const mailsEnvoyes = useMailsEnvoyes();
   const anneesAcademiques = useAnneesAcademiques();
   const anneeActuelle = useAnneeActuelle();
   const anneeOptions = useMemo(
@@ -92,14 +94,20 @@ export default function DashboardPage() {
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
   const enAttenteInscription = etudiants.filter((e) => e.statut === "preinscrit" || e.statut === "en_attente").length;
-  const alertesAffichees = NOTIFICATIONS.filter((n) => !n.lue)
-    .map((n) => {
-      if (n.id !== "nt3") return n;
-      if (enAttenteInscription === 0) return null;
-      return { ...n, message: `${enAttenteInscription} étudiant(s) préinscrit(s) ou en attente de confirmation d'inscription`, temps: "À l'instant" };
-    })
-    .filter((n): n is (typeof NOTIFICATIONS)[number] => n !== null)
-    .slice(0, 3);
+  const mailsEnAttenteValidation = mailsEnvoyes.filter((m) => m.statut === "en_attente_validation").length;
+  const alerteValidationMails = mailsEnAttenteValidation > 0
+    ? [{ id: "com-validation", type: "warning" as const, message: `${mailsEnAttenteValidation} mail(s) en attente de validation (Communication)`, temps: "À l'instant" }]
+    : [];
+  const alertesAffichees = [
+    ...alerteValidationMails,
+    ...NOTIFICATIONS.filter((n) => !n.lue)
+      .map((n) => {
+        if (n.id !== "nt3") return n;
+        if (enAttenteInscription === 0) return null;
+        return { ...n, message: `${enAttenteInscription} étudiant(s) préinscrit(s) ou en attente de confirmation d'inscription`, temps: "À l'instant" };
+      })
+      .filter((n): n is (typeof NOTIFICATIONS)[number] => n !== null),
+  ].slice(0, 3);
   const totalRecettes = paiements.reduce((s, p) => s + p.montant, 0);
   const totalAvoirCirculation = etudiants.reduce((s, e) => s + e.soldeAvoir, 0);
   const totalDecompteRestant = decomptes
@@ -276,13 +284,19 @@ export default function DashboardPage() {
               {alertesAffichees.map((n) => {
                 const style = ALERT_STYLES[n.type] ?? ALERT_STYLES.info;
                 const estAlerteInscription = n.id === "nt3";
+                const estAlerteValidationMails = n.id === "com-validation";
+                const onClick = estAlerteInscription
+                  ? () => setLocation("/admin/inscription/definitive")
+                  : estAlerteValidationMails
+                    ? () => setLocation("/admin/communication/validation")
+                    : undefined;
                 return (
                   <div
                     key={n.id}
-                    onClick={estAlerteInscription ? () => setLocation("/admin/inscription/definitive") : undefined}
-                    className="flex items-start gap-3 p-3 rounded-xl border transition-colors hover:shadow-sm cursor-pointer"
+                    onClick={onClick}
+                    className={cn("flex items-start gap-3 p-3 rounded-xl border transition-colors hover:shadow-sm", onClick && "cursor-pointer")}
                     style={{ background: style.bg, borderColor: style.border }}
-                    data-testid={estAlerteInscription ? "dashboard-alerte-inscription" : undefined}
+                    data-testid={estAlerteInscription ? "dashboard-alerte-inscription" : estAlerteValidationMails ? "dashboard-alerte-validation-mails" : undefined}
                   >
                     <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: style.dot }} />
                     <div className="flex-1 min-w-0">

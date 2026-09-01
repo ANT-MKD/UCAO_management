@@ -5,7 +5,7 @@ import {
   resolveMembresGroupeInterne,
   resolveMembresGroupePersonnalise,
 } from "./communicationGroupsStore";
-import { estAutorise } from "./communicationRolesStore";
+import { estAutorise, getCommunicationRolesParType } from "./communicationRolesStore";
 import { getEtudiants, getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-mails-envoyes-v1";
@@ -203,6 +203,9 @@ export function validerMail(id: string, validateurId: string, validateurLabel: s
   notifierDestinataires(mail);
 }
 
+/** Un rejet est traité comme le cas d'usage réel du rôle "destinataire_alert" (jusqu'ici désigné
+ * dans Paramétrage sans jamais être consulté) : chaque compte ainsi désigné reçoit une vraie
+ * notification d'escalade, en plus de l'auteur qui est notifié du rejet et de son motif. */
 export function rejeterMail(id: string, validateurId: string, validateurLabel: string, motif: string): void {
   const mail = store.find((m) => m.id === id);
   if (!mail) return;
@@ -215,4 +218,9 @@ export function rejeterMail(id: string, validateurId: string, validateurLabel: s
   mail.dateTraitement = new Date().toISOString();
   mail.motifRejet = motif;
   persist();
+
+  pushNotificationEtPersister(mail.auteurId, `Votre mail "${mail.objet}" a été rejeté par ${validateurLabel}${motif ? " — " + motif : ""}.`);
+  for (const alerte of getCommunicationRolesParType("destinataire_alert")) {
+    pushNotificationEtPersister(alerte.userId, `Mail rejeté : "${mail.objet}" (auteur : ${mail.auteurLabel}, par ${validateurLabel}).`);
+  }
 }
