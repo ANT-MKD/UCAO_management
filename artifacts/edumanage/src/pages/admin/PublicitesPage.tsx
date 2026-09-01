@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Paperclip } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
@@ -10,6 +10,7 @@ import {
   deletePublicite,
   TYPE_CONTENU_LABELS,
   PROFIL_CIBLE_LABELS,
+  TAILLE_MAX_IMAGE_OCTETS,
   type PubliciteRecord,
   type TypeContenuPublicite,
   type ProfilCiblePublicite,
@@ -20,14 +21,22 @@ import { cn, formatShortDate } from "@/lib/utils";
 const TODAY = new Date().toISOString().slice(0, 10);
 
 const EMPTY_FORM = {
-  typeContenu: "publicite" as TypeContenuPublicite,
+  typeContenu: "image" as TypeContenuPublicite,
   profilCible: "tous" as ProfilCiblePublicite,
   titre: "",
   description: "",
   ordre: 1,
   dateDebut: TODAY,
   dateFin: TODAY,
-  fichier: "",
+  imageDataUrl: "",
+  lienExterne: "",
+};
+
+const LIEN_PLACEHOLDER: Record<TypeContenuPublicite, string> = {
+  image: "",
+  video: "https://www.youtube.com/watch?v=...",
+  document: "https://drive.google.com/...",
+  url: "https://...",
 };
 
 export default function PublicitesPage() {
@@ -38,8 +47,22 @@ export default function PublicitesPage() {
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
+  const estImage = form.typeContenu === "image";
+  const peutSauvegarder = !!form.titre.trim() && !!form.dateDebut && !!form.dateFin && (estImage ? !!form.imageDataUrl : !!form.lienExterne.trim());
+
+  const handleFichierImage = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_IMAGE_OCTETS) {
+      toast.error(`Image trop lourde (max ${Math.round(TAILLE_MAX_IMAGE_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, imageDataUrl: String(reader.result) }));
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = () => {
-    if (!currentUser || !form.titre.trim() || !form.dateDebut || !form.dateFin) return;
+    if (!currentUser || !peutSauvegarder) return;
     if (form.dateFin < form.dateDebut) {
       toast.error("La date de fin doit être postérieure à la date de début.");
       return;
@@ -52,7 +75,8 @@ export default function PublicitesPage() {
       ordre: form.ordre,
       dateDebut: form.dateDebut,
       dateFin: form.dateFin,
-      fichier: form.fichier || undefined,
+      imageDataUrl: estImage ? form.imageDataUrl : undefined,
+      lienExterne: estImage ? undefined : form.lienExterne.trim(),
       auteurId: currentUser.id,
       auteurLabel: currentUser.name,
     });
@@ -133,7 +157,7 @@ export default function PublicitesPage() {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de contenu *</label>
-            <select value={form.typeContenu} onChange={(e) => setForm((f) => ({ ...f, typeContenu: e.target.value as TypeContenuPublicite }))} className={inputClass} data-testid="publicite-type">
+            <select value={form.typeContenu} onChange={(e) => setForm((f) => ({ ...f, typeContenu: e.target.value as TypeContenuPublicite, imageDataUrl: "", lienExterne: "" }))} className={inputClass} data-testid="publicite-type">
               {(Object.keys(TYPE_CONTENU_LABELS) as TypeContenuPublicite[]).map((t) => <option key={t} value={t}>{TYPE_CONTENU_LABELS[t]}</option>)}
             </select>
           </div>
@@ -165,17 +189,38 @@ export default function PublicitesPage() {
               <input type="date" value={form.dateFin} onChange={(e) => setForm((f) => ({ ...f, dateFin: e.target.value }))} className={inputClass} data-testid="publicite-date-fin" />
             </div>
           </div>
-          <div>
-            <label className="inline-flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
-              <Paperclip size={13} />
-              Choisir un fichier
-              <input type="file" className="hidden" onChange={(e) => setForm((f) => ({ ...f, fichier: e.target.files?.[0]?.name ?? "" }))} />
-            </label>
-            {form.fichier && <p className="text-[11px] text-muted-foreground mt-1">{form.fichier}</p>}
-          </div>
+          {estImage ? (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Image *</label>
+              <label className="inline-flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
+                <ImageIcon size={13} />
+                Choisir une image
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFichierImage(e.target.files?.[0])} data-testid="publicite-image-input" />
+              </label>
+              <p className="text-[11px] text-muted-foreground mt-1">Max {Math.round(TAILLE_MAX_IMAGE_OCTETS / 1024)} Ko — affichée réellement dans la bannière.</p>
+              {form.imageDataUrl && (
+                <img src={form.imageDataUrl} alt="Aperçu" className="mt-2 max-h-32 rounded-lg border border-border" data-testid="publicite-image-apercu" />
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lien externe *</label>
+              <div className="relative">
+                <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={form.lienExterne}
+                  onChange={(e) => setForm((f) => ({ ...f, lienExterne: e.target.value }))}
+                  placeholder={LIEN_PLACEHOLDER[form.typeContenu]}
+                  className={inputClass + " pl-9"}
+                  data-testid="publicite-lien-externe"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Ressource hébergée ailleurs — ouverte dans un nouvel onglet depuis la bannière.</p>
+            </div>
+          )}
           <button
             onClick={handleSave}
-            disabled={!form.titre.trim()}
+            disabled={!peutSauvegarder}
             className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
             data-testid="publicite-sauvegarder"
           >

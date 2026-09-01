@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { Megaphone, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Megaphone, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
 import { usePublicites } from "@/hooks/usePubliciteStore";
-import { getPublicitesActives, TYPE_CONTENU_LABELS } from "@/data/publiciteStore";
+import { getPublicitesActives, TYPE_CONTENU_LABELS, TYPE_CONTENU_LIEN_LABEL } from "@/data/publiciteStore";
 import type { UserRole } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +20,13 @@ export function PubliciteBanner({ profil }: { profil: UserRole }) {
 
   return (
     <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3" data-testid="publicite-banner">
-      <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-        <Megaphone size={16} className="text-primary" />
-      </div>
+      {current.typeContenu === "image" && current.imageDataUrl ? (
+        <img src={current.imageDataUrl} alt={current.titre} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" data-testid="publicite-banner-image" />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+          <Megaphone size={16} className="text-primary" />
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">{TYPE_CONTENU_LABELS[current.typeContenu]}</span>
@@ -30,6 +34,17 @@ export function PubliciteBanner({ profil }: { profil: UserRole }) {
         </div>
         <p className="text-sm font-semibold text-foreground mt-0.5">{current.titre}</p>
         {current.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{current.description}</p>}
+        {current.typeContenu !== "image" && current.lienExterne && (
+          <a
+            href={current.lienExterne}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline mt-1"
+            data-testid="publicite-banner-lien"
+          >
+            {TYPE_CONTENU_LIEN_LABEL[current.typeContenu]} <ExternalLink size={11} />
+          </a>
+        )}
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
         {visibles.length > 1 && (

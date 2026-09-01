@@ -2,14 +2,29 @@ import type { UserRole } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-publicites-v1";
 
-export type TypeContenuPublicite = "publicite" | "actualite" | "annonce";
+/** Le type détermine comment le contenu est réellement affiché dans la bannière (pas qu'un label) :
+ * "image" est encodée en base64 et montrée telle quelle ; les trois autres pointent vers une
+ * ressource hébergée ailleurs (aucun stockage vidéo/document réel possible sans backend) et sont
+ * rendues comme un lien cliquable. */
+export type TypeContenuPublicite = "image" | "video" | "document" | "url";
 export type ProfilCiblePublicite = "tous" | UserRole;
 
 export const TYPE_CONTENU_LABELS: Record<TypeContenuPublicite, string> = {
-  publicite: "Publicité",
-  actualite: "Actualité",
-  annonce: "Annonce",
+  image: "Image",
+  video: "Vidéo",
+  document: "Document",
+  url: "URL",
 };
+
+export const TYPE_CONTENU_LIEN_LABEL: Record<Exclude<TypeContenuPublicite, "image">, string> = {
+  video: "Voir la vidéo",
+  document: "Voir le document",
+  url: "Voir plus",
+};
+
+/** Taille max de l'image encodée en base64 (données brutes, avant l'encodage ~33% plus volumineux) —
+ * garde le localStorage raisonnable, une bannière n'a pas besoin d'une image lourde. */
+export const TAILLE_MAX_IMAGE_OCTETS = 400 * 1024;
 
 export const PROFIL_CIBLE_LABELS: Record<ProfilCiblePublicite, string> = {
   tous: "Tous les profils",
@@ -27,8 +42,12 @@ export interface PubliciteRecord {
   ordre: number;
   dateDebut: string;
   dateFin: string;
-  /** Référence locale (nom fichier) — pas de stockage binaire lourd. */
-  fichier?: string;
+  /** Uniquement pour typeContenu === "image" — image réelle encodée en base64, affichée telle
+   * quelle dans la bannière (plafonnée à TAILLE_MAX_IMAGE_OCTETS). */
+  imageDataUrl?: string;
+  /** Pour "video" / "document" / "url" — lien externe réel, ouvert dans un nouvel onglet depuis
+   * la bannière. */
+  lienExterne?: string;
   auteurId: string;
   auteurLabel: string;
   createdAt: string;
@@ -78,7 +97,8 @@ export interface PublicitePayload {
   ordre: number;
   dateDebut: string;
   dateFin: string;
-  fichier?: string;
+  imageDataUrl?: string;
+  lienExterne?: string;
   auteurId: string;
   auteurLabel: string;
 }
