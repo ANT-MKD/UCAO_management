@@ -2,6 +2,7 @@ import { CalendarDays, CreditCard, FileText, AlertTriangle } from "lucide-react"
 import { KPICard } from "@/components/admin/KPICard";
 import { useStudentStore, useSeances, useNotes, usePaiements } from "@/hooks/useStudentStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { PubliciteBanner } from "@/components/PubliciteBanner";
 
 export default function StudentDashboardPage() {
   const { currentUser } = useAuth();
@@ -21,6 +22,7 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <PubliciteBanner profil="student" />
       <section className="rounded-2xl border border-border bg-card p-5 md:p-6">
         <p className="text-sm text-muted-foreground">Bienvenue</p>
         <h2 className="text-2xl font-bold text-foreground mt-1" style={{ fontFamily: "Outfit, sans-serif" }}>

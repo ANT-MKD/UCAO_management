@@ -18,6 +18,7 @@ import { printContract } from "@/lib/contractPrint";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Printer } from "lucide-react";
+import { PubliciteBanner } from "@/components/PubliciteBanner";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -45,6 +46,7 @@ export function TeacherDashboardPage() {
 
   return (
     <div className="space-y-4">
+      <PubliciteBanner profil="teacher" />
       <div className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>
           Bonjour, {currentUser?.name}

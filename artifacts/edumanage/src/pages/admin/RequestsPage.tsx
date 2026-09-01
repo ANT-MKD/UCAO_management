@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ClipboardList, Check, X, Clock } from "lucide-react";
+import { ClipboardList, Check, X, Clock, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
@@ -30,10 +30,10 @@ const STATUS_LABELS: Record<StudentRequestRecord["status"], string> = {
 };
 
 const STATUS_COLORS: Record<StudentRequestRecord["status"], string> = {
-  nouveau: "bg-blue-50 text-blue-700",
-  en_cours: "bg-amber-50 text-amber-700",
-  valide: "bg-emerald-50 text-emerald-700",
-  rejete: "bg-red-50 text-red-700",
+  nouveau: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
+  en_cours: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  valide: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+  rejete: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
 };
 
 export default function RequestsPage() {
@@ -42,16 +42,23 @@ export default function RequestsPage() {
   useCommunicationRoles(); // s'abonne pour refléter les validateurs désignés si la config change
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolution, setResolution] = useState("");
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return requests.filter((r) => {
       if (statusFilter && r.status !== statusFilter) return false;
       if (typeFilter && r.type !== typeFilter) return false;
+      if (q) {
+        const etu = getEtudiantById(r.studentId);
+        const haystack = `${etu ? `${etu.prenom} ${etu.nom}` : ""} ${r.subject}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [requests, statusFilter, typeFilter]);
+  }, [requests, statusFilter, typeFilter, search]);
 
   const selected = filtered.find((r) => r.id === selectedId) ?? filtered[0] ?? null;
 
@@ -102,19 +109,37 @@ export default function RequestsPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-5">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[140px]")}>
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="relative w-64">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Étudiant, objet..."
+            className={cn(inputClass, "pl-9")}
+            data-testid="requete-recherche"
+          />
+        </div>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[140px]")} data-testid="requete-filtre-statut">
           <option value="">Tous statuts</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[180px]")}>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="requete-filtre-type">
           <option value="">Tous types</option>
           {Object.entries(TYPE_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        {(search || statusFilter || typeFilter) && (
+          <button
+            onClick={() => { setSearch(""); setStatusFilter(""); setTypeFilter(""); }}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            <X size={12} /> Effacer les filtres
+          </button>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">

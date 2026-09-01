@@ -19,6 +19,7 @@ import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnn
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
+import { PubliciteBanner } from "@/components/PubliciteBanner";
 
 const ALERT_STYLES: Record<string, { dot: string; border: string; bg: string }> = {
   danger: { dot: "#ef4444", border: "#fecaca", bg: "#fef2f2" },
@@ -117,6 +118,7 @@ export default function DashboardPage() {
 
   return (
     <div>
+      <div className="mb-6"><PubliciteBanner profil="admin" /></div>
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>

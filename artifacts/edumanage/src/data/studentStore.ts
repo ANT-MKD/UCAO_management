@@ -447,6 +447,10 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
   ];
 
   for (const e of etudiants) {
+    // et1 a son propre compte démo ci-dessous (login mémorable "etu@edumanage.com") — ne pas créer
+    // un second compte avec le même linkedId, ce qui rendrait ambigu tout lookup par linkedId
+    // (ex: la notification d'un message envoyé au groupe de sa classe partirait vers le mauvais compte).
+    if (e.id === "et1") continue;
     users.push({
       id: `u-student-${e.id}`,
       role: "student",

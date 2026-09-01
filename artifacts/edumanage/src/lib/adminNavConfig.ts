@@ -276,9 +276,9 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     children: [
       { id: "com-param", label: "Paramétrage de la communication", href: "/admin/communication/parametrage" },
       { id: "com-envoi", label: "Envoi message", href: "/admin/messages" },
-      { id: "com-mails", label: "Liste mails envoyés", href: wipHref("com-mails") },
-      { id: "com-validation", label: "Validation mails", href: wipHref("com-validation") },
-      { id: "com-publicite", label: "Publicité et actualité", href: wipHref("com-publicite") },
+      { id: "com-mails", label: "Liste mails envoyés", href: "/admin/communication/mails" },
+      { id: "com-validation", label: "Validation mails", href: "/admin/communication/validation" },
+      { id: "com-publicite", label: "Publicité et actualité", href: "/admin/communication/publicite" },
       { id: "com-demandes", label: "Demandes", href: "/admin/requests" },
     ],
   },
