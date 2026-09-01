@@ -1,15 +1,84 @@
 import { getUes, getEcs } from "./curriculumStore";
-import { getEffectiveNote } from "./studentStore";
-import { getPoidsForClasseEc } from "./evaluationStore";
+import { getEffectiveNote, getNoteForEvaluation, getInscriptionsByEtudiant } from "./studentStore";
+import { getPoidsForClasseEc, getEvaluationsForClasseEc, resolveRoleEvaluation, getRattrapageEvaluation, type EvaluationRecord } from "./evaluationStore";
 import { getClasseById } from "./structureStore";
 import { estEcRetireePourEtudiant } from "./portefeuilleCoursStore";
 import { getConfigForFiliere, resolveCodeMethodeCalcul } from "./scolariteConfigStore";
-import { getInscriptionsByEtudiant } from "./studentStore";
 import { NIVEAUX, SEMESTRES } from "./mockData";
 import { appliquerMethodeCalcul, type ElementPondere } from "@/lib/bulletinCalculs";
 
 const POIDS_CC_DEFAUT = 30;
 const POIDS_EXAMEN_DEFAUT = 70;
+
+/** Moyenne pondérée par le poids de chaque évaluation d'un même rôle (devoir ou examen) — la
+ * généralisation naturelle du cas à une seule évaluation (qui redonne alors exactement sa note,
+ * quel que soit son poids). Utilisée pour composer plusieurs devoirs/examens d'un même EC
+ * (Regroupement type de devoir) en une seule note CC ou EF. */
+function moyennePondereeEvaluations(elements: { note: number; poids: number }[]): number | undefined {
+  if (elements.length === 0) return undefined;
+  const totalPoids = elements.reduce((s, e) => s + e.poids, 0);
+  if (totalPoids <= 0) return elements.reduce((s, e) => s + e.note, 0) / elements.length;
+  return elements.reduce((s, e) => s + e.note * e.poids, 0) / totalPoids;
+}
+
+/** Résout la note composite CC (devoir) et EF (examen) d'un étudiant pour un EC : si aucune
+ * évaluation n'a été planifiée (Nouvelle évaluation), retombe sur l'historique (une note CC, une
+ * note EF, rattrapage préféré via getEffectiveNote). Dès qu'au moins une évaluation existe, chaque
+ * évaluation compte pour de vrai — plusieurs devoirs (Regroupement type de devoir) se combinent
+ * en une moyenne pondérée par leur poids au lieu de s'écraser les uns les autres. Le rattrapage,
+ * quand il existe, remplace entièrement le(s) examen(s) normal(aux), comme avant. */
+function resolveEcComposite(etudiantId: string, classeId: string, ecId: string): { cc?: number; ef?: number } {
+  const evaluations = getEvaluationsForClasseEc(classeId, ecId);
+  if (evaluations.length === 0) {
+    return {
+      cc: getEffectiveNote(etudiantId, classeId, ecId, "CC")?.note,
+      ef: getEffectiveNote(etudiantId, classeId, ecId, "EF")?.note,
+    };
+  }
+
+  const devoirEvals = evaluations.filter((e) => resolveRoleEvaluation(e) === "devoir");
+  const examenEvals = evaluations.filter((e) => resolveRoleEvaluation(e) === "examen");
+
+  function composite(evals: EvaluationRecord[], role: "devoir" | "examen"): number | undefined {
+    const elements: { note: number; poids: number }[] = [];
+    for (const ev of evals) {
+      // Repli sur la note "à plat" (legacy) uniquement quand une seule évaluation de ce rôle
+      // existe : au-delà, associer une note sans evaluationId à l'une plutôt qu'à l'autre serait
+      // arbitraire, donc cette évaluation reste "non notée" tant qu'elle n'a pas sa propre note.
+      const note = getNoteForEvaluation(etudiantId, ev.id)?.note
+        ?? (evals.length === 1 ? getEffectiveNote(etudiantId, classeId, ecId, role === "devoir" ? "CC" : "EF")?.note : undefined);
+      if (note !== undefined) elements.push({ note, poids: ev.poids });
+    }
+    return moyennePondereeEvaluations(elements);
+  }
+
+  // Le rattrapage (Rattrapage) remplace intégralement le(s) examen(s) normal(aux) du côté EF,
+  // jamais en plus — getEffectiveNote("EF") préfère déjà le rattrapage sur l'examen normal.
+  const rattrapage = getRattrapageEvaluation(classeId, ecId, evaluations[0].semestreId);
+  const rattrapageNote = rattrapage ? getEffectiveNote(etudiantId, classeId, ecId, "EF") : undefined;
+  const rattrapageActif = rattrapageNote?.session === "rattrapage";
+
+  const cc = composite(devoirEvals, "devoir");
+  const ef = rattrapageActif ? rattrapageNote!.note : composite(examenEvals, "examen");
+
+  return { cc, ef };
+}
+
+/** Poids global du côté devoir et du côté examen pour un EC : somme des poids de toutes les
+ * évaluations de chaque rôle (au lieu du poids d'une seule, historique) — dans le cas courant à
+ * une évaluation par rôle, c'est exactement son poids, donc identique à avant. */
+function resolvePoidsRoles(classeId: string, ecId: string): { poidsDevoir?: number; poidsExamen?: number } {
+  const evaluations = getEvaluationsForClasseEc(classeId, ecId);
+  if (evaluations.length === 0) {
+    const { devoir, examen } = getPoidsForClasseEc(classeId, ecId);
+    return { poidsDevoir: devoir, poidsExamen: examen };
+  }
+  const sommePoids = (evals: EvaluationRecord[]) => (evals.length > 0 ? evals.reduce((s, e) => s + e.poids, 0) : undefined);
+  return {
+    poidsDevoir: sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "devoir")),
+    poidsExamen: sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "examen")),
+  };
+}
 
 export interface EcMoyenne {
   id: string;
@@ -67,9 +136,8 @@ export function computeBulletin(
     // ne doit plus jamais compter ni rester "en attente" indéfiniment dans son bulletin.
     const ecsUe = ecsAll.filter((ec) => ec.ueId === ue.id && !estEcRetireePourEtudiant(etudiantId, classeId, ec.id));
     const ecs: EcMoyenne[] = ecsUe.map((ec): EcMoyenne => {
-      const cc = getEffectiveNote(etudiantId, classeId, ec.id, "CC")?.note;
-      const ef = getEffectiveNote(etudiantId, classeId, ec.id, "EF")?.note;
-      const { devoir, examen } = getPoidsForClasseEc(classeId, ec.id);
+      const { cc, ef } = resolveEcComposite(etudiantId, classeId, ec.id);
+      const { poidsDevoir: devoir, poidsExamen: examen } = resolvePoidsRoles(classeId, ec.id);
       const poidsCc = (devoir ?? POIDS_CC_DEFAUT) / 100;
       const poidsExamen = (examen ?? POIDS_EXAMEN_DEFAUT) / 100;
       const moyenne = cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;

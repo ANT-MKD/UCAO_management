@@ -2,14 +2,15 @@ import { useState, useCallback } from "react";
 import { Save, Upload, CheckCircle, AlertCircle, TrendingUp, Users, Info } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
-import { saveNotesGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, type GridNoteInput } from "@/data/studentStore";
+import { saveNoteEvaluationGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, getNoteForEvaluation, type EvaluationGridInput } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { updateEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
+import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
+import { updateEvaluation, resolveRoleEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ export default function NotesPage() {
   const CLASSES = useClasses();
   const scolariteConfigs = useScolariteConfigs();
   const evaluations = useEvaluations();
+  const typesEvaluation = useTypesEvaluation();
   usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
 
   const [filiereId, setFiliereId] = useState("");
@@ -93,7 +95,7 @@ export default function NotesPage() {
     return true;
   });
 
-  const noteType: "CC" | "EF" | undefined = evaluationChoisie ? (evaluationChoisie.type === "devoir" ? "CC" : "EF") : undefined;
+  const roleEvaluationChoisie = evaluationChoisie ? resolveRoleEvaluation(evaluationChoisie) : undefined;
   const canShowTable = !!evaluationId;
 
   const getEntry = (id: string): NoteEntry => entries[id] ?? { note: "", absent: false };
@@ -134,8 +136,9 @@ export default function NotesPage() {
   };
   const prefillFromEvaluation = (ev: EvaluationRecord | undefined) => {
     if (!ev) { setEntries({}); return; }
-    const type = ev.type === "devoir" ? "CC" : "EF";
-    const existing = notes.filter((n) => n.classeId === ev.classeId && n.ecId === ev.ecId && n.type === type && n.session === ev.session);
+    // Matché par evaluationId (pas par type+session) : deux évaluations du même rôle (ex. deux
+    // devoirs) ont chacune leurs propres notes, jamais mélangées.
+    const existing = notes.filter((n) => n.evaluationId === ev.id);
     const prefill: Record<string, NoteEntry> = {};
     for (const n of existing) prefill[n.etudiantId] = { note: String(n.note), absent: false };
     setEntries(prefill);
@@ -175,6 +178,7 @@ export default function NotesPage() {
       ecId: evaluationChoisie.ecId,
       type: evaluationChoisie.type,
       poids: evaluationChoisie.poids,
+      typeEvaluationId: evaluationChoisie.typeEvaluationId,
       modifiePar: currentUser?.name ?? "Administration",
       ...patch,
     });
@@ -196,23 +200,18 @@ export default function NotesPage() {
   const nbAdmis = validNotes.filter((n) => n >= 10).length;
   const tauxReussite = nbSaisis > 0 ? Math.round((nbAdmis / nbSaisis) * 100) : null;
 
-  const buildInputs = (): GridNoteInput[] =>
+  const buildInputs = (): EvaluationGridInput[] =>
     classeStudents.map((s) => {
       const e = getEntry(s.id);
       const val = e.note ? parseFloat(e.note) : undefined;
-      return {
-        etudiantId: s.id,
-        cc: evaluationChoisie?.type === "devoir" ? val : undefined,
-        examen: evaluationChoisie?.type === "examen" ? val : undefined,
-        absent: e.absent,
-      };
+      return { etudiantId: s.id, note: val, absent: e.absent };
     });
 
   const handleSave = (publish: boolean) => {
-    if (!classeId || !ecId || !evaluationChoisie) return;
+    if (!classeId || !ecId || !evaluationChoisie || !roleEvaluationChoisie) return;
     const ecLabel = ECS.find((e) => e.id === ecId)?.libelle ?? "";
     try {
-      saveNotesGrid(classeId, ecId, ecLabel, buildInputs(), publish);
+      saveNoteEvaluationGrid(classeId, ecId, ecLabel, evaluationChoisie.id, roleEvaluationChoisie, evaluationChoisie.session, buildInputs(), publish);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -324,11 +323,14 @@ export default function NotesPage() {
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Évaluation *</label>
             <select value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!professeurId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-evaluation">
               <option value="">Sélectionner</option>
-              {evaluationsDuProf.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.type === "devoir" ? "Devoir" : "Examen"} du {new Date(ev.dateCreation).toLocaleDateString("fr-FR")}
-                </option>
-              ))}
+              {evaluationsDuProf.map((ev) => {
+                const typeLabel = ev.typeEvaluationId ? typesEvaluation.find((t) => t.id === ev.typeEvaluationId)?.intitule : undefined;
+                return (
+                  <option key={ev.id} value={ev.id}>
+                    {typeLabel ?? (ev.type === "devoir" ? "Devoir" : "Examen")} du {new Date(ev.dateCreation).toLocaleDateString("fr-FR")}
+                  </option>
+                );
+              })}
             </select>
             {professeurId && evaluationsDuProf.length === 0 && (
               <p className="text-[11px] text-amber-600 mt-1">
@@ -467,7 +469,7 @@ export default function NotesPage() {
                   const hasNote = !isNaN(noteVal) && !entry.absent;
                   const isAdmis = hasNote && noteVal >= 10;
                   const isAjourne = hasNote && noteVal < 10;
-                  const noteExistante = notes.find((n) => n.etudiantId === etu.id && n.classeId === classeId && n.ecId === ecId && n.type === noteType && n.session === evaluationChoisie?.session);
+                  const noteExistante = evaluationChoisie ? getNoteForEvaluation(etu.id, evaluationChoisie.id) : undefined;
                   if (statutFilter && noteExistante?.statut !== statutFilter) return null;
                   const rowBg = entry.absent ? "bg-red-50/40 dark:bg-red-950/20" : isAjourne ? "bg-red-50/30 dark:bg-red-950/10" : "";
 

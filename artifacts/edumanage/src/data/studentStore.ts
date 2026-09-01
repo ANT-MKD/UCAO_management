@@ -197,6 +197,11 @@ export interface NoteRecord {
   /** Note d'examen retentée en session de rattrapage : distincte de l'EF normal (jamais
    * écrasé), mais la plus récente fait foi pour le calcul de la moyenne finale. */
   session?: "rattrapage";
+  /** Évaluation précise (evaluationStore) à laquelle cette note se rattache — optionnel, absent
+   * sur les notes saisies avant l'introduction du Regroupement type de devoir ou via un flux
+   * simplifié (ex. TeacherGradesPage). Indispensable dès qu'un EC a plusieurs évaluations du même
+   * rôle (devoir/examen) : sans lui, deux devoirs distincts s'écraseraient l'un l'autre. */
+  evaluationId?: string;
 }
 
 export type UserRole = "admin" | "teacher" | "student";
@@ -1580,6 +1585,72 @@ export function saveNotesGrid(
           session,
         });
       }
+    }
+  }
+
+  if (publish) {
+    generateRelevesForClasseEc(classeId, ecId);
+  }
+  persist();
+}
+
+/** La note d'un étudiant pour une évaluation précise — contrairement à getEffectiveNote (qui ne
+ * connaît que "CC"/"EF" à plat), celle-ci distingue deux évaluations du même rôle (ex. deux
+ * devoirs) puisqu'elle matche par evaluationId. */
+export function getNoteForEvaluation(etudiantId: string, evaluationId: string): NoteRecord | undefined {
+  return store.notes.find((n) => n.etudiantId === etudiantId && n.evaluationId === evaluationId);
+}
+
+export interface EvaluationGridInput {
+  etudiantId: string;
+  note?: number;
+  absent?: boolean;
+}
+
+/** Sauvegarde les notes d'une évaluation précise (evaluationId), en plus du type CC/EF hérité
+ * (conservé pour l'affichage des pages qui ne connaissent que le rôle, pas l'évaluation exacte).
+ * Contrairement à saveNotesGrid — qui matche par (étudiant, EC, type, session) et donc écrase
+ * toute évaluation existante du même rôle — celle-ci matche par evaluationId : deux devoirs
+ * distincts pour le même EC ne se marchent jamais dessus. */
+export function saveNoteEvaluationGrid(
+  classeId: string,
+  ecId: string,
+  ecLabel: string,
+  evaluationId: string,
+  role: "devoir" | "examen",
+  session: "rattrapage" | undefined,
+  inputs: EvaluationGridInput[],
+  publish: boolean,
+): void {
+  const annee = getAnneeActuelle();
+  assertAnneeModifiable(annee);
+  const type = role === "devoir" ? "CC" : "EF";
+  const statut = publish ? "publie" as const : "brouillon_prof" as const;
+
+  for (const input of inputs) {
+    const etudiant = getEtudiantById(input.etudiantId);
+    if (!etudiant || input.absent || input.note === undefined || Number.isNaN(input.note)) continue;
+
+    const existing = store.notes.find((n) => n.etudiantId === input.etudiantId && n.evaluationId === evaluationId);
+    if (existing) {
+      existing.note = input.note;
+      existing.statut = statut;
+    } else {
+      store.notes.push({
+        id: `no-${input.etudiantId}-${evaluationId}-${Date.now()}`,
+        etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+        etudiantId: etudiant.id,
+        matricule: etudiant.matricule,
+        ec: ecLabel,
+        ecId,
+        type,
+        note: input.note,
+        statut,
+        classeId,
+        annee,
+        session,
+        evaluationId,
+      });
     }
   }
 

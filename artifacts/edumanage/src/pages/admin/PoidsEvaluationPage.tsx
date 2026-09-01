@@ -16,6 +16,7 @@ import {
   getPoidsAutreType,
   type EvaluationRecord,
 } from "@/data/evaluationStore";
+import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export default function PoidsEvaluationPage() {
   const ecs = useEcs();
   const ues = useUes();
   const evaluations = useEvaluations();
+  const typesEvaluation = useTypesEvaluation();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -39,6 +41,7 @@ export default function PoidsEvaluationPage() {
   const [modalEcId, setModalEcId] = useState("");
   const [modalSemestreId, setModalSemestreId] = useState("");
   const [modalType, setModalType] = useState<"" | EvaluationRecord["type"]>("");
+  const [modalTypeEvaluationId, setModalTypeEvaluationId] = useState("");
   const [modalPoids, setModalPoids] = useState<number | "">("");
 
   const professeur = ENSEIGNANTS.find((en) => en.id === professeurId);
@@ -100,13 +103,14 @@ export default function PoidsEvaluationPage() {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setModalEcId(""); setModalSemestreId(""); setModalType(""); setModalPoids("");
+    setModalEcId(""); setModalSemestreId(""); setModalType(""); setModalTypeEvaluationId(""); setModalPoids("");
     setModalOpen(true);
   };
 
   const openEditModal = (ev: EvaluationRecord) => {
     setEditingId(ev.id);
-    setModalEcId(ev.ecId); setModalSemestreId(ev.semestreId); setModalType(ev.type); setModalPoids(ev.poids);
+    setModalEcId(ev.ecId); setModalSemestreId(ev.semestreId); setModalType(ev.type);
+    setModalTypeEvaluationId(ev.typeEvaluationId ?? ""); setModalPoids(ev.poids);
     setModalOpen(true);
   };
 
@@ -129,6 +133,7 @@ export default function PoidsEvaluationPage() {
         semestre: `${semestreObj.nom} (${semestreObj.alias})`,
         ecId: modalEcId,
         type: modalType,
+        typeEvaluationId: modalTypeEvaluationId || undefined,
         poids: Number(modalPoids),
         modifiePar: currentUser?.name ?? "Administration",
       });
@@ -148,6 +153,7 @@ export default function PoidsEvaluationPage() {
         professeurId,
         professeur: professeur ? `${professeur.prenom} ${professeur.nom}` : "",
         type: modalType,
+        typeEvaluationId: modalTypeEvaluationId || undefined,
         poids: Number(modalPoids),
         creePar: currentUser?.name ?? "Administration",
       });
@@ -271,6 +277,7 @@ export default function PoidsEvaluationPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Cours</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Session</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type évaluation</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type devoir</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Poids</th>
                     <th className="px-4 py-3"></th>
                     <th className="px-4 py-3 text-right">
@@ -287,6 +294,9 @@ export default function PoidsEvaluationPage() {
                       <td className="px-4 py-3 text-foreground">{ev.cours}</td>
                       <td className="px-4 py-3 text-muted-foreground">{ev.semestre}</td>
                       <td className="px-4 py-3 text-muted-foreground">{ev.type === "devoir" ? "Devoir" : "Examen"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {ev.typeEvaluationId ? (typesEvaluation.find((t) => t.id === ev.typeEvaluationId)?.intitule ?? "—") : "—"}
+                      </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {ev.modifiePar ? (
                           <span title={`Modifié par ${ev.modifiePar} le ${ev.modifieLe}`} className="border-b border-dashed border-muted-foreground/50 cursor-help">
@@ -370,6 +380,14 @@ export default function PoidsEvaluationPage() {
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">Poids *</label>
                   <input type="number" min={1} max={100} value={modalPoids} onChange={(e) => setModalPoids(e.target.value === "" ? "" : Number(e.target.value))} className={inputClass} data-testid="poids-modal-poids" />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir (optionnel)</label>
+                <select value={modalTypeEvaluationId} onChange={(e) => setModalTypeEvaluationId(e.target.value)} className={inputClass} data-testid="poids-modal-type-devoir">
+                  <option value="">Non précisé</option>
+                  {typesEvaluation.filter((t) => t.actif).map((t) => <option key={t.id} value={t.id}>{t.intitule}</option>)}
+                </select>
               </div>
 
               {totalPoidsModal !== undefined && totalPoidsModal !== 100 && (

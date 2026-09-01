@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Calculator, ListTree, Scale, Award } from "lucide-react";
+import { Pencil, Trash2, Plus, Calculator, ListTree, Scale, Award, Tag, Layers } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { DataTable, Column } from "@/components/admin/DataTable";
@@ -31,6 +31,18 @@ import {
 import { useMentions } from "@/hooks/useMentionsStore";
 import { upsertMention, deleteMention, type MentionRecord, type MentionPayload } from "@/data/mentionsStore";
 
+import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
+import { upsertTypeEvaluation, deleteTypeEvaluation, type TypeEvaluationRecord, type TypeEvaluationPayload } from "@/data/typeEvaluationStore";
+
+import { useRegroupementsDevoir } from "@/hooks/useRegroupementDevoirStore";
+import {
+  upsertRegroupementDevoir,
+  deleteRegroupementDevoir,
+  type RegroupementDevoirRecord,
+  type RegroupementDevoirPayload,
+  type RoleRegroupement,
+} from "@/data/regroupementDevoirStore";
+
 import { FILIERES } from "@/data/mockData";
 
 const inputClass = "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -55,7 +67,11 @@ const TABS = [
   { id: "programme", label: "Méthodes de calcul d'un programme", icon: ListTree },
   { id: "validation", label: "Règles de validation", icon: Scale },
   { id: "mentions", label: "Mentions", icon: Award },
+  { id: "types-evaluation", label: "Types d'évaluation", icon: Tag },
+  { id: "regroupement", label: "Regroupement type de devoir", icon: Layers },
 ] as const;
+
+const ROLE_LABELS: Record<RoleRegroupement, string> = { devoir: "Devoir (CC)", examen: "Examen (EF)" };
 
 type TabId = (typeof TABS)[number]["id"];
 
@@ -102,6 +118,8 @@ export default function ParametrageBulletinPage() {
       {tab === "programme" && <MethodesProgrammeTab auteur={auteur} />}
       {tab === "validation" && <ReglesValidationTab auteur={auteur} />}
       {tab === "mentions" && <MentionsTab />}
+      {tab === "types-evaluation" && <TypesEvaluationTab />}
+      {tab === "regroupement" && <RegroupementDevoirTab />}
     </div>
   );
 }
@@ -520,6 +538,222 @@ function MentionsTab() {
             Tranche active
           </label>
           <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="mention-sauvegarder">
+            Enregistrer
+          </button>
+        </div>
+      </FormModal>
+    </div>
+  );
+}
+
+const EMPTY_TYPE_EVALUATION: TypeEvaluationPayload = { code: "", intitule: "", actif: true };
+
+function TypesEvaluationTab() {
+  const typesEvaluation = useTypesEvaluation();
+  const [editing, setEditing] = useState<TypeEvaluationRecord | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<TypeEvaluationPayload>(EMPTY_TYPE_EVALUATION);
+
+  const openNew = () => { setEditing(null); setForm(EMPTY_TYPE_EVALUATION); setModalOpen(true); };
+  const openEdit = (t: TypeEvaluationRecord) => {
+    setEditing(t);
+    setForm({ code: t.code, intitule: t.intitule, actif: t.actif });
+    setModalOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!form.code.trim() || !form.intitule.trim()) { toast.error("Code et intitulé requis"); return; }
+    upsertTypeEvaluation({ ...form, code: form.code.trim().toUpperCase(), intitule: form.intitule.trim() }, editing?.id);
+    toast.success(`Type d'évaluation enregistré — ${form.intitule}`);
+    setModalOpen(false);
+  };
+
+  const handleDelete = (t: TypeEvaluationRecord) => {
+    if (!confirm(`Supprimer le type d'évaluation "${t.intitule}" ? Les regroupements qui le référencent le perdront.`)) return;
+    deleteTypeEvaluation(t.id);
+    toast.success("Type d'évaluation supprimé");
+  };
+
+  const columns: Column<Record<string, unknown>>[] = [
+    { key: "code", header: "Code", render: (r) => <span className="font-mono text-xs text-muted-foreground">{r.code as string}</span> },
+    { key: "intitule", header: "Intitulé", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.intitule as string}</span> },
+    { key: "actif", header: "Actif", render: (r) => <Badge tone={r.actif ? "emerald" : "red"}>{r.actif ? "Oui" : "Non"}</Badge> },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => {
+        const t = row as unknown as TypeEvaluationRecord;
+        return (
+          <div className="flex items-center gap-1">
+            <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Modifier" data-testid={`type-eval-editer-${t.id}`}>
+              <Pencil size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); handleDelete(t); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer" data-testid={`type-eval-supprimer-${t.id}`}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Catalogue des types d'évaluation qu'un professeur peut choisir dans Nouvelle évaluation ("Type devoir") — Composition, Contrôle continu,
+        Devoir, Examen, Partiel par défaut. Un type n'affecte le calcul que via le Regroupement type de devoir qui le référence.
+      </p>
+      <div className="flex justify-end mb-3">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="type-eval-nouveau">
+          <Plus size={14} /> Nouveau type d'évaluation
+        </button>
+      </div>
+      <DataTable columns={columns} data={typesEvaluation as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher un type..." emptyMessage="Aucun type d'évaluation" />
+
+      <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Modifier — ${editing.intitule}` : "Nouveau type d'évaluation"} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code</label>
+            <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: TP" className={cn(inputClass, "uppercase font-mono")} data-testid="type-eval-code" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
+            <input value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} placeholder="ex: Travaux pratiques" className={inputClass} data-testid="type-eval-intitule" />
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.actif} onChange={(e) => setForm((f) => ({ ...f, actif: e.target.checked }))} className="rounded" data-testid="type-eval-actif" />
+            Type actif (sélectionnable dans Nouvelle évaluation)
+          </label>
+          <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="type-eval-sauvegarder">
+            Enregistrer
+          </button>
+        </div>
+      </FormModal>
+    </div>
+  );
+}
+
+const EMPTY_REGROUPEMENT: RegroupementDevoirPayload = { code: "", intitule: "", role: "devoir", typeEvaluationIds: [] };
+
+function RegroupementDevoirTab() {
+  const regroupements = useRegroupementsDevoir();
+  const typesEvaluation = useTypesEvaluation();
+  const [editing, setEditing] = useState<RegroupementDevoirRecord | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<RegroupementDevoirPayload>(EMPTY_REGROUPEMENT);
+
+  const openNew = () => { setEditing(null); setForm(EMPTY_REGROUPEMENT); setModalOpen(true); };
+  const openEdit = (r: RegroupementDevoirRecord) => {
+    setEditing(r);
+    setForm({ code: r.code, intitule: r.intitule, role: r.role, typeEvaluationIds: [...r.typeEvaluationIds] });
+    setModalOpen(true);
+  };
+
+  const toggleType = (typeId: string) => {
+    setForm((f) => ({
+      ...f,
+      typeEvaluationIds: f.typeEvaluationIds.includes(typeId)
+        ? f.typeEvaluationIds.filter((id) => id !== typeId)
+        : [...f.typeEvaluationIds, typeId],
+    }));
+  };
+
+  const handleSave = () => {
+    if (!form.code.trim() || !form.intitule.trim()) { toast.error("Code et intitulé requis"); return; }
+    if (form.typeEvaluationIds.length === 0) { toast.error("Sélectionnez au moins un type devoir"); return; }
+    upsertRegroupementDevoir({ ...form, code: form.code.trim(), intitule: form.intitule.trim() }, editing?.id);
+    toast.success(`Regroupement enregistré — ${form.intitule}`);
+    setModalOpen(false);
+  };
+
+  const handleDelete = (r: RegroupementDevoirRecord) => {
+    if (!confirm(`Supprimer le regroupement "${r.intitule}" ? Les évaluations de ses types devoir retomberont sur leur type Devoir/Examen brut.`)) return;
+    deleteRegroupementDevoir(r.id);
+    toast.success("Regroupement supprimé");
+  };
+
+  const columns: Column<Record<string, unknown>>[] = [
+    { key: "code", header: "Code", render: (r) => <span className="font-mono text-xs text-muted-foreground">{r.code as string}</span> },
+    { key: "intitule", header: "Intitulé", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.intitule as string}</span> },
+    { key: "role", header: "Rôle", render: (r) => <Badge tone={r.role === "devoir" ? "amber" : "muted"}>{ROLE_LABELS[r.role as RoleRegroupement]}</Badge> },
+    {
+      key: "typeEvaluationIds",
+      header: "Types devoir",
+      render: (row) => {
+        const r = row as unknown as RegroupementDevoirRecord;
+        const labels = r.typeEvaluationIds.map((id) => typesEvaluation.find((t) => t.id === id)?.intitule).filter(Boolean);
+        return <span className="text-xs text-muted-foreground">{labels.length > 0 ? labels.join(", ") : "—"}</span>;
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => {
+        const r = row as unknown as RegroupementDevoirRecord;
+        return (
+          <div className="flex items-center gap-1">
+            <button onClick={(e) => { e.stopPropagation(); openEdit(r); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Modifier" data-testid={`regroupement-editer-${r.id}`}>
+              <Pencil size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); handleDelete(r); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer" data-testid={`regroupement-supprimer-${r.id}`}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Un regroupement rassemble plusieurs types d'évaluation (ex. Contrôle continu + Devoir + Partiel) sous un même rôle CC ou EF — c'est ce qui
+        permet à un EC d'avoir plusieurs devoirs ou plusieurs examens distincts, combinés en une moyenne pondérée par leur poids respectif au lieu
+        de s'écraser les uns les autres.
+      </p>
+      <div className="flex justify-end mb-3">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="regroupement-nouveau">
+          <Plus size={14} /> Nouveau regroupement type de devoir
+        </button>
+      </div>
+      <DataTable columns={columns} data={regroupements as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher un regroupement..." emptyMessage="Aucun regroupement" />
+
+      <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Modifier — ${editing.intitule}` : "Nouveau regroupement type de devoir"} size="sm">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code</label>
+              <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className={cn(inputClass, "font-mono")} data-testid="regroupement-code" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
+              <input value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} className={inputClass} data-testid="regroupement-intitule" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle dans le calcul de l'EC</label>
+            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as RoleRegroupement }))} className={inputClass} data-testid="regroupement-role">
+              {(Object.entries(ROLE_LABELS) as [RoleRegroupement, string][]).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Types devoir *</label>
+            <div className="border border-border rounded-xl divide-y divide-border max-h-56 overflow-y-auto">
+              {typesEvaluation.map((t) => (
+                <label key={t.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={form.typeEvaluationIds.includes(t.id)}
+                    onChange={() => toggleType(t.id)}
+                    className="rounded"
+                    data-testid={`regroupement-type-${t.id}`}
+                  />
+                  {t.intitule}
+                </label>
+              ))}
+            </div>
+          </div>
+          <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="regroupement-sauvegarder">
             Enregistrer
           </button>
         </div>

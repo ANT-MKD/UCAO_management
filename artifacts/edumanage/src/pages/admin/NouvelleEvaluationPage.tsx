@@ -7,6 +7,7 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES, ENSEIGNANTS } from "@
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { createEvaluation, findEvaluationsDoublon, getPoidsAutreType, type EvaluationRecord } from "@/data/evaluationStore";
+import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ export default function NouvelleEvaluationPage() {
   const classes = useClasses();
   const ecs = useEcs();
   const ues = useUes();
+  const typesEvaluation = useTypesEvaluation();
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
@@ -30,6 +32,7 @@ export default function NouvelleEvaluationPage() {
   const [professeurId, setProfesseurId] = useState("");
   const [professeur, setProfesseur] = useState("");
   const [type, setType] = useState<"" | EvaluationRecord["type"]>("");
+  const [typeEvaluationId, setTypeEvaluationId] = useState("");
   const [poids, setPoids] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
 
@@ -53,27 +56,27 @@ export default function NouvelleEvaluationPage() {
   const handleFiliereChange = (value: string) => {
     setFiliereId(value);
     setAnnee(""); setNiveauId(""); setClasseId(""); setSemestreId(""); setEcId("");
-    setProfesseurId(""); setProfesseur(""); setType(""); setPoids("");
+    setProfesseurId(""); setProfesseur(""); setType(""); setTypeEvaluationId(""); setPoids("");
   };
   const handleAnneeChange = (value: string) => {
     setAnnee(value);
     setNiveauId(""); setClasseId(""); setSemestreId(""); setEcId("");
-    setProfesseurId(""); setProfesseur(""); setType(""); setPoids("");
+    setProfesseurId(""); setProfesseur(""); setType(""); setTypeEvaluationId(""); setPoids("");
   };
   const handleNiveauChange = (value: string) => {
     setNiveauId(value);
     setClasseId(""); setSemestreId(""); setEcId("");
-    setProfesseurId(""); setProfesseur(""); setType(""); setPoids("");
+    setProfesseurId(""); setProfesseur(""); setType(""); setTypeEvaluationId(""); setPoids("");
   };
   const handleClasseChange = (value: string) => {
     setClasseId(value);
     setSemestreId(""); setEcId("");
-    setProfesseurId(""); setProfesseur(""); setType(""); setPoids("");
+    setProfesseurId(""); setProfesseur(""); setType(""); setTypeEvaluationId(""); setPoids("");
   };
   const handleSemestreChange = (value: string) => {
     setSemestreId(value);
     setEcId("");
-    setProfesseurId(""); setProfesseur(""); setType(""); setPoids("");
+    setProfesseurId(""); setProfesseur(""); setType(""); setTypeEvaluationId(""); setPoids("");
   };
   const handleCoursChange = (value: string) => {
     setEcId(value);
@@ -87,7 +90,7 @@ export default function NouvelleEvaluationPage() {
       ENSEIGNANTS.find((en) => normalize(`${en.prenom} ${en.nom}`) === normalize(ec?.responsable ?? ""));
     setProfesseurId(enseignant?.id ?? "");
     setProfesseur(enseignant ? `${enseignant.prenom} ${enseignant.nom}` : "");
-    setType(""); setPoids("");
+    setType(""); setTypeEvaluationId(""); setPoids("");
   };
   const handleProfesseurChange = (value: string) => {
     setProfesseurId(value);
@@ -127,6 +130,7 @@ export default function NouvelleEvaluationPage() {
         professeurId: professeurId || undefined,
         professeur: professeur.trim(),
         type,
+        typeEvaluationId: typeEvaluationId || undefined,
         poids: Number(poids),
         creePar: currentUser?.name ?? "Administration",
       });
@@ -230,6 +234,20 @@ export default function NouvelleEvaluationPage() {
 
         {type && (
           <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir (optionnel)</label>
+            <select value={typeEvaluationId} onChange={(e) => setTypeEvaluationId(e.target.value)} className={inputClass} data-testid="eval-type-devoir">
+              <option value="">Non précisé (compte simplement comme {type === "devoir" ? "Devoir" : "Examen"})</option>
+              {typesEvaluation.filter((t) => t.actif).map((t) => <option key={t.id} value={t.id}>{t.intitule}</option>)}
+            </select>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Permet de créer plusieurs {type === "devoir" ? "devoirs" : "examens"} distincts pour ce cours (ex. Contrôle continu + Partiel) — ils se
+              combinent selon le Regroupement type de devoir configuré dans Paramétrage bulletins.
+            </p>
+          </div>
+        )}
+
+        {type && (
+          <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Poids (%) *</label>
             <input
               type="number"
@@ -253,7 +271,9 @@ export default function NouvelleEvaluationPage() {
         {doublons.length > 0 && (
           <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-700 dark:text-amber-300" data-testid="eval-doublon-warning">
             Une évaluation « {type === "devoir" ? "Devoir" : "Examen"} » existe déjà pour ce cours, dans cette classe et cette session
-            (créée le {doublons[0].dateCreation}{doublons[0].creePar ? ` par ${doublons[0].creePar}` : ""}). Vous pouvez tout de même en créer une nouvelle.
+            (créée le {doublons[0].dateCreation}{doublons[0].creePar ? ` par ${doublons[0].creePar}` : ""}). Créer celle-ci en plus est normal si
+            vous voulez plusieurs {type === "devoir" ? "devoirs" : "examens"} distincts (ex. via Type devoir ci-dessus) — sinon, pensez plutôt à
+            modifier l&apos;existante via Mise à jour poids évaluation.
           </div>
         )}
 

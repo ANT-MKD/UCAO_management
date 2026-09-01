@@ -113,6 +113,7 @@ export default function RattrapagePage() {
       ecId: evaluationRattrapage.ecId,
       type: evaluationRattrapage.type,
       poids: evaluationRattrapage.poids,
+      typeEvaluationId: evaluationRattrapage.typeEvaluationId,
       modifiePar: currentUser?.name ?? "Administration",
       ...patch,
     });

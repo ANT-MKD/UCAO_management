@@ -1,6 +1,7 @@
 import { FILIERES, ENSEIGNANTS } from "./mockData";
 import { getEcById } from "./curriculumStore";
 import { getClasseById } from "./structureStore";
+import { getRoleForTypeEvaluation, type RoleRegroupement } from "./regroupementDevoirStore";
 
 export interface EvaluationRecord {
   id: string;
@@ -20,6 +21,11 @@ export interface EvaluationRecord {
   professeur: string;
   type: "devoir" | "examen";
   poids: number;
+  /** Type d'évaluation précis du catalogue (Composition/Contrôle continu/Devoir/Examen/Partiel...)
+   * — optionnel. Quand renseigné, le regroupement type de devoir qui le référence détermine le
+   * rôle réel (devoir/examen) de cette évaluation ; sinon le champ `type` ci-dessus fait foi
+   * (comportement historique, une seule évaluation devoir + une examen par EC). */
+  typeEvaluationId?: string;
   description?: string;
   creePar?: string;
   dateCreation: string;
@@ -122,6 +128,7 @@ export interface EvaluationPayload {
   professeur: string;
   type: EvaluationRecord["type"];
   poids: number;
+  typeEvaluationId?: string;
   creePar?: string;
   session?: "rattrapage";
 }
@@ -157,6 +164,7 @@ export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
     professeur: professeur ? `${professeur.prenom} ${professeur.nom}` : payload.professeur,
     type: payload.type,
     poids: payload.poids,
+    typeEvaluationId: payload.typeEvaluationId,
     creePar: payload.creePar,
     dateCreation: new Date().toISOString().slice(0, 10),
     session: payload.session,
@@ -173,6 +181,7 @@ export interface EvaluationUpdatePayload {
   ecId: string;
   type: EvaluationRecord["type"];
   poids: number;
+  typeEvaluationId?: string;
   modifiePar?: string;
   /** Omis = inchangé. Permet à Saisie des Notes de ne corriger que la date ou la description. */
   dateCreation?: string;
@@ -189,6 +198,7 @@ export function updateEvaluation(id: string, patch: EvaluationUpdatePayload): Ev
   evaluation.cours = ec ? `${ec.code} — ${ec.libelle}` : evaluation.cours;
   evaluation.type = patch.type;
   evaluation.poids = patch.poids;
+  evaluation.typeEvaluationId = patch.typeEvaluationId;
   if (patch.dateCreation !== undefined) evaluation.dateCreation = patch.dateCreation;
   if (patch.description !== undefined) evaluation.description = patch.description;
   evaluation.modifiePar = patch.modifiePar;
@@ -225,4 +235,22 @@ export function getPoidsForClasseEc(classeId: string, ecId: string): { devoir?: 
   const devoir = store.evaluations.find((e) => e.classeId === classeId && e.ecId === ecId && e.type === "devoir")?.poids;
   const examen = store.evaluations.find((e) => e.classeId === classeId && e.ecId === ecId && e.type === "examen")?.poids;
   return { devoir, examen };
+}
+
+/** Toutes les évaluations normales (hors rattrapage) d'un cours pour une classe — contrairement
+ * à getPoidsForClasseEc/getPoidsAutreType qui ne renvoient que la première trouvée, celle-ci
+ * n'en perd aucune : indispensable dès qu'un EC a plusieurs devoirs (Regroupement type de devoir). */
+export function getEvaluationsForClasseEc(classeId: string, ecId: string): EvaluationRecord[] {
+  return store.evaluations.filter((e) => e.classeId === classeId && e.ecId === ecId && e.session === undefined);
+}
+
+/** Rôle réel (devoir/examen, donc CC ou EF) d'une évaluation : si elle porte un type d'évaluation
+ * du catalogue rattaché à un regroupement, ce regroupement fait foi ; sinon le type plat
+ * "devoir"/"examen" saisi à la création (comportement historique, une seule évaluation par côté). */
+export function resolveRoleEvaluation(evaluation: EvaluationRecord): RoleRegroupement {
+  if (evaluation.typeEvaluationId) {
+    const role = getRoleForTypeEvaluation(evaluation.typeEvaluationId);
+    if (role) return role;
+  }
+  return evaluation.type;
 }
