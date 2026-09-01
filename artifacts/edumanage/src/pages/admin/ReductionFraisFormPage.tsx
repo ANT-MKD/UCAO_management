@@ -4,9 +4,8 @@ import { Search, ArrowLeft, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useStudentStore } from "@/hooks/useStudentStore";
+import { useStudentStore, useUserAccounts } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
-import { usePersonnel } from "@/hooks/usePersonnelStore";
 import { useReductionsAutorisees } from "@/hooks/useFinanceSettingsStore";
 import { genererReductionFrais, totalReduitParPersonnelSurPeriode } from "@/data/reductionFraisStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,12 +15,12 @@ export default function ReductionFraisFormPage() {
   const [, setLocation] = useLocation();
   const { currentUser } = useAuth();
   const etudiants = useStudentStore();
-  const personnel = usePersonnel();
+  const personnel = useUserAccounts().filter((u) => u.role !== "student");
   const autorisations = useReductionsAutorisees();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<EtudiantRecord | null>(null);
-  const [personnelId, setPersonnelId] = useState(() => personnel.find((p) => p.email === currentUser?.email)?.id ?? "");
+  const [personnelId, setPersonnelId] = useState(() => currentUser?.id ?? "");
   const [tauxApplique, setTauxApplique] = useState("");
   const [dateOperation] = useState(new Date().toISOString().slice(0, 10));
 
@@ -142,7 +141,7 @@ export default function ReductionFraisFormPage() {
           >
             <option value="">Sélectionner</option>
             {personnel.map((p) => (
-              <option key={p.id} value={p.id}>{p.username} - {p.nom}</option>
+              <option key={p.id} value={p.id}>{p.identifier} - {p.displayName}</option>
             ))}
           </select>
 

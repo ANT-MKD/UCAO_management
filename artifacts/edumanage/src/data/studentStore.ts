@@ -217,6 +217,17 @@ export interface UserAccountRecord {
   identifier: string;
   displayName: string;
   linkedId?: string;
+  /** Descriptif libre du poste (ex. "Secrétariat", "Gestion des professeurs") — affiché comme
+   * "Profile" dans Sécurité → Liste des utilisateurs. N'affecte jamais les permissions réelles,
+   * toujours dérivées de `role` seul. */
+  fonction?: string;
+  telephone?: string;
+  /** Image réelle encodée en base64 (plafonnée), même pattern que publiciteStore — jamais un nom
+   * de fichier muet. */
+  photoDataUrl?: string;
+  /** Blocage individuel de connexion, indépendant du kill-switch par portail (portalAccessStore) —
+   * un compte peut être désactivé seul sans couper l'accès à tout le portail. */
+  actif: boolean;
 }
 
 export interface StudentRequestRecord {
@@ -434,6 +445,8 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       password: "demo123",
       identifier: "ADM-0001",
       displayName: "Ousmane DIALLO",
+      fonction: "Direction",
+      actif: true,
     },
     {
       id: "u-teacher-1",
@@ -443,6 +456,8 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       identifier: "ENS-0001",
       displayName: "Cheikh FALL",
       linkedId: ENSEIGNANTS[0]?.id,
+      fonction: "Gestion des professeurs",
+      actif: true,
     },
   ];
 
@@ -459,6 +474,7 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       identifier: e.matricule,
       displayName: `${e.prenom} ${e.nom}`,
       linkedId: e.id,
+      actif: true,
     });
   }
 
@@ -473,6 +489,7 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       identifier: demoStudent.matricule,
       displayName: `${demoStudent.prenom} ${demoStudent.nom}`,
       linkedId: demoStudent.id,
+      actif: true,
     });
   }
 
@@ -743,6 +760,83 @@ export function updateUserPassword(userId: string, newPassword: string): void {
   persist();
 }
 
+export function getUserAccountById(id: string): UserAccountRecord | undefined {
+  return store.users.find((u) => u.id === id);
+}
+
+export interface CreerCompteStaffPayload {
+  role: "admin" | "teacher";
+  prenom: string;
+  nom: string;
+  identifier: string;
+  email: string;
+  password: string;
+  telephone?: string;
+  fonction?: string;
+  photoDataUrl?: string;
+}
+
+/** Crée un vrai compte de connexion admin/professeur (jamais un étudiant — géré par le parcours
+ * d'inscription). Rejette un identifiant ou un email déjà pris, comme le ferait un vrai système
+ * d'authentification. */
+export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: string): UserAccountRecord {
+  const idLower = payload.identifier.trim().toLowerCase();
+  const emailLower = payload.email.trim().toLowerCase();
+  if (store.users.some((u) => u.identifier.toLowerCase() === idLower)) {
+    throw new Error("Cet identifiant est déjà utilisé par un autre compte.");
+  }
+  if (store.users.some((u) => u.email.toLowerCase() === emailLower)) {
+    throw new Error("Cet email est déjà utilisé par un autre compte.");
+  }
+  const account: UserAccountRecord = {
+    id: `u-staff-${Date.now()}`,
+    role: payload.role,
+    email: payload.email.trim(),
+    password: payload.password,
+    identifier: payload.identifier.trim(),
+    displayName: `${payload.prenom.trim()} ${payload.nom.trim()}`,
+    telephone: payload.telephone?.trim() || undefined,
+    fonction: payload.fonction?.trim() || undefined,
+    photoDataUrl: payload.photoDataUrl,
+    actif: true,
+  };
+  store.users = [...store.users, account];
+  logAudit(creePar, "create_user_account", "user_account", account.id, account.displayName);
+  persist();
+  return account;
+}
+
+/** Blocage/déblocage individuel de connexion — distinct du kill-switch par portail. */
+export function setUserAccountActif(userId: string, actif: boolean, actorUserId: string): void {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) return;
+  user.actif = actif;
+  logAudit(actorUserId, actif ? "activate_user_account" : "deactivate_user_account", "user_account", userId);
+  persist();
+}
+
+export interface UpdateUserAccountInfoPayload {
+  displayName: string;
+  email: string;
+  telephone?: string;
+  fonction?: string;
+  photoDataUrl?: string;
+}
+
+/** Édition volontairement limitée : jamais l'identifiant (déjà communiqué, sert au login) ni le
+ * rôle (changement de portail hors périmètre d'un simple formulaire d'édition). */
+export function updateUserAccountInfo(userId: string, payload: UpdateUserAccountInfoPayload, actorUserId: string): void {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) return;
+  user.displayName = payload.displayName.trim();
+  user.email = payload.email.trim();
+  user.telephone = payload.telephone?.trim() || undefined;
+  user.fonction = payload.fonction?.trim() || undefined;
+  if (payload.photoDataUrl !== undefined) user.photoDataUrl = payload.photoDataUrl || undefined;
+  logAudit(actorUserId, "update_user_account", "user_account", userId);
+  persist();
+}
+
 export function pushNotification(userId: string, message: string) {
   store.notifications.unshift({
     id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -761,7 +855,7 @@ export function pushNotificationEtPersister(userId: string, message: string) {
   persist();
 }
 
-function logAudit(actorUserId: string, action: string, targetType: string, targetId: string, meta?: string) {
+export function logAudit(actorUserId: string, action: string, targetType: string, targetId: string, meta?: string) {
   store.auditLogs.unshift({
     id: `au-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     actorUserId,
@@ -889,15 +983,19 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
   };
 
   store.etudiants.push(etudiant);
-  store.users.push({
-    id: `u-student-${etudiant.id}`,
-    role: "student",
-    email: etudiant.email,
-    password: "demo123",
-    identifier: etudiant.matricule,
-    displayName: `${etudiant.prenom} ${etudiant.nom}`,
-    linkedId: etudiant.id,
-  });
+  store.users = [
+    ...store.users,
+    {
+      id: `u-student-${etudiant.id}`,
+      role: "student",
+      email: etudiant.email,
+      password: "demo123",
+      identifier: etudiant.matricule,
+      displayName: `${etudiant.prenom} ${etudiant.nom}`,
+      linkedId: etudiant.id,
+      actif: true,
+    },
+  ];
   if (payload.classeId) incrementClasseEffectif(payload.classeId, 1);
   store.inscriptions.push({
     id: `ins-${etudiant.id}-${payload.annee}`,

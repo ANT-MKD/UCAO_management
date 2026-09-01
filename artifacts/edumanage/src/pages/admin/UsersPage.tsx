@@ -1,270 +1,243 @@
 import { useState } from "react";
-import { Plus, Edit, Trash2, Shield, User, Eye, EyeOff, CheckCircle, X } from "lucide-react";
+import { useLocation } from "wouter";
+import { Plus, Image as ImageIcon, Eye } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { DataTable, type Column } from "@/components/admin/DataTable";
+import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { usePersonnel } from "@/hooks/usePersonnelStore";
-import { upsertPersonnel, supprimerPersonnel, ROLE_META, STATUT_META, type PersonnelRecord, type PersonnelRole } from "@/data/personnelStore";
+import { useUserAccounts } from "@/hooks/useStudentStore";
+import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
+import { PORTAL_LABELS } from "@/data/portalAccessStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
-type Role = PersonnelRole;
-type UserEntry = PersonnelRecord;
+const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
-function slugifyUsername(nom: string): string {
-  const clean = nom.replace(/^(Pr\.|Dr\.)\s*/i, "").trim();
-  const parts = clean.split(/\s+/);
-  if (parts.length < 2) return clean.toLowerCase();
-  const nomFamille = parts[parts.length - 1].toLowerCase();
-  return `${parts[0][0].toLowerCase()}.${nomFamille}`;
-}
-
-interface FormData {
-  nom: string;
-  email: string;
-  role: Role;
-  motdepasse: string;
-}
+const EMPTY_FORM = {
+  role: "teacher" as "admin" | "teacher",
+  prenom: "",
+  nom: "",
+  identifier: "",
+  email: "",
+  telephone: "",
+  fonction: "",
+  password: "",
+  photoDataUrl: "",
+};
 
 export default function UsersPage() {
-  const users = usePersonnel();
-  const [filterRole, setFilterRole] = useState<Role | "">("");
-  const [filterStatut, setFilterStatut] = useState<"" | "actif" | "inactif" | "suspendu">("");
-  const [showModal, setShowModal] = useState(false);
-  const [editUser, setEditUser] = useState<UserEntry | null>(null);
-  const [showPwd, setShowPwd] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [form, setForm] = useState<FormData>({ nom: "", email: "", role: "enseignant", motdepasse: "" });
+  const { currentUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const comptes = useUserAccounts().filter((c) => c.role !== "student");
+  const [roleFilter, setRoleFilter] = useState<"" | "admin" | "teacher">("");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [error, setError] = useState("");
 
-  const filtered = users.filter((u) =>
-    (!filterRole || u.role === filterRole) &&
-    (!filterStatut || u.statut === filterStatut)
-  );
+  const filtered = roleFilter ? comptes.filter((c) => c.role === roleFilter) : comptes;
 
-  const openNew = () => {
-    setEditUser(null);
-    setForm({ nom: "", email: "", role: "enseignant", motdepasse: "" });
-    setShowModal(true);
+  const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+  const handlePhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
+      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, photoDataUrl: String(reader.result) }));
+    reader.readAsDataURL(file);
   };
 
-  const openEdit = (u: UserEntry) => {
-    setEditUser(u);
-    setForm({ nom: u.nom, email: u.email, role: u.role, motdepasse: "" });
-    setShowModal(true);
-  };
+  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && form.password.trim();
 
   const handleSave = () => {
-    if (!form.nom || !form.email) return;
-    upsertPersonnel({
-      id: editUser?.id,
-      username: editUser?.username ?? slugifyUsername(form.nom),
-      nom: form.nom,
-      email: form.email,
-      role: form.role,
-      statut: editUser?.statut ?? "actif",
-    });
-    setSaved(true);
-    setTimeout(() => { setSaved(false); setShowModal(false); }, 1500);
+    if (!currentUser || !peutSauvegarder) return;
+    setError("");
+    try {
+      creerCompteStaff(
+        {
+          role: form.role,
+          prenom: form.prenom,
+          nom: form.nom,
+          identifier: form.identifier,
+          email: form.email,
+          password: form.password,
+          telephone: form.telephone || undefined,
+          fonction: form.fonction || undefined,
+          photoDataUrl: form.photoDataUrl || undefined,
+        },
+        currentUser.id,
+      );
+      toast.success("Utilisateur créé.");
+      setForm(EMPTY_FORM);
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Création impossible");
+    }
   };
 
-  const handleDelete = () => {
-    if (deleteTarget) { supprimerPersonnel(deleteTarget); setDeleteTarget(null); }
-  };
-
-  const roleStats = Object.entries(ROLE_META).map(([key, meta]) => ({
-    role: key as Role,
-    ...meta,
-    count: users.filter((u) => u.role === key).length,
-  }));
+  const columns: Column<Record<string, unknown>>[] = [
+    {
+      key: "displayName",
+      header: "Utilisateur",
+      sortable: true,
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        return (
+          <div className="flex items-center gap-2.5">
+            {c.photoDataUrl ? (
+              <img src={c.photoDataUrl} alt={c.displayName} className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <UserAvatar name={c.displayName} size="sm" />
+            )}
+            <span className="font-medium text-foreground">{c.displayName}</span>
+          </div>
+        );
+      },
+    },
+    { key: "identifier", header: "Identifiant", sortable: true, render: (row) => <span className="font-mono text-xs">{(row as unknown as UserAccountRecord).identifier}</span> },
+    {
+      key: "profil",
+      header: "Profil",
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        return (
+          <div>
+            <div className="text-sm">{PORTAL_LABELS[c.role]}</div>
+            {c.fonction && <div className="text-[11px] text-muted-foreground">{c.fonction}</div>}
+          </div>
+        );
+      },
+    },
+    { key: "email", header: "Email", sortable: true },
+    { key: "telephone", header: "Téléphone", render: (row) => (row as unknown as UserAccountRecord).telephone ?? "—" },
+    {
+      key: "actif",
+      header: "Statut",
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        const actif = c.actif !== false;
+        return (
+          <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", actif ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300")}>
+            {actif ? "Actif" : "Désactivé"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right",
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setLocation(`/admin/users/${c.id}`); }}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary"
+            title="Voir la fiche"
+            data-testid={`user-voir-${c.id}`}
+          >
+            <Eye size={14} />
+          </button>
+        );
+      },
+    },
+  ];
 
   return (
     <div>
       <PageHeader
-        breadcrumb={[{ label: "Admin" }, { label: "Paramètres" }, { label: "Comptes & Rôles" }]}
-        title="Comptes & Rôles"
-        subtitle="Gestion des accès utilisateurs — permissions par rôle, création et suspension de comptes"
+        breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Les utilisateurs" }]}
+        title="Les utilisateurs"
+        subtitle="Comptes réels d'administration et de professeurs — les étudiants sont gérés via l'inscription"
         actions={
-          <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus size={14} /> Nouveau compte
+          <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="user-ajouter">
+            <Plus size={14} /> Ajouter
           </button>
         }
       />
 
-      {/* Role stats */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-        {roleStats.map((r) => (
-          <button
-            key={r.role}
-            onClick={() => setFilterRole(filterRole === r.role ? "" : r.role)}
-            className={cn(
-              "bg-card border rounded-xl p-3 text-center transition-all hover:shadow-md",
-              filterRole === r.role ? "border-primary ring-1 ring-primary/20" : "border-border hover:border-primary/30"
-            )}
-            style={{ boxShadow: "var(--shadow-sm)" }}
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: r.bg }}>
-              <Shield size={14} style={{ color: r.color }} />
-            </div>
-            <div className="text-xl font-bold text-foreground">{r.count}</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">{r.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
-        <select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value as typeof filterStatut)} className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-          <option value="">Tous les statuts</option>
-          <option value="actif">Actif</option>
-          <option value="inactif">Inactif</option>
-          <option value="suspendu">Suspendu</option>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="user-filtre-profil">
+          <option value="">Tous les profils</option>
+          <option value="admin">{PORTAL_LABELS.admin}</option>
+          <option value="teacher">{PORTAL_LABELS.teacher}</option>
         </select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} compte(s)</span>
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              {["Utilisateur", "Email", "Rôle", "Statut", "Dernière connexion", "Actions"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u) => {
-              const role = ROLE_META[u.role];
-              const statut = STATUT_META[u.statut];
-              return (
-                <tr key={u.id} className="border-b border-border/60 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <UserAvatar name={u.nom} size="sm" />
-                      <span className="font-medium text-foreground">{u.nom}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", role.cls)}>{role.label}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", statut.cls)}>{statut.label}</span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{u.derniereConnexion}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(u)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" title="Modifier">
-                        <Edit size={13} />
-                      </button>
-                      {u.role !== "superadmin" && (
-                        <button onClick={() => setDeleteTarget(u.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer">
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filtered as unknown as Record<string, unknown>[]}
+        searchable
+        searchPlaceholder="Nom, identifiant, email..."
+        onRowClick={(row) => setLocation(`/admin/users/${(row as unknown as UserAccountRecord).id}`)}
+        emptyMessage="Aucun utilisateur."
+      />
 
-      {/* Permissions matrix */}
-      <div className="bg-card border border-border rounded-xl p-5 mt-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <h3 className="font-bold text-foreground mb-4">Matrice des Permissions</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 font-semibold text-muted-foreground">Module</th>
-                {Object.entries(ROLE_META).map(([r, m]) => (
-                  <th key={r} className="text-center py-2 px-2 font-semibold text-muted-foreground">{m.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { module: "Dashboard", perms: [true, true, true, true, false, false] },
-                { module: "Gestion étudiants", perms: [true, true, true, true, false, false] },
-                { module: "Gestion enseignants", perms: [true, true, true, false, false, false] },
-                { module: "Saisie des notes", perms: [true, true, false, false, false, true] },
-                { module: "Délibérations", perms: [true, true, true, false, false, false] },
-                { module: "Finances", perms: [true, true, false, false, true, false] },
-                { module: "Planning", perms: [true, true, false, true, false, true] },
-                { module: "Paramètres", perms: [true, false, false, false, false, false] },
-              ].map((row) => (
-                <tr key={row.module} className="border-b border-border/60 hover:bg-muted/20">
-                  <td className="py-2.5 pr-4 font-medium text-foreground">{row.module}</td>
-                  {row.perms.map((has, i) => (
-                    <td key={i} className="text-center py-2.5 px-2">
-                      {has ? (
-                        <CheckCircle size={14} className="mx-auto text-emerald-500" />
-                      ) : (
-                        <X size={14} className="mx-auto text-muted-foreground/30" />
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Create/Edit modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground mb-5">{editUser ? "Modifier le compte" : "Créer un nouveau compte"}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
-                <input value={form.nom} onChange={(e) => setForm(p => ({ ...p, nom: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Prénom NOM" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
-                <input type="email" value={form.email} onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="email@edumanage.com" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle *</label>
-                <select value={form.role} onChange={(e) => setForm(p => ({ ...p, role: e.target.value as Role }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  {Object.entries(ROLE_META).filter(([r]) => r !== "superadmin").map(([r, m]) => <option key={r} value={r}>{m.label} — {m.desc}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{editUser ? "Nouveau mot de passe (laisser vide = inchangé)" : "Mot de passe *"}</label>
-                <div className="relative">
-                  <input type={showPwd ? "text" : "password"} value={form.motdepasse} onChange={(e) => setForm(p => ({ ...p, motdepasse: e.target.value }))} className="w-full px-3 py-2.5 pr-10 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="••••••••" />
-                  <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
+      <FormModal open={open} onClose={() => setOpen(false)} title="Nouvel utilisateur" size="md">
+        <div className="space-y-3">
+          <div>
+            <label className="inline-flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
+              <ImageIcon size={13} />
+              Choisir une photo
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="user-photo-input" />
+            </label>
+            {form.photoDataUrl && (
+              <img src={form.photoDataUrl} alt="Aperçu" className="mt-2 w-16 h-16 rounded-full object-cover border border-border" data-testid="user-photo-apercu" />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
+              <input value={form.prenom} onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))} className={inputClass} data-testid="user-prenom" />
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
-              <button onClick={handleSave} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-                {saved ? <><CheckCircle size={14} /> Enregistré</> : <>{editUser ? "Enregistrer" : "Créer le compte"}</>}
-              </button>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+              <input value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={inputClass} data-testid="user-nom" />
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Delete confirm */}
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-foreground mb-2">Supprimer ce compte ?</h3>
-            <p className="text-sm text-muted-foreground mb-5">Cette action est irréversible. L'utilisateur perdra immédiatement son accès.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
-              <button onClick={handleDelete} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors">Supprimer</button>
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Profil *</label>
+            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as "admin" | "teacher" }))} className={inputClass} data-testid="user-role">
+              <option value="teacher">{PORTAL_LABELS.teacher}</option>
+              <option value="admin">{PORTAL_LABELS.admin}</option>
+            </select>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Identifiant *</label>
+            <input value={form.identifier} onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))} placeholder="ex: ENS-0042" className={inputClass} data-testid="user-identifiant" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
+            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="nom@edumanage.com" className={inputClass} data-testid="user-email" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} className={inputClass} data-testid="user-telephone" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
+            <input value={form.fonction} onChange={(e) => setForm((f) => ({ ...f, fonction: e.target.value }))} placeholder="ex: Secrétariat, Gestion des professeurs..." className={inputClass} data-testid="user-fonction" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>
+            <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Communicable via Envoi identifiant" className={inputClass} data-testid="user-password" />
+          </div>
+
+          {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}
+
+          <button
+            onClick={handleSave}
+            disabled={!peutSauvegarder}
+            className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
+            data-testid="user-sauvegarder"
+          >
+            Sauvegarder
+          </button>
         </div>
-      )}
+      </FormModal>
     </div>
   );
 }

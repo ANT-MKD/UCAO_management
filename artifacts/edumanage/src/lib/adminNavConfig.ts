@@ -300,7 +300,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     icon: Shield,
     children: [
       { id: "sec-users", label: "Liste des utilisateurs", href: "/admin/users" },
-      { id: "sec-user-add", label: "Ajouter nouvel utilisateur", href: wipHref("sec-user-add") },
+      { id: "sec-user-add", label: "Ajouter nouvel utilisateur", href: "/admin/users" },
       { id: "sec-roles", label: "Gestion des rôles", href: "/admin/users" },
       { id: "sec-droits", label: "Droit accès", href: wipHref("sec-droits") },
       { id: "sec-envoi-identifiant", label: "Envoi identifiant", href: "/admin/security/envoi-identifiant" },

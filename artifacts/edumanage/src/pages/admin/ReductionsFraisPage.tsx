@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
-import { usePersonnel } from "@/hooks/usePersonnelStore";
+import { useStudentStore, useUserAccounts } from "@/hooks/useStudentStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
 
 interface ColFilters {
@@ -34,7 +33,7 @@ export default function ReductionsFraisPage() {
   const [, setLocation] = useLocation();
   const reductions = useReductionsFrais();
   const etudiants = useStudentStore();
-  const personnel = usePersonnel();
+  const personnel = useUserAccounts().filter((u) => u.role !== "student");
 
   const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -57,7 +56,7 @@ export default function ReductionsFraisPage() {
 
   const personnelLabel = (id: string) => {
     const p = personnel.find((u) => u.id === id);
-    return p ? `${p.username} - ${p.nom}` : "—";
+    return p ? `${p.identifier} - ${p.displayName}` : "—";
   };
 
   const filtered = useMemo(() => {

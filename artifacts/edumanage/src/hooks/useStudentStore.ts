@@ -14,6 +14,7 @@ import {
   getSeances,
   getReleves,
   getUserAccounts,
+  getUserAccountById,
   getStudentRequests,
   getMessages,
   getNotifications,
@@ -90,6 +91,11 @@ export function useReleves() {
 export function useUserAccounts() {
   useSyncExternalStore(subscribe, getUserAccounts, getUserAccounts);
   return getUserAccounts();
+}
+
+export function useUserAccount(id: string) {
+  useSyncExternalStore(subscribe, () => getUserAccountById(id), () => getUserAccountById(id));
+  return getUserAccountById(id);
 }
 
 export function useStudentRequests() {

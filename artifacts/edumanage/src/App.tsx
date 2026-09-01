@@ -47,6 +47,7 @@ const AnneesAcademiquesPage = lazy(() => import("@/pages/admin/AnneesAcademiques
 // Reporting & finances
 const AttestationsPage = lazy(() => import("@/pages/admin/AttestationsPage"));
 const UsersPage = lazy(() => import("@/pages/admin/UsersPage"));
+const UserDetailPage = lazy(() => import("@/pages/admin/UserDetailPage"));
 
 // Étudiants
 const StudentsPage = lazy(() => import("@/pages/admin/StudentsPage"));
@@ -650,6 +651,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/users">
         <Admin><UsersPage /></Admin>
+      </Route>
+      <Route path="/admin/users/:id">
+        {(p) => <Admin><UserDetailPage id={p.id} /></Admin>}
       </Route>
       <Route path="/admin/students">
         <Admin><StudentsPage /></Admin>

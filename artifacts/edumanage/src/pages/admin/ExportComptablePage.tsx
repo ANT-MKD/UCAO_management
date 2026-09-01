@@ -11,8 +11,7 @@ import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { useFacturesAutreService } from "@/hooks/useFactureAutreServiceStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
-import { usePersonnel } from "@/hooks/usePersonnelStore";
+import { useStudentStore, useUserAccounts } from "@/hooks/useStudentStore";
 import { useExportsComptables } from "@/hooks/useExportComptableStore";
 import { enregistrerExportComptable, trouverExportIdentique, type ExportComptableRecord } from "@/data/exportComptableStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,7 +46,7 @@ export default function ExportComptablePage() {
   const prisesEnCharge = usePrisesEnCharge();
   const facturesAutresServices = useFacturesAutreService();
   const etudiants = useStudentStore();
-  const personnel = usePersonnel();
+  const personnel = useUserAccounts().filter((u) => u.role !== "student");
   const exports = useExportsComptables();
 
   const [periodeDebut, setPeriodeDebut] = useState(todayMinus(30));
@@ -61,7 +60,7 @@ export default function ExportComptablePage() {
   };
   const personnelLabel = (id: string) => {
     const p = personnel.find((u) => u.id === id);
-    return p ? `${p.username} - ${p.nom}` : "—";
+    return p ? `${p.identifier} - ${p.displayName}` : "—";
   };
 
   const toggleCategorie = (cat: CategorieExport) => {

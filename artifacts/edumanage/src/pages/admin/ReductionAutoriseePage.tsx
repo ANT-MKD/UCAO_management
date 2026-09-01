@@ -7,7 +7,7 @@ import { FormModal } from "@/components/admin/FormModal";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { useReductionsAutorisees } from "@/hooks/useFinanceSettingsStore";
 import { reductionAutoriseeStore, type ReductionAutoriseeRecord } from "@/data/financeSettingsStore";
-import { usePersonnel } from "@/hooks/usePersonnelStore";
+import { useUserAccounts } from "@/hooks/useStudentStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
 import { totalReduitParPersonnelSurPeriode } from "@/data/reductionFraisStore";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
@@ -39,7 +39,7 @@ const EMPTY_FORM: FormState = { personnelId: "", tauxMax: "", montantPlafond: ""
 
 export default function ReductionAutoriseePage() {
   const reductions = useReductionsAutorisees();
-  const personnel = usePersonnel();
+  const personnel = useUserAccounts().filter((u) => u.role !== "student");
   useReductionsFrais(); // s'abonne pour recalculer le plafond utilisé quand une réduction est accordée/annulée
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,7 +49,7 @@ export default function ReductionAutoriseePage() {
 
   const personnelLabel = (id: string) => {
     const p = personnel.find((u) => u.id === id);
-    return p ? `${p.username} - ${p.nom}` : "—";
+    return p ? `${p.identifier} - ${p.displayName}` : "—";
   };
 
   const openNew = () => {
@@ -277,7 +277,7 @@ export default function ReductionAutoriseePage() {
             >
               <option value="">Sélectionner</option>
               {personnel.map((p) => (
-                <option key={p.id} value={p.id}>{p.username} - {p.nom}</option>
+                <option key={p.id} value={p.id}>{p.identifier} - {p.displayName}</option>
               ))}
             </select>
           </div>

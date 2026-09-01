@@ -5,15 +5,14 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
 import { annulerReductionFrais } from "@/data/reductionFraisStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
-import { usePersonnel } from "@/hooks/usePersonnelStore";
+import { useStudentStore, useUserAccounts } from "@/hooks/useStudentStore";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 export default function ReductionFraisDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const reductions = useReductionsFrais();
   const etudiants = useStudentStore();
-  const personnel = usePersonnel();
+  const personnel = useUserAccounts().filter((u) => u.role !== "student");
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const record = reductions.find((r) => r.id === id);
@@ -77,7 +76,7 @@ export default function ReductionFraisDetailPage({ id }: { id: string }) {
         <div className="bg-card border border-border rounded-xl p-6 grid grid-cols-2 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
             <p className="text-xs text-muted-foreground mb-1">Émise par</p>
-            <p className="text-sm font-medium text-foreground">{emetteur ? `${emetteur.username} - ${emetteur.nom}` : "—"}</p>
+            <p className="text-sm font-medium text-foreground">{emetteur ? `${emetteur.identifier} - ${emetteur.displayName}` : "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1">Taux appliqué</p>
@@ -107,7 +106,7 @@ export default function ReductionFraisDetailPage({ id }: { id: string }) {
               <Ban size={16} className="text-red-600" /> Annuler la réduction {record.reference} ?
             </h2>
             <p className="text-xs text-muted-foreground mb-4">
-              Le montant de {formatCFA(record.totalReduit)} sera restauré sur le solde dû de l&apos;étudiant, et le plafond de {emetteur?.nom ?? "cette personne"} sera libéré d&apos;autant.
+              Le montant de {formatCFA(record.totalReduit)} sera restauré sur le solde dû de l&apos;étudiant, et le plafond de {emetteur?.displayName ?? "cette personne"} sera libéré d&apos;autant.
             </p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setConfirmCancel(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">

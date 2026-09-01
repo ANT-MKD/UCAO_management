@@ -52,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!isPortalActif(account.role)) {
       throw new Error(`Le portail ${PORTAL_LABELS[account.role]} est actuellement désactivé (Sécurité → Portails). Contactez l'administration.`);
     }
+    if (account.actif === false) {
+      throw new Error("Ce compte a été désactivé (Sécurité → Liste des utilisateurs). Contactez l'administration.");
+    }
     const user: User = {
       id: account.id,
       name: account.displayName,
