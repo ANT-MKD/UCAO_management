@@ -1,5 +1,6 @@
 import { computeBulletin } from "./bulletinEngine";
 import { upsertReleve } from "./studentStore";
+import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
 
 const STORAGE_KEY = "edumanage-bulletin-generation-store-v1";
 
@@ -7,9 +8,12 @@ export interface EtudiantConcerneGeneration {
   etudiantId: string;
   etudiant: string;
   matricule: string;
-  statut: "succes" | "echec";
+  statut: "succes" | "echec" | "a_declasser";
   motifEchec?: string;
-  /** Relevé réellement créé/mis à jour pour cet étudiant — absent si échec. */
+  /** Détail des EC/type d'évaluation insuffisamment notés — présent uniquement si statut est "a_declasser". */
+  raisonsDeclassement?: RaisonDeclassement[];
+  /** Relevé réellement créé/mis à jour pour cet étudiant — absent si échec ou à déclasser : un
+   * bulletin officiel n'est jamais émis pour un étudiant insuffisamment noté. */
   releveId?: string;
 }
 
@@ -30,6 +34,7 @@ export interface BulletinGenerationRecord {
   statut: "succes" | "echec" | "partiel";
   nbSucces: number;
   nbEchec: number;
+  nbDeclasses: number;
   etudiantsConcernes: EtudiantConcerneGeneration[];
 }
 
@@ -108,12 +113,26 @@ export interface CreerGenerationInput {
   effectuePar: string;
 }
 
-/** Lance une génération réelle : appelle computeBulletin() pour chaque étudiant sélectionné —
+/** Lance une génération réelle : vérifie d'abord le déclassement (assez de notes du bon type pour
+ * chaque EC, Paramétrage bulletins) puis appelle computeBulletin() pour chaque étudiant restant —
  * jamais de succès/échec fabriqué — et crée/actualise le relevé de chacun (upsertReleve, un seul
- * par étudiant et par semestre). Échec = moyenneSession indéfinie (notes manquantes pour cette
- * session), exactement le même critère que resolveBulletin() dans Relevés & Bulletins. */
+ * par étudiant et par semestre). Un étudiant à déclasser ou en échec n'obtient jamais de relevé
+ * officiel. Échec = moyenneSession indéfinie (notes manquantes pour cette session), exactement le
+ * même critère que resolveBulletin() dans Relevés & Bulletins. */
 export function creerGeneration(input: CreerGenerationInput): BulletinGenerationRecord {
   const etudiantsConcernes: EtudiantConcerneGeneration[] = input.etudiants.map((e) => {
+    const declassement = detecterDeclassementEtudiant(e.id, e.classeId, input.filiereId, input.niveauAlias, input.annee, input.semestreAlias);
+    if (declassement) {
+      return {
+        etudiantId: e.id,
+        etudiant: `${e.prenom} ${e.nom}`,
+        matricule: e.matricule,
+        statut: "a_declasser" as const,
+        motifEchec: "Nombre de notes insuffisant pour un ou plusieurs éléments constitutifs",
+        raisonsDeclassement: declassement.raisons,
+      };
+    }
+
     const bulletin = computeBulletin(e.id, e.classeId, input.filiereId, input.niveauAlias, input.semestreAlias);
     const succes = bulletin.moyenneSession !== undefined;
     let releveId: string | undefined;
@@ -134,15 +153,16 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
       etudiantId: e.id,
       etudiant: `${e.prenom} ${e.nom}`,
       matricule: e.matricule,
-      statut: succes ? "succes" : "echec",
+      statut: succes ? ("succes" as const) : ("echec" as const),
       motifEchec: succes ? undefined : "Notes insuffisantes pour cette session",
       releveId,
     };
   });
 
   const nbSucces = etudiantsConcernes.filter((e) => e.statut === "succes").length;
-  const nbEchec = etudiantsConcernes.length - nbSucces;
-  const statut: BulletinGenerationRecord["statut"] = nbEchec === 0 ? "succes" : nbSucces === 0 ? "echec" : "partiel";
+  const nbDeclasses = etudiantsConcernes.filter((e) => e.statut === "a_declasser").length;
+  const nbEchec = etudiantsConcernes.length - nbSucces - nbDeclasses;
+  const statut: BulletinGenerationRecord["statut"] = nbEchec + nbDeclasses === 0 ? "succes" : nbSucces === 0 ? "echec" : "partiel";
 
   const record: BulletinGenerationRecord = {
     id: `gen-${Date.now()}`,
@@ -161,6 +181,7 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
     statut,
     nbSucces,
     nbEchec,
+    nbDeclasses,
     etudiantsConcernes,
   };
   store.generations.unshift(record);

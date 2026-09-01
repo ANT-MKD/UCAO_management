@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import {
-  Scale, CheckCircle2, XCircle, AlertTriangle, Ban,
+  Scale, CheckCircle2, XCircle, AlertTriangle, Ban, AlertOctagon,
   Lock, Unlock, Printer, Users, TrendingUp, Plus, ArrowLeft, Eye, X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ const DECISION_CONFIG: Record<DecisionJury, { label: string; color: string; bg: 
   ajourne: { label: "Ajourné", color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/50", icon: XCircle, border: "border-red-200 dark:border-red-800" },
   rattrapage: { label: "Rattrapage", color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/50", icon: AlertTriangle, border: "border-amber-200 dark:border-amber-800" },
   exclu: { label: "Exclu", color: "text-zinc-700 dark:text-zinc-400", bg: "bg-zinc-100 dark:bg-zinc-900/50", icon: Ban, border: "border-zinc-300 dark:border-zinc-700" },
+  a_declasser: { label: "À déclasser", color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/50", icon: AlertOctagon, border: "border-purple-200 dark:border-purple-800" },
 };
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -377,6 +378,7 @@ function DetailDeliberation({
     ajourne: deliberation.lignes.filter((l) => l.decisionFinale === "ajourne").length,
     rattrapage: deliberation.lignes.filter((l) => l.decisionFinale === "rattrapage").length,
     exclu: deliberation.lignes.filter((l) => l.decisionFinale === "exclu").length,
+    aDeclasser: deliberation.lignes.filter((l) => l.decisionFinale === "a_declasser").length,
   };
   const tauxReussite = stats.total > 0 ? Math.round((stats.admis / stats.total) * 100) : 0;
   const moyGeneral = stats.total > 0 ? (deliberation.lignes.reduce((s, l) => s + l.moyenne, 0) / stats.total).toFixed(2) : "—";
@@ -424,6 +426,7 @@ function DetailDeliberation({
           { label: "Rattrapage", value: stats.rattrapage, icon: AlertTriangle, color: "#f59e0b" },
           { label: "Ajournés", value: stats.ajourne, icon: XCircle, color: "#ef4444" },
           { label: "Exclus", value: stats.exclu, icon: Ban, color: "#71717a" },
+          { label: "À déclasser", value: stats.aDeclasser, icon: AlertOctagon, color: "#9333ea" },
           { label: "Taux réussite", value: `${tauxReussite}%`, icon: TrendingUp, color: "#4f46e5" },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -504,7 +507,13 @@ function DetailDeliberation({
                           disabled={cloture}
                           className={cn("inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border mx-auto", cfg.bg, cfg.color, cfg.border, cloture ? "cursor-default" : "cursor-pointer hover:opacity-80")}
                           data-testid={`deliberation-badge-${l.etudiantId}`}
-                          title={overridden ? `Modifié par ${l.overrideModifiePar ?? auteur}${l.overrideRaison ? " — " + l.overrideRaison : ""} (auto : ${DECISION_CONFIG[l.decisionAuto].label})` : undefined}
+                          title={
+                            overridden
+                              ? `Modifié par ${l.overrideModifiePar ?? auteur}${l.overrideRaison ? " — " + l.overrideRaison : ""} (auto : ${DECISION_CONFIG[l.decisionAuto].label})`
+                              : l.raisonsDeclassement && l.raisonsDeclassement.length > 0
+                                ? l.raisonsDeclassement.map((r) => `${r.ecLibelle} — ${r.typeEvaluationLabel} : ${r.nbNotesReelles}/${r.nbNotesRequis} note(s)`).join(" · ")
+                                : undefined
+                          }
                         >
                           <cfg.icon size={12} />
                           {cfg.label}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Calculator, ListTree, Scale, Award, Tag, Layers } from "lucide-react";
+import { Pencil, Trash2, Plus, Calculator, ListTree, Scale, Award, Tag, Layers, UserX } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { DataTable, Column } from "@/components/admin/DataTable";
@@ -43,7 +43,16 @@ import {
   type RoleRegroupement,
 } from "@/data/regroupementDevoirStore";
 
-import { FILIERES } from "@/data/mockData";
+import { useDeclassementParametres } from "@/hooks/useDeclassementParametreStore";
+import {
+  upsertDeclassementParametre,
+  deleteDeclassementParametre,
+  type DeclassementParametreRecord,
+  type DeclassementParametrePayload,
+} from "@/data/declassementParametreStore";
+
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 
 const inputClass = "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -69,6 +78,7 @@ const TABS = [
   { id: "mentions", label: "Mentions", icon: Award },
   { id: "types-evaluation", label: "Types d'évaluation", icon: Tag },
   { id: "regroupement", label: "Regroupement type de devoir", icon: Layers },
+  { id: "declassement", label: "Paramètres de déclassement", icon: UserX },
 ] as const;
 
 const ROLE_LABELS: Record<RoleRegroupement, string> = { devoir: "Devoir (CC)", examen: "Examen (EF)" };
@@ -120,6 +130,7 @@ export default function ParametrageBulletinPage() {
       {tab === "mentions" && <MentionsTab />}
       {tab === "types-evaluation" && <TypesEvaluationTab />}
       {tab === "regroupement" && <RegroupementDevoirTab />}
+      {tab === "declassement" && <DeclassementParametreTab />}
     </div>
   );
 }
@@ -755,6 +766,141 @@ function RegroupementDevoirTab() {
           </div>
           <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="regroupement-sauvegarder">
             Enregistrer
+          </button>
+        </div>
+      </FormModal>
+    </div>
+  );
+}
+
+const EMPTY_DECLASSEMENT: DeclassementParametrePayload = {
+  filiereId: "", filiere: "", annee: "", niveau: "", niveauLabel: "", typeEvaluationId: "", typeEvaluationLabel: "", nbNotesRequis: 1,
+};
+
+function DeclassementParametreTab() {
+  const parametres = useDeclassementParametres();
+  const typesEvaluation = useTypesEvaluation();
+  const annees = useAnneesAcademiques();
+  const [editing, setEditing] = useState<DeclassementParametreRecord | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<DeclassementParametrePayload>(EMPTY_DECLASSEMENT);
+
+  const niveauxDisponibles = NIVEAUX.filter((n) => n.filiereId === form.filiereId);
+
+  const openNew = () => { setEditing(null); setForm(EMPTY_DECLASSEMENT); setModalOpen(true); };
+  const openEdit = (p: DeclassementParametreRecord) => {
+    setEditing(p);
+    setForm({ filiereId: p.filiereId, filiere: p.filiere, annee: p.annee, niveau: p.niveau, niveauLabel: p.niveauLabel, typeEvaluationId: p.typeEvaluationId, typeEvaluationLabel: p.typeEvaluationLabel, nbNotesRequis: p.nbNotesRequis });
+    setModalOpen(true);
+  };
+
+  const handleFiliereChange = (filiereId: string) => {
+    const f = FILIERES.find((x) => x.id === filiereId);
+    setForm((prev) => ({ ...prev, filiereId, filiere: f ? `${f.nom} — ${f.code}` : "", niveau: "", niveauLabel: "" }));
+  };
+  const handleNiveauChange = (niveauId: string) => {
+    const n = NIVEAUX.find((x) => x.id === niveauId);
+    setForm((prev) => ({ ...prev, niveau: n?.alias ?? "", niveauLabel: n?.nom ?? "" }));
+  };
+  const handleTypeChange = (typeId: string) => {
+    const t = typesEvaluation.find((x) => x.id === typeId);
+    setForm((prev) => ({ ...prev, typeEvaluationId: typeId, typeEvaluationLabel: t?.intitule ?? "" }));
+  };
+
+  const handleSave = () => {
+    if (!form.filiereId || !form.annee || !form.niveau || !form.typeEvaluationId || form.nbNotesRequis < 1) {
+      toast.error("Tous les champs sont requis (nombre de notes requis ≥ 1)");
+      return;
+    }
+    upsertDeclassementParametre(form, editing?.id);
+    toast.success(`Paramètre de déclassement enregistré — ${form.filiere}`);
+    setModalOpen(false);
+  };
+
+  const handleDelete = (p: DeclassementParametreRecord) => {
+    if (!confirm(`Supprimer ce paramètre de déclassement (${p.filiere} — ${p.typeEvaluationLabel}) ?`)) return;
+    deleteDeclassementParametre(p.id);
+    toast.success("Paramètre supprimé");
+  };
+
+  const columns: Column<Record<string, unknown>>[] = [
+    { key: "filiere", header: "Programme", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.filiere as string}</span> },
+    { key: "niveauLabel", header: "Niveau", render: (r) => <span>{r.niveauLabel as string}</span> },
+    { key: "annee", header: "Année scolaire", render: (r) => <span>{r.annee as string}</span> },
+    { key: "typeEvaluationLabel", header: "Type devoir", render: (r) => <Badge tone="amber">{r.typeEvaluationLabel as string}</Badge> },
+    { key: "nbNotesRequis", header: "Nbre notes requis", render: (r) => <span className="font-semibold text-foreground">{r.nbNotesRequis as number}</span> },
+    {
+      key: "actions", header: "",
+      render: (row) => {
+        const p = row as unknown as DeclassementParametreRecord;
+        return (
+          <div className="flex items-center gap-1">
+            <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" aria-label="Modifier" data-testid={`declassement-editer-${p.id}`}>
+              <Pencil size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); handleDelete(p); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" aria-label="Supprimer" data-testid={`declassement-supprimer-${p.id}`}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Pour chaque programme, niveau et année, fixe le nombre minimum de notes d'un type d'évaluation qu'un étudiant doit avoir sur chaque élément
+        constitutif — en dessous, il est réellement signalé "à déclasser" dans Génération bulletin et Délibération (jamais un bulletin ou une
+        décision de jury fondée sur des données insuffisantes).
+      </p>
+      <div className="flex justify-end mb-3">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="declassement-nouveau">
+          <Plus size={14} /> Nouveau
+        </button>
+      </div>
+      <DataTable columns={columns} data={parametres as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher un paramètre..." emptyMessage="Aucune donnée à afficher" />
+
+      <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Modifier le paramètre de déclassement" : "Nouveau paramètre de déclassement"} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+            <select value={form.filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="declassement-filiere">
+              <option value="">Sélectionner</option>
+              {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
+              <select value={form.annee} onChange={(e) => setForm((f) => ({ ...f, annee: e.target.value }))} className={inputClass} data-testid="declassement-annee">
+                <option value="">Sélectionner</option>
+                {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau programme *</label>
+              <select value={NIVEAUX.find((n) => n.alias === form.niveau && n.filiereId === form.filiereId)?.id ?? ""} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!form.filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-niveau">
+                <option value="">Sélectionner</option>
+                {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir</label>
+              <select value={form.typeEvaluationId} onChange={(e) => handleTypeChange(e.target.value)} className={inputClass} data-testid="declassement-type-devoir">
+                <option value="">Sélectionner</option>
+                {typesEvaluation.filter((t) => t.actif).map((t) => <option key={t.id} value={t.id}>{t.intitule}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nbre notes requis *</label>
+              <input type="number" min={1} value={form.nbNotesRequis} onChange={(e) => setForm((f) => ({ ...f, nbNotesRequis: Number(e.target.value) || 1 }))} className={inputClass} data-testid="declassement-nb-notes" />
+            </div>
+          </div>
+          <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="declassement-sauvegarder">
+            Sauvegarder
           </button>
         </div>
       </FormModal>

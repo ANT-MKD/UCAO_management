@@ -1,10 +1,11 @@
 import { computeBulletinPourClasse } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
 import { decideValidation, type RegleValidationRecord } from "./reglesValidationStore";
+import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
 
 const STORAGE_KEY = "edumanage-deliberation-store-v1";
 
-export type DecisionJury = "admis" | "ajourne" | "rattrapage" | "exclu";
+export type DecisionJury = "admis" | "ajourne" | "rattrapage" | "exclu" | "a_declasser";
 
 export interface DeliberationLigne {
   etudiantId: string;
@@ -14,13 +15,17 @@ export interface DeliberationLigne {
   creditsObtenus: number;
   creditsTotal: number;
   absences: number;
-  /** Décision réellement issue de la règle de validation configurée (reglesValidationStore) —
-   * jamais modifiée en place, sert de référence pour repérer les décisions corrigées manuellement. */
+  /** Décision réellement issue de la règle de validation configurée (reglesValidationStore), ou
+   * "a_declasser" si le déclassement (Paramétrage bulletins) s'applique — jamais modifiée en
+   * place, sert de référence pour repérer les décisions corrigées manuellement. */
   decisionAuto: DecisionJury;
   /** Décision retenue — égale à decisionAuto sauf correction manuelle du jury avant clôture. */
   decisionFinale: DecisionJury;
   overrideRaison?: string;
   overrideModifiePar?: string;
+  /** Détail des EC/type d'évaluation insuffisamment notés — présent uniquement si decisionAuto
+   * vaut "a_declasser". */
+  raisonsDeclassement?: RaisonDeclassement[];
 }
 
 export interface DeliberationRecord {
@@ -115,7 +120,10 @@ function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationIn
   const bulletin = computeBulletinPourClasse(e.id, input.classeId, input.semestreAlias);
   const moyenne = bulletin?.moyenneSession ?? 0;
   const absences = getHeuresAbsenceNonJustifieePourEtudiant(e.id, input.classeId, input.semestreAlias);
-  const decisionAuto = decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, input.regle);
+
+  const declassement = detecterDeclassementEtudiant(e.id, input.classeId, input.filiereId, input.niveauAlias, input.annee, input.semestreAlias);
+  const decisionAuto: DecisionJury = declassement ? "a_declasser" : decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, input.regle);
+
   return {
     etudiantId: e.id,
     etudiant: `${e.prenom} ${e.nom}`,
@@ -126,6 +134,7 @@ function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationIn
     absences,
     decisionAuto,
     decisionFinale: decisionAuto,
+    raisonsDeclassement: declassement?.raisons,
   };
 }
 

@@ -290,7 +290,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "bul-param", label: "Paramétrage bulletins", href: "/admin/bulletins/parametrage" },
       { id: "bul-generation", label: "Génération bulletins", href: "/admin/releves" },
       { id: "bul-deliberation", label: "Délibération", href: "/admin/deliberations" },
-      { id: "bul-declassement", label: "Déclassement élèves", href: wipHref("bul-declassement") },
+      { id: "bul-declassement", label: "Déclassement élèves", href: "/admin/bulletins/declassement" },
       { id: "bul-attestations", label: "Attestations", href: "/admin/attestations" },
     ],
   },

@@ -312,7 +312,7 @@ export default function RelevesPage() {
               </Badge>
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
-              Programme : <span className="font-semibold text-foreground">{g.filiere}</span> | {g.annee} | {g.niveauLabel} | {g.classe}
+              Filière : <span className="font-semibold text-foreground">{g.filiere}</span> | {g.annee} | {g.niveauLabel} | {g.classe}
             </div>
           </div>
         );
@@ -794,12 +794,15 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
           </Badge>
         </div>
         <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
-          <p className="text-muted-foreground">Programme : <span className="font-semibold text-foreground">{generation.filiere}</span> | {generation.niveauLabel} | {generation.annee}</p>
+          <p className="text-muted-foreground">Filière : <span className="font-semibold text-foreground">{generation.filiere}</span> | {generation.niveauLabel} | {generation.annee}</p>
           <p className="text-muted-foreground">Classe : <span className="font-semibold text-foreground">{generation.classe}</span> | {generation.semestre}</p>
         </div>
         <div className="flex gap-4 mt-4 text-sm">
           <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={14} /> {generation.nbSucces} succès</span>
           <span className="flex items-center gap-1.5 text-red-600"><XCircle size={14} /> {generation.nbEchec} échec</span>
+          {generation.nbDeclasses > 0 && (
+            <span className="flex items-center gap-1.5 text-purple-600"><XCircle size={14} /> {generation.nbDeclasses} à déclasser</span>
+          )}
         </div>
       </div>
 
@@ -820,11 +823,17 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
               <tr key={e.etudiantId} className="border-b border-border last:border-0">
                 <td className="px-5 py-3">
                   <div className="font-medium text-foreground">{e.matricule} - {e.etudiant}</div>
-                  <div className={cn("text-xs mt-0.5", e.statut === "succes" ? "text-emerald-600" : "text-red-600")}>
-                    {e.statut === "succes" ? "Bulletin généré avec succès" : `Échec — ${e.motifEchec ?? "notes insuffisantes"}`}
+                  <div className={cn("text-xs mt-0.5", e.statut === "succes" ? "text-emerald-600" : e.statut === "a_declasser" ? "text-purple-600" : "text-red-600")}>
+                    {e.statut === "succes" ? "Bulletin généré avec succès" : e.statut === "a_declasser" ? "À déclasser" : `Échec — ${e.motifEchec ?? "notes insuffisantes"}`}
                   </div>
                 </td>
-                <td className="px-5 py-3 text-xs text-muted-foreground">{e.statut === "echec" ? "Compléter la saisie des notes pour cette session" : "—"}</td>
+                <td className="px-5 py-3 text-xs text-muted-foreground">
+                  {e.statut === "echec"
+                    ? "Compléter la saisie des notes pour cette session"
+                    : e.statut === "a_declasser"
+                      ? (e.raisonsDeclassement ?? []).map((r) => `${r.ecLibelle} — ${r.typeEvaluationLabel} : ${r.nbNotesReelles}/${r.nbNotesRequis}`).join(" · ")
+                      : "—"}
+                </td>
                 <td className="px-5 py-3 text-right">
                   <button
                     onClick={() => handlePreview(e)}
