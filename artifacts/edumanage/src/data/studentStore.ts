@@ -10,6 +10,9 @@ import {
   SEMESTRES,
 } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
+import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
+import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
+import { estAutorise } from "./communicationRolesStore";
 import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getDerogationsPaiement, derogationActivePour } from "./derogationPaiementStore";
@@ -219,13 +222,17 @@ export interface UserAccountRecord {
 export interface StudentRequestRecord {
   id: string;
   studentId: string;
-  type: "justificatif_absence" | "attestation" | "reclamation_note";
+  type: "justificatif_absence" | "attestation" | "reclamation_note" | "demande_rallonge";
   subject: string;
   message: string;
   status: "nouveau" | "en_cours" | "valide" | "rejete";
   createdAt: string;
   handledBy?: string;
   resolution?: string;
+  /** Uniquement pour type "demande_rallonge" — la portée et la date de fin souhaitées par
+   * l'étudiant ; utilisées pour générer la vraie dérogation de paiement à la validation. */
+  porteeRallonge?: PorteeDerogation;
+  dateFinSouhaitee?: string;
 }
 
 export interface MessageRecord {
@@ -710,7 +717,7 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
   return user;
 }
 
-function pushNotification(userId: string, message: string) {
+export function pushNotification(userId: string, message: string) {
   store.notifications.unshift({
     id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     userId,
@@ -718,6 +725,14 @@ function pushNotification(userId: string, message: string) {
     createdAt: new Date().toISOString(),
     read: false,
   });
+}
+
+/** Pour un appelant externe au module (notificationEngine.ts) qui n'a pas de persist() de suivi
+ * déjà prévu dans un flux existant — pushNotification() seul ne suffit pas car il ne persiste pas
+ * lui-même (les appels internes s'appuient sur le persist() de la fonction exportée englobante). */
+export function pushNotificationEtPersister(userId: string, message: string) {
+  pushNotification(userId, message);
+  persist();
 }
 
 function logAudit(actorUserId: string, action: string, targetType: string, targetId: string, meta?: string) {
@@ -1157,7 +1172,8 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
       if (ins) ins.soldeDu = etudiant.soldeDu;
 
       const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
-      if (studentUser) {
+      const notifEncaissement = getNotificationEvenementielleParCode("NOTIFICATION_ENCAISSEMENT");
+      if (studentUser && notifEncaissement?.actif && notifEncaissement.envoyerEtudiant) {
         pushNotification(studentUser.id, `Paiement validé — reçu ${numeroRecu} (${montantPaye} FCFA)`);
       }
     } else {
@@ -1189,7 +1205,8 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
           ins.niveau = classe.niveau;
           ins.statut = etudiant.statut;
         }
-        if (studentUser) {
+        const notifInscription = getNotificationEvenementielleParCode("NOTIFICATION_INSCRIPTION");
+        if (studentUser && notifInscription?.actif && notifInscription.envoyerEtudiant) {
           pushNotification(studentUser.id, `Affecté à la classe ${classe.nom}`);
         }
       }
@@ -1846,17 +1863,22 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
   store.seances.push(seance);
 
   // Notifier étudiants de la classe + enseignant
-  const studentUsers = store.users.filter(
-    (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === payload.classeId),
-  );
-  for (const u of studentUsers) {
-    pushNotification(u.id, `EDT mis à jour : ${seance.ec} (${seance.jour}/${seance.heureDebut}) — ${seance.salle}`);
+  const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
+  if (notifEdt?.actif && notifEdt.envoyerEtudiant) {
+    const studentUsers = store.users.filter(
+      (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === payload.classeId),
+    );
+    for (const u of studentUsers) {
+      pushNotification(u.id, `EDT mis à jour : ${seance.ec} (${seance.jour}/${seance.heureDebut}) — ${seance.salle}`);
+    }
   }
-  const teacherUser = store.users.find(
-    (u) => u.role === "teacher" && (u.displayName.includes(payload.prof.split(" ").slice(-1)[0] ?? "") || payload.prof.includes(u.displayName.split(" ").slice(-1)[0] ?? "")),
-  );
-  if (teacherUser) {
-    pushNotification(teacherUser.id, `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${seance.salle}`);
+  if (notifEdt?.actif && notifEdt.envoyerProfesseur) {
+    const teacherUser = store.users.find(
+      (u) => u.role === "teacher" && (u.displayName.includes(payload.prof.split(" ").slice(-1)[0] ?? "") || payload.prof.includes(u.displayName.split(" ").slice(-1)[0] ?? "")),
+    );
+    if (teacherUser) {
+      pushNotification(teacherUser.id, `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${seance.salle}`);
+    }
   }
 
   persist();
@@ -1921,19 +1943,46 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
     status: "nouveau",
     ...payload,
   };
-  store.requests.unshift(req);
+  store.requests = [req, ...store.requests];
   const admin = store.users.find((u) => u.role === "admin");
   if (admin) pushNotification(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
   persist();
   return req;
 }
 
+/** Valider une demande "demande_rallonge" exige que handledBy soit un validateur réellement
+ * désigné (communicationRolesStore, rôle "validateur_rallonge") — jamais une validation de
+ * complaisance. Une fois validée, elle crée une vraie DerogationPaiementRecord (Finance) à partir
+ * de la portée et de la date de fin demandées par l'étudiant, avec le solde dû réellement constaté
+ * au moment de la validation — connecte Communication → Finance sans étape manuelle intermédiaire. */
 export function updateStudentRequestStatus(id: string, status: StudentRequestRecord["status"], handledBy: string, resolution?: string) {
   const req = store.requests.find((r) => r.id === id);
   if (!req) return;
+  if (status === "valide" && req.type === "demande_rallonge" && !estAutorise("validateur_rallonge", handledBy)) {
+    throw new Error("Seul un validateur désigné (Paramétrage communication) peut approuver une demande de rallonge.");
+  }
   req.status = status;
   req.handledBy = handledBy;
   req.resolution = resolution;
+
+  if (status === "valide" && req.type === "demande_rallonge") {
+    const etudiant = store.etudiants.find((e) => e.id === req.studentId);
+    const personnel = store.users.find((u) => u.id === handledBy);
+    if (etudiant && req.porteeRallonge && req.dateFinSouhaitee) {
+      genererDerogation({
+        etudiantId: etudiant.id,
+        etudiantLabel: `${etudiant.prenom} ${etudiant.nom}`,
+        soldeDuConstate: etudiant.soldeDu,
+        portee: req.porteeRallonge,
+        motif: `Rallonge accordée suite à la demande "${req.subject}"${resolution ? " — " + resolution : ""}`,
+        personnelId: handledBy,
+        personnelLabel: personnel?.displayName ?? handledBy,
+        dateDebut: new Date().toISOString().slice(0, 10),
+        dateFin: req.dateFinSouhaitee,
+      });
+    }
+  }
+
   const studentUser = store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
   if (studentUser) pushNotification(studentUser.id, `Votre demande "${req.subject}" est ${status}.`);
   logAudit(handledBy, "update_request", "request", id, status);

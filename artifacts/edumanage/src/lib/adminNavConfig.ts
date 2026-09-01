@@ -274,7 +274,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Communication",
     icon: MessageSquare,
     children: [
-      { id: "com-param", label: "Paramétrage de la communication", href: wipHref("com-param") },
+      { id: "com-param", label: "Paramétrage de la communication", href: "/admin/communication/parametrage" },
       { id: "com-envoi", label: "Envoi message", href: "/admin/messages" },
       { id: "com-mails", label: "Liste mails envoyés", href: wipHref("com-mails") },
       { id: "com-validation", label: "Validation mails", href: wipHref("com-validation") },

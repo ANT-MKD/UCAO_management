@@ -91,6 +91,7 @@ const AbsencePeriodePage = lazy(() => import("@/pages/admin/AbsencePeriodePage")
 const AbsencePeriodeListPage = lazy(() => import("@/pages/admin/AbsencePeriodeListPage"));
 const ParametrageScolaritePage = lazy(() => import("@/pages/admin/ParametrageScolaritePage"));
 const ParametrageBulletinPage = lazy(() => import("@/pages/admin/ParametrageBulletinPage"));
+const ParametrageCommunicationPage = lazy(() => import("@/pages/admin/ParametrageCommunicationPage"));
 const DeclassementPage = lazy(() => import("@/pages/admin/DeclassementPage"));
 const FicheInscriptionPage = lazy(() => import("@/pages/admin/FicheInscriptionPage"));
 const CorrectionInscriptionPage = lazy(() => import("@/pages/admin/CorrectionInscriptionPage"));
@@ -548,6 +549,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/bulletins/parametrage">
         <Admin><ParametrageBulletinPage /></Admin>
+      </Route>
+      <Route path="/admin/communication/parametrage">
+        <Admin><ParametrageCommunicationPage /></Admin>
       </Route>
       <Route path="/admin/bulletins/declassement">
         <Admin><DeclassementPage /></Admin>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ClipboardList, Check, X, Clock } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,12 +10,16 @@ import {
   type StudentRequestRecord,
 } from "@/data/studentStore";
 import { useStudentRequests } from "@/hooks/useStudentStore";
+import { PORTEE_LABELS } from "@/data/derogationPaiementStore";
+import { estAutorise } from "@/data/communicationRolesStore";
+import { useCommunicationRoles } from "@/hooks/useCommunicationRolesStore";
 import { cn, formatDate } from "@/lib/utils";
 
 const TYPE_LABELS: Record<StudentRequestRecord["type"], string> = {
   justificatif_absence: "Justificatif d'absence",
   attestation: "Attestation",
   reclamation_note: "Réclamation de note",
+  demande_rallonge: "Demande de rallonge",
 };
 
 const STATUS_LABELS: Record<StudentRequestRecord["status"], string> = {
@@ -34,6 +39,7 @@ const STATUS_COLORS: Record<StudentRequestRecord["status"], string> = {
 export default function RequestsPage() {
   const { currentUser } = useAuth();
   const requests = useStudentRequests();
+  useCommunicationRoles(); // s'abonne pour refléter les validateurs désignés si la config change
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -58,9 +64,18 @@ export default function RequestsPage() {
 
   const handleStatus = (status: StudentRequestRecord["status"]) => {
     if (!selected || !currentUser) return;
-    updateStudentRequestStatus(selected.id, status, currentUser.id, resolution.trim() || undefined);
-    if (status === "valide" || status === "rejete") setResolution("");
+    try {
+      updateStudentRequestStatus(selected.id, status, currentUser.id, resolution.trim() || undefined);
+      if (status === "valide" && selected.type === "demande_rallonge") {
+        toast.success("Demande validée — dérogation de paiement créée dans Finance.");
+      }
+      if (status === "valide" || status === "rejete") setResolution("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action impossible");
+    }
   };
+
+  const peutValiderRallonge = !currentUser || !selected || selected.type !== "demande_rallonge" || estAutorise("validateur_rallonge", currentUser.id);
 
   const inputClass =
     "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -123,6 +138,7 @@ export default function RequestsPage() {
                       "w-full text-left px-4 py-3 hover:bg-muted transition-colors",
                       active && "bg-primary/5 border-l-2 border-l-primary",
                     )}
+                    data-testid={`requete-ligne-${req.id}`}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       {etu && <UserAvatar name={`${etu.prenom} ${etu.nom}`} size="xs" />}
@@ -171,7 +187,18 @@ export default function RequestsPage() {
                     <div className="rounded-xl bg-muted/30 border border-border p-4 mb-4">
                       <p className="text-xs font-medium text-muted-foreground mb-1">Message étudiant</p>
                       <p className="text-sm text-foreground whitespace-pre-wrap">{selected.message}</p>
+                      {selected.type === "demande_rallonge" && selected.porteeRallonge && selected.dateFinSouhaitee && (
+                        <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
+                          Portée souhaitée : <span className="font-medium text-foreground">{PORTEE_LABELS[selected.porteeRallonge]}</span> · Jusqu'au <span className="font-medium text-foreground">{formatDate(selected.dateFinSouhaitee)}</span>
+                        </p>
+                      )}
                     </div>
+
+                    {selected.type === "demande_rallonge" && !peutValiderRallonge && (
+                      <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 rounded-lg px-3 py-2 mb-4">
+                        Vous n'êtes pas désigné comme validateur des demandes de rallonge (Paramétrage communication) — vous pouvez la prendre en charge ou la rejeter, mais pas la valider.
+                      </p>
+                    )}
 
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-muted-foreground mb-1.5">
@@ -194,7 +221,9 @@ export default function RequestsPage() {
                       </button>
                       <button
                         onClick={() => handleStatus("valide")}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+                        disabled={!peutValiderRallonge}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        data-testid="requete-valider"
                       >
                         <Check size={14} /> Valider
                       </button>

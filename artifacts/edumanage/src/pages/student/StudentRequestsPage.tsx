@@ -3,12 +3,14 @@ import { ClipboardList, Send, CheckCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { addStudentRequest, type StudentRequestRecord } from "@/data/studentStore";
 import { useStudentRequests } from "@/hooks/useStudentStore";
+import { PORTEE_LABELS, type PorteeDerogation } from "@/data/derogationPaiementStore";
 import { cn, formatDate } from "@/lib/utils";
 
 const REQUEST_TYPES: { value: StudentRequestRecord["type"]; label: string }[] = [
   { value: "justificatif_absence", label: "Justificatif d'absence" },
   { value: "attestation", label: "Attestation" },
   { value: "reclamation_note", label: "Réclamation de note" },
+  { value: "demande_rallonge", label: "Demande de rallonge (délai de paiement)" },
 ];
 
 const STATUS_STYLES: Record<StudentRequestRecord["status"], { label: string; className: string }> = {
@@ -24,6 +26,8 @@ export default function StudentRequestsPage() {
   const [type, setType] = useState<StudentRequestRecord["type"]>("justificatif_absence");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [porteeRallonge, setPorteeRallonge] = useState<PorteeDerogation>("reinscription");
+  const [dateFinSouhaitee, setDateFinSouhaitee] = useState("");
   const [sent, setSent] = useState(false);
 
   const myRequests = useMemo(
@@ -31,16 +35,22 @@ export default function StudentRequestsPage() {
     [allRequests, currentUser?.linkedId],
   );
 
+  const estRallonge = type === "demande_rallonge";
+
   const handleSubmit = () => {
     if (!currentUser?.linkedId || !subject.trim() || !message.trim()) return;
+    if (estRallonge && !dateFinSouhaitee) return;
     addStudentRequest({
       studentId: currentUser.linkedId,
       type,
       subject: subject.trim(),
       message: message.trim(),
+      porteeRallonge: estRallonge ? porteeRallonge : undefined,
+      dateFinSouhaitee: estRallonge ? dateFinSouhaitee : undefined,
     });
     setSubject("");
     setMessage("");
+    setDateFinSouhaitee("");
     setSent(true);
     setTimeout(() => setSent(false), 2500);
   };
@@ -64,7 +74,8 @@ export default function StudentRequestsPage() {
         <div className="space-y-3 max-w-xl">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de demande</label>
-            <select value={type} onChange={(e) => setType(e.target.value as StudentRequestRecord["type"])} className={inputClass}>
+            <select value={type} onChange={(e) => setType(e.target.value as StudentRequestRecord["type"])} className={inputClass} data-testid="requete-type">
+
               {REQUEST_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
@@ -77,6 +88,7 @@ export default function StudentRequestsPage() {
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Ex: Justificatif absence du 12/01"
               className={inputClass}
+              data-testid="requete-objet"
             />
           </div>
           <div>
@@ -86,12 +98,28 @@ export default function StudentRequestsPage() {
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Décrivez votre demande..."
               className={cn(inputClass, "min-h-[120px]")}
+              data-testid="requete-message"
             />
           </div>
+          {estRallonge && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Portée souhaitée</label>
+                <select value={porteeRallonge} onChange={(e) => setPorteeRallonge(e.target.value as PorteeDerogation)} className={inputClass} data-testid="requete-portee">
+                  {Object.entries(PORTEE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin souhaitée</label>
+                <input type="date" value={dateFinSouhaitee} onChange={(e) => setDateFinSouhaitee(e.target.value)} className={inputClass} data-testid="requete-date-fin" />
+              </div>
+            </div>
+          )}
           <button
             onClick={handleSubmit}
-            disabled={!subject.trim() || !message.trim()}
+            disabled={!subject.trim() || !message.trim() || (estRallonge && !dateFinSouhaitee)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            data-testid="requete-envoyer"
           >
             {sent ? <CheckCircle size={14} /> : <Send size={14} />}
             {sent ? "Demande envoyée" : "Envoyer la demande"}
@@ -124,6 +152,11 @@ export default function StudentRequestsPage() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{req.message}</p>
+                  {req.type === "demande_rallonge" && req.porteeRallonge && req.dateFinSouhaitee && (
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {PORTEE_LABELS[req.porteeRallonge]} · jusqu'au {formatDate(req.dateFinSouhaitee)}
+                    </p>
+                  )}
                   {req.resolution && (
                     <div className="mt-3 pt-3 border-t border-border">
                       <p className="text-xs font-medium text-muted-foreground mb-1">Réponse du secrétariat</p>
