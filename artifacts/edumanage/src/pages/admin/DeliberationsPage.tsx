@@ -16,6 +16,7 @@ import { useBulletinGenerations } from "@/hooks/useBulletinGenerationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import {
   chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation,
+  DECISION_LABELS,
   type DeliberationRecord, type DecisionJury,
 } from "@/data/deliberationStore";
 import { computeBulletinPourClasse } from "@/data/bulletinEngine";
@@ -26,11 +27,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
 
 const DECISION_CONFIG: Record<DecisionJury, { label: string; color: string; bg: string; icon: React.ElementType; border: string }> = {
-  admis: { label: "Admis", color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/50", icon: CheckCircle2, border: "border-emerald-200 dark:border-emerald-800" },
-  ajourne: { label: "Ajourné", color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/50", icon: XCircle, border: "border-red-200 dark:border-red-800" },
-  rattrapage: { label: "Rattrapage", color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/50", icon: AlertTriangle, border: "border-amber-200 dark:border-amber-800" },
-  exclu: { label: "Exclu", color: "text-zinc-700 dark:text-zinc-400", bg: "bg-zinc-100 dark:bg-zinc-900/50", icon: Ban, border: "border-zinc-300 dark:border-zinc-700" },
-  a_declasser: { label: "À déclasser", color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/50", icon: AlertOctagon, border: "border-purple-200 dark:border-purple-800" },
+  admis: { label: DECISION_LABELS.admis, color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/50", icon: CheckCircle2, border: "border-emerald-200 dark:border-emerald-800" },
+  ajourne: { label: DECISION_LABELS.ajourne, color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/50", icon: XCircle, border: "border-red-200 dark:border-red-800" },
+  rattrapage: { label: DECISION_LABELS.rattrapage, color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/50", icon: AlertTriangle, border: "border-amber-200 dark:border-amber-800" },
+  exclu: { label: DECISION_LABELS.exclu, color: "text-zinc-700 dark:text-zinc-400", bg: "bg-zinc-100 dark:bg-zinc-900/50", icon: Ban, border: "border-zinc-300 dark:border-zinc-700" },
+  a_declasser: { label: DECISION_LABELS.a_declasser, color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/50", icon: AlertOctagon, border: "border-purple-200 dark:border-purple-800" },
 };
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";

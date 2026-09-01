@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award } from "lucide-react";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { formatCFA, formatDate, getMention } from "@/lib/utils";
-import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers } from "@/hooks/useStudentStore";
+import { formatCFA, formatDate, cn } from "@/lib/utils";
+import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useReleves, useStudentStore } from "@/hooks/useStudentStore";
+import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
+import { computeMoyenneAnnuelle, computeMoyenneProgramme } from "@/data/bulletinEngine";
+import { useMentions } from "@/hooks/useMentionsStore";
+import { useDeliberations } from "@/hooks/useDeliberationStore";
+import { useAttestations } from "@/hooks/useAttestationStore";
+import { TYPE_LABELS as ATTESTATION_TYPE_LABELS } from "@/data/attestationStore";
 import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
@@ -17,19 +23,10 @@ import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { statutDerogation, PORTEE_LABELS, type StatutDerogation } from "@/data/derogationPaiementStore";
 import { useAbandons } from "@/hooks/useAbandonStore";
-import { cn } from "@/lib/utils";
 
 interface StudentDossierPageProps {
   id: string;
 }
-
-const MENTION_COLORS: Record<string, string> = {
-  "Très Bien": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  "Bien": "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
-  "Assez Bien": "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-  "Passable": "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  "Ajourné": "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
-};
 
 const MOYEN_COLORS: Record<string, string> = {
   Wave: "#2563eb", OrangeMoney: "#ea580c", Virement: "#4f46e5", Especes: "#10b981",
@@ -44,6 +41,19 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const studentPaiements = usePaiementsByEtudiant(id);
   const allNotes = useNotes();
   const studentNotes = allNotes.filter((n) => n.etudiantId === id);
+  const etudiants = useStudentStore();
+  const allReleves = useReleves();
+  const studentReleves = allReleves.filter((r) => r.etudiantId === id);
+  const allAttestations = useAttestations();
+  const studentAttestations = allAttestations.filter((a) => a.etudiantId === id);
+  useMentions(); // s'abonne pour refléter la vraie mention si la configuration change
+  useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change
+  const [previewReleve, setPreviewReleve] = useState<(typeof studentReleves)[number] | null>(null);
+  // Moyennes réelles (bulletinEngine) combinant les bulletins de semestre déjà calculés — jamais
+  // affichées nulle part avant cette reconnexion, alors que la méthode de calcul est configurable
+  // dans Paramétrage bulletins (onglet Méthodes de calcul).
+  const moyenneAnnuelle = student ? computeMoyenneAnnuelle(student.id, student.classeId, student.filiereId, student.niveau) : undefined;
+  const moyenneProgramme = student ? computeMoyenneProgramme(student.id, student.filiereId) : undefined;
   const avoirDepots = useAvoirDepots();
   const avoirRemboursements = useRemboursementsAvoir();
   const studentDepots = avoirDepots.filter((d) => d.etudiantId === id);
@@ -80,7 +90,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const TABS = [
     { key: "informations", label: "Informations", icon: GraduationCap },
     { key: "parcours", label: "Parcours", icon: History },
-    { key: "notes", label: "Notes", icon: FileText },
+    { key: "notes", label: "Bulletins", icon: FileText },
     { key: "paiements", label: "Paiements", icon: CreditCard },
     { key: "absences", label: "Absences", icon: Calendar },
   ];
@@ -277,24 +287,107 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
         )}
 
         {activeTab === "notes" && (
-          <div>
-            <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Relevé de Notes — S1 2025-2026</h3>
-            {studentNotes.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Aucune note disponible</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b border-border">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">EC</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Note /20</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Mention</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentNotes.map((n) => {
-                    const mention = getMention(n.note);
+          <div className="space-y-8">
+            {/* ===== Moyennes annuelle / programme (bulletinEngine — jamais affichées avant) ===== */}
+            {(moyenneAnnuelle?.moyenne !== undefined || moyenneProgramme?.moyenne !== undefined) && (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {moyenneAnnuelle?.moyenne !== undefined && (
+                  <div className="p-4 border border-border rounded-xl bg-muted/20">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Moyenne annuelle — {student.niveau}</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{moyenneAnnuelle.moyenne.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/20</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{moyenneAnnuelle.creditsObtenus}/{moyenneAnnuelle.creditsTotal} crédits obtenus</p>
+                  </div>
+                )}
+                {moyenneProgramme?.moyenne !== undefined && (
+                  <div className="p-4 border border-border rounded-xl bg-muted/20">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Moyenne de programme</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{moyenneProgramme.moyenne.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/20</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{moyenneProgramme.anneesRetenues.map((a) => `${a.niveau} (${a.annee})`).join(" · ")}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ===== Bulletins générés (vrai pipeline : Génération → Délibération) ===== */}
+            <div>
+              <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Bulletins</h3>
+              {studentReleves.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8 border border-dashed border-border rounded-xl">
+                  Aucun bulletin généré pour cet étudiant pour l'instant — voir Bulletins &gt; Génération bulletins.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {studentReleves.map((releve) => {
+                    const resolved = resolveBulletin(releve, etudiants);
                     return (
+                      <div key={releve.id} className="flex items-center justify-between gap-3 p-4 border border-border rounded-xl">
+                        <div>
+                          <p className="font-semibold text-foreground text-sm">{releve.semestre}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {resolved ? (
+                              <>Moyenne <span className="font-bold text-foreground">{resolved.moyenne.toFixed(2)}/20</span> · Mention {resolved.mention} · Décision : <span className="font-medium">{resolved.decisionLabel}</span></>
+                            ) : (
+                              "Bulletin indisponible pour cette session"
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setPreviewReleve(releve)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors flex-shrink-0"
+                          data-testid={`dossier-bulletin-apercu-${releve.id}`}
+                        >
+                          <Eye size={13} /> Aperçu
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ===== Attestations délivrées (attestationStore réel) ===== */}
+            <div>
+              <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Attestations délivrées</h3>
+              {studentAttestations.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6 border border-dashed border-border rounded-xl">Aucune attestation délivrée pour cet étudiant.</p>
+              ) : (
+                <div className="border border-border rounded-xl divide-y divide-border">
+                  {studentAttestations.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Award size={14} className="text-primary flex-shrink-0" />
+                        <span className="font-medium text-foreground">{ATTESTATION_TYPE_LABELS[a.type]}</span>
+                        {a.semestreLabel && <span className="text-xs text-muted-foreground">· {a.semestreLabel}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-shrink-0">
+                        <span className="font-mono">{a.numero}</span>
+                        <span>{formatDate(a.dateGeneration)}</span>
+                        <span className={cn("px-2 py-0.5 rounded-full font-medium", a.statut === "envoyee" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300")}>
+                          {a.statut === "envoyee" ? "Envoyée" : "Générée"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ===== Détail des notes saisies (brut, par évaluation) ===== */}
+            <div>
+              <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Notes saisies — détail</h3>
+              {studentNotes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Aucune note disponible</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">EC</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Note /20</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentNotes.map((n) => (
                       <tr key={n.id} className={cn("border-b border-border last:border-0", n.note < 10 && "bg-red-50/50 dark:bg-red-950/20")}>
                         <td className="px-4 py-3 font-medium text-foreground">{n.ec}</td>
                         <td className="px-4 py-3">
@@ -305,16 +398,15 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                             {n.note}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", MENTION_COLORS[mention] ?? "bg-muted text-muted-foreground")}>
-                            {mention}
-                          </span>
-                        </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {previewReleve && (
+              <BulletinPreviewModal entry={previewReleve} resolved={resolveBulletin(previewReleve, etudiants)} onClose={() => setPreviewReleve(null)} />
             )}
           </div>
         )}

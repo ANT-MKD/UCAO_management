@@ -7,6 +7,16 @@ const STORAGE_KEY = "edumanage-deliberation-store-v1";
 
 export type DecisionJury = "admis" | "ajourne" | "rattrapage" | "exclu" | "a_declasser";
 
+/** Libellés canoniques des décisions de jury — source unique réutilisée partout où une décision
+ * doit être affichée (Délibération, Attestations, Relevés) pour ne jamais diverger. */
+export const DECISION_LABELS: Record<DecisionJury, string> = {
+  admis: "Admis",
+  ajourne: "Ajourné",
+  rattrapage: "Rattrapage",
+  exclu: "Exclu",
+  a_declasser: "À déclasser",
+};
+
 export interface DeliberationLigne {
   etudiantId: string;
   etudiant: string;

@@ -1,9 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudentStore, useSeances, useNotes, usePaiements } from "@/hooks/useStudentStore";
-import { useUes, useEcs } from "@/hooks/useCurriculumStore";
+import { useStudentStore, useSeances, useNotes, usePaiements, useReleves } from "@/hooks/useStudentStore";
 import { formatCFA, formatDate } from "@/lib/utils";
 import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
+import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
+import { useMentions } from "@/hooks/useMentionsStore";
+import { useDeliberations } from "@/hooks/useDeliberationStore";
+import type { ReleveRecord } from "@/data/studentStore";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -61,73 +65,83 @@ export function StudentGradesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
   const notes = useNotes();
-  const ecs = useEcs();
-  const ues = useUes();
+  const releves = useReleves();
+  useMentions(); // s'abonne pour refléter la vraie mention si la configuration change
+  useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const published = notes.filter((n) => n.etudiantId === student?.id && n.statut === "publie");
-
-  const byUe = useMemo(() => {
-    const map = new Map<string, { ueLabel: string; credits: number; rows: typeof published; moyenne?: number }>();
-    for (const n of published) {
-      const ec = ecs.find((e) => e.id === n.ecId);
-      const ue = ues.find((u) => u.id === ec?.ueId);
-      const key = ue?.id ?? "autre";
-      if (!map.has(key)) map.set(key, { ueLabel: ue ? `${ue.code} — ${ue.libelle}` : "Hors maquette", credits: ue?.credits ?? 0, rows: [] });
-      map.get(key)!.rows.push(n);
-    }
-    for (const block of map.values()) {
-      // Une reprise de rattrapage (EF) l'emporte toujours sur l'examen normal, quel que soit
-      // l'ordre d'itération — jamais l'inverse, cohérent avec getEffectiveNote côté admin.
-      const byEc = new Map<string, { cc?: number; efNormal?: number; efRattrapage?: number }>();
-      for (const n of block.rows) {
-        const cur = byEc.get(n.ecId) ?? {};
-        if (n.type === "CC") cur.cc = n.note;
-        else if (n.session === "rattrapage") cur.efRattrapage = n.note;
-        else cur.efNormal = n.note;
-        byEc.set(n.ecId, cur);
-      }
-      const moyennes = [...byEc.values()].map((v) => {
-        const ef = v.efRattrapage ?? v.efNormal;
-        if (v.cc !== undefined && ef !== undefined) return v.cc * 0.3 + ef * 0.7;
-        return v.cc ?? ef ?? 0;
-      });
-      if (moyennes.length) block.moyenne = moyennes.reduce((a, b) => a + b, 0) / moyennes.length;
-    }
-    return [...map.values()];
-  }, [published, ecs, ues]);
+  const mesReleves = releves.filter((r) => r.etudiantId === student?.id);
+  const [previewReleve, setPreviewReleve] = useState<ReleveRecord | null>(null);
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Notes & maquette</h2>
-        <p className="text-sm text-muted-foreground mt-1">Notes publiées — structure UE → EC (CC 30% / Examen 70%)</p>
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mes bulletins</h2>
+        <p className="text-sm text-muted-foreground mt-1">Même moteur de calcul que le bulletin officiel — aucune moyenne recalculée séparément.</p>
       </div>
-      {byUe.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-10">Aucune note publiée.</p>
-      ) : byUe.map((block) => (
-        <div key={block.ueLabel} className="rounded-2xl border border-border bg-card p-5">
-          <div className="flex justify-between mb-3">
-            <h3 className="font-bold text-sm">{block.ueLabel}</h3>
-            <span className="text-xs text-muted-foreground">
-              {block.credits} ECTS
-              {block.moyenne !== undefined && ` · Moy. ${block.moyenne.toFixed(2)}`}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {block.rows.map((n) => (
-              <div key={n.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-2">
+
+      {mesReleves.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">
+          Aucun bulletin officiel disponible pour l'instant.
+        </p>
+      ) : (
+        mesReleves.map((releve) => {
+          const resolved = resolveBulletin(releve, students);
+          return (
+            <div key={releve.id} className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
-                  <p className="font-medium">{n.ec}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {n.type === "EF" ? (n.session === "rattrapage" ? "Examen rattrapage (70%)" : "Examen (70%)") : n.type === "CC" ? "CC (30%)" : n.type}
-                  </p>
+                  <h3 className="font-bold text-sm">{releve.semestre}</h3>
+                  {resolved && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Moyenne <span className="font-bold text-foreground">{resolved.moyenne.toFixed(2)}/20</span> · Mention {resolved.mention} · Décision : <span className="font-medium">{resolved.decisionLabel}</span>
+                    </p>
+                  )}
                 </div>
+                <button
+                  onClick={() => setPreviewReleve(releve)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors flex-shrink-0"
+                  data-testid={`portal-bulletin-apercu-${releve.id}`}
+                >
+                  <Eye size={13} /> Aperçu bulletin
+                </button>
+              </div>
+              {resolved && (
+                <div className="space-y-1.5">
+                  {resolved.ues.map((ue) => (
+                    <div key={ue.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-1.5">
+                      <span className="font-medium">{ue.code} — {ue.libelle}</span>
+                      <span className={`font-bold ${ue.moyenne !== undefined && ue.moyenne >= 10 ? "text-emerald-600" : "text-red-500"}`}>
+                        {ue.moyenne !== undefined ? `${ue.moyenne.toFixed(2)}/20` : "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+
+      {previewReleve && (
+        <BulletinPreviewModal entry={previewReleve} resolved={resolveBulletin(previewReleve, students)} onClose={() => setPreviewReleve(null)} />
+      )}
+
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h3 className="font-bold text-sm mb-3">Notes saisies — détail</h3>
+        {published.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">Aucune note publiée.</p>
+        ) : (
+          <div className="space-y-2">
+            {published.map((n) => (
+              <div key={n.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-2">
+                <p className="font-medium">{n.ec}</p>
                 <span className={`font-bold ${n.note >= 10 ? "text-emerald-600" : "text-red-500"}`}>{n.note}/20</span>
               </div>
             ))}
           </div>
-        </div>
-      ))}
+        )}
+      </div>
     </div>
   );
 }

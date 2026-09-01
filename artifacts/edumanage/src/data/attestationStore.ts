@@ -1,4 +1,4 @@
-import { getDeliberationForClasseSemestre, type DecisionJury } from "./deliberationStore";
+import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
 
 const STORAGE_KEY = "edumanage-attestation-store-v1";
 
@@ -8,14 +8,6 @@ export const TYPE_LABELS: Record<AttestationType, string> = {
   scolarite: "Certificat de scolarité",
   inscription: "Attestation d'inscription",
   reussite: "Attestation de réussite",
-};
-
-const DECISION_LABELS: Record<DecisionJury, string> = {
-  admis: "Admis",
-  ajourne: "Ajourné",
-  rattrapage: "Rattrapage",
-  exclu: "Exclu",
-  a_declasser: "À déclasser",
 };
 
 export interface AttestationRecord {

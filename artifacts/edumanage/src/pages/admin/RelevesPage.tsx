@@ -16,12 +16,14 @@ import { resolveCodeMethodeCalcul } from "@/data/scolariteConfigStore";
 import { useMethodesCalcul } from "@/hooks/useBulletinMethodesStore";
 import { useBulletinGenerations } from "@/hooks/useBulletinGenerationStore";
 import { creerGeneration, type BulletinGenerationRecord, type EtudiantConcerneGeneration } from "@/data/bulletinGenerationStore";
+import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "@/data/deliberationStore";
+import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
 
 type ReleverEntry = ReleveRecord;
 
-interface BulletinResolu {
+export interface BulletinResolu {
   etudiant: EtudiantRecord;
   ues: UeMoyenne[];
   moyenne: number;
@@ -30,12 +32,30 @@ interface BulletinResolu {
   creditsTotal: number;
   rang?: number;
   totalClasse: number;
+  semestreAlias: string;
+  /** Décision réelle du jury (deliberationStore), absente si aucune délibération n'a encore eu
+   * lieu pour ce semestre — jamais fabriquée depuis un simple seuil moyenne >= 10. */
+  decision?: DecisionJury;
+  decisionLabel: string;
+  /** Appréciation textuelle du jury dérivée de la vraie décision (ex. "Semestre validé") —
+   * jamais un seuil moyenne >= 10 fabriqué. */
+  appreciation: string;
+  filiereNomComplet: string;
+  niveauLabel: string;
 }
+
+const APPRECIATION_PAR_DECISION: Record<DecisionJury, string> = {
+  admis: "Semestre validé",
+  ajourne: "Semestre non validé",
+  rattrapage: "Session de rattrapage requise",
+  exclu: "Exclusion prononcée par le jury",
+  a_declasser: "Déclassé — notes insuffisantes",
+};
 
 /** Résout un ReleveRecord (qui ne stocke qu'un nom de filière et de classe, pas leurs id) vers
  * le vrai bulletin de l'étudiant via le même moteur que Bulletin étudiants — remplace UE_LINES
  * et MOYENNES_PROMO, entièrement fabriqués et identiques pour n'importe quel étudiant. */
-function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]): BulletinResolu | undefined {
+export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]): BulletinResolu | undefined {
   const etudiant = etudiants.find((e) => e.id === entry.etudiantId);
   if (!etudiant) return undefined;
   const filiereObj = FILIERES.find((f) => f.code === entry.filiere) ?? FILIERES.find((f) => f.id === etudiant.filiereId);
@@ -53,6 +73,13 @@ function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]): Bull
     .sort((a, b) => b.moy - a.moy);
   const rangIndex = moyennesClasse.findIndex((r) => r.id === etudiant.id);
 
+  // Décision réelle du jury (jamais un seuil moyenne >= 10 fabriqué) : lit la délibération
+  // effectivement tenue pour cette classe/semestre, y compris une correction manuelle du jury.
+  const deliberation = getDeliberationForClasseSemestre(etudiant.classeId, semestreObj.id);
+  const ligne = deliberation?.lignes.find((l) => l.etudiantId === etudiant.id);
+  const decision = ligne?.decisionFinale;
+  const niveauObj = NIVEAUX.find((n) => n.filiereId === filiereObj.id && n.alias === etudiant.niveau);
+
   return {
     etudiant,
     ues: bulletin.ues,
@@ -62,10 +89,16 @@ function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]): Bull
     creditsTotal: bulletin.creditsTotal,
     rang: rangIndex >= 0 ? rangIndex + 1 : undefined,
     totalClasse: moyennesClasse.length,
+    semestreAlias: semestreObj.alias,
+    decision,
+    decisionLabel: decision ? DECISION_LABELS[decision] : "Non délibéré",
+    appreciation: decision ? APPRECIATION_PAR_DECISION[decision] : "En attente de délibération",
+    filiereNomComplet: filiereObj.nom,
+    niveauLabel: niveauObj?.nom ?? etudiant.niveau,
   };
 }
 
-function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
+export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 
   if (!resolved) {
@@ -74,28 +107,27 @@ function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefine
         <p>Bulletin indisponible pour ${entry.etudiant} — notes insuffisantes pour cette session.</p>
       </body></html>`;
   }
-  const { moyenne: moy, mention, creditsObtenus, creditsTotal, rang, totalClasse } = resolved;
+  const { moyenne: moy, creditsObtenus, creditsTotal } = resolved;
+  const [prenomEtu, ...nomEtuParts] = entry.etudiant.split(" ");
+  const nomComplet = `${entry.matricule} - ${nomEtuParts.join(" ").toUpperCase()} ${prenomEtu}`;
 
   let tableRows = "";
   resolved.ues.forEach((ue) => {
+    const ueResultat = ue.moyenne !== undefined ? (ue.validee ? "UE Acquise" : "UE Non Acquise") : "";
     tableRows += `
-      <tr style="background:#f0f4ff;font-weight:700;">
-        <td style="padding:7px 10px;font-size:11px;color:#1e3a8a;border-bottom:1px solid #dde3f0;">${ue.code} - ${ue.libelle}</td>
-        <td style="padding:7px 10px;text-align:center;font-size:11px;color:${ue.moyenne !== undefined ? (ue.moyenne >= 10 ? "#059669" : "#dc2626") : "#9ca3af"};font-weight:800;border-bottom:1px solid #dde3f0;">${ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "En attente"}</td>
-        <td style="padding:7px 10px;text-align:center;font-size:11px;color:#6b7280;border-bottom:1px solid #dde3f0;">—</td>
-        <td style="padding:7px 10px;text-align:center;font-size:11px;color:#6b7280;border-bottom:1px solid #dde3f0;">—</td>
-        <td style="padding:7px 10px;text-align:center;font-size:11px;border-bottom:1px solid #dde3f0;">${ue.credits}</td>
-        <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #dde3f0;">${ue.moyenne !== undefined ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:9999px;background:${ue.validee ? "#d1fae5" : "#fee2e2"};color:${ue.validee ? "#065f46" : "#991b1b"};">${ue.validee ? "VALIDÉ" : "NON VALIDÉ"}</span>` : ""}</td>
+      <tr class="ue-row">
+        <td>${ue.code} - ${ue.libelle}</td>
+        <td class="c">${ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}</td>
+        <td class="c">${ue.credits}</td>
+        <td class="c" style="color:${ue.validee ? "#166534" : "#991b1b"};">${ueResultat}</td>
       </tr>`;
     ue.ecs.forEach((ec) => {
       tableRows += `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:6px 10px 6px 24px;font-size:10.5px;color:#374151;">↳ ${ec.libelle}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:${ec.moyenne !== undefined ? (ec.moyenne >= 10 ? "#059669" : "#dc2626") : "#d1d5db"};font-weight:700;">${ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.cc !== undefined ? ec.cc.toFixed(1) : "—"}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.ef !== undefined ? ec.ef.toFixed(1) : "—"}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#6b7280;">${ec.credits}</td>
-          <td style="padding:6px 10px;text-align:center;font-size:10.5px;color:#9ca3af;">—</td>
+        <tr>
+          <td class="ec-label">${ec.libelle}</td>
+          <td class="c">${ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+          <td class="c"></td>
+          <td class="c"></td>
         </tr>`;
     });
   });
@@ -106,141 +138,118 @@ function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefine
 <meta charset="UTF-8"/>
 <title>Relevé de Notes — ${entry.etudiant}</title>
 <style>
-  @page { size: A4; margin: 18mm 16mm; }
+  @page { size: A4; margin: 16mm 18mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Georgia', serif; font-size: 11px; color: #111827; background: #fff; }
-  .header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 3px solid #4f46e5; padding-bottom: 14px; margin-bottom: 14px; }
-  .logo-block { display: flex; flex-direction: column; }
-  .logo-name { font-family: Arial, sans-serif; font-size: 20px; font-weight: 900; color: #4f46e5; letter-spacing: -0.5px; }
-  .logo-sub { font-size: 9px; color: #6b7280; margin-top: 2px; letter-spacing: 1px; text-transform: uppercase; }
-  .doc-title-block { text-align: right; }
-  .doc-title { font-size: 16px; font-weight: 900; color: #111827; text-transform: uppercase; letter-spacing: 0.5px; }
-  .doc-ref { font-size: 9px; color: #6b7280; margin-top: 3px; font-family: monospace; }
-  .stamp { width: 68px; height: 68px; border: 2px solid #4f46e5; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #4f46e5; text-align: center; font-family: Arial, sans-serif; }
-  .stamp-top { font-size: 7px; font-weight: 700; letter-spacing: 0.5px; }
-  .stamp-year { font-size: 10px; font-weight: 900; }
-  .identity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; background: #f8faff; border: 1px solid #e0e7ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
-  .identity-item label { display: block; font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; font-family: Arial, sans-serif; margin-bottom: 2px; }
-  .identity-item span { font-size: 11.5px; font-weight: 700; color: #111827; }
-  .section-title { font-family: Arial, sans-serif; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #4f46e5; margin-bottom: 8px; border-left: 3px solid #4f46e5; padding-left: 8px; }
-  table { width: 100%; border-collapse: collapse; border: 1px solid #dde3f0; border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
-  thead tr { background: #4f46e5; color: white; }
-  thead th { padding: 8px 10px; font-family: Arial, sans-serif; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; color: #1f2937; background: #fff; }
+  .header-box { border: 2px solid #1f2937; border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .seal { width: 58px; height: 58px; border-radius: 50%; border: 2px solid #5b21b6; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #5b21b6; flex-shrink: 0; }
+  .seal-top { font-size: 6px; font-weight: 700; letter-spacing: 0.5px; }
+  .seal-main { font-size: 11px; font-weight: 900; }
+  .header-text { flex: 1; text-align: center; }
+  .header-text .l1 { font-size: 14px; font-weight: 800; color: #111827; }
+  .header-text .l2 { font-size: 11px; color: #374151; margin-top: 1px; }
+  .header-text .l3 { font-size: 9.5px; font-style: italic; color: #6b7280; margin-top: 1px; }
+  .header-text .l4 { font-size: 11.5px; font-weight: 800; color: #111827; text-transform: uppercase; margin-top: 4px; }
+  .title-pill { border: 1.5px solid #1f2937; border-radius: 999px; padding: 6px 20px; width: fit-content; margin: 0 auto 18px; text-align: center; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .identity-lines { margin-bottom: 14px; line-height: 1.9; }
+  .identity-lines .id-label { display: inline-block; width: 150px; color: #111827; font-weight: 700; }
+  .identity-lines .id-value { color: #1f2937; }
+  .intro { margin-bottom: 8px; font-size: 11.5px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  thead tr { background: #5b21b6; color: white; }
+  thead th { padding: 7px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; text-align: center; border: 1px solid #4c1d95; }
   thead th:first-child { text-align: left; }
-  tfoot tr { background: #111827; color: white; }
-  tfoot td { padding: 10px; font-family: Arial, sans-serif; font-size: 12px; font-weight: 900; text-align: center; }
-  tfoot td:first-child { text-align: left; }
-  .result-strip { display: flex; align-items: center; gap: 20px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
-  .result-item { text-align: center; }
-  .result-item .label { font-size: 8px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; font-family: Arial, sans-serif; }
-  .result-item .value { font-size: 18px; font-weight: 900; font-family: Arial, sans-serif; margin-top: 2px; }
-  .result-item .value.mention { font-size: 14px; }
-  .divider { width: 1px; background: rgba(255,255,255,0.3); align-self: stretch; }
-  .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 8px; }
-  .sig-box { border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; }
-  .sig-label { font-size: 9px; color: #6b7280; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.5px; font-family: Arial, sans-serif; }
-  .sig-line { font-size: 9px; color: #9ca3af; border-top: 1px dashed #d1d5db; padding-top: 4px; }
-  .footer { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8.5px; color: #9ca3af; font-family: Arial, sans-serif; }
+  td { border: 1px solid #d1d5db; padding: 5px 10px; font-size: 10.5px; }
+  td.c { text-align: center; }
+  tr.ue-row td { background: #ddd6fe; font-weight: 700; color: #111827; }
+  td.ec-label { padding-left: 10px; color: #374151; }
+  tfoot tr td { background: #111827; color: white; font-weight: 800; font-size: 11px; padding: 8px 10px; }
+  tfoot tr td:first-child { text-align: left; }
+  tfoot tr td.c { text-align: center; }
+  .jury-table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+  .jury-table th { border: 1px solid #1f2937; background: #5b21b6; color: white; padding: 6px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
+  .jury-table td { border: 1px solid #1f2937; padding: 16px 10px; font-size: 11.5px; vertical-align: top; }
+  .jury-table td:first-child { font-weight: 700; }
+  .date-line { text-align: right; font-size: 10.5px; margin-top: 10px; }
+  .signature-block { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .footer { margin-top: 30px; border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-size: 8.5px; color: #6b7280; line-height: 1.5; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .no-print { display: none; }
   }
 </style>
 </head>
 <body>
   <!-- HEADER -->
-  <div class="header">
-    <div class="logo-block">
-      <div class="logo-name">EduManage</div>
-      <div class="logo-sub">Institut Supérieur de Formation</div>
-      <div style="font-size:9px;color:#6b7280;margin-top:4px;">Dakar, Sénégal · Tél: +221 33 000 00 00</div>
+  <div class="header-box">
+    <div class="seal"><span class="seal-top">INSTITUT</span><span class="seal-main">EM</span><span class="seal-top">EduManage</span></div>
+    <div class="header-text">
+      <div class="l1">EduManage</div>
+      <div class="l2">Institut Supérieur de Formation</div>
+      <div class="l3">Excellence · Rigueur · Réussite</div>
+      <div class="l4">Institut Supérieur EduManage</div>
     </div>
-    <div class="stamp">
-      <div class="stamp-top">OFFICIEL</div>
-      <div class="stamp-year">2025<br/>2026</div>
-      <div class="stamp-top">EduManage</div>
-    </div>
-    <div class="doc-title-block">
-      <div class="doc-title">Relevé de Notes</div>
-      <div style="font-size:10px;color:#4f46e5;font-weight:700;margin-top:3px;">Semestriel Officiel</div>
-      <div class="doc-ref">N° REL-S1-2026-${entry.matricule.split("-").pop()?.padStart(4,"0")}</div>
-      <div style="font-size:9px;color:#6b7280;margin-top:2px;">Délivré le ${now}</div>
-    </div>
+    <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${resolved.etudiant.annee.split("-")[0]}</span><span class="seal-top">EduManage</span></div>
   </div>
+
+  <div class="title-pill">Relevé de Notes ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</div>
 
   <!-- IDENTITY -->
-  <div class="identity-grid">
-    <div class="identity-item"><label>Nom complet</label><span>${entry.etudiant}</span></div>
-    <div class="identity-item"><label>Matricule</label><span style="font-family:monospace;">${entry.matricule}</span></div>
-    <div class="identity-item"><label>Filière</label><span>${entry.filiere}</span></div>
-    <div class="identity-item"><label>Classe</label><span>${entry.classe}</span></div>
-    <div class="identity-item"><label>Année académique</label><span>${resolved.etudiant.annee}</span></div>
-    <div class="identity-item"><label>Semestre</label><span>${entry.semestre}</span></div>
+  <div class="identity-lines">
+    <div><span class="id-label">Prénom et Nom :</span><span class="id-value">${nomComplet}</span></div>
+    <div><span class="id-label">Date de naissance :</span><span class="id-value">${resolved.etudiant.dateNaissance ? formatDate(resolved.etudiant.dateNaissance) : "—"}${resolved.etudiant.lieuNaissance ? ` à ${resolved.etudiant.lieuNaissance}` : ""}</span></div>
+    <div><span class="id-label">Inscrit en :</span><span class="id-value">${resolved.filiereNomComplet} en ${resolved.niveauLabel} pour l'année académique ${resolved.etudiant.annee}</span></div>
+    <div><span class="id-label">Classe :</span><span class="id-value">${entry.classe}</span></div>
   </div>
 
-  <!-- NOTES TABLE -->
-  <div class="section-title">Détail des Unités d'Enseignement</div>
+  <p class="intro">A obtenu les notes suivantes</p>
+
   <table>
     <thead>
       <tr>
-        <th style="text-align:left;">UE / Élément Constitutif</th>
+        <th style="text-align:left;">Matières</th>
         <th>Moyenne</th>
-        <th>CC</th>
-        <th>Examen</th>
         <th>Crédits</th>
-        <th>Résultat</th>
+        <th>Résultats</th>
       </tr>
     </thead>
     <tbody>${tableRows}</tbody>
     <tfoot>
       <tr>
-        <td>MOYENNE GÉNÉRALE PONDÉRÉE</td>
-        <td>${moy.toFixed(2)} / 20</td>
-        <td>—</td>
-        <td>—</td>
-        <td>${creditsObtenus} / ${creditsTotal}</td>
-        <td style="color:#6ee7b7;">${mention.toUpperCase()}</td>
+        <td>Moyenne ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</td>
+        <td class="c">${moy.toFixed(2)}</td>
+        <td class="c">${creditsObtenus}/${creditsTotal}</td>
+        <td class="c"></td>
       </tr>
     </tfoot>
   </table>
 
-  <!-- RESULT STRIP -->
-  <div class="result-strip">
-    <div class="result-item"><div class="label">Moyenne générale</div><div class="value">${moy.toFixed(2)}<span style="font-size:12px;opacity:0.7;"> /20</span></div></div>
-    <div class="divider"></div>
-    <div class="result-item"><div class="label">Mention</div><div class="value mention">${mention}</div></div>
-    <div class="divider"></div>
-    <div class="result-item"><div class="label">Crédits validés</div><div class="value">${creditsObtenus}<span style="font-size:12px;opacity:0.7;"> /${creditsTotal}</span></div></div>
-    <div class="divider"></div>
-    <div class="result-item"><div class="label">Rang promo</div><div class="value">${rang ?? "—"}${typeof rang === "number" ? `<span style='font-size:12px;opacity:0.7;'>e / ${totalClasse}</span>` : ""}</div></div>
-    <div class="divider"></div>
-    <div class="result-item"><div class="label">Décision jury</div><div class="value mention" style="color:${moy >= 10 ? "#6ee7b7" : "#fca5a5"};">${moy >= 10 ? "ADMIS(E)" : "AJOURNÉ(E)"}</div></div>
-  </div>
+  <!-- JURY / DIRECTEUR -->
+  <table class="jury-table">
+    <thead>
+      <tr>
+        <th>Appréciation du Jury</th>
+        <th>Le Directeur</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>${resolved.appreciation}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
 
-  <!-- SIGNATURES -->
-  <div class="signatures">
-    <div class="sig-box">
-      <div class="sig-label">Le Directeur Académique</div>
-      <div class="sig-line">Signature &amp; Cachet Officiel</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-label">Le Directeur Général</div>
-      <div class="sig-line">Signature &amp; Cachet Officiel</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-label">Date de délivrance</div>
-      <div class="sig-line" style="color:#111827;font-weight:700;">${now}</div>
-    </div>
+  <div class="date-line">Fait à Dakar, le ${now}</div>
+  <div class="signature-block">
+    <div class="seal" style="border-color:#dc2626;color:#dc2626;"><span class="seal-top">EduManage</span><span class="seal-main">OK</span><span class="seal-top">Officiel</span></div>
   </div>
 
   <!-- FOOTER -->
   <div class="footer">
-    <span>EduManage — Institut Supérieur de Formation · Dakar, Sénégal</span>
-    <span>Ce document est officiel et certifié conforme aux registres de l'institution.</span>
-    <span>N° REL-S1-2026-${entry.matricule.split("-").pop()?.padStart(4,"0")}</span>
+    <div>EduManage — Institut Supérieur de Formation, Dakar, Sénégal</div>
+    <div>Tél : +221 33 000 00 00 · Email : contact@edumanage.sn · Site web : www.edumanage.sn</div>
+    <div>N° REL-${resolved.semestreAlias}-${resolved.etudiant.annee.split("-")[0]}-${entry.matricule.split("-").pop()?.padStart(4,"0")} — Ce document est officiel et certifié conforme aux registres de l'institution.</div>
   </div>
-
-  <script>window.onload = function(){ window.print(); }</script>
 </body>
 </html>`;
 }
@@ -251,6 +260,49 @@ function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) 
   if (!win) return;
   win.document.write(html);
   win.document.close();
+  win.print();
+}
+
+/** Aperçu du bulletin — un seul gabarit (buildPrintHtml), rendu dans un iframe, réutilisé partout
+ * où un bulletin doit être prévisualisé (Relevés, Génération, et le portail étudiant) : l'aperçu
+ * est donc toujours pixel pour pixel identique au document réellement imprimé, plus de gabarit
+ * React dupliqué qui pourrait diverger. */
+export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: ReleverEntry; resolved: BulletinResolu | undefined; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu — Relevé de Notes Officiel</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{entry.etudiant} · {entry.matricule} · {entry.semestre}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {!resolved ? (
+          <div className="p-6 text-sm text-muted-foreground">
+            Bulletin indisponible pour {entry.etudiant} — notes insuffisantes pour la session « {entry.semestre} ».
+          </div>
+        ) : (
+          <iframe title="Aperçu relevé" srcDoc={buildPrintHtml(entry, resolved)} className="flex-1 w-full bg-gray-100 dark:bg-slate-800" data-testid="releve-preview-iframe" />
+        )}
+
+        <div className="flex justify-between items-center px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex-shrink-0 bg-gray-50 dark:bg-slate-800/50 rounded-b-2xl">
+          <span className="text-xs text-muted-foreground">Aperçu identique au document imprimé</span>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
+            {resolved && (
+              <button onClick={() => printReleve(entry, resolved)} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+                <Printer size={14} /> Imprimer / Exporter PDF
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -277,6 +329,7 @@ export default function RelevesPage() {
   useNotes();
   useEvaluations();
   useMentions(); // s'abonne pour recalculer les mentions/appréciations si la configuration change
+  useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change
 
   const [mode, setMode] = useState<"liste" | "nouvelle" | "consultation">("liste");
   const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null);
@@ -383,192 +436,9 @@ export default function RelevesPage() {
       {mode === "consultation" && activeGenerationId && <ConsultationGeneration generationId={activeGenerationId} />}
 
       {/* ===== PREVIEW MODAL ===== */}
-      {previewEntry && (() => {
-        const resolved = resolveBulletin(previewEntry, etudiants);
-
-        if (!resolved) {
-          return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPreviewEntry(null)}>
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu indisponible</h3>
-                  <button onClick={() => setPreviewEntry(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                    <X size={16} className="text-gray-500" />
-                  </button>
-                </div>
-                <div className="p-6 text-sm text-muted-foreground">
-                  Bulletin indisponible pour {previewEntry.etudiant} — notes insuffisantes pour la session « {previewEntry.semestre} ».
-                </div>
-                <div className="flex justify-end px-6 py-4 border-t border-gray-200 dark:border-slate-700">
-                  <button onClick={() => setPreviewEntry(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
-                </div>
-              </div>
-            </div>
-          );
-        }
-
-        const { moyenne: moy, mention, creditsObtenus, creditsTotal, rang, totalClasse } = resolved;
-
-        return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPreviewEntry(null)}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-              {/* Modal header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu — Relevé de Notes Officiel</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{previewEntry.etudiant} · {previewEntry.matricule} · {previewEntry.semestre}</p>
-                </div>
-                <button onClick={() => setPreviewEntry(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                  <X size={16} className="text-gray-500" />
-                </button>
-              </div>
-
-              {/* A4 document preview */}
-              <div className="overflow-y-auto flex-1 p-6 bg-gray-100 dark:bg-slate-800">
-                <div className="bg-white text-gray-900 rounded-xl shadow-lg mx-auto" style={{ maxWidth: 680, padding: "32px 36px", fontFamily: "Georgia, serif" }}>
-
-                  {/* Document header */}
-                  <div className="flex items-start justify-between border-b-2 border-indigo-600 pb-5 mb-5">
-                    <div>
-                      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 22, fontWeight: 900, color: "#4f46e5" }}>EduManage</div>
-                      <div style={{ fontSize: 9, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", marginTop: 2 }}>Institut Supérieur de Formation</div>
-                      <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 4 }}>Dakar, Sénégal · Tél: +221 33 000 00 00</div>
-                    </div>
-                    <div style={{ width: 64, height: 64, border: "2px solid #4f46e5", borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#4f46e5", textAlign: "center" }}>
-                      <span style={{ fontSize: 7, fontWeight: 700, fontFamily: "Arial" }}>OFFICIEL</span>
-                      <span style={{ fontSize: 10, fontWeight: 900, fontFamily: "Arial" }}>2025<br />2026</span>
-                      <span style={{ fontSize: 7, fontFamily: "Arial" }}>EduManage</span>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 17, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5 }}>Relevé de Notes</div>
-                      <div style={{ fontSize: 11, color: "#4f46e5", fontWeight: 700, marginTop: 3, fontFamily: "Arial" }}>Semestriel Officiel</div>
-                      <div style={{ fontSize: 9, color: "#9ca3af", fontFamily: "monospace", marginTop: 3 }}>N° REL-S1-2026-{previewEntry.matricule.split("-").pop()?.padStart(4, "0")}</div>
-                      <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>Délivré le {formatDate(new Date())}</div>
-                    </div>
-                  </div>
-
-                  {/* Identity grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", background: "#f8faff", border: "1px solid #e0e7ff", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
-                    {[
-                      ["Nom complet", previewEntry.etudiant],
-                      ["Matricule", previewEntry.matricule],
-                      ["Filière", previewEntry.filiere],
-                      ["Classe", previewEntry.classe],
-                      ["Année académique", resolved.etudiant.annee],
-                      ["Semestre", previewEntry.semestre],
-                    ].map(([label, val]) => (
-                      <div key={label}>
-                        <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Arial", marginBottom: 2 }}>{label}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "Arial" }}>{val}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Section title */}
-                  <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#4f46e5", borderLeft: "3px solid #4f46e5", paddingLeft: 8, marginBottom: 8, fontFamily: "Arial" }}>Détail des Unités d'Enseignement</div>
-
-                  {/* Notes table */}
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5, marginBottom: 14, border: "1px solid #dde3f0", borderRadius: 8, overflow: "hidden" }}>
-                    <thead>
-                      <tr style={{ background: "#4f46e5", color: "white" }}>
-                        {["UE / Élément Constitutif", "Moyenne", "CC", "Examen", "Crédits", "Résultat"].map((h) => (
-                          <th key={h} style={{ padding: "7px 9px", fontFamily: "Arial", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", textAlign: h === "UE / Élément Constitutif" ? "left" : "center" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resolved.ues.map((ue) => [
-                        <tr key={ue.id} style={{ background: "#f0f4ff", fontWeight: 700 }}>
-                          <td style={{ padding: "6px 9px", fontSize: 10.5, color: "#1e3a8a", borderBottom: "1px solid #dde3f0" }}>{ue.code} - {ue.libelle}</td>
-                          <td style={{ padding: "6px 9px", textAlign: "center", fontSize: 11, color: ue.moyenne !== undefined ? (ue.moyenne >= 10 ? "#059669" : "#dc2626") : "#9ca3af", fontWeight: 800, borderBottom: "1px solid #dde3f0" }}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "En attente"}</td>
-                          <td style={{ padding: "6px 9px", textAlign: "center", color: "#9ca3af", borderBottom: "1px solid #dde3f0" }}>—</td>
-                          <td style={{ padding: "6px 9px", textAlign: "center", color: "#9ca3af", borderBottom: "1px solid #dde3f0" }}>—</td>
-                          <td style={{ padding: "6px 9px", textAlign: "center", fontSize: 10, color: "#6b7280", borderBottom: "1px solid #dde3f0" }}>{ue.credits}</td>
-                          <td style={{ padding: "6px 9px", textAlign: "center", borderBottom: "1px solid #dde3f0" }}>
-                            {ue.moyenne !== undefined && (
-                              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 9999, background: ue.validee ? "#d1fae5" : "#fee2e2", color: ue.validee ? "#065f46" : "#991b1b" }}>{ue.validee ? "VALIDÉ" : "NON VALIDÉ"}</span>
-                            )}
-                          </td>
-                        </tr>,
-                        ...ue.ecs.map((ec) => (
-                          <tr key={ec.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "5px 9px 5px 22px", fontSize: 10, color: "#374151" }}>↳ {ec.libelle}</td>
-                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10.5, color: ec.moyenne !== undefined ? (ec.moyenne >= 10 ? "#059669" : "#dc2626") : "#d1d5db", fontWeight: 700 }}>{ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
-                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#6b7280" }}>{ec.cc !== undefined ? ec.cc.toFixed(1) : "—"}</td>
-                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#6b7280" }}>{ec.ef !== undefined ? ec.ef.toFixed(1) : "—"}</td>
-                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#9ca3af" }}>{ec.credits}</td>
-                            <td style={{ padding: "5px 9px", textAlign: "center", fontSize: 10, color: "#d1d5db" }}>—</td>
-                          </tr>
-                        )),
-                      ])}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ background: "#111827", color: "white" }}>
-                        <td style={{ padding: "9px 9px", fontFamily: "Arial", fontSize: 11, fontWeight: 900 }}>MOYENNE GÉNÉRALE PONDÉRÉE</td>
-                        <td style={{ padding: "9px 9px", textAlign: "center", fontSize: 12, fontWeight: 900 }}>{moy.toFixed(2)} / 20</td>
-                        <td colSpan={2} style={{ textAlign: "center", fontSize: 10, color: "#9ca3af" }}>—</td>
-                        <td style={{ padding: "9px 9px", textAlign: "center", fontSize: 11, fontWeight: 900 }}>{creditsObtenus} / {creditsTotal}</td>
-                        <td style={{ padding: "9px 9px", textAlign: "center" }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7" }}>{mention.toUpperCase()}</span>
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-
-                  {/* Result strip */}
-                  <div style={{ display: "flex", gap: 0, background: "linear-gradient(135deg, #4f46e5, #7c3aed)", borderRadius: 8, padding: "12px 16px", marginBottom: 16, color: "white", alignItems: "center" }}>
-                    {[
-                      { label: "Moyenne", value: `${moy.toFixed(2)}/20` },
-                      { label: "Mention", value: mention },
-                      { label: "Crédits", value: `${creditsObtenus}/${creditsTotal}` },
-                      { label: "Rang", value: rang !== undefined ? `${rang}e / ${totalClasse}` : "—" },
-                      { label: "Décision", value: moy >= 10 ? "ADMIS(E)" : "AJOURNÉ(E)", color: moy >= 10 ? "#6ee7b7" : "#fca5a5" },
-                    ].map((item, i) => (
-                      <div key={i} style={{ flex: 1, textAlign: "center", ...(i > 0 ? { borderLeft: "1px solid rgba(255,255,255,0.2)" } : {}) }}>
-                        <div style={{ fontSize: 8, opacity: 0.75, textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Arial" }}>{item.label}</div>
-                        <div style={{ fontSize: 15, fontWeight: 900, fontFamily: "Arial", marginTop: 3, color: item.color ?? "white" }}>{item.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Signatures */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                    {["Le Directeur Académique", "Le Directeur Général", "Date de délivrance"].map((sig, i) => (
-                      <div key={sig} style={{ borderTop: "1px solid #d1d5db", paddingTop: 8, textAlign: "center" }}>
-                        <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 24, fontFamily: "Arial" }}>{sig}</div>
-                        <div style={{ fontSize: 9, color: i === 2 ? "#111827" : "#9ca3af", borderTop: "1px dashed #d1d5db", paddingTop: 4, fontWeight: i === 2 ? 700 : 400 }}>
-                          {i === 2 ? formatDate(new Date()) : "Signature & Cachet"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Footer */}
-                  <div style={{ marginTop: 16, borderTop: "1px solid #e5e7eb", paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 8, color: "#9ca3af", fontFamily: "Arial" }}>
-                    <span>EduManage — Institut Supérieur · Dakar, Sénégal</span>
-                    <span>Document officiel certifié conforme</span>
-                    <span>N° REL-S1-2026-{previewEntry.matricule.split("-").pop()?.padStart(4, "0")}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal footer */}
-              <div className="flex justify-between items-center px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex-shrink-0 bg-gray-50 dark:bg-slate-800/50 rounded-b-2xl">
-                <span className="text-xs text-muted-foreground">Aperçu fidèle au document imprimé en A4</span>
-                <div className="flex gap-3">
-                  <button onClick={() => setPreviewEntry(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
-                  <button
-                    onClick={() => printReleve(previewEntry, resolved)}
-                    className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
-                  >
-                    <Printer size={14} /> Imprimer / Exporter PDF
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {previewEntry && (
+        <BulletinPreviewModal entry={previewEntry} resolved={resolveBulletin(previewEntry, etudiants)} onClose={() => setPreviewEntry(null)} />
+      )}
     </div>
   );
 }
@@ -769,6 +639,7 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
   const generation = generations.find((g) => g.id === generationId);
   const releves = useReleves();
   const etudiants = useStudentStore();
+  useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change
   const [previewEntry, setPreviewEntry] = useState<ReleveRecord | null>(null);
 
   if (!generation) {
@@ -850,55 +721,9 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
         </table>
       </div>
 
-      {previewEntry && (() => {
-        const resolved = resolveBulletin(previewEntry, etudiants);
-        return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPreviewEntry(null)}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">Prévisualisation bulletin</h3>
-                <button onClick={() => setPreviewEntry(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                  <X size={16} className="text-gray-500" />
-                </button>
-              </div>
-              {!resolved ? (
-                <div className="p-6 text-sm text-muted-foreground">Bulletin indisponible — notes insuffisantes pour cette session.</div>
-              ) : (
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-bold">{previewEntry.etudiant.charAt(0)}</div>
-                    <div>
-                      <p className="font-bold text-foreground">{previewEntry.matricule} - {previewEntry.etudiant}</p>
-                      <p className="text-xs text-muted-foreground">{previewEntry.filiere} | {previewEntry.classe} | {previewEntry.semestre}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-6 text-sm">
-                    <p>Moyenne session : <span className="font-bold text-primary">{resolved.moyenne.toFixed(2)}</span></p>
-                    <p>Nombre de crédits obtenus : <span className="font-bold text-foreground">{resolved.creditsObtenus.toFixed(1)} / {resolved.creditsTotal.toFixed(1)}</span></p>
-                  </div>
-                  <div className="border border-border rounded-xl divide-y divide-border">
-                    {resolved.ues.map((ue) => (
-                      <div key={ue.id} className="px-4 py-2.5 text-sm flex items-center justify-between gap-2">
-                        <span className={cn("font-medium", ue.validee ? "text-foreground" : "text-red-600")}>{ue.code} - {ue.libelle}</span>
-                        <span className="text-xs text-muted-foreground flex-shrink-0">
-                          Crédits : {ue.credits} | Obtenus : {ue.creditsObtenus} | Moyenne : {ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}
-                          {" "}
-                          {ue.moyenne !== undefined && (ue.validee ? <CheckCircle2 size={12} className="inline text-emerald-600 ml-1" /> : <XCircle size={12} className="inline text-red-600 ml-1" />)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button onClick={() => printReleve(previewEntry, resolved)} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-                      <Printer size={14} /> Imprimer
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {previewEntry && (
+        <BulletinPreviewModal entry={previewEntry} resolved={resolveBulletin(previewEntry, etudiants)} onClose={() => setPreviewEntry(null)} />
+      )}
     </div>
   );
 }
