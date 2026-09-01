@@ -228,6 +228,10 @@ export interface UserAccountRecord {
   /** Blocage individuel de connexion, indépendant du kill-switch par portail (portalAccessStore) —
    * un compte peut être désactivé seul sans couper l'accès à tout le portail. */
   actif: boolean;
+  /** Référence vers roleStore.ts — restreint le sidebar admin et l'accès direct par URL aux
+   * modules autorisés. Absent = accès complet (comportement historique, jamais cassé pour les
+   * comptes existants). */
+  roleId?: string;
 }
 
 export interface StudentRequestRecord {
@@ -674,6 +678,7 @@ export interface AuthSessionSnapshot {
   role: UserRole;
   identifier: string;
   linkedId?: string;
+  roleId?: string;
 }
 
 export function saveAuthSession(user: AuthSessionSnapshot) {
@@ -774,6 +779,7 @@ export interface CreerCompteStaffPayload {
   telephone?: string;
   fonction?: string;
   photoDataUrl?: string;
+  roleId?: string;
 }
 
 /** Crée un vrai compte de connexion admin/professeur (jamais un étudiant — géré par le parcours
@@ -799,6 +805,7 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
     fonction: payload.fonction?.trim() || undefined,
     photoDataUrl: payload.photoDataUrl,
     actif: true,
+    roleId: payload.roleId,
   };
   store.users = [...store.users, account];
   logAudit(creePar, "create_user_account", "user_account", account.id, account.displayName);
@@ -821,10 +828,12 @@ export interface UpdateUserAccountInfoPayload {
   telephone?: string;
   fonction?: string;
   photoDataUrl?: string;
+  roleId?: string;
 }
 
 /** Édition volontairement limitée : jamais l'identifiant (déjà communiqué, sert au login) ni le
- * rôle (changement de portail hors périmètre d'un simple formulaire d'édition). */
+ * rôle de portail admin/teacher (changement de portail hors périmètre d'un simple formulaire
+ * d'édition) — mais le rôle granulaire (roleId, Sécurité → Les rôles) reste modifiable ici. */
 export function updateUserAccountInfo(userId: string, payload: UpdateUserAccountInfoPayload, actorUserId: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
@@ -833,6 +842,7 @@ export function updateUserAccountInfo(userId: string, payload: UpdateUserAccount
   user.telephone = payload.telephone?.trim() || undefined;
   user.fonction = payload.fonction?.trim() || undefined;
   if (payload.photoDataUrl !== undefined) user.photoDataUrl = payload.photoDataUrl || undefined;
+  user.roleId = payload.roleId || undefined;
   logAudit(actorUserId, "update_user_account", "user_account", userId);
   persist();
 }

@@ -301,7 +301,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     children: [
       { id: "sec-users", label: "Liste des utilisateurs", href: "/admin/users" },
       { id: "sec-user-add", label: "Ajouter nouvel utilisateur", href: "/admin/users" },
-      { id: "sec-roles", label: "Gestion des rôles", href: "/admin/users" },
+      { id: "sec-roles", label: "Gestion des rôles", href: "/admin/roles" },
       { id: "sec-droits", label: "Droit accès", href: wipHref("sec-droits") },
       { id: "sec-envoi-identifiant", label: "Envoi identifiant", href: "/admin/security/envoi-identifiant" },
       { id: "sec-portails", label: "Portails", href: "/admin/security/portails" },
@@ -355,4 +355,65 @@ export function resolveNavFromLocation(location: string): {
 
 export function hasChildren(node: AdminNavNode): boolean {
   return !!(node.children && node.children.length > 0);
+}
+
+export interface NavLeaf {
+  id: string;
+  label: string;
+  href: string;
+  sectionId: string;
+  sectionLabel: string;
+  groupLabel?: string;
+}
+
+function collectLeavesRecursive(node: AdminNavNode, section: AdminNavSection, out: NavLeaf[], groupLabel?: string) {
+  if (node.href) {
+    out.push({ id: node.id, label: node.label, href: node.href, sectionId: section.id, sectionLabel: section.label, groupLabel });
+    return;
+  }
+  node.children?.forEach((c) => collectLeavesRecursive(c, section, out, node.label));
+}
+
+/** Toutes les pages réellement navigables (celles qui ont un href), avec leur module et — pour les
+ * sections à 3 niveaux (Finances, Scolarité...) — leur sous-groupe. C'est la seule source de vérité
+ * pour construire un catalogue de permissions : jamais une liste dupliquée qui pourrait diverger du
+ * vrai menu. */
+export function collectAllLeaves(): NavLeaf[] {
+  const out: NavLeaf[] = [];
+  for (const section of ADMIN_NAV_SECTIONS) {
+    if (section.href) {
+      out.push({ id: section.id, label: section.label, href: section.href, sectionId: section.id, sectionLabel: section.label });
+    }
+    section.children?.forEach((node) => collectLeavesRecursive(node, section, out));
+  }
+  return out;
+}
+
+export function getLeafIdsForSection(sectionId: string): string[] {
+  return collectAllLeaves().filter((l) => l.sectionId === sectionId).map((l) => l.id);
+}
+
+function filterNode(node: AdminNavNode, isAllowed: (id: string) => boolean): AdminNavNode | null {
+  if (!node.children || node.children.length === 0) {
+    return node.href && isAllowed(node.id) ? node : null;
+  }
+  const children = node.children.map((c) => filterNode(c, isAllowed)).filter((c): c is AdminNavNode => c !== null);
+  if (children.length === 0) return null;
+  return { ...node, children };
+}
+
+/** Filtre récursivement l'arbre de navigation admin selon un prédicat d'accès — un groupe ne
+ * disparaît que si aucun de ses descendants n'est autorisé, jamais sur son seul intitulé. Utilisé
+ * pour le sidebar réellement filtré par rôle (AdminLayout) et pour vérifier l'accès direct par URL. */
+export function filterSectionsByAccess(sections: AdminNavSection[], isAllowed: (id: string) => boolean): AdminNavSection[] {
+  const out: AdminNavSection[] = [];
+  for (const section of sections) {
+    if (!section.children || section.children.length === 0) {
+      if (section.href && isAllowed(section.id)) out.push(section);
+      continue;
+    }
+    const children = section.children.map((c) => filterNode(c, isAllowed)).filter((c): c is AdminNavNode => c !== null);
+    if (children.length > 0) out.push({ ...section, children });
+  }
+  return out;
 }

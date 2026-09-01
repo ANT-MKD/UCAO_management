@@ -1,13 +1,16 @@
 import { Suspense, lazy } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, useLocation, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ShieldAlert } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { StudentLayout } from "@/components/layout/StudentLayout";
+import { resolveNavFromLocation } from "@/lib/adminNavConfig";
+import { useRoles } from "@/hooks/useRoleStore";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +51,9 @@ const AnneesAcademiquesPage = lazy(() => import("@/pages/admin/AnneesAcademiques
 const AttestationsPage = lazy(() => import("@/pages/admin/AttestationsPage"));
 const UsersPage = lazy(() => import("@/pages/admin/UsersPage"));
 const UserDetailPage = lazy(() => import("@/pages/admin/UserDetailPage"));
+const RolesPage = lazy(() => import("@/pages/admin/RolesPage"));
+const RoleDetailPage = lazy(() => import("@/pages/admin/RoleDetailPage"));
+const RoleAccessPage = lazy(() => import("@/pages/admin/RoleAccessPage"));
 
 // Étudiants
 const StudentsPage = lazy(() => import("@/pages/admin/StudentsPage"));
@@ -212,10 +218,54 @@ function PageLoader() {
   );
 }
 
+function AccessDenied() {
+  const { logout } = useAuth();
+  const [, setLocation] = useLocation();
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-center gap-3 px-4">
+      <ShieldAlert className="w-10 h-10 text-destructive" />
+      <h2 className="text-lg font-semibold text-foreground">Accès refusé</h2>
+      <p className="text-sm text-muted-foreground max-w-md">
+        Votre rôle ne vous donne pas accès à cette page. Contactez un administrateur si vous pensez
+        qu'il s'agit d'une erreur.
+      </p>
+      <div className="flex gap-2 mt-2">
+        <Link href="/admin/dashboard" className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted">
+          Retour au tableau de bord
+        </Link>
+        <button
+          type="button"
+          onClick={() => { logout(); setLocation("/login"); }}
+          className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted"
+        >
+          Se déconnecter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Garde-fou réel d'accès par rôle : bloque l'accès direct par URL à une page que le rôle du
+ * compte connecté n'autorise pas — même logique de résolution (resolveNavFromLocation) que le
+ * filtrage du sidebar dans AdminLayout, pour ne jamais diverger de ce que montre le menu. */
+function useRoleGuard(): boolean {
+  const { currentUser } = useAuth();
+  const roles = useRoles();
+  const [location] = useLocation();
+  if (!currentUser?.roleId) return true;
+  const role = roles.find((r) => r.id === currentUser.roleId);
+  if (!role) return true;
+  const resolved = resolveNavFromLocation(location);
+  if (!resolved.section) return true;
+  const leafId = resolved.trail.length > 0 ? resolved.trail[resolved.trail.length - 1].id : resolved.section.id;
+  return role.accessibleItemIds.includes(leafId);
+}
+
 function Admin({ children }: { children: React.ReactNode }) {
+  const allowed = useRoleGuard();
   return (
     <AdminLayout>
-      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+      <Suspense fallback={<PageLoader />}>{allowed ? children : <AccessDenied />}</Suspense>
     </AdminLayout>
   );
 }
@@ -654,6 +704,15 @@ function AppRouter() {
       </Route>
       <Route path="/admin/users/:id">
         {(p) => <Admin><UserDetailPage id={p.id} /></Admin>}
+      </Route>
+      <Route path="/admin/roles">
+        <Admin><RolesPage /></Admin>
+      </Route>
+      <Route path="/admin/roles/:id/access">
+        {(p) => <Admin><RoleAccessPage id={p.id} /></Admin>}
+      </Route>
+      <Route path="/admin/roles/:id">
+        {(p) => <Admin><RoleDetailPage id={p.id} /></Admin>}
       </Route>
       <Route path="/admin/students">
         <Admin><StudentsPage /></Admin>

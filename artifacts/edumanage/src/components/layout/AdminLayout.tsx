@@ -13,9 +13,11 @@ import {
   ADMIN_NAV_SECTIONS,
   resolveNavFromLocation,
   hasChildren,
+  filterSectionsByAccess,
   type AdminNavNode,
   type AdminNavSection,
 } from "@/lib/adminNavConfig";
+import { useRoles } from "@/hooks/useRoleStore";
 
 const TOPBAR_H = "h-16";
 const SIDEBAR_W = "w-[88px]";
@@ -128,6 +130,7 @@ function SubNavPanel({
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const { currentUser, logout } = useAuth();
+  const roles = useRoles();
   const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -136,6 +139,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileView, setMobileView] = useState<"primary" | "secondary">("primary");
 
   const resolved = useMemo(() => resolveNavFromLocation(location), [location]);
+
+  const activeRole = currentUser?.roleId ? roles.find((r) => r.id === currentUser.roleId) : undefined;
+  const navSections = useMemo(() => {
+    if (!currentUser?.roleId) return ADMIN_NAV_SECTIONS;
+    if (!activeRole) return ADMIN_NAV_SECTIONS;
+    const allowed = new Set(activeRole.accessibleItemIds);
+    return filterSectionsByAccess(ADMIN_NAV_SECTIONS, (id) => allowed.has(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeRole dérivé de roles+currentUser.roleId
+  }, [currentUser?.roleId, activeRole]);
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     () => resolved.section?.id ?? "dashboard",
@@ -155,7 +167,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync on location change only
   }, [location]);
 
-  const activeSection = ADMIN_NAV_SECTIONS.find((s) => s.id === activeSectionId) ?? null;
+  const activeSection = navSections.find((s) => s.id === activeSectionId) ?? null;
   const showSubnav = !!(activeSection && activeSection.children && activeSection.children.length > 0);
 
   const unreadCount = NOTIFICATIONS.filter((n) => !n.lue).length;
@@ -351,7 +363,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           )}
         >
           <nav className="flex-1 overflow-y-auto py-3 px-1.5 space-y-1">
-            {ADMIN_NAV_SECTIONS.map((section) => {
+            {navSections.map((section) => {
               const Icon = section.icon;
               const active = activeSectionId === section.id;
               return (
@@ -440,7 +452,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
             {mobileView === "primary" || !showSubnav ? (
               <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                {ADMIN_NAV_SECTIONS.map((section) => {
+                {navSections.map((section) => {
                   const Icon = section.icon;
                   const active = activeSectionId === section.id;
                   const hasSub = !!(section.children && section.children.length > 0);

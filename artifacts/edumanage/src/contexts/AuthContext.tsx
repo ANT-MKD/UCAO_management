@@ -16,6 +16,7 @@ interface User {
   identifier: string;
   linkedId?: string;
   avatar?: string;
+  roleId?: string;
 }
 
 interface AuthContextType {
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: saved.role,
       identifier: saved.identifier,
       linkedId: saved.linkedId,
+      roleId: saved.roleId,
     };
   });
 
@@ -62,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: account.role,
       identifier: account.identifier,
       linkedId: account.linkedId,
+      roleId: account.roleId,
     };
     setCurrentUser(user);
     saveAuthSession(user);

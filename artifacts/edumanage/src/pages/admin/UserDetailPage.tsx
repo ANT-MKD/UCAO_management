@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FormModal } from "@/components/admin/FormModal";
 import { useUserAccount, useUserAccounts, useAuditLogs } from "@/hooks/useStudentStore";
+import { useRoles } from "@/hooks/useRoleStore";
 import { setUserAccountActif, updateUserAccountInfo } from "@/data/studentStore";
 import { usePortalAccess } from "@/hooks/usePortalAccessStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
@@ -27,9 +28,10 @@ export default function UserDetailPage({ id }: { id: string }) {
   const comptes = useUserAccounts();
   const logs = useAuditLogs();
   const portails = usePortalAccess();
+  const roles = useRoles();
 
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ displayName: "", email: "", telephone: "", fonction: "", photoDataUrl: "" });
+  const [editForm, setEditForm] = useState({ displayName: "", email: "", telephone: "", fonction: "", roleId: "", photoDataUrl: "" });
   const [dernierPin, setDernierPin] = useState<string | null>(null);
 
   const acteurById = useMemo(() => new Map(comptes.map((c) => [c.id, c.displayName])), [comptes]);
@@ -53,12 +55,15 @@ export default function UserDetailPage({ id }: { id: string }) {
   const actif = compte.actif !== false;
   const portailActif = portails[compte.role];
 
+  const roleAssigne = compte.roleId ? roles.find((r) => r.id === compte.roleId) : undefined;
+
   const openEdit = () => {
     setEditForm({
       displayName: compte.displayName,
       email: compte.email,
       telephone: compte.telephone ?? "",
       fonction: compte.fonction ?? "",
+      roleId: compte.roleId ?? "",
       photoDataUrl: compte.photoDataUrl ?? "",
     });
     setEditOpen(true);
@@ -169,6 +174,17 @@ export default function UserDetailPage({ id }: { id: string }) {
             </div>
           )}
 
+          <div className="text-sm">
+            <span className="text-muted-foreground">Rôle : </span>
+            {roleAssigne ? (
+              <button onClick={() => setLocation(`/admin/roles/${roleAssigne.id}`)} className="font-mono font-medium text-primary hover:underline" data-testid="user-role-affiche">
+                {roleAssigne.code}
+              </button>
+            ) : (
+              <span className="text-muted-foreground italic" data-testid="user-role-affiche">Aucun — accès complet</span>
+            )}
+          </div>
+
           <div className="border-t border-border pt-3 mt-3">
             <button onClick={handleGenererPin} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="user-generer-pin">
               <KeyRound size={13} /> Générer code pin activation
@@ -222,6 +238,13 @@ export default function UserDetailPage({ id }: { id: string }) {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
             <input value={editForm.fonction} onChange={(e) => setEditForm((f) => ({ ...f, fonction: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-fonction" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
+            <select value={editForm.roleId} onChange={(e) => setEditForm((f) => ({ ...f, roleId: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-role-select">
+              <option value="">Aucun — accès complet</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
+            </select>
           </div>
           <button
             onClick={handleSaveEdit}

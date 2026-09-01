@@ -7,6 +7,7 @@ import { DataTable, type Column } from "@/components/admin/DataTable";
 import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useUserAccounts } from "@/hooks/useStudentStore";
+import { useRoles } from "@/hooks/useRoleStore";
 import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +23,7 @@ const EMPTY_FORM = {
   email: "",
   telephone: "",
   fonction: "",
+  roleId: "",
   password: "",
   photoDataUrl: "",
 };
@@ -30,6 +32,7 @@ export default function UsersPage() {
   const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const comptes = useUserAccounts().filter((c) => c.role !== "student");
+  const roles = useRoles();
   const [roleFilter, setRoleFilter] = useState<"" | "admin" | "teacher">("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -66,6 +69,7 @@ export default function UsersPage() {
           password: form.password,
           telephone: form.telephone || undefined,
           fonction: form.fonction || undefined,
+          roleId: form.roleId || undefined,
           photoDataUrl: form.photoDataUrl || undefined,
         },
         currentUser.id,
@@ -103,10 +107,12 @@ export default function UsersPage() {
       header: "Profil",
       render: (row) => {
         const c = row as unknown as UserAccountRecord;
+        const role = c.roleId ? roles.find((r) => r.id === c.roleId) : undefined;
         return (
           <div>
             <div className="text-sm">{PORTAL_LABELS[c.role]}</div>
             {c.fonction && <div className="text-[11px] text-muted-foreground">{c.fonction}</div>}
+            {role && <div className="text-[11px] text-primary font-mono">{role.code}</div>}
           </div>
         );
       },
@@ -220,6 +226,13 @@ export default function UsersPage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
             <input value={form.fonction} onChange={(e) => setForm((f) => ({ ...f, fonction: e.target.value }))} placeholder="ex: Secrétariat, Gestion des professeurs..." className={inputClass} data-testid="user-fonction" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
+            <select value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))} className={inputClass} data-testid="user-role-select">
+              <option value="">Aucun — accès complet</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>
