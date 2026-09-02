@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+import * as XLSX from "xlsx";
 import { Save, Upload, CheckCircle, AlertCircle, TrendingUp, Users, Info } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
@@ -47,6 +48,7 @@ export default function NotesPage() {
   const [searchStudent, setSearchStudent] = useState("");
   const [entries, setEntries] = useState<Record<string, NoteEntry>>({});
   const [saved, setSaved] = useState(false);
+  const notesImportRef = useRef<HTMLInputElement>(null);
 
   const filiere = FILIERES.find((f) => f.id === filiereId);
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
@@ -206,6 +208,47 @@ export default function NotesPage() {
       const val = e.note ? parseFloat(e.note) : undefined;
       return { etudiantId: s.id, note: val, absent: e.absent };
     });
+
+  const getCell = (raw: Record<string, unknown>, ...keys: string[]): string => {
+    const lower = new Map(Object.entries(raw).map(([k, v]) => [k.trim().toLowerCase(), v]));
+    for (const key of keys) {
+      const v = lower.get(key.toLowerCase());
+      if (v != null && String(v).trim() !== "") return String(v).trim();
+    }
+    return "";
+  };
+
+  const handleImportNotes = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const json = sheetName ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" }) : [];
+      if (json.length === 0) {
+        toast.error("Aucune ligne trouvée dans le fichier.");
+        return;
+      }
+      const next = { ...entries };
+      let count = 0;
+      for (const raw of json) {
+        const matricule = getCell(raw, "matricule");
+        if (!matricule) continue;
+        const etu = classeStudents.find((s) => s.matricule.toLowerCase() === matricule.toLowerCase());
+        if (!etu) continue;
+        const absentTxt = getCell(raw, "absent").toLowerCase();
+        const absent = ["oui", "x", "1", "true"].includes(absentTxt);
+        next[etu.id] = { note: absent ? "" : getCell(raw, "note"), absent };
+        count++;
+      }
+      setEntries(next);
+      toast.success(count > 0 ? `${count} note(s) importée(s) — vérifiez puis enregistrez.` : "Aucun matricule du fichier ne correspond à cette liste.");
+    } catch {
+      toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      if (notesImportRef.current) notesImportRef.current.value = "";
+    }
+  };
 
   const handleSave = (publish: boolean) => {
     if (!classeId || !ecId || !evaluationChoisie || !roleEvaluationChoisie) return;
@@ -440,9 +483,24 @@ export default function NotesPage() {
                   <option value="brouillon_prof">Brouillon</option>
                   <option value="publie">Publié</option>
                 </select>
-                <button className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
-                  <Upload size={13} /> Importer CSV
-                </button>
+                <label
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium text-muted-foreground hover:bg-muted transition-colors cursor-pointer",
+                    !canShowTable && "opacity-40 pointer-events-none",
+                  )}
+                  title="Importer les notes depuis un fichier Excel (colonnes Matricule, Note, Absent)"
+                >
+                  <Upload size={13} /> Importer
+                  <input
+                    ref={notesImportRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    disabled={!canShowTable}
+                    onChange={(e) => handleImportNotes(e.target.files?.[0])}
+                    data-testid="notes-import-input"
+                  />
+                </label>
                 {saved && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
                     <CheckCircle size={14} /> Enregistré

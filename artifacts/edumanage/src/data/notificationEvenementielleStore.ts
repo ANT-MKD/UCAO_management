@@ -9,8 +9,11 @@ export interface NotificationEvenementielleRecord {
   envoyerProfesseur: boolean;
   envoyerParent: boolean;
   envoyerTuteur: boolean;
-  /** true pour les codes réellement branchés sur un événement de l'application (voir
-   * notificationEngine.ts) — les autres restent un catalogue de configuration pure pour l'instant. */
+  /** true pour les codes réellement branchés sur un événement de l'application — chaque appelant
+   * (studentStore.ts, TeacherAbsencePage.tsx...) vérifie getNotificationEvenementielleParCode(code)
+   * avant d'envoyer, au point d'appel réel plutôt que via un dispatcher central (studentStore.ts
+   * ne peut pas dépendre d'un module qui l'importe lui-même). Les autres codes du catalogue restent
+   * une configuration pure pour l'instant, sans événement réel derrière. */
   brancheReellement: boolean;
 }
 

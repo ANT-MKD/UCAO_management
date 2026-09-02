@@ -5,55 +5,12 @@ export interface AdminWipPage {
   section: string;
 }
 
+/** Seules "scol-absence" et "scol-retard" sont encore routées via wipHref() dans
+ * adminNavConfig.ts — toutes les autres entrées historiques ont depuis reçu une vraie
+ * page et un vrai href, donc retirées d'ici pour ne pas laisser de métadonnées mortes. */
 export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
-  // Étudiants
-  "etudiants-interdire": { title: "Interdire / Autoriser étudiants", section: "Étudiants" },
-
-  // Professeurs
-  "prof-statut-cours": { title: "Mise à jour statut cours", section: "Professeurs" },
-  "prof-pointage-nouveau": { title: "Nouveau pointage", section: "Professeurs" },
-  "prof-pointage-traitement": { title: "Traitement pointage", section: "Professeurs" },
-
-  // Finances — Quittance
-  "fin-quittance-masse": { title: "Émission en masse", section: "Finances · Quittance" },
-
-  // Finances — Encaissement
-  "fin-enc-pec": { title: "Nouvel encaissement de PEC", section: "Finances · Encaissement" },
-  "fin-enc-pec-masse": { title: "Nouvel encaissement de PEC en masse", section: "Finances · Encaissement" },
-  "fin-enc-pec-liste": { title: "Liste encaissement PEC", section: "Finances · Encaissement" },
-  "fin-enc-pec-masse2": { title: "PEC en masse", section: "Finances · Encaissement" },
-  "fin-enc-facture": { title: "Facture autres services", section: "Finances · Encaissement" },
-
-  // Finances — Avoir
-
-  // Finances — divers
-  "fin-pec-organisme": { title: "Organisme de PEC", section: "Finances · Prise en charge" },
-  "fin-pec-liste": { title: "Les prises en charge", section: "Finances · Prise en charge" },
-  "fin-pec-regularisation": { title: "Régularisation prise en charge", section: "Finances · Prise en charge" },
-
-  // Scolarité
-  "scol-maj-cours-force": { title: "Ajout cours forcé", section: "Scolarité · Mise à jour cours" },
-  "scol-abandon": { title: "Abandon", section: "Scolarité" },
   "scol-absence": { title: "Absence", section: "Scolarité" },
   "scol-retard": { title: "Retard", section: "Scolarité" },
-  "scol-ass-nouvelle": { title: "Nouvelle assiduité", section: "Scolarité · Assiduité" },
-  "scol-ass-liste": { title: "Les assiduités", section: "Scolarité · Assiduité" },
-  "scol-ass-periode": { title: "Absence par période", section: "Scolarité · Assiduité" },
-  "scol-ass-periode-liste": { title: "Liste absence par période", section: "Scolarité · Assiduité" },
-
-  // Communication
-  "com-param": { title: "Paramétrage de la communication", section: "Communication" },
-  "com-mails": { title: "Liste mails envoyés", section: "Communication" },
-  "com-validation": { title: "Validation mails", section: "Communication" },
-  "com-publicite": { title: "Publicité et actualité", section: "Communication" },
-
-  // Bulletins
-  "bul-param": { title: "Paramétrage bulletins", section: "Bulletins" },
-  "bul-declassement": { title: "Déclassement élèves", section: "Bulletins" },
-
-  // Sécurité
-  "sec-user-add": { title: "Ajouter nouvel utilisateur", section: "Sécurité" },
-  "sec-droits": { title: "Droit accès", section: "Sécurité" },
 };
 
 export function wipHref(pageId: string): string {

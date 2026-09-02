@@ -160,14 +160,6 @@ export const VACATIONS = [
   { id: "va5", mois: "Novembre 2025", enseignant: "Dr. Moussa SY", enseignantId: "en3", modules: ["Programmation C"], heuresCm: 25, heuresTd: 20, tauxHoraire: 12000, montantTotal: 540000, statut: "valide", moyen: "OrangeMoney" },
 ];
 
-export const NOTIFICATIONS = [
-  { id: "nt1", type: "danger", message: "3 étudiants avec des impayés de plus de 30 jours", temps: "il y a 2h", lue: false },
-  { id: "nt2", type: "warning", message: "5 notes en attente de validation - Semestre 1", temps: "il y a 4h", lue: false },
-  { id: "nt3", type: "info", message: "2 nouveaux étudiants non affectés à une classe", temps: "il y a 6h", lue: false },
-  { id: "nt4", type: "success", message: "4 paiements Wave/OM réconciliés avec succès", temps: "il y a 1j", lue: true },
-  { id: "nt5", type: "info", message: "Rapport mensuel d'octobre disponible", temps: "il y a 2j", lue: true },
-];
-
 export const ABSENCES = [
   { id: "ab1", etudiantId: "et1", date: "2025-10-07", heure: "08:00–10:00", ec: "Algorithmique I", type: "CM", justifie: false, motif: "" },
   { id: "ab2", etudiantId: "et1", date: "2025-10-21", heure: "14:00–16:00", ec: "Algorithmique I", type: "TD", justifie: true, motif: "Certificat médical" },

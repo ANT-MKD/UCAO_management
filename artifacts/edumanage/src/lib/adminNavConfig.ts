@@ -80,6 +80,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "prof-planning", label: "Planning professeurs", href: "/admin/schedule?mode=prof" },
       { id: "prof-taux", label: "Taux horaire / Forfait", href: "/admin/teachers/rates" },
       { id: "prof-vh", label: "Mise à jour V.H", href: "/admin/teachers/volumes" },
+      { id: "prof-vacations", label: "Vacations enseignants", href: "/admin/vacations" },
       { id: "prof-statut-cours", label: "Mise à jour statut cours", href: "/admin/teachers/course-status" },
       { id: "prof-pointage-nouveau", label: "Nouveau pointage", href: "/admin/teachers/pointage/new" },
       { id: "prof-pointage-traitement", label: "Traitement pointage", href: "/admin/teachers/pointage" },

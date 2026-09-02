@@ -420,9 +420,6 @@ function AppRouter() {
       <Route path="/admin/teachers/courses">
         <Admin><TeacherCoursesPage /></Admin>
       </Route>
-      <Route path="/admin/teachers/planning">
-        <Redirect to="/admin/schedule?mode=prof" />
-      </Route>
       <Route path="/admin/teachers/rates">
         <Admin><TeacherRatePage /></Admin>
       </Route>

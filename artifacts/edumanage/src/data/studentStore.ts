@@ -880,9 +880,10 @@ export function pushNotification(userId: string, message: string) {
   });
 }
 
-/** Pour un appelant externe au module (notificationEngine.ts) qui n'a pas de persist() de suivi
- * déjà prévu dans un flux existant — pushNotification() seul ne suffit pas car il ne persiste pas
- * lui-même (les appels internes s'appuient sur le persist() de la fonction exportée englobante). */
+/** Pour un appelant externe au module (AuthContext.tsx, mailEnvoyeStore.ts, TeacherAbsencePage.tsx...)
+ * qui n'a pas de persist() de suivi déjà prévu dans un flux existant — pushNotification() seul ne
+ * suffit pas car il ne persiste pas lui-même (les appels internes s'appuient sur le persist() de la
+ * fonction exportée englobante). */
 export function pushNotificationEtPersister(userId: string, message: string) {
   pushNotification(userId, message);
   persist();

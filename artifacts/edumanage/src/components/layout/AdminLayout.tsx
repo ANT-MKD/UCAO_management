@@ -7,7 +7,7 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { NOTIFICATIONS } from "@/data/mockData";
+import { useAdminAlerts } from "@/hooks/useAdminAlerts";
 import { cn } from "@/lib/utils";
 import {
   ADMIN_NAV_SECTIONS,
@@ -170,7 +170,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const activeSection = navSections.find((s) => s.id === activeSectionId) ?? null;
   const showSubnav = !!(activeSection && activeSection.children && activeSection.children.length > 0);
 
-  const unreadCount = NOTIFICATIONS.filter((n) => !n.lue).length;
+  const adminAlerts = useAdminAlerts();
+  const unreadCount = adminAlerts.length;
 
   const handleLogout = () => {
     logout();
@@ -277,25 +278,27 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                   <span className="font-semibold text-sm">Notifications</span>
-                  <span className="text-xs text-primary font-medium">{unreadCount} non lues</span>
+                  <span className="text-xs text-primary font-medium">{unreadCount} alerte(s)</span>
                 </div>
-                {NOTIFICATIONS.map((n) => (
-                  <div
-                    key={n.id}
-                    className={cn(
-                      "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
-                      !n.lue && "bg-primary/[0.03]",
-                    )}
-                  >
-                    <div className="flex gap-2">
-                      {!n.lue && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
-                      <div className={!n.lue ? "" : "pl-3.5"}>
-                        <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">{n.temps}</p>
+                {adminAlerts.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune alerte — tout est à jour.</p>
+                ) : (
+                  adminAlerts.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => { setLocation(n.href); setNotifOpen(false); }}
+                      className="px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors bg-primary/[0.03]"
+                    >
+                      <div className="flex gap-2">
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{n.temps}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             )}
           </div>

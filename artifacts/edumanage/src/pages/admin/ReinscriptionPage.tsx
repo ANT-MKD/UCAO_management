@@ -8,9 +8,10 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { CLASSES, FILIERES, NIVEAUX } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { getGrilleFrais } from "@/data/grilleFraisStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { useClasses } from "@/hooks/useStructureStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import {
   STATUTS_INSCRIPTION, STATUTS_PAIEMENT, MODES_SCOLARITE,
@@ -57,6 +58,7 @@ export default function ReinscriptionPage() {
   const [, setLocation] = useLocation();
   const anneeActuelle = useAnneeActuelle();
   useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
+  const classes = useClasses();
   const modesPaiement = useModesPaiementFinance();
   const [currentStep, setCurrentStep] = useState(1);
   const [searchMatricule, setSearchMatricule] = useState("");
@@ -104,10 +106,10 @@ export default function ReinscriptionPage() {
   const classesDispo = useMemo(() => {
     const niveau = NIVEAUX.find((n) => n.id === selectedNiveau);
     if (!niveau) return [];
-    return CLASSES.filter(
+    return classes.filter(
       (c) => c.filiereId === selectedFiliere && c.niveau === niveau.alias && c.annee === anneeActuelle,
     );
-  }, [selectedFiliere, selectedNiveau, anneeActuelle]);
+  }, [classes, selectedFiliere, selectedNiveau, anneeActuelle]);
 
   const fraisRef = useMemo(() => {
     const niveau = NIVEAUX.find((n) => n.id === selectedNiveau);
