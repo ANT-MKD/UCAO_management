@@ -8,7 +8,7 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { CLASSES, FILIERES, NIVEAUX, MOYENNES_PROMO } from "@/data/mockData";
+import { CLASSES, FILIERES, NIVEAUX } from "@/data/mockData";
 import { getGrilleFrais } from "@/data/grilleFraisStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
@@ -18,11 +18,12 @@ import {
 import {
   getEtudiantByMatricule,
   registerReinscription,
-  checkReinscriptionEligibility,
   registerPaiement,
   emettreQuittanceBrute,
   type EtudiantRecord,
 } from "@/data/studentStore";
+import { checkReinscriptionEligibility, getDerniereLigneDeliberation } from "@/data/reinscriptionEligibility";
+import { DECISION_LABELS } from "@/data/deliberationStore";
 import { useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { derogationActivePour } from "@/data/derogationPaiementStore";
@@ -124,9 +125,7 @@ export default function ReinscriptionPage() {
       : Math.round(fraisRef.scolariteAnnuelle / 10);
   }, [fraisRef, form4.watch("modeScolarite")]);
 
-  const deliberation = student
-    ? MOYENNES_PROMO.find((m) => m.etudiantId === student.id)
-    : undefined;
+  const ligneDeliberation = student ? getDerniereLigneDeliberation(student.id) : undefined;
   const eligibility = student ? checkReinscriptionEligibility(student.id) : null;
   const derogations = useDerogationsPaiement();
   const derogationActive = student ? derogationActivePour(derogations, student.id, "reinscription") : undefined;
@@ -318,11 +317,11 @@ export default function ReinscriptionPage() {
               )}
             </div>
             <div className="rounded-xl border border-border p-4 bg-card">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Délibération (mock)</p>
-              {deliberation ? (
+              <p className="text-xs font-medium text-muted-foreground mb-1">Dernière délibération</p>
+              {ligneDeliberation ? (
                 <p className="text-sm">
-                  Statut : <StatusBadge status={deliberation.statut === "Admis" ? "actif" : "suspendu"} />
-                  {" · "}Moyenne : {deliberation.moyenneGenerale.toFixed(2)}
+                  Statut : <StatusBadge status={ligneDeliberation.decisionFinale === "admis" ? "actif" : "suspendu"} />
+                  {" · "}{DECISION_LABELS[ligneDeliberation.decisionFinale]} · Moyenne : {ligneDeliberation.moyenne.toFixed(2)}
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Pas encore de délibération enregistrée</p>

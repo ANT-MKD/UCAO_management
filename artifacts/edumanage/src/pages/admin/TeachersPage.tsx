@@ -5,10 +5,11 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { ENSEIGNANTS } from "@/data/mockData";
+import { useTeachers } from "@/hooks/useTeacherStore";
+import type { TeacherRecord } from "@/data/teacherStore";
 import { formatCFA } from "@/lib/utils";
 
-type Enseignant = typeof ENSEIGNANTS[0];
+type Enseignant = TeacherRecord;
 
 const GRADE_COLORS: Record<string, { bg: string; text: string }> = {
   Permanent: { bg: "#ecfdf5", text: "#10b981" },
@@ -32,20 +33,21 @@ export default function TeachersPage() {
   const [tauxMin, setTauxMin] = useState("");
   const [tauxMax, setTauxMax] = useState("");
 
-  const specialites = useMemo(() => [...new Set(ENSEIGNANTS.map((e) => e.specialite))], []);
+  const enseignants = useTeachers();
+  const specialites = useMemo(() => [...new Set(enseignants.map((e) => e.specialite))], [enseignants]);
 
   const filteredData = useMemo(() => {
-    return ENSEIGNANTS.filter((e) => {
+    return enseignants.filter((e) => {
       if (gradeFilter && e.grade !== gradeFilter) return false;
       if (specialiteFilter && e.specialite !== specialiteFilter) return false;
       if (tauxMin && e.tauxHoraire < parseInt(tauxMin)) return false;
       if (tauxMax && e.tauxHoraire > parseInt(tauxMax)) return false;
       return true;
     });
-  }, [gradeFilter, specialiteFilter, tauxMin, tauxMax]);
+  }, [enseignants, gradeFilter, specialiteFilter, tauxMin, tauxMax]);
 
-  const permanents = ENSEIGNANTS.filter((e) => e.grade === "Permanent").length;
-  const vacataires = ENSEIGNANTS.filter((e) => e.grade === "Vacataire").length;
+  const permanents = enseignants.filter((e) => e.grade === "Permanent").length;
+  const vacataires = enseignants.filter((e) => e.grade === "Vacataire").length;
   const activeFiltersCount = [gradeFilter, specialiteFilter, tauxMin, tauxMax].filter(Boolean).length;
 
   const columns: Column<Enseignant>[] = [
@@ -102,12 +104,12 @@ export default function TeachersPage() {
         }
       />
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <KPICard icon={Users} label="Total Enseignants" value={ENSEIGNANTS.length} accentColor="#4f46e5" />
+        <KPICard icon={Users} label="Total Enseignants" value={enseignants.length} accentColor="#4f46e5" />
         <KPICard icon={Users} label="Permanents" value={permanents} accentColor="#10b981" />
         <KPICard icon={Users} label="Vacataires" value={vacataires} accentColor="#f59e0b" />
       </div>
       <DataTable
-        columns={columns}
+        columns={columns as unknown as Column<Record<string, unknown>>[]}
         data={filteredData as unknown as Record<string, unknown>[]}
         searchable
         searchPlaceholder="Rechercher un enseignant..."

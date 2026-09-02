@@ -16,6 +16,8 @@ import {
   type TeacherAbsenceType,
 } from "@/data/teacherAbsenceStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
+import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
+import { getNotificationEvenementielleParCode } from "@/data/notificationEvenementielleStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
@@ -170,12 +172,20 @@ export default function TeacherAbsencePage() {
       toast.error("Indiquez une durée de retard valide");
       return;
     }
+    const vientDetreJustifie = editJustifie && !editing.justifie;
     updateTeacherAbsence(editing.id, {
       type: editType,
       dureeMinutes: duree,
       motif: editMotif.trim(),
       justifie: editJustifie,
     });
+    if (vientDetreJustifie) {
+      const notif = getNotificationEvenementielleParCode("NOTIFICATION_VALIDATION_ABSENCE_PROF");
+      if (notif?.actif && notif.envoyerProfesseur) {
+        const compte = getUserAccounts().find((u) => u.linkedId === editing.teacherId && u.role === "teacher");
+        if (compte) pushNotificationEtPersister(compte.id, `Votre ${editType === "retard" ? "retard" : "absence"} du ${editing.date} a été validé(e).`);
+      }
+    }
     toast.success("Constat mis à jour");
     setEditing(null);
   };

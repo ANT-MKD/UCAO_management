@@ -11,13 +11,16 @@ import {
 import { KPICard } from "@/components/admin/KPICard";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { formatCFA, formatDate, moyenPaiementColor } from "@/lib/utils";
-import {
-  REVENUE_DATA, SUCCESS_RATE_DATA, SUCCESS_BY_SEMESTRE, ABSENCES_STATS,
-  NOTIFICATIONS, FILIERES,
-} from "@/data/mockData";
-import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle } from "@/hooks/useStudentStore";
+import { NOTIFICATIONS, FILIERES } from "@/data/mockData";
+import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle, useCahiers } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { useMailsEnvoyes } from "@/hooks/useMailEnvoyeStore";
+import { useDeliberations } from "@/hooks/useDeliberationStore";
+import { getAssiduiteRows } from "@/data/assiduiteEngine";
+import {
+  calculerEvolutionFinanciere, calculerTauxReussiteParFiliere, calculerReussiteParSemestre,
+  calculerAbsencesParMois, libelleFenetreAcademique, PALETTE,
+} from "@/lib/dashboardStats";
 import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 import { PubliciteBanner } from "@/components/PubliciteBanner";
@@ -71,6 +74,8 @@ export default function DashboardPage() {
   const seances = useSeances();
   const decomptes = useDecomptes();
   const mailsEnvoyes = useMailsEnvoyes();
+  const deliberations = useDeliberations();
+  const cahiers = useCahiers(); // les cahiers de textes déterminent les absences affichées
   const anneesAcademiques = useAnneesAcademiques();
   const anneeActuelle = useAnneeActuelle();
   const anneeOptions = useMemo(
@@ -113,14 +118,50 @@ export default function DashboardPage() {
   const totalDecompteRestant = decomptes
     .filter((d) => d.statut !== "annule")
     .reduce((s, d) => s + Math.max(0, d.netAPayer - d.montantPaye), 0);
-  const tauxReussiteMoy = Math.round(SUCCESS_RATE_DATA.reduce((s, d) => s + d.value, 0) / SUCCESS_RATE_DATA.length);
 
-  const filteredSuccess = filiereFilter
-    ? SUCCESS_BY_SEMESTRE.map((row) => ({ semestre: row.semestre, value: row[filiereFilter as keyof typeof row] as number }))
-    : SUCCESS_BY_SEMESTRE.map((row) => ({
-        semestre: row.semestre,
-        value: Math.round((row.LPIG + row.GESTION + row.DROIT + row.COMPTA) / 4),
-      }));
+  const filieresActives = useMemo(
+    () => FILIERES.filter((f) => f.statut === "actif").map((f) => ({ id: f.id, code: f.code })),
+    [],
+  );
+  const revenueDataTop = useMemo(
+    () => calculerEvolutionFinanciere(paiements, decomptes, anneeActuelle),
+    [paiements, decomptes, anneeActuelle],
+  );
+  const revenueDataReporting = useMemo(
+    () => calculerEvolutionFinanciere(paiements, decomptes, anneeFilter),
+    [paiements, decomptes, anneeFilter],
+  );
+  const successRateData = useMemo(
+    () => calculerTauxReussiteParFiliere(deliberations, filieresActives),
+    [deliberations, filieresActives],
+  );
+  const successBySemestreData = useMemo(
+    () => calculerReussiteParSemestre(deliberations, filieresActives),
+    [deliberations, filieresActives],
+  );
+  const absencesData = useMemo(
+    () => calculerAbsencesParMois(getAssiduiteRows(), anneeFilter),
+    [anneeFilter, cahiers],
+  );
+  const repartitionFiliereData = useMemo(
+    () => filieresActives
+      .map((f, i) => ({ name: f.code, value: etudiants.filter((e) => e.filiereId === f.id).length, color: PALETTE[i % PALETTE.length] }))
+      .filter((d) => d.value > 0),
+    [filieresActives, etudiants],
+  );
+  const tauxReussiteMoy = successRateData.length > 0
+    ? Math.round(successRateData.reduce((s, d) => s + d.value, 0) / successRateData.length)
+    : null;
+
+  const filteredSuccess = successBySemestreData.map((row) => ({
+    semestre: row.semestre as string,
+    value: filiereFilter
+      ? ((row[filiereFilter] as number | undefined) ?? 0)
+      : Math.round(
+          filieresActives.reduce((s, f) => s + ((row[f.code] as number | undefined) ?? 0), 0) /
+            Math.max(1, filieresActives.filter((f) => row[f.code] !== undefined).length),
+        ),
+  }));
 
   const inputClass = "px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -152,7 +193,7 @@ export default function DashboardPage() {
         <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiants`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
         <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend="Crédits dus aux étudiants" trendDirection="down" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
         <KPICard icon={GraduationCap} label="Reste à payer aux profs" value={formatCFA(totalDecompteRestant)} trend="Décomptes non soldés" trendDirection="down" accentColor="#8b5cf6" onClick={() => setLocation("/admin/decomptes")} />
-        <KPICard icon={BarChart3} label="Taux de réussite" value={`${tauxReussiteMoy}%`} trend="+2% vs S1" trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
+        <KPICard icon={BarChart3} label="Taux de réussite" value={tauxReussiteMoy === null ? "—" : `${tauxReussiteMoy}%`} trend={tauxReussiteMoy === null ? "Aucune délibération enregistrée" : "Voir le détail"} trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
       </div>
 
       {/* Charts row */}
@@ -161,7 +202,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Évolution des Revenus</h3>
-              <p className="text-xs text-muted-foreground">Sept 2025 – Juin 2026</p>
+              <p className="text-xs text-muted-foreground">{libelleFenetreAcademique(anneeActuelle)}</p>
             </div>
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               {(["bar", "line"] as const).map((t) => (
@@ -173,7 +214,7 @@ export default function DashboardPage() {
           </div>
           <ResponsiveContainer width="100%" height={220}>
             {chartType === "bar" ? (
-              <BarChart data={REVENUE_DATA} barGap={4}>
+              <BarChart data={revenueDataTop} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
@@ -182,7 +223,7 @@ export default function DashboardPage() {
                 <Bar dataKey="depenses" fill="#e0e7ff" radius={[4, 4, 0, 0]} />
               </BarChart>
             ) : (
-              <LineChart data={REVENUE_DATA}>
+              <LineChart data={revenueDataTop}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
@@ -208,23 +249,31 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={SUCCESS_RATE_DATA} cx="50%" cy="50%" outerRadius={65} innerRadius={pieType === "donut" ? 35 : 0} dataKey="value">
-                {SUCCESS_RATE_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={(v) => [`${v}%`, "Taux"]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="grid grid-cols-2 gap-1.5 mt-2">
-            {SUCCESS_RATE_DATA.map((d) => (
-              <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                <span className="text-muted-foreground">{d.name}</span>
-                <span className="font-semibold text-foreground ml-auto">{d.value}%</span>
+          {successRateData.length === 0 ? (
+            <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground text-center px-4">
+              Aucune délibération enregistrée pour l'instant
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={successRateData} cx="50%" cy="50%" outerRadius={65} innerRadius={pieType === "donut" ? 35 : 0} dataKey="value">
+                    {successRateData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v}%`, "Taux"]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="grid grid-cols-2 gap-1.5 mt-2">
+                {successRateData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                    <span className="text-muted-foreground">{d.name}</span>
+                    <span className="font-semibold text-foreground ml-auto">{d.value}%</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -378,7 +427,7 @@ export default function DashboardPage() {
               <DollarSign size={16} className="text-primary" /> Évolution financière — {anneeFilter}
             </h3>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={REVENUE_DATA}>
+              <AreaChart data={revenueDataReporting}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mois" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
@@ -409,21 +458,25 @@ export default function DashboardPage() {
         <div className="grid lg:grid-cols-2 gap-5">
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4">Répartition par filière</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={SUCCESS_RATE_DATA} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {SUCCESS_RATE_DATA.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(v) => `${v}%`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {repartitionFiliereData.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Aucun étudiant inscrit</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={repartitionFiliereData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                    {repartitionFiliereData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v} étudiant(s)`, ""]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4">Absences par mois</h3>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={ABSENCES_STATS}>
+              <BarChart data={absencesData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mois" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />

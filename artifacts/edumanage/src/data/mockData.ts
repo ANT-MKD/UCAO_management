@@ -134,17 +134,6 @@ export const NOTES = [
   { id: "no10", etudiant: "Rokhaya BA", etudiantId: "et6", matricule: "2025-DROIT-0001", ec: "Microéconomie", ecId: "ec6", type: "EF", note: 17.0, statut: "publie" },
 ];
 
-export const MOYENNES_PROMO = [
-  { id: "mp1", rang: 1, etudiant: "Rokhaya BA", etudiantId: "et6", matricule: "2025-DROIT-0001", moyennes: [17.0, 16.5, 15.0], moyenneGenerale: 16.17, credits: 30, mention: "Très Bien", statut: "Admis" },
-  { id: "mp2", rang: 2, etudiant: "Cheikh FALL", etudiantId: "et3", matricule: "2025-LPIG-0003", moyennes: [16.5, 15.0, 14.0], moyenneGenerale: 15.17, credits: 30, mention: "Bien", statut: "Admis" },
-  { id: "mp3", rang: 3, etudiant: "Moussa SY", etudiantId: "et1", matricule: "2025-LPIG-0001", moyennes: [14.5, 13.0, 12.5], moyenneGenerale: 13.33, credits: 30, mention: "Assez Bien", statut: "Admis" },
-  { id: "mp4", rang: 4, etudiant: "Fatou NDIAYE", etudiantId: "et4", matricule: "2025-GEST-0001", moyennes: [15.0, 12.0, 11.0], moyenneGenerale: 12.67, credits: 30, mention: "Assez Bien", statut: "Admis" },
-  { id: "mp5", rang: 5, etudiant: "Aminata DIALLO", etudiantId: "et2", matricule: "2025-LPIG-0002", moyennes: [12.0, 9.5, 10.0], moyenneGenerale: 10.5, credits: 24, mention: "Passable", statut: "Admis" },
-  { id: "mp6", rang: 6, etudiant: "Ibrahima DIOP", etudiantId: "et5", matricule: "2025-GEST-0002", moyennes: [11.5, 10.0, 9.0], moyenneGenerale: 10.17, credits: 24, mention: "Passable", statut: "Admis" },
-  { id: "mp7", rang: 7, etudiant: "Lamine GUEYE", etudiantId: "et13", matricule: "2025-LPIG-0007", moyennes: [8.5, 9.0, 7.5], moyenneGenerale: 8.33, credits: 0, mention: "Ajourné", statut: "Ajourné" },
-  { id: "mp8", rang: 8, etudiant: "Oumar KANE", etudiantId: "et9", matricule: "2025-LPIG-0005", moyennes: [11.0, 9.5, 10.5], moyenneGenerale: 10.33, credits: 24, mention: "Passable", statut: "Admis" },
-];
-
 export const PAIEMENTS = [
   { id: "pa1", date: "2025-09-03", etudiant: "Moussa SY", etudiantId: "et1", classe: "L1-INFO-A", rubrique: "Frais d'inscription", montant: 150000, moyen: "Wave", reference: "WAVE-20250903-001", soldeRestant: 0, statut: "paye" },
   { id: "pa2", date: "2025-09-05", etudiant: "Aminata DIALLO", etudiantId: "et2", classe: "L1-INFO-A", rubrique: "Frais d'inscription", montant: 150000, moyen: "OrangeMoney", reference: "OM-20250905-002", soldeRestant: 75000, statut: "partiel" },
@@ -177,42 +166,6 @@ export const NOTIFICATIONS = [
   { id: "nt3", type: "info", message: "2 nouveaux étudiants non affectés à une classe", temps: "il y a 6h", lue: false },
   { id: "nt4", type: "success", message: "4 paiements Wave/OM réconciliés avec succès", temps: "il y a 1j", lue: true },
   { id: "nt5", type: "info", message: "Rapport mensuel d'octobre disponible", temps: "il y a 2j", lue: true },
-];
-
-export const REVENUE_DATA = [
-  { mois: "Sep", recettes: 4250000, depenses: 1850000 },
-  { mois: "Oct", recettes: 8750000, depenses: 2450000 },
-  { mois: "Nov", recettes: 6500000, depenses: 1950000 },
-  { mois: "Déc", recettes: 5250000, depenses: 1650000 },
-  { mois: "Jan", recettes: 9800000, depenses: 2250000 },
-  { mois: "Fév", recettes: 7200000, depenses: 2050000 },
-  { mois: "Mar", recettes: 6800000, depenses: 1850000 },
-  { mois: "Avr", recettes: 5950000, depenses: 1750000 },
-  { mois: "Mai", recettes: 14250000, depenses: 2650000 },
-  { mois: "Jun", recettes: 12500000, depenses: 2350000 },
-];
-
-export const SUCCESS_RATE_DATA = [
-  { name: "LPIG", value: 78, color: "#4f46e5" },
-  { name: "GESTION", value: 82, color: "#f59e0b" },
-  { name: "DROIT", value: 75, color: "#10b981" },
-  { name: "COMPTA", value: 69, color: "#8b5cf6" },
-];
-
-export const SUCCESS_BY_SEMESTRE = [
-  { semestre: "S1 2024", LPIG: 72, GESTION: 78, DROIT: 70, COMPTA: 65 },
-  { semestre: "S2 2024", LPIG: 74, GESTION: 80, DROIT: 72, COMPTA: 67 },
-  { semestre: "S1 2025", LPIG: 78, GESTION: 82, DROIT: 75, COMPTA: 69 },
-  { semestre: "S2 2025", LPIG: 76, GESTION: 81, DROIT: 74, COMPTA: 71 },
-];
-
-export const ABSENCES_STATS = [
-  { mois: "Sep", justifiees: 12, nonJustifiees: 8 },
-  { mois: "Oct", justifiees: 18, nonJustifiees: 15 },
-  { mois: "Nov", justifiees: 22, nonJustifiees: 11 },
-  { mois: "Déc", justifiees: 14, nonJustifiees: 9 },
-  { mois: "Jan", justifiees: 20, nonJustifiees: 13 },
-  { mois: "Fév", justifiees: 16, nonJustifiees: 7 },
 ];
 
 export const ABSENCES = [

@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Save, Plus, Trash2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ENSEIGNANTS } from "@/data/mockData";
+import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { NIVEAUX_ETUDE, generateMatriculeEnseignant } from "@/lib/inscriptionConstants";
 
 interface FormData {
@@ -28,6 +29,7 @@ interface Props { id?: string; }
 
 export default function TeacherFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const isEdit = !!id;
   const [matricule, setMatricule] = useState("");
   const [diplomes, setDiplomes] = useState<string[]>([""]);
@@ -43,26 +45,28 @@ export default function TeacherFormPage({ id }: Props) {
 
   useEffect(() => {
     if (isEdit && id) {
-      const teacher = ENSEIGNANTS.find((e) => e.id === id);
+      const teacher = getTeacherById(id);
       if (teacher) {
         reset({
           prenom: teacher.prenom.replace(/^(Pr\.|Dr\.|Me\.|M\.)\s*/, ""),
           nom: teacher.nom,
-          sexe: "M",
-          dateNaissance: "",
-          paysNaissance: "Sénégal",
-          lieuNaissance: "Dakar",
-          nationalite: "Sénégalaise",
-          cni: "",
-          email: `${teacher.nom.toLowerCase()}@univ.sn`,
-          telephone: "77 000 00 00",
-          niveauEtude: "Master",
-          grade: teacher.grade as FormData["grade"],
+          sexe: teacher.sexe ?? "M",
+          dateNaissance: teacher.dateNaissance ?? "",
+          paysNaissance: teacher.paysNaissance ?? "Sénégal",
+          lieuNaissance: teacher.lieuNaissance ?? "Dakar",
+          nationalite: teacher.nationalite ?? "Sénégalaise",
+          cni: teacher.cni ?? "",
+          email: teacher.email ?? `${teacher.nom.toLowerCase()}@univ.sn`,
+          telephone: teacher.telephone,
+          adresse: teacher.adresse ?? "",
+          niveauEtude: teacher.niveauEtude ?? "Master",
+          grade: teacher.grade,
           tauxHoraire: teacher.tauxHoraire,
+          rib: teacher.rib ?? "",
         });
         setMatricule(teacher.matricule);
-        setSpecialites([teacher.specialite]);
-        setDiplomes(["Master en " + teacher.specialite]);
+        setSpecialites(teacher.specialites?.length ? teacher.specialites : [teacher.specialite]);
+        setDiplomes(teacher.diplomes?.length ? teacher.diplomes : ["Master en " + teacher.specialite]);
       }
     } else {
       setMatricule(generateMatriculeEnseignant());
@@ -70,7 +74,34 @@ export default function TeacherFormPage({ id }: Props) {
   }, [id, isEdit, reset]);
 
   const onSubmit = (data: FormData) => {
-    console.log("Enseignant saved:", { ...data, matricule, diplomes: diplomes.filter(Boolean), specialites: specialites.filter(Boolean) });
+    if (!currentUser) return;
+    const specialitesRemplies = specialites.filter(Boolean);
+    const payload = {
+      prenom: data.prenom.trim(),
+      nom: data.nom.trim().toUpperCase(),
+      matricule,
+      telephone: data.telephone,
+      specialite: specialitesRemplies[0] ?? "",
+      specialites: specialitesRemplies,
+      grade: data.grade,
+      tauxHoraire: data.tauxHoraire,
+      email: data.email,
+      sexe: data.sexe,
+      dateNaissance: data.dateNaissance,
+      paysNaissance: data.paysNaissance,
+      lieuNaissance: data.lieuNaissance,
+      nationalite: data.nationalite,
+      cni: data.cni,
+      adresse: data.adresse,
+      niveauEtude: data.niveauEtude,
+      rib: data.rib,
+      diplomes: diplomes.filter(Boolean),
+    };
+    if (isEdit && id) {
+      updateTeacher(id, payload, currentUser.id);
+    } else {
+      addTeacher(payload, currentUser.id);
+    }
     setLocation("/admin/teachers");
   };
 

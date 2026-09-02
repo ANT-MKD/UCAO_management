@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Save, Calculator } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ENSEIGNANTS } from "@/data/mockData";
+import { useTeachers } from "@/hooks/useTeacherStore";
+import { getVacationById, addVacation, updateVacation } from "@/data/vacationStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA } from "@/lib/utils";
 
 const MOIS_OPTIONS = [
@@ -25,11 +28,30 @@ interface Props { id?: string; }
 
 export default function VacationFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const isEdit = !!id;
+  const enseignants = useTeachers();
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormData>({
     defaultValues: { enseignantId: "", mois: "", heuresCm: 0, heuresTd: 0, tauxHoraire: 15000, statut: "brouillon", observations: "" },
   });
+
+  useEffect(() => {
+    if (isEdit && id) {
+      const vacation = getVacationById(id);
+      if (vacation) {
+        reset({
+          enseignantId: vacation.enseignantId,
+          mois: vacation.mois,
+          heuresCm: vacation.heuresCm,
+          heuresTd: vacation.heuresTd,
+          tauxHoraire: vacation.tauxHoraire,
+          statut: vacation.statut,
+          observations: vacation.observations ?? "",
+        });
+      }
+    }
+  }, [id, isEdit, reset]);
 
   const heuresCm = watch("heuresCm") || 0;
   const heuresTd = watch("heuresTd") || 0;
@@ -37,10 +59,27 @@ export default function VacationFormPage({ id }: Props) {
   const montantTotal = (Number(heuresCm) + Number(heuresTd)) * Number(tauxHoraire);
 
   const enseignantId = watch("enseignantId");
-  const enseignant = ENSEIGNANTS.find((e) => e.id === enseignantId);
+  const enseignant = enseignants.find((e) => e.id === enseignantId);
 
   const onSubmit = (data: FormData) => {
-    console.log("Vacation saved:", { ...data, montantTotal });
+    if (!currentUser || !enseignant) return;
+    const enseignantNom = `${enseignant.prenom} ${enseignant.nom}`;
+    const payload = {
+      enseignantId: data.enseignantId,
+      mois: data.mois,
+      modules: isEdit && id ? (getVacationById(id)?.modules ?? []) : [],
+      heuresCm: Number(data.heuresCm),
+      heuresTd: Number(data.heuresTd),
+      tauxHoraire: Number(data.tauxHoraire),
+      statut: data.statut,
+      moyen: isEdit && id ? (getVacationById(id)?.moyen ?? "") : "",
+      observations: data.observations,
+    };
+    if (isEdit && id) {
+      updateVacation(id, payload, enseignantNom, currentUser.id);
+    } else {
+      addVacation(payload, enseignantNom, currentUser.id);
+    }
     setLocation("/admin/vacations");
   };
 
@@ -66,7 +105,7 @@ export default function VacationFormPage({ id }: Props) {
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant *</label>
                 <select {...register("enseignantId", { required: "Enseignant requis" })} className={inputClass}>
                   <option value="">Sélectionner un enseignant</option>
-                  {ENSEIGNANTS.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite} ({e.grade})</option>)}
+                  {enseignants.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite} ({e.grade})</option>)}
                 </select>
                 {errors.enseignantId && <p className="text-xs text-red-500 mt-1">{errors.enseignantId.message}</p>}
               </div>

@@ -15,14 +15,14 @@ export interface NotificationEvenementielleRecord {
 }
 
 const SEED: Omit<NotificationEvenementielleRecord, "id">[] = [
-  { code: "NOTIFICATION_ABSENCE", description: "Envoi notification après constat absence étudiant", actif: false, envoyerEtudiant: false, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: false },
-  { code: "NOTIFICATION_BLOCAGE_ETUDIANT", description: "Envoi notification après le blocage d'un étudiant", actif: false, envoyerEtudiant: false, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: false },
-  { code: "NOTIFICATION_DEBLOCAGE_ETUDIANT", description: "Envoi notification après le déblocage d'un étudiant", actif: false, envoyerEtudiant: false, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: false },
+  { code: "NOTIFICATION_ABSENCE", description: "Envoi notification après constat absence étudiant", actif: false, envoyerEtudiant: true, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
+  { code: "NOTIFICATION_BLOCAGE_ETUDIANT", description: "Envoi notification après le blocage d'un étudiant", actif: false, envoyerEtudiant: true, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
+  { code: "NOTIFICATION_DEBLOCAGE_ETUDIANT", description: "Envoi notification après le déblocage d'un étudiant", actif: false, envoyerEtudiant: true, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
   { code: "NOTIFICATION_ENCAISSEMENT", description: "Envoi notification après le règlement d'une facture", actif: false, envoyerEtudiant: true, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
   { code: "NOTIFICATION_INSCRIPTION", description: "Envoi notification après inscription étudiant dans une classe", actif: false, envoyerEtudiant: true, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
   { code: "NOTIFICATION_UPDATE_EDT", description: "Envoi notification après la mise à jour d'un emploi du temps", actif: false, envoyerEtudiant: true, envoyerProfesseur: true, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
-  { code: "NOTIFICATION_UPDATE_NOTE", description: "Envoi notification après la mise à jour d'une note d'un étudiant", actif: false, envoyerEtudiant: false, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: false },
-  { code: "NOTIFICATION_VALIDATION_ABSENCE_PROF", description: "Envoi notification après la validation de l'absence d'un professeur", actif: false, envoyerEtudiant: false, envoyerProfesseur: true, envoyerParent: false, envoyerTuteur: false, brancheReellement: false },
+  { code: "NOTIFICATION_UPDATE_NOTE", description: "Envoi notification après la mise à jour d'une note d'un étudiant", actif: false, envoyerEtudiant: true, envoyerProfesseur: false, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
+  { code: "NOTIFICATION_VALIDATION_ABSENCE_PROF", description: "Envoi notification après la validation de l'absence d'un professeur", actif: false, envoyerEtudiant: false, envoyerProfesseur: true, envoyerParent: false, envoyerTuteur: false, brancheReellement: true },
 ];
 
 function seed(): NotificationEvenementielleRecord[] {

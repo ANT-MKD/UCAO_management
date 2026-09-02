@@ -1,13 +1,19 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Plus, Pencil, Check, DollarSign, Users, Clock } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { VACATIONS } from "@/data/mockData";
+import { FormModal } from "@/components/admin/FormModal";
+import { useVacations } from "@/hooks/useVacationStore";
+import { markVacationPaid, type VacationRecord } from "@/data/vacationStore";
+import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, cn } from "@/lib/utils";
 
-type Vacation = typeof VACATIONS[0];
+type Vacation = VacationRecord;
 
 const STATUT_STYLES: Record<string, { label: string; class: string }> = {
   paye: { label: "Payé", class: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
@@ -17,9 +23,27 @@ const STATUT_STYLES: Record<string, { label: string; class: string }> = {
 
 export default function VacationsPage() {
   const [, setLocation] = useLocation();
-  const totalMontant = VACATIONS.reduce((sum, v) => sum + v.montantTotal, 0);
-  const totalHeures = VACATIONS.reduce((sum, v) => sum + v.heuresCm + v.heuresTd, 0);
-  const profs = [...new Set(VACATIONS.map((v) => v.enseignantId))].length;
+  const { currentUser } = useAuth();
+  const vacations = useVacations();
+  const modesPaiement = useModesPaiementFinance();
+  const [paiementCible, setPaiementCible] = useState<Vacation | null>(null);
+  const [moyenChoisi, setMoyenChoisi] = useState("");
+
+  const totalMontant = vacations.reduce((sum, v) => sum + v.montantTotal, 0);
+  const totalHeures = vacations.reduce((sum, v) => sum + v.heuresCm + v.heuresTd, 0);
+  const profs = [...new Set(vacations.map((v) => v.enseignantId))].length;
+
+  const openPaiement = (v: Vacation) => {
+    setPaiementCible(v);
+    setMoyenChoisi(modesPaiement[0]?.intitule ?? "");
+  };
+
+  const confirmerPaiement = () => {
+    if (!paiementCible || !moyenChoisi || !currentUser) return;
+    markVacationPaid(paiementCible.id, moyenChoisi, currentUser.id);
+    toast.success(`Vacation de ${paiementCible.enseignant} marquée payée.`);
+    setPaiementCible(null);
+  };
 
   const columns: Column<Vacation>[] = [
     { key: "mois", header: "Mois", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.mois}</span> },
@@ -69,7 +93,7 @@ export default function VacationsPage() {
         <div className="flex items-center gap-1">
           <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/vacations/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
           {r.statut === "valide" && (
-            <button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-muted-foreground hover:text-emerald-600 transition-colors" title="Marquer payé"><Check size={14} /></button>
+            <button onClick={(e) => { e.stopPropagation(); openPaiement(r); }} className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-muted-foreground hover:text-emerald-600 transition-colors" title="Marquer payé" data-testid={`vacation-marquer-paye-${r.id}`}><Check size={14} /></button>
           )}
         </div>
       ),
@@ -93,7 +117,26 @@ export default function VacationsPage() {
         <KPICard icon={Clock} label="Total heures" value={`${totalHeures}h`} accentColor="#10b981" />
         <KPICard icon={Users} label="Enseignants actifs" value={profs} accentColor="#f59e0b" />
       </div>
-      <DataTable columns={columns} data={VACATIONS as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher une vacation..." />
+      <DataTable columns={columns as unknown as Column<Record<string, unknown>>[]} data={vacations as unknown as Record<string, unknown>[]} searchable searchPlaceholder="Rechercher une vacation..." />
+
+      <FormModal open={!!paiementCible} onClose={() => setPaiementCible(null)} title="Marquer la vacation comme payée" size="sm">
+        {paiementCible && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {paiementCible.enseignant} — {paiementCible.mois} — <span className="font-bold text-primary">{formatCFA(paiementCible.montantTotal)}</span>
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement</label>
+              <select value={moyenChoisi} onChange={(e) => setMoyenChoisi(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="vacation-paiement-moyen">
+                {modesPaiement.map((m) => <option key={m.id} value={m.intitule}>{m.intitule}</option>)}
+              </select>
+            </div>
+            <button onClick={confirmerPaiement} disabled={!moyenChoisi} className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors" data-testid="vacation-confirmer-paiement">
+              Confirmer le paiement
+            </button>
+          </div>
+        )}
+      </FormModal>
     </div>
   );
 }

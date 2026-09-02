@@ -6,7 +6,6 @@ import {
   NOTES as SEED_NOTES,
   SEANCES as SEED_SEANCES,
   ENSEIGNANTS,
-  MOYENNES_PROMO,
   SEMESTRES,
 } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
@@ -15,7 +14,6 @@ import { genererDerogation, type PorteeDerogation } from "./derogationPaiementSt
 import { estAutorise } from "./communicationRolesStore";
 import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
-import { getDerogationsPaiement, derogationActivePour } from "./derogationPaiementStore";
 import { getEvaluations } from "./evaluationStore";
 
 export interface EtudiantRecord {
@@ -730,6 +728,13 @@ export function setEtudiantMotifBlocage(etudiantId: string, motifBlocageId: stri
   if (!etudiant) return;
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, motifBlocageId } : e));
   logAudit(actorId, motifBlocageId ? "assign_motif_blocage" : "clear_motif_blocage", "etudiant", etudiantId, motifBlocageId ?? "");
+  const notif = getNotificationEvenementielleParCode(motifBlocageId ? "NOTIFICATION_BLOCAGE_ETUDIANT" : "NOTIFICATION_DEBLOCAGE_ETUDIANT");
+  if (notif?.actif && notif.envoyerEtudiant) {
+    const studentUser = store.users.find((u) => u.linkedId === etudiantId && u.role === "student");
+    if (studentUser) {
+      pushNotification(studentUser.id, motifBlocageId ? "Un blocage a été appliqué à votre dossier. Contactez l'administration." : "Le blocage sur votre dossier a été levé.");
+    }
+  }
   persist();
 }
 
@@ -1058,46 +1063,6 @@ export interface ReinscriptionPayload {
   modeleFraisId?: string;
   modeleFrais?: string;
   effectuePar?: string;
-}
-
-export interface ReinscriptionEligibility {
-  decision: "allowed" | "conditional" | "blocked";
-  reasons: string[];
-}
-
-export function checkReinscriptionEligibility(etudiantId: string): ReinscriptionEligibility {
-  const etudiant = getEtudiantById(etudiantId);
-  if (!etudiant) return { decision: "blocked", reasons: ["Étudiant introuvable"] };
-  const reasons: string[] = [];
-  let blocked = false;
-  let conditional = false;
-
-  if (etudiant.statut === "suspendu") {
-    blocked = true;
-    reasons.push("Étudiant suspendu");
-  }
-  if (etudiant.statut === "abandon") {
-    blocked = true;
-    reasons.push("Étudiant en abandon — réintégration requise avant réinscription");
-  }
-  if (etudiant.soldeDu > 0) {
-    const derogation = derogationActivePour(getDerogationsPaiement(), etudiantId, "reinscription");
-    if (derogation) {
-      reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA) — dérogation ${derogation.reference} accordée jusqu'au ${derogation.dateFin}`);
-    } else {
-      conditional = true;
-      reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA)`);
-    }
-  }
-  const moyenne = MOYENNES_PROMO.find((m) => m.etudiantId === etudiantId);
-  if (moyenne && moyenne.statut !== "Admis") {
-    conditional = true;
-    reasons.push("Délibération non admise");
-  }
-
-  if (blocked) return { decision: "blocked", reasons };
-  if (conditional) return { decision: "conditional", reasons };
-  return { decision: "allowed", reasons: ["Éligible à la réinscription"] };
 }
 
 function creerInscriptionEtMettreAJourEtudiant(
@@ -1839,13 +1804,22 @@ export function publishNotesForClasseEc(classeId: string, ecId: string, session?
   const anneeRef = store.notes.find((n) => n.classeId === classeId && n.ecId === ecId)?.annee;
   if (anneeRef) assertAnneeModifiable(anneeRef);
   let count = 0;
+  const publiees: NoteRecord[] = [];
   for (const n of store.notes) {
     if (n.classeId === classeId && n.ecId === ecId && n.statut === "valide_admin" && n.session === session) {
       n.statut = "publie";
       count++;
+      publiees.push(n);
     }
   }
   if (count > 0) generateRelevesForClasseEc(classeId, ecId);
+  const notifNote = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_NOTE");
+  if (notifNote?.actif && notifNote.envoyerEtudiant) {
+    for (const n of publiees) {
+      const studentUser = store.users.find((u) => u.linkedId === n.etudiantId && u.role === "student");
+      if (studentUser) pushNotification(studentUser.id, `Nouvelle note publiée — ${n.ec}`);
+    }
+  }
   persist();
   return count;
 }
@@ -2375,6 +2349,14 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   if (!payload.asDraft) {
     const admin = store.users.find((u) => u.role === "admin");
     if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date})`);
+
+    const notifAbsence = getNotificationEvenementielleParCode("NOTIFICATION_ABSENCE");
+    if (notifAbsence?.actif && notifAbsence.envoyerEtudiant) {
+      for (const etudiantId of absents) {
+        const studentUser = store.users.find((u) => u.linkedId === etudiantId && u.role === "student");
+        if (studentUser) pushNotification(studentUser.id, `Absence constatée en ${base.ec} le ${base.date}`);
+      }
+    }
   }
   persist();
   return normalizeCahier(base);
