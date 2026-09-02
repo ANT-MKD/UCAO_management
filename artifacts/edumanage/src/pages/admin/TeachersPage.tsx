@@ -103,9 +103,13 @@ export default function TeachersPage() {
         return <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: style.bg, color: style.text }}>{r.grade}</span>;
       },
     },
-    { key: "modulesAssignes", header: "Modules", sortable: true, render: (r) => <span className="font-bold text-foreground">{r.modulesAssignes}</span> },
+    { key: "niveauEtude", header: "Niveau", render: (r) => <span className="text-sm text-muted-foreground">{r.niveauEtude ?? "—"}</span> },
+    {
+      key: "diplomes",
+      header: "Dernier diplôme",
+      render: (r) => <span className="text-sm text-muted-foreground">{r.diplomes?.length ? r.diplomes[r.diplomes.length - 1] : "—"}</span>,
+    },
     { key: "heuresMois", header: "H/mois", sortable: true, render: (r) => <span className="text-sm text-muted-foreground">{r.heuresMois}h</span> },
-    { key: "tauxHoraire", header: "Taux/h", sortable: true, render: (r) => <span className="font-medium text-emerald-600">{formatCFA(r.tauxHoraire)}</span> },
     {
       key: "actions",
       header: "Actions",
