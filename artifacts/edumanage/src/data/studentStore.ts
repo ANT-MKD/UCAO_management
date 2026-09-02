@@ -865,8 +865,12 @@ export function pushNotificationEtPersister(userId: string, message: string) {
   persist();
 }
 
+/** Persiste et notifie elle-même (pas seulement une mutation en mémoire) : logAudit() est aussi
+ * appelée depuis d'autres modules (roleStore.ts...) dont le persist() propre n'écrit jamais dans le
+ * store studentStore — sans ceci, une entrée créée par une action "rôle" pouvait être perdue au
+ * rechargement et jamais notifiée aux abonnés de useAuditLogs(). */
 export function logAudit(actorUserId: string, action: string, targetType: string, targetId: string, meta?: string) {
-  store.auditLogs.unshift({
+  const entry: AuditLogRecord = {
     id: `au-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     actorUserId,
     action,
@@ -874,7 +878,9 @@ export function logAudit(actorUserId: string, action: string, targetType: string
     targetId,
     createdAt: new Date().toISOString(),
     meta,
-  });
+  };
+  store.auditLogs = [entry, ...store.auditLogs];
+  persist();
 }
 
 export function getInscriptionsByEtudiant(etudiantId: string): InscriptionRecord[] {
