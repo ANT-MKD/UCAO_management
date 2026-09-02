@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Image as ImageIcon, Eye } from "lucide-react";
+import { Plus, Image as ImageIcon, Eye, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
@@ -12,6 +12,7 @@ import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { exportUsersToExcel } from "@/lib/userExport";
 import { cn } from "@/lib/utils";
 
 const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
@@ -160,9 +161,14 @@ export default function UsersPage() {
         title="Les utilisateurs"
         subtitle="Comptes réels d'administration et de professeurs — les étudiants sont gérés via l'inscription"
         actions={
-          <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="user-ajouter">
-            <Plus size={14} /> Ajouter
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => exportUsersToExcel(filtered)} className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste" data-testid="user-export">
+              <Download size={13} /> Exporter
+            </button>
+            <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="user-ajouter">
+              <Plus size={14} /> Ajouter
+            </button>
+          </div>
         }
       />
 

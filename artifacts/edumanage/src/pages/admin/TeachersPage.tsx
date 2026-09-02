@@ -36,6 +36,10 @@ export default function TeachersPage() {
   const [specialiteFilter, setSpecialiteFilter] = useState("");
   const [tauxMin, setTauxMin] = useState("");
   const [tauxMax, setTauxMax] = useState("");
+  const [sexeFilter, setSexeFilter] = useState("");
+  const [heuresMin, setHeuresMin] = useState("");
+  const [heuresMax, setHeuresMax] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const enseignants = useTeachers();
@@ -64,13 +68,16 @@ export default function TeachersPage() {
       if (specialiteFilter && e.specialite !== specialiteFilter) return false;
       if (tauxMin && e.tauxHoraire < parseInt(tauxMin)) return false;
       if (tauxMax && e.tauxHoraire > parseInt(tauxMax)) return false;
+      if (sexeFilter && e.sexe !== sexeFilter) return false;
+      if (heuresMin && e.heuresMois < parseInt(heuresMin)) return false;
+      if (heuresMax && e.heuresMois > parseInt(heuresMax)) return false;
       return true;
     });
-  }, [enseignants, gradeFilter, specialiteFilter, tauxMin, tauxMax]);
+  }, [enseignants, gradeFilter, specialiteFilter, tauxMin, tauxMax, sexeFilter, heuresMin, heuresMax]);
 
   const permanents = enseignants.filter((e) => e.grade === "Permanent").length;
   const vacataires = enseignants.filter((e) => e.grade === "Vacataire").length;
-  const activeFiltersCount = [gradeFilter, specialiteFilter, tauxMin, tauxMax].filter(Boolean).length;
+  const activeFiltersCount = [gradeFilter, specialiteFilter, tauxMin, tauxMax, sexeFilter, heuresMin, heuresMax].filter(Boolean).length;
 
   const columns: Column<Enseignant>[] = [
     {
@@ -148,7 +155,7 @@ export default function TeachersPage() {
         searchable
         searchPlaceholder="Rechercher un enseignant..."
         activeFiltersCount={activeFiltersCount}
-        onClearFilters={() => { setGradeFilter(""); setSpecialiteFilter(""); setTauxMin(""); setTauxMax(""); }}
+        onClearFilters={() => { setGradeFilter(""); setSpecialiteFilter(""); setTauxMin(""); setTauxMax(""); setSexeFilter(""); setHeuresMin(""); setHeuresMax(""); }}
         filterPanel={
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4">
             <div>
@@ -168,6 +175,14 @@ export default function TeachersPage() {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Sexe</label>
+              <select value={sexeFilter} onChange={(e) => setSexeFilter(e.target.value)} className={inputClass} data-testid="filter-sexe-teacher">
+                <option value="">Tous</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux min (FCFA)</label>
               <input type="number" value={tauxMin} onChange={(e) => setTauxMin(e.target.value)} className={inputClass} placeholder="8000" />
             </div>
@@ -175,16 +190,40 @@ export default function TeachersPage() {
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux max (FCFA)</label>
               <input type="number" value={tauxMax} onChange={(e) => setTauxMax(e.target.value)} className={inputClass} placeholder="20000" />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">H/mois min</label>
+              <input type="number" value={heuresMin} onChange={(e) => setHeuresMin(e.target.value)} className={inputClass} placeholder="10" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">H/mois max</label>
+              <input type="number" value={heuresMax} onChange={(e) => setHeuresMax(e.target.value)} className={inputClass} placeholder="60" />
+            </div>
             {activeFiltersCount > 0 && (
               <div className="col-span-full flex flex-wrap gap-2">
                 {gradeFilter && <FilterChip label={`Statut: ${gradeFilter}`} onRemove={() => setGradeFilter("")} />}
                 {specialiteFilter && <FilterChip label={`Spécialité: ${specialiteFilter}`} onRemove={() => setSpecialiteFilter("")} />}
-                {tauxMin && <FilterChip label={`Min: ${formatCFA(parseInt(tauxMin))}`} onRemove={() => setTauxMin("")} />}
-                {tauxMax && <FilterChip label={`Max: ${formatCFA(parseInt(tauxMax))}`} onRemove={() => setTauxMax("")} />}
+                {sexeFilter && <FilterChip label={`Sexe: ${sexeFilter === "M" ? "Masculin" : "Féminin"}`} onRemove={() => setSexeFilter("")} />}
+                {tauxMin && <FilterChip label={`Taux min: ${formatCFA(parseInt(tauxMin))}`} onRemove={() => setTauxMin("")} />}
+                {tauxMax && <FilterChip label={`Taux max: ${formatCFA(parseInt(tauxMax))}`} onRemove={() => setTauxMax("")} />}
+                {heuresMin && <FilterChip label={`H/mois min: ${heuresMin}h`} onRemove={() => setHeuresMin("")} />}
+                {heuresMax && <FilterChip label={`H/mois max: ${heuresMax}h`} onRemove={() => setHeuresMax("")} />}
               </div>
             )}
           </div>
         }
+        selectable
+        getRowId={(r) => (r as unknown as Enseignant).id}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        renderBulkActions={(ids) => (
+          <button
+            onClick={() => exportTeachersToExcel(enseignants.filter((e) => ids.includes(e.id)))}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
+            data-testid="bulk-export-teachers"
+          >
+            <Download size={12} /> Exporter la sélection
+          </button>
+        )}
       />
     </div>
   );

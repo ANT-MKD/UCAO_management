@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Pencil, Check, DollarSign, Users, Clock } from "lucide-react";
+import { Plus, Pencil, Check, DollarSign, Users, Clock, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
@@ -11,6 +11,7 @@ import { useVacations } from "@/hooks/useVacationStore";
 import { markVacationPaid, type VacationRecord } from "@/data/vacationStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { exportVacationsToExcel } from "@/lib/vacationExport";
 import { formatCFA, cn } from "@/lib/utils";
 
 type Vacation = VacationRecord;
@@ -107,9 +108,14 @@ export default function VacationsPage() {
         title="Vacations Enseignants"
         subtitle="Suivi des heures et rémunérations des vacataires"
         actions={
-          <button onClick={() => setLocation("/admin/vacations/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus size={15} /> Nouvelle Vacation
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => exportVacationsToExcel(vacations)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste" data-testid="vacation-export">
+              <Download size={13} /> Exporter
+            </button>
+            <button onClick={() => setLocation("/admin/vacations/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Plus size={15} /> Nouvelle Vacation
+            </button>
+          </div>
         }
       />
       <div className="grid grid-cols-3 gap-4 mb-6">

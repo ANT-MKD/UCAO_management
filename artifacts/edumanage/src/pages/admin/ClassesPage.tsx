@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Lock, Plus, Pencil, Trash2, Users, X } from "lucide-react";
+import { Lock, Plus, Pencil, Trash2, Users, X, Download, Upload, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
@@ -9,6 +10,7 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES } from "@/data/mockData";
 import { deleteClasse, type ClassePedagogiqueRecord } from "@/data/structureStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
+import { downloadClasseTemplate, parseClasseExcel, importClasseRows, exportClassesToExcel } from "@/lib/classeImportExport";
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -26,6 +28,24 @@ export default function ClassesPage() {
   const [niveauFilter, setNiveauFilter] = useState("");
   const [anneeFilter, setAnneeFilter] = useState("");
   const [statutFilter, setStatutFilter] = useState("");
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const rows = await parseClasseExcel(file);
+      if (rows.length === 0) {
+        toast.error("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const created = importClasseRows(rows);
+      toast.success(`${created.length} classe(s) importée(s).`);
+    } catch {
+      toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
 
   const filteredData = useMemo(() => classes.filter((c) => {
     if (filiereFilter && c.filiereId !== filiereFilter) return false;
@@ -111,9 +131,21 @@ export default function ClassesPage() {
         title="Classes pédagogiques"
         subtitle={`${filteredData.length} groupes — ${totalInscrits} étudiants · distinctes des salles physiques`}
         actions={
-          <button onClick={() => setLocation("/admin/classes/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus size={15} /> Nouvelle classe
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={downloadClasseTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
+              <FileSpreadsheet size={13} /> Modèle
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground cursor-pointer" title="Importer via Excel">
+              <Upload size={13} /> Importer
+              <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} data-testid="classe-import-input" />
+            </label>
+            <button onClick={() => exportClassesToExcel(filteredData)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste affichée">
+              <Download size={13} /> Exporter
+            </button>
+            <button onClick={() => setLocation("/admin/classes/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Plus size={15} /> Nouvelle classe
+            </button>
+          </div>
         }
       />
       <div className="grid grid-cols-3 gap-4 mb-6">
