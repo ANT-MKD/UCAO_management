@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { addTeacher, type TeacherRecord, type TeacherInput } from "@/data/teacherStore";
 import { generateMatriculeEnseignant } from "@/lib/inscriptionConstants";
 
-const HEADERS = ["Prénom", "Nom", "Sexe (M/F)", "Email", "Téléphone", "Spécialité", "Statut", "Adresse"] as const;
+const HEADERS = ["Prénom", "Nom", "Sexe (M/F)", "Email", "Téléphone", "Spécialité", "Statut", "Adresse", "Niveau", "Dernier diplôme"] as const;
 
 const DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
 
@@ -28,7 +28,7 @@ const STATUTS_VALIDES = new Set(["Permanent", "Vacataire", "Contractuel"]);
 export function downloadTeacherTemplate() {
   const sample: (string | number)[][] = [
     [...HEADERS],
-    ["Cheikh", "FALL", "M", "cheikh.fall@univ.sn", "77 123 45 67", "Algorithmique & IA", "Vacataire", "Dakar"],
+    ["Cheikh", "FALL", "M", "cheikh.fall@univ.sn", "77 123 45 67", "Algorithmique & IA", "Vacataire", "Dakar", "Master", "Master en Informatique"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(sample);
   const wb = XLSX.utils.book_new();
@@ -58,6 +58,7 @@ export async function parseTeacherExcel(file: File): Promise<ParsedTeacherRow[]>
     if (!prenom || !nom || !email || !telephone || !specialite) continue;
     const statutTxt = str(get(raw, "statut", "grade"));
     const sexeTxt = str(get(raw, "sexe")).toUpperCase();
+    const dernierDiplome = str(get(raw, "dernier diplome", "diplome"));
 
     rows.push({
       payload: {
@@ -71,6 +72,8 @@ export async function parseTeacherExcel(file: File): Promise<ParsedTeacherRow[]>
         email,
         sexe: sexeTxt === "F" ? "F" : "M",
         adresse: str(get(raw, "adresse")) || undefined,
+        niveauEtude: str(get(raw, "niveau")) || undefined,
+        diplomes: dernierDiplome ? [dernierDiplome] : undefined,
       },
     });
   }
@@ -90,8 +93,8 @@ export function exportTeachersToExcel(teachers: TeacherRecord[]) {
     Téléphone: t.telephone,
     Spécialité: t.specialite,
     Statut: t.grade,
-    "Taux horaire": t.tauxHoraire,
-    "Modules assignés": t.modulesAssignes,
+    Niveau: t.niveauEtude ?? "",
+    "Dernier diplôme": t.diplomes?.length ? t.diplomes[t.diplomes.length - 1] : "",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
