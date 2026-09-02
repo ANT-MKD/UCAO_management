@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award, ShieldOff } from "lucide-react";
+import { toast } from "sonner";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { FormModal } from "@/components/admin/FormModal";
+import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
+import { setEtudiantMotifBlocage } from "@/data/studentStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useReleves, useStudentStore } from "@/hooks/useStudentStore";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
@@ -33,9 +38,13 @@ const MOYEN_COLORS: Record<string, string> = {
 };
 
 export default function StudentDossierPage({ id }: StudentDossierPageProps) {
+  const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("informations");
+  const [blocageOpen, setBlocageOpen] = useState(false);
+  const [motifChoisi, setMotifChoisi] = useState("");
 
+  const motifsBlocage = useMotifsBlocage();
   const student = useEtudiant(id);
   const inscriptions = useInscriptions(id);
   const studentPaiements = usePaiementsByEtudiant(id);
@@ -86,6 +95,20 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   }
 
   const totalPaye = studentPaiements.reduce((sum, p) => sum + p.montant, 0);
+
+  const motifActif = student.motifBlocageId ? motifsBlocage.find((m) => m.id === student.motifBlocageId) : undefined;
+
+  const openBlocage = () => {
+    setMotifChoisi(student.motifBlocageId ?? "");
+    setBlocageOpen(true);
+  };
+
+  const handleSaveBlocage = () => {
+    if (!currentUser) return;
+    setEtudiantMotifBlocage(student.id, motifChoisi || undefined, currentUser.id);
+    toast.success(motifChoisi ? "Blocage assigné." : "Blocage retiré.");
+    setBlocageOpen(false);
+  };
 
   const TABS = [
     { key: "informations", label: "Informations", icon: GraduationCap },
@@ -154,8 +177,18 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               A été en abandon puis réintégré(e) — <button onClick={() => setLocation("/admin/abandons")} className="underline hover:no-underline">voir l&apos;historique</button>
             </div>
           )}
+          {motifActif && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl px-3 py-1.5 w-fit" data-testid="student-blocage-badge">
+              <ShieldOff size={12} />
+              Blocage actif : {motifActif.intitule}
+              <button onClick={openBlocage} className="underline hover:no-underline">Gérer</button>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
+          <button onClick={openBlocage} className={cn("flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-medium transition-colors", motifActif ? "border-amber-300 text-amber-700 hover:bg-amber-50" : "border-border hover:bg-muted")} data-testid="student-gerer-blocage">
+            <ShieldOff size={13} /> {motifActif ? "Blocage actif" : "Motif de blocage"}
+          </button>
           <button onClick={() => setLocation(`/admin/students/card?id=${encodeURIComponent(student.id)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors">
             <IdCard size={13} /> Carte étudiant
           </button>
@@ -663,6 +696,33 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
           );
         })()}
       </div>
+
+      <FormModal open={blocageOpen} onClose={() => setBlocageOpen(false)} title="Motif de blocage" size="md">
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Restreint des actions précises (accès portail, impression de documents) pour cet étudiant, sans désactiver son dossier.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
+            <select value={motifChoisi} onChange={(e) => setMotifChoisi(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="student-motif-select">
+              <option value="">Aucun — aucune restriction</option>
+              {motifsBlocage.map((m) => <option key={m.id} value={m.id}>{m.intitule}</option>)}
+            </select>
+          </div>
+          {motifChoisi && (
+            <div className="text-xs text-muted-foreground bg-muted/40 rounded-xl px-3 py-2">
+              Actions interdites : {motifsBlocage.find((m) => m.id === motifChoisi)?.actionsInterdites.length ?? 0} action(s) — voir Paramètres → Motifs de blocage pour le détail.
+            </div>
+          )}
+          <button
+            onClick={handleSaveBlocage}
+            className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+            data-testid="student-blocage-sauvegarder"
+          >
+            Sauvegarder
+          </button>
+        </div>
+      </FormModal>
     </div>
   );
 }

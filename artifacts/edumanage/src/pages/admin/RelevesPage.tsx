@@ -19,6 +19,9 @@ import { creerGeneration, type BulletinGenerationRecord, type EtudiantConcerneGe
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "@/data/deliberationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { getEtablissement } from "@/data/etablissementStore";
+import { getSignatureConfig } from "@/data/signatureConfigStore";
+import { estActionInterdite } from "@/data/motifBlocageStore";
 import { formatDate, cn } from "@/lib/utils";
 
 type ReleverEntry = ReleveRecord;
@@ -110,6 +113,9 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
   const { moyenne: moy, creditsObtenus, creditsTotal } = resolved;
   const [prenomEtu, ...nomEtuParts] = entry.etudiant.split(" ");
   const nomComplet = `${entry.matricule} - ${nomEtuParts.join(" ").toUpperCase()} ${prenomEtu}`;
+  const etab = getEtablissement();
+  const sceau = etab.nom.split(/\s+/).filter((w) => w.length > 2).map((w) => w[0]).join("").slice(0, 3).toUpperCase() || "EM";
+  const sig = getSignatureConfig("bulletin");
 
   let tableRows = "";
   resolved.ues.forEach((ue) => {
@@ -181,14 +187,13 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 <body>
   <!-- HEADER -->
   <div class="header-box">
-    <div class="seal"><span class="seal-top">INSTITUT</span><span class="seal-main">EM</span><span class="seal-top">EduManage</span></div>
+    <div class="seal"><span class="seal-top">INSTITUT</span><span class="seal-main">${sceau}</span><span class="seal-top">&nbsp;</span></div>
     <div class="header-text">
-      <div class="l1">EduManage</div>
-      <div class="l2">Institut Supérieur de Formation</div>
-      <div class="l3">Excellence · Rigueur · Réussite</div>
-      <div class="l4">Institut Supérieur EduManage</div>
+      ${etab.logoDataUrl ? `<img src="${etab.logoDataUrl}" style="height:36px;object-fit:contain;margin-bottom:4px" />` : ""}
+      <div class="l4">${etab.nom}</div>
+      <div class="l2">${etab.adresse}</div>
     </div>
-    <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${resolved.etudiant.annee.split("-")[0]}</span><span class="seal-top">EduManage</span></div>
+    <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${resolved.etudiant.annee.split("-")[0]}</span><span class="seal-top">&nbsp;</span></div>
   </div>
 
   <div class="title-pill">Relevé de Notes ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</div>
@@ -234,20 +239,20 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
     <tbody>
       <tr>
         <td>${resolved.appreciation}</td>
-        <td></td>
+        <td>${sig.actif && sig.imageDataUrl ? `<img src="${sig.imageDataUrl}" style="height:36px;object-fit:contain" />` : ""}${sig.actif && sig.signataireNom ? `<div style="font-size:10px;font-weight:700;margin-top:2px;">${sig.signataireNom}</div>` : ""}</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="date-line">Fait à Dakar, le ${now}</div>
+  <div class="date-line">Fait à ${etab.adresse.split(",")[0]}, le ${now}</div>
   <div class="signature-block">
-    <div class="seal" style="border-color:#dc2626;color:#dc2626;"><span class="seal-top">EduManage</span><span class="seal-main">OK</span><span class="seal-top">Officiel</span></div>
+    <div class="seal" style="border-color:#dc2626;color:#dc2626;"><span class="seal-top">${sceau}</span><span class="seal-main">OK</span><span class="seal-top">Officiel</span></div>
   </div>
 
   <!-- FOOTER -->
   <div class="footer">
-    <div>EduManage — Institut Supérieur de Formation, Dakar, Sénégal</div>
-    <div>Tél : +221 33 000 00 00 · Email : contact@edumanage.sn · Site web : www.edumanage.sn</div>
+    <div>${etab.nom}${etab.adresse ? ` — ${etab.adresse}` : ""}</div>
+    <div>${[etab.telephone && `Tél : ${etab.telephone}`, etab.email && `Email : ${etab.email}`, etab.siteWeb && `Site web : ${etab.siteWeb}`].filter(Boolean).join(" · ")}</div>
     <div>N° REL-${resolved.semestreAlias}-${resolved.etudiant.annee.split("-")[0]}-${entry.matricule.split("-").pop()?.padStart(4,"0")} — Ce document est officiel et certifié conforme aux registres de l'institution.</div>
   </div>
 </body>
@@ -255,6 +260,10 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 }
 
 function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
+  if (estActionInterdite(entry.etudiantId, "impression_bulletin")) {
+    toast.error(`Impression bloquée pour ${entry.etudiant} — un motif de blocage l'interdit (voir Paramètres → Motifs de blocage).`);
+    return;
+  }
   const html = buildPrintHtml(entry, resolved);
   const win = window.open("", "_blank", "width=900,height=1100");
   if (!win) return;

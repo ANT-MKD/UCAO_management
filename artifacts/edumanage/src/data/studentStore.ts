@@ -49,6 +49,9 @@ export interface EtudiantRecord {
   cni?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
+  /** Référence vers motifBlocageStore.ts — restreint des actions précises (accès portail,
+   * impression de documents) sans désactiver le dossier de l'étudiant. Absent = aucun blocage. */
+  motifBlocageId?: string;
 }
 
 export interface InscriptionRecord {
@@ -717,6 +720,17 @@ export function getEtudiantById(id: string): EtudiantRecord | undefined {
 export function getEtudiantByMatricule(matricule: string): EtudiantRecord | undefined {
   const q = matricule.trim().toUpperCase();
   return store.etudiants.find((e) => e.matricule.toUpperCase() === q);
+}
+
+/** Réassigne le tableau (jamais une mutation en place de store.etudiants) pour que useEtudiant()/
+ * useStudentStore() se mettent à jour même sans qu'un autre hook du même composant ne change en
+ * même temps — même précaution que pour les autres bugs de réactivité corrigés cette session. */
+export function setEtudiantMotifBlocage(etudiantId: string, motifBlocageId: string | undefined, actorId: string): void {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  if (!etudiant) return;
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, motifBlocageId } : e));
+  logAudit(actorId, motifBlocageId ? "assign_motif_blocage" : "clear_motif_blocage", "etudiant", etudiantId, motifBlocageId ?? "");
+  persist();
 }
 
 export function getUserAccounts(): UserAccountRecord[] {

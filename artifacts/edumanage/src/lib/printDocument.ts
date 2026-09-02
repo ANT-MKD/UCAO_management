@@ -1,4 +1,5 @@
 import { formatCFA } from "@/lib/utils";
+import { getEtablissement } from "@/data/etablissementStore";
 
 export interface PrintDocumentLigne {
   label: string;
@@ -50,6 +51,9 @@ export interface PrintDocumentArgs {
 
   messageMerci?: string;
   signatureLabel?: string;
+  /** Image de signature réellement configurée (Paramètres → Signature électronique) pour ce type
+   * de document — si absente, la ligne de signature reste vide comme avant. */
+  signatureImageDataUrl?: string;
 }
 
 const STYLE = `
@@ -87,6 +91,7 @@ tbody tr:last-child td{border-bottom:none}
 .thanks{margin-top:32px;font-size:13px;font-weight:600;color:#1a2f5e}
 .footer{margin-top:56px;display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;color:#888}
 .signature{text-align:center}
+.signature img{height:48px;object-fit:contain;margin-bottom:2px}
 .signature .line{width:170px;border-top:1px solid #ccc;margin-bottom:6px}
 .signature strong{color:#1a1a2e;font-size:12px}
 @media print { body{margin:0} }
@@ -97,12 +102,13 @@ tbody tr:last-child td{border-bottom:none}
  * destinataire/méta, tableau des lignes, encart + récapitulatif, remerciement, signature. */
 export function buildPrintDocumentHtml(args: PrintDocumentArgs): string {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const etab = getEtablissement();
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.numero}</title>
 <style>${STYLE}</style></head><body>
 <div class="top">
   <div class="brand">
-    <div class="mark"></div>
-    <div><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
+    ${etab.logoDataUrl ? `<img src="${etab.logoDataUrl}" style="width:40px;height:40px;border-radius:10px;object-fit:cover;flex-shrink:0" />` : `<div class="mark"></div>`}
+    <div><h1>${etab.nom}</h1><p>${etab.adresse}</p></div>
   </div>
   <div class="doc-title">
     <h2>${args.badge}</h2>
@@ -158,11 +164,12 @@ ${args.messageMerci !== "" ? `<p class="thanks">${args.messageMerci ?? "Merci po
 
 <div class="footer">
   <div>
-    Institut Supérieur EduManage<br />
-    Dakar, Sénégal<br />
+    ${etab.nom}<br />
+    ${etab.adresse}<br />
     Fait le ${now}
   </div>
   <div class="signature">
+    ${args.signatureImageDataUrl ? `<img src="${args.signatureImageDataUrl}" />` : ""}
     <div class="line"></div>
     <strong>${args.signatureLabel ?? "Le Responsable Financier"}</strong>
   </div>

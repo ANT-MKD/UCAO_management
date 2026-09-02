@@ -1,6 +1,7 @@
 import type { TeacherContractRecord } from "@/data/teacherContractStore";
 import type { EnseignantRecord } from "@/lib/teacherUtils";
 import { formatCFA, formatDate } from "@/lib/utils";
+import { getEtablissement } from "@/data/etablissementStore";
 
 export interface ContractPrintRow {
   coursLabel: string;
@@ -23,6 +24,7 @@ export function buildContractHtml(
 ): string {
   const total = rows.reduce((sum, r) => sum + r.montant, 0);
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const etab = getEtablissement();
 
   const avenantsHtml =
     contract.avenants.length === 0
@@ -64,14 +66,14 @@ th{background:#f4f4f8}
 .signatures{display:flex;justify-content:space-between;margin-top:80px;font-size:13px}
 .signatures div{width:220px;text-align:center;border-top:1px solid #333;padding-top:8px}
 </style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal · Agrément Ministère de l'Enseignement Supérieur</p></div>
+<div class="header"><h1>${etab.nom}</h1><p>${etab.adresse}${etab.agrement ? ` · ${etab.agrement}` : ""}</p></div>
 <div class="title">CONTRAT D'ENSEIGNEMENT N° ${contract.id}</div>
 <div class="meta">
   <div>Année académique : <strong>${contract.annee}</strong></div>
   <div>Statut : <strong>${STATUT_LABEL[statut]}</strong></div>
 </div>
 <div class="body">
-<p>Entre l'Institut Supérieur EduManage, ci-après « l'Établissement », d'une part,</p>
+<p>Entre ${etab.nom}, ci-après « l'Établissement », d'une part,</p>
 <p>Et <strong>${teacher ? `${teacher.prenom} ${teacher.nom}` : "le professeur"}</strong>${teacher ? ` (${teacher.grade}, matricule ${teacher.matricule})` : ""}, ci-après « le Professeur », d'autre part,</p>
 <p>Il est convenu ce qui suit : le présent contrat couvre la période du <strong>${formatDate(contract.dateDebut)}</strong> au <strong>${formatDate(contract.dateFin)}</strong>, pour l'année académique ${contract.annee}, selon la répartition des enseignements ci-dessous.</p>
 </div>

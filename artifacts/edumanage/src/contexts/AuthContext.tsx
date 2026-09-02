@@ -3,6 +3,7 @@ import {
   authenticateUser,
   clearAuthSession,
   findUserAccountByIdentifier,
+  getEtudiantById,
   loadAuthSession,
   logAudit,
   pushNotificationEtPersister,
@@ -12,8 +13,10 @@ import {
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
 import { isLocked, registerFailedAttempt, registerSuccessfulLogin, MAX_TENTATIVES } from "@/data/loginSecurityStore";
 import { getCommunicationRolesParType } from "@/data/communicationRolesStore";
-import { useUserAccounts } from "@/hooks/useStudentStore";
+import { estActionInterdite, getMotifBlocageById } from "@/data/motifBlocageStore";
+import { useUserAccounts, useStudentStore } from "@/hooks/useStudentStore";
 import { usePortalAccess } from "@/hooks/usePortalAccessStore";
+import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
 
 interface User {
   id: string;
@@ -57,15 +60,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const accounts = useUserAccounts();
   const portalAccess = usePortalAccess();
+  useStudentStore(); // souscription : un motif de blocage assigné en direct doit aussi invalider la session
+  useMotifsBlocage();
 
-  /** Invalide une session déjà ouverte dès que le compte est désactivé ou son portail coupé —
-   * jusqu'ici, "Désactiver le compte" / "Portails" ne bloquaient que les connexions futures, une
-   * session déjà ouverte restait valide indéfiniment. Se réévalue à chaque changement des comptes
-   * ou de l'accès portail (réactif), pas seulement au chargement. */
+  /** Invalide une session déjà ouverte dès que le compte est désactivé, son portail coupé, ou (pour
+   * un étudiant) qu'un motif de blocage interdisant "portail_etudiant" lui est assigné — jusqu'ici,
+   * ces coupe-circuits ne bloquaient que les connexions futures, une session déjà ouverte restait
+   * valide indéfiniment. Se réévalue à chaque changement (réactif), pas seulement au chargement. */
   useEffect(() => {
     if (!currentUser) return;
     const account = accounts.find((a) => a.id === currentUser.id);
-    const stillValid = !!account && account.actif !== false && portalAccess[currentUser.role];
+    let stillValid = !!account && account.actif !== false && portalAccess[currentUser.role];
+    if (stillValid && currentUser.role === "student" && currentUser.linkedId) {
+      stillValid = !estActionInterdite(currentUser.linkedId, "portail_etudiant");
+    }
     if (!stillValid) {
       setCurrentUser(null);
       clearAuthSession();
@@ -100,6 +108,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (account.actif === false) {
       throw new Error("Ce compte a été désactivé (Sécurité → Liste des utilisateurs). Contactez l'administration.");
+    }
+    if (account.role === "student" && account.linkedId && estActionInterdite(account.linkedId, "portail_etudiant")) {
+      const etudiant = getEtudiantById(account.linkedId);
+      const motif = etudiant?.motifBlocageId ? getMotifBlocageById(etudiant.motifBlocageId) : undefined;
+      throw new Error(`Accès au portail bloqué${motif ? ` — motif : ${motif.intitule}` : ""}. Contactez l'administration.`);
     }
 
     registerSuccessfulLogin(identifierOrEmail);

@@ -16,8 +16,17 @@ import {
   type AttestationType,
 } from "@/data/attestationStore";
 import { buildPrintDocumentHtml } from "@/lib/printDocument";
+import { getEtablissement } from "@/data/etablissementStore";
+import { getSignatureConfig } from "@/data/signatureConfigStore";
+import { estActionInterdite } from "@/data/motifBlocageStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, formatCFA, cn } from "@/lib/utils";
+
+const ACTION_IMPRESSION: Record<AttestationType, string> = {
+  scolarite: "impression_certificat_scolarite",
+  inscription: "impression_attestation_inscription",
+  reussite: "impression_attestation_reussite",
+};
 
 const TYPE_OPTIONS: { value: AttestationType; label: string }[] = [
   { value: "scolarite", label: "Certificat de scolarité" },
@@ -31,29 +40,31 @@ const STATUT_CONFIG = {
 };
 
 function buildAttestationHtml(entry: AttestationRecord) {
+  const nomEtablissement = getEtablissement().nom;
   let corps = "";
   if (entry.type === "reussite") {
     corps = `
-      <p>Je soussigné(e), le Directeur de l'Institut Supérieur EduManage, certifie par la présente que :</p>
+      <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
       <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
       <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${entry.moyenneConstatee?.toFixed(2) ?? "—"}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
       <p>En foi de quoi, la présente attestation de réussite est délivrée pour servir et valoir ce que de droit.</p>
     `;
   } else if (entry.type === "inscription") {
     corps = `
-      <p>Je soussigné(e), le Directeur de l'Institut Supérieur EduManage, certifie par la présente que :</p>
+      <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
       <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
       <p>Est régulièrement inscrit(e) dans notre établissement pour l'année académique ${entry.annee}, en ${entry.filiere} — ${entry.classe}.</p>
       <p>En foi de quoi, la présente attestation d'inscription est délivrée pour servir et valoir ce que de droit.</p>
     `;
   } else {
     corps = `
-      <p>Je soussigné(e), le Directeur de l'Institut Supérieur EduManage, certifie par la présente que :</p>
+      <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
       <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
       <p>Est régulièrement inscrit(e) dans notre établissement pour l'année universitaire en cours et suit assidûment les cours dispensés.</p>
       <p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>
     `;
   }
+  const sig = getSignatureConfig(entry.type);
   return buildPrintDocumentHtml({
     badge: entry.typeLabel.toUpperCase(),
     numeroLabel: "Réf.",
@@ -64,7 +75,8 @@ function buildAttestationHtml(entry: AttestationRecord) {
     destinataireLignes: [`Matricule : ${entry.matricule}`, `${entry.filiere} — Classe ${entry.classe}`, `Année académique : ${entry.annee}`],
     corps,
     messageMerci: "",
-    signatureLabel: "Le Directeur",
+    signatureLabel: sig.actif && sig.signataireNom ? sig.signataireNom : "Le Directeur",
+    signatureImageDataUrl: sig.actif ? sig.imageDataUrl : undefined,
   });
 }
 
@@ -139,6 +151,10 @@ export default function AttestationsPage() {
   };
 
   const printAttestation = (entry: AttestationRecord) => {
+    if (estActionInterdite(entry.etudiantId, ACTION_IMPRESSION[entry.type])) {
+      toast.error(`Impression bloquée pour ${entry.etudiant} — un motif de blocage l'interdit (voir Paramètres → Motifs de blocage).`);
+      return;
+    }
     const win = window.open("", "_blank");
     if (win) { win.document.write(buildAttestationHtml(entry)); win.document.close(); win.print(); }
   };
