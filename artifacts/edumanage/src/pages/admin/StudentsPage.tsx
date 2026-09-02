@@ -8,7 +8,7 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES } from "@/data/mockData";
-import { useStudentStore, useAnneeActuelle, useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneeActuelle, useAnneesAcademiques, useAllInscriptions } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { setEtudiantsAccess, type EtudiantRecord } from "@/data/studentStore";
 import { downloadStudentTemplate, parseStudentExcel, importStudentRows, exportStudentsToExcel } from "@/lib/studentImportExport";
@@ -26,6 +26,11 @@ const STATUT_OPTIONS = [
   { value: "abandon", label: "Abandon" },
 ];
 
+function isYearMonth(iso: string, year: number, month: number): boolean {
+  const d = new Date(iso);
+  return d.getFullYear() === year && d.getMonth() === month;
+}
+
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
@@ -41,6 +46,7 @@ export default function StudentsPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const anneeActuelle = useAnneeActuelle();
+  const inscriptions = useAllInscriptions();
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportFile = async (file: File | undefined) => {
@@ -100,6 +106,13 @@ export default function StudentsPage() {
   }, [etudiants, filiereFilter, statutFilter, anneeFilter, impayesOnly, sexeFilter, classeFilter, niveauFilter]);
 
   const impayés = etudiants.filter((e) => e.soldeDu > 0).length;
+
+  const now = new Date();
+  const moisPrecedent = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const premieresInscriptions = inscriptions.filter((i) => i.type === "premiere");
+  const nouveauxCeMois = premieresInscriptions.filter((i) => isYearMonth(i.dateInscription, now.getFullYear(), now.getMonth())).length;
+  const nouveauxMoisPrecedent = premieresInscriptions.filter((i) => isYearMonth(i.dateInscription, moisPrecedent.getFullYear(), moisPrecedent.getMonth())).length;
+  const ecartNouveaux = nouveauxCeMois - nouveauxMoisPrecedent;
   const suspendus = etudiants.filter((e) => e.statut === "suspendu").length;
 
   const activeFiltersCount = [filiereFilter, statutFilter, anneeFilter, sexeFilter, classeFilter, niveauFilter, impayesOnly].filter(Boolean).length;
@@ -362,7 +375,14 @@ export default function StudentsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard icon={Users} label="Total inscrits" value={etudiants.length} accentColor="#4f46e5" />
-        <KPICard icon={Users} label="Nouveaux ce mois" value="12" trend="+4 vs mois préc." trendDirection="up" accentColor="#10b981" />
+        <KPICard
+          icon={Users}
+          label="Nouveaux ce mois"
+          value={nouveauxCeMois}
+          trend={ecartNouveaux === 0 ? undefined : `${ecartNouveaux > 0 ? "+" : ""}${ecartNouveaux} vs mois préc.`}
+          trendDirection={ecartNouveaux >= 0 ? "up" : "down"}
+          accentColor="#10b981"
+        />
         <KPICard
           icon={AlertTriangle}
           label="Avec impayés"

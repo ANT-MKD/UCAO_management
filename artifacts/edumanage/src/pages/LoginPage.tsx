@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertTriangle, Copy, Check, KeyRound, CheckCircle2 } from "lucide-react";
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { findUserAccountByIdentifier, updateUserPassword } from "@/data/studentStore";
@@ -18,12 +18,6 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-const DEMO_CREDS = [
-  { role: "Admin", email: "admin@edumanage.com", color: "#4f46e5", bg: "#eef2ff" },
-  { role: "Enseignant", email: "prof@edumanage.com", color: "#8b5cf6", bg: "#f5f3ff" },
-  { role: "Étudiant", email: "etu@edumanage.com", hint: "ou matricule 2025-LPIG-0001", color: "#10b981", bg: "#ecfdf5" },
-];
-
 type Mode = "login" | "forgot-request" | "forgot-reset";
 
 export default function LoginPage() {
@@ -32,7 +26,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
 
   const [mode, setMode] = useState<Mode>("login");
   const [forgotIdentifier, setForgotIdentifier] = useState("");
@@ -89,25 +82,6 @@ export default function LoginPage() {
     defaultValues: { identifier: "", password: "" },
   });
 
-  const handleCopy = (email: string) => {
-    form.setValue("identifier", email);
-    form.setValue("password", "demo123");
-    setError("");
-
-    void (async () => {
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(email);
-        }
-      } catch {
-        /* Presse-papiers indisponible (HTTP, permissions…) — le formulaire est déjà rempli */
-      }
-    })();
-
-    setCopied(email);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
   const onSubmit = async (data: LoginForm) => {
     setError("");
     setLoading(true);
@@ -116,7 +90,7 @@ export default function LoginPage() {
       const user = login(data.identifier, data.password);
       setLoading(false);
       if (!user) {
-        setError("Identifiants incorrects. Utilisez un des comptes de démo ci-dessous.");
+        setError("Identifiants incorrects.");
         return;
       }
       if (user.role === "admin") setLocation("/admin/dashboard");
@@ -260,35 +234,6 @@ export default function LoginPage() {
               {loading ? "Connexion en cours..." : "Se connecter"}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-indigo-50 dark:bg-indigo-950 border border-dashed border-indigo-200 dark:border-indigo-800 rounded-xl">
-            <p className="text-xs font-semibold text-[#4f46e5] mb-3">Comptes de démo — mot de passe : demo123</p>
-            <div className="flex flex-col gap-2">
-              {DEMO_CREDS.map((c) => (
-                <div key={c.email} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: c.bg, color: c.color }}>
-                      {c.role}
-                    </span>
-                    <span className="text-xs text-[#64748b] font-mono">{c.email}</span>
-                    {"hint" in c && c.hint && (
-                      <span className="text-[10px] text-[#94a3b8]">{c.hint}</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(c.email)}
-                    className="flex items-center gap-1 text-[10px] text-[#4f46e5] hover:bg-indigo-100 dark:hover:bg-indigo-900 px-2 py-1 rounded-lg transition-colors"
-                    data-testid={`copy-${c.role}`}
-                  >
-                    {copied === c.email ? <Check size={11} /> : <Copy size={11} />}
-                    {copied === c.email ? "Rempli" : "Utiliser"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
           </>
           )}
 

@@ -12,7 +12,8 @@ import { KPICard } from "@/components/admin/KPICard";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { formatCFA, formatDate, moyenPaiementColor } from "@/lib/utils";
 import { FILIERES } from "@/data/mockData";
-import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle, useCahiers } from "@/hooks/useStudentStore";
+import { useAuth } from "@/contexts/AuthContext";
+import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle, useCahiers, useAllInscriptions } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { useAdminAlerts } from "@/hooks/useAdminAlerts";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
@@ -69,7 +70,9 @@ const StatsTooltip = ({ active, payload, label }: { active?: boolean; payload?: 
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const etudiants = useStudentStore();
+  const inscriptions = useAllInscriptions();
   const paiements = usePaiements();
   const seances = useSeances();
   const decomptes = useDecomptes();
@@ -100,6 +103,20 @@ export default function DashboardPage() {
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
   const alertesAffichees = adminAlerts.slice(0, 3);
   const totalRecettes = paiements.reduce((s, p) => s + p.montant, 0);
+
+  const moisPrecedent = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const nouveauxEtudiantsCeMois = inscriptions.filter(
+    (i) => i.type === "premiere" && new Date(i.dateInscription).getFullYear() === today.getFullYear() && new Date(i.dateInscription).getMonth() === today.getMonth(),
+  ).length;
+  const recettesCeMois = paiements
+    .filter((p) => p.statut !== "annule" && new Date(p.date).getFullYear() === today.getFullYear() && new Date(p.date).getMonth() === today.getMonth())
+    .reduce((s, p) => s + p.montant, 0);
+  const recettesMoisPrecedent = paiements
+    .filter((p) => p.statut !== "annule" && new Date(p.date).getFullYear() === moisPrecedent.getFullYear() && new Date(p.date).getMonth() === moisPrecedent.getMonth())
+    .reduce((s, p) => s + p.montant, 0);
+  const evolutionRecettes = recettesMoisPrecedent > 0
+    ? Math.round(((recettesCeMois - recettesMoisPrecedent) / recettesMoisPrecedent) * 100)
+    : null;
   const totalAvoirCirculation = etudiants.reduce((s, e) => s + e.soldeAvoir, 0);
   const totalDecompteRestant = decomptes
     .filter((d) => d.statut !== "annule")
@@ -157,7 +174,7 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
-            Bonjour, Ousmane
+            Bonjour, {currentUser?.name?.split(" ")[0] || "Administrateur"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {dayName.charAt(0).toUpperCase() + dayName.slice(1)} {dayNum} — {formatDate(today)}
@@ -174,8 +191,24 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-        <KPICard icon={Users} label="Étudiants inscrits" value={etudiants.length} trend="+12 ce mois" trendDirection="up" accentColor="#4f46e5" onClick={() => setLocation("/admin/students")} />
-        <KPICard icon={TrendingUp} label="Recettes encaissées" value={formatCFA(totalRecettes)} trend="+8% vs mois préc." trendDirection="up" accentColor="#10b981" onClick={() => setLocation("/admin/encaissements")} />
+        <KPICard
+          icon={Users}
+          label="Étudiants inscrits"
+          value={etudiants.length}
+          trend={nouveauxEtudiantsCeMois > 0 ? `+${nouveauxEtudiantsCeMois} ce mois` : undefined}
+          trendDirection="up"
+          accentColor="#4f46e5"
+          onClick={() => setLocation("/admin/students")}
+        />
+        <KPICard
+          icon={TrendingUp}
+          label="Recettes encaissées"
+          value={formatCFA(totalRecettes)}
+          trend={evolutionRecettes === null ? undefined : `${evolutionRecettes > 0 ? "+" : ""}${evolutionRecettes}% vs mois préc.`}
+          trendDirection={evolutionRecettes !== null && evolutionRecettes < 0 ? "down" : "up"}
+          accentColor="#10b981"
+          onClick={() => setLocation("/admin/encaissements")}
+        />
         <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiants`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
         <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend="Crédits dus aux étudiants" trendDirection="down" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
         <KPICard icon={GraduationCap} label="Reste à payer aux profs" value={formatCFA(totalDecompteRestant)} trend="Décomptes non soldés" trendDirection="down" accentColor="#8b5cf6" onClick={() => setLocation("/admin/decomptes")} />

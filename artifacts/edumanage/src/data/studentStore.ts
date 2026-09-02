@@ -5,7 +5,6 @@ import {
   PAIEMENTS as SEED_PAIEMENTS,
   NOTES as SEED_NOTES,
   SEANCES as SEED_SEANCES,
-  ENSEIGNANTS,
   SEMESTRES,
 } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
@@ -445,6 +444,10 @@ function seedNotes(): NoteRecord[] {
   }));
 }
 
+/** Seul compte préexistant : celui de l'administrateur, indispensable pour pouvoir se connecter
+ * la toute première fois. Les comptes professeur et étudiant ne sont plus préchargés — ils sont
+ * créés réellement (Sécurité → Ajouter un utilisateur, ou automatiquement à l'inscription d'un
+ * étudiant) une fois que l'établissement a de vraies personnes à y rattacher. */
 function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
   const users: UserAccountRecord[] = [
     {
@@ -453,28 +456,13 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       email: "admin@edumanage.com",
       password: "demo123",
       identifier: "ADM-0001",
-      displayName: "Ousmane DIALLO",
+      displayName: "Administrateur",
       fonction: "Direction",
-      actif: true,
-    },
-    {
-      id: "u-teacher-1",
-      role: "teacher",
-      email: "prof@edumanage.com",
-      password: "demo123",
-      identifier: "ENS-0001",
-      displayName: "Cheikh FALL",
-      linkedId: ENSEIGNANTS[0]?.id,
-      fonction: "Gestion des professeurs",
       actif: true,
     },
   ];
 
   for (const e of etudiants) {
-    // et1 a son propre compte démo ci-dessous (login mémorable "etu@edumanage.com") — ne pas créer
-    // un second compte avec le même linkedId, ce qui rendrait ambigu tout lookup par linkedId
-    // (ex: la notification d'un message envoyé au groupe de sa classe partirait vers le mauvais compte).
-    if (e.id === "et1") continue;
     users.push({
       id: `u-student-${e.id}`,
       role: "student",
@@ -483,21 +471,6 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       identifier: e.matricule,
       displayName: `${e.prenom} ${e.nom}`,
       linkedId: e.id,
-      actif: true,
-    });
-  }
-
-  // Compte démo étudiant (login page + tests rapides)
-  const demoStudent = etudiants.find((e) => e.id === "et1");
-  if (demoStudent) {
-    users.push({
-      id: "u-student-demo",
-      role: "student",
-      email: "etu@edumanage.com",
-      password: "demo123",
-      identifier: demoStudent.matricule,
-      displayName: `${demoStudent.prenom} ${demoStudent.nom}`,
-      linkedId: demoStudent.id,
       actif: true,
     });
   }
