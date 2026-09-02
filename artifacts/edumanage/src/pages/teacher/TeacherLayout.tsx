@@ -18,16 +18,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useNotifications } from "@/hooks/useStudentStore";
 import { markNotificationRead } from "@/data/studentStore";
+import { TEACHER_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 
-const NAV = [
-  { to: "/teacher/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
-  { to: "/teacher/schedule", icon: Calendar, label: "Mon EDT" },
-  { to: "/teacher/modules", icon: BookOpen, label: "Mes modules" },
-  { to: "/teacher/grades", icon: ClipboardList, label: "Saisie notes" },
-  { to: "/teacher/cahier", icon: NotebookPen, label: "Cahier de séance" },
-  { to: "/teacher/rallonge", icon: Clock3, label: "Demande de rallonge" },
-  { to: "/teacher/contract", icon: FileText, label: "Mon contrat" },
-];
+const ICONS_BY_ID: Record<string, React.ElementType> = {
+  "teacher-dashboard": LayoutDashboard,
+  "teacher-schedule": Calendar,
+  "teacher-modules": BookOpen,
+  "teacher-grades": ClipboardList,
+  "teacher-cahier": NotebookPen,
+  "teacher-rallonge": Clock3,
+  "teacher-contract": FileText,
+};
+
+const NAV = TEACHER_PORTAL_FEATURES.map((f) => ({
+  id: f.id,
+  to: f.href,
+  icon: ICONS_BY_ID[f.id],
+  label: f.label,
+}));
 
 export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, logout } = useAuth();
@@ -36,6 +45,8 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useNotifications(currentUser?.id);
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const portalFeatures = usePortalFeatures();
+  const visibleNav = NAV.filter((item) => portalFeatures[item.id] !== false);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -51,7 +62,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="flex-1 p-2 space-y-1">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const active = location === item.to;
             return (
               <Link

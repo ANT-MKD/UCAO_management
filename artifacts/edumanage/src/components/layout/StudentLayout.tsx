@@ -18,26 +18,36 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useNotifications } from "@/hooks/useStudentStore";
 import { markNotificationRead } from "@/data/studentStore";
+import { STUDENT_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 
 interface StudentLayoutProps {
   children: React.ReactNode;
 }
 
 interface StudentNavItem {
+  id: string;
   label: string;
   href: string;
   icon: React.ElementType;
 }
 
-const STUDENT_NAV_ITEMS: StudentNavItem[] = [
-  { label: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard },
-  { label: "Emploi du temps", href: "/student/schedule", icon: CalendarDays },
-  { label: "Notes & Relevés", href: "/student/grades", icon: FileText },
-  { label: "Paiements", href: "/student/payments", icon: CreditCard },
-  { label: "Messagerie", href: "/student/messages", icon: MessageCircle },
-  { label: "Mes demandes", href: "/student/requests", icon: ClipboardList },
-  { label: "Profil", href: "/student/profile", icon: User },
-];
+const ICONS_BY_ID: Record<string, React.ElementType> = {
+  "student-dashboard": LayoutDashboard,
+  "student-schedule": CalendarDays,
+  "student-grades": FileText,
+  "student-payments": CreditCard,
+  "student-messages": MessageCircle,
+  "student-requests": ClipboardList,
+  "student-profile": User,
+};
+
+const STUDENT_NAV_ITEMS: StudentNavItem[] = STUDENT_PORTAL_FEATURES.map((f) => ({
+  id: f.id,
+  label: f.label,
+  href: f.href,
+  icon: ICONS_BY_ID[f.id],
+}));
 
 export function StudentLayout({ children }: StudentLayoutProps) {
   const [location, setLocation] = useLocation();
@@ -46,6 +56,8 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useNotifications(currentUser?.id);
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const portalFeatures = usePortalFeatures();
+  const visibleNavItems = STUDENT_NAV_ITEMS.filter((item) => portalFeatures[item.id] !== false);
 
   const handleLogout = () => {
     logout();
@@ -86,7 +98,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           </div>
 
           <nav className="flex-1 p-3 space-y-1">
-            {STUDENT_NAV_ITEMS.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const active = location === item.href || location.startsWith(item.href + "/");
               return (

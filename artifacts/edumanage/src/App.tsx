@@ -11,6 +11,8 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { StudentLayout } from "@/components/layout/StudentLayout";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { useRoles } from "@/hooks/useRoleStore";
+import { resolveFeatureIdFromLocation } from "@/data/portalFeaturesStore";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 
 const queryClient = new QueryClient();
 
@@ -219,7 +221,7 @@ function PageLoader() {
   );
 }
 
-function AccessDenied() {
+function AccessDenied({ homeHref = "/admin/dashboard", message }: { homeHref?: string; message?: string }) {
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
   return (
@@ -227,11 +229,10 @@ function AccessDenied() {
       <ShieldAlert className="w-10 h-10 text-destructive" />
       <h2 className="text-lg font-semibold text-foreground">Accès refusé</h2>
       <p className="text-sm text-muted-foreground max-w-md">
-        Votre rôle ne vous donne pas accès à cette page. Contactez un administrateur si vous pensez
-        qu'il s'agit d'une erreur.
+        {message ?? "Votre rôle ne vous donne pas accès à cette page. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur."}
       </p>
       <div className="flex gap-2 mt-2">
-        <Link href="/admin/dashboard" className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted">
+        <Link href={homeHref} className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted">
           Retour au tableau de bord
         </Link>
         <button
@@ -271,19 +272,39 @@ function Admin({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Même garde-fou que useRoleGuard, mais pour les portails Étudiant/Professeur : établissement,
+ * pas par compte — géré depuis Sécurité → Portails. */
+function usePortalFeatureGuard(portal: "student" | "teacher"): boolean {
+  const portalFeatures = usePortalFeatures();
+  const [location] = useLocation();
+  const featureId = resolveFeatureIdFromLocation(portal, location);
+  if (!featureId) return true;
+  return portalFeatures[featureId] !== false;
+}
+
 function Student({ children }: { children: React.ReactNode }) {
+  const allowed = usePortalFeatureGuard("student");
   return (
     <StudentLayout>
-      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+      <Suspense fallback={<PageLoader />}>
+        {allowed ? children : (
+          <AccessDenied homeHref="/student/dashboard" message="Cette page a été désactivée par l'établissement pour le portail Étudiant." />
+        )}
+      </Suspense>
     </StudentLayout>
   );
 }
 
 function Teacher({ children }: { children: React.ReactNode }) {
+  const allowed = usePortalFeatureGuard("teacher");
   return (
     <Suspense fallback={<PageLoader />}>
       <TeacherLayoutMod>
-        <Suspense fallback={<PageLoader />}>{children}</Suspense>
+        <Suspense fallback={<PageLoader />}>
+          {allowed ? children : (
+            <AccessDenied homeHref="/teacher/dashboard" message="Cette page a été désactivée par l'établissement pour le portail Professeur." />
+          )}
+        </Suspense>
       </TeacherLayoutMod>
     </Suspense>
   );
