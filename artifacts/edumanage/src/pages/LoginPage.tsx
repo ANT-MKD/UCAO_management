@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { findUserAccountByIdentifier, updateUserPassword } from "@/data/studentStore";
 import { genererPin, verifierEtConsommerPin } from "@/data/pinActivationStore";
 import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
 
 const loginSchema = z.object({
   identifier: z.string().min(1, "Identifiant requis"),
@@ -68,7 +69,7 @@ export default function LoginPage() {
     setForgotError("");
     if (!resetUserId) return;
     if (!pinInput.trim()) { setForgotError("Saisissez le code PIN reçu."); return; }
-    if (newPassword.length < 4) { setForgotError("Le mot de passe doit contenir au moins 4 caractères."); return; }
+    if (!isPasswordValid(newPassword)) { setForgotError(`Le mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()}.`); return; }
     if (newPassword !== confirmPassword) { setForgotError("Les deux mots de passe ne correspondent pas."); return; }
     const valide = verifierEtConsommerPin(resetUserId, pinInput.trim());
     if (!valide) { setForgotError("Code PIN invalide, déjà utilisé ou expiré."); return; }
@@ -387,6 +388,7 @@ export default function LoginPage() {
                     className="w-full px-4 py-3 text-sm border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
                     data-testid="input-new-password"
                   />
+                  <p className="text-[11px] text-[#94a3b8] mt-1">{PASSWORD_HINT}</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[#64748b] mb-1.5">Confirmer le mot de passe</label>

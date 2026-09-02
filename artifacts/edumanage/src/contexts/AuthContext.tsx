@@ -1,12 +1,19 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import {
   authenticateUser,
   clearAuthSession,
+  findUserAccountByIdentifier,
   loadAuthSession,
+  logAudit,
+  pushNotificationEtPersister,
   saveAuthSession,
   type UserRole,
 } from "@/data/studentStore";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
+import { isLocked, registerFailedAttempt, registerSuccessfulLogin, MAX_TENTATIVES } from "@/data/loginSecurityStore";
+import { getCommunicationRolesParType } from "@/data/communicationRolesStore";
+import { useUserAccounts } from "@/hooks/useStudentStore";
+import { usePortalAccess } from "@/hooks/usePortalAccessStore";
 
 interface User {
   id: string;
@@ -48,15 +55,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   });
 
+  const accounts = useUserAccounts();
+  const portalAccess = usePortalAccess();
+
+  /** Invalide une session déjà ouverte dès que le compte est désactivé ou son portail coupé —
+   * jusqu'ici, "Désactiver le compte" / "Portails" ne bloquaient que les connexions futures, une
+   * session déjà ouverte restait valide indéfiniment. Se réévalue à chaque changement des comptes
+   * ou de l'accès portail (réactif), pas seulement au chargement. */
+  useEffect(() => {
+    if (!currentUser) return;
+    const account = accounts.find((a) => a.id === currentUser.id);
+    const stillValid = !!account && account.actif !== false && portalAccess[currentUser.role];
+    if (!stillValid) {
+      setCurrentUser(null);
+      clearAuthSession();
+    }
+  }, [currentUser, accounts, portalAccess]);
+
   const login = (identifierOrEmail: string, password: string): User | null => {
+    const lock = isLocked(identifierOrEmail);
+    if (lock.locked) {
+      const minutes = Math.max(1, Math.ceil((lock.remainingMs ?? 0) / 60000));
+      throw new Error(`Trop de tentatives échouées. Réessayez dans ${minutes} minute(s).`);
+    }
+
     const account = authenticateUser(identifierOrEmail, password);
-    if (!account) return null;
+    if (!account) {
+      const result = registerFailedAttempt(identifierOrEmail);
+      if (result.locked) {
+        const compte = findUserAccountByIdentifier(identifierOrEmail);
+        if (compte) {
+          logAudit("system", "lockout_failed_attempts", "user_account", compte.id, `${MAX_TENTATIVES} tentatives échouées`);
+          pushNotificationEtPersister(compte.id, "Votre compte a été temporairement bloqué après plusieurs tentatives de connexion échouées.");
+          for (const alerte of getCommunicationRolesParType("destinataire_alert")) {
+            pushNotificationEtPersister(alerte.userId, `Compte verrouillé après tentatives échouées : ${compte.displayName} (${compte.identifier}).`);
+          }
+        }
+      }
+      return null;
+    }
+
     if (!isPortalActif(account.role)) {
       throw new Error(`Le portail ${PORTAL_LABELS[account.role]} est actuellement désactivé (Sécurité → Portails). Contactez l'administration.`);
     }
     if (account.actif === false) {
       throw new Error("Ce compte a été désactivé (Sécurité → Liste des utilisateurs). Contactez l'administration.");
     }
+
+    registerSuccessfulLogin(identifierOrEmail);
+    logAudit(account.id, "login", "user_account", account.id);
+
     const user: User = {
       id: account.id,
       name: account.displayName,

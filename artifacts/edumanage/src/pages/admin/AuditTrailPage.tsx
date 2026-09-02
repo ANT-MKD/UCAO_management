@@ -20,6 +20,8 @@ const ACTION_LABELS: Record<string, string> = {
   send_message: "Envoi d'un message",
   validate_cahier: "Validation d'un cahier de séance",
   reject_cahier: "Rejet d'un cahier de séance",
+  login: "Connexion",
+  lockout_failed_attempts: "Verrouillage après tentatives échouées",
 };
 
 const TARGET_TYPE_LABELS: Record<string, string> = {

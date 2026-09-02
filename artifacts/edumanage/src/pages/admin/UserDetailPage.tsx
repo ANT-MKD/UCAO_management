@@ -41,6 +41,11 @@ export default function UserDetailPage({ id }: { id: string }) {
     [logs, id],
   );
 
+  const derniereConnexion = useMemo(
+    () => logs.find((l) => l.targetType === "user_account" && l.targetId === id && l.action === "login"),
+    [logs, id],
+  );
+
   if (!compte) {
     return (
       <div>
@@ -135,6 +140,7 @@ export default function UserDetailPage({ id }: { id: string }) {
           <p className="font-bold text-foreground">{compte.displayName}</p>
           <button
             onClick={handleToggleActif}
+            title={actif ? "Bloque immédiatement toute session déjà ouverte, pas seulement les prochaines connexions" : undefined}
             className={cn(
               "inline-flex items-center gap-1.5 text-xs font-medium hover:underline",
               actif ? "text-red-600" : "text-emerald-600",
@@ -168,6 +174,10 @@ export default function UserDetailPage({ id }: { id: string }) {
               Compte créé par <span className="font-medium text-foreground">{acteurById.get(creation.actorUserId) ?? creation.actorUserId}</span> le {formatDateTime(creation.createdAt)}
             </p>
           )}
+
+          <p className="text-xs text-muted-foreground" data-testid="user-derniere-connexion">
+            Dernière connexion : {derniereConnexion ? <span className="font-medium text-foreground">{formatDateTime(derniereConnexion.createdAt)}</span> : <span className="italic">jamais connecté</span>}
+          </p>
 
           {compte.fonction && (
             <div className="bg-muted/40 rounded-lg px-3 py-2 text-sm font-medium text-foreground" data-testid="user-fonction-affichee">

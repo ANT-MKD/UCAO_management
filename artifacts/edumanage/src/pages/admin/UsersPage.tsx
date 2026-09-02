@@ -11,6 +11,7 @@ import { useRoles } from "@/hooks/useRoleStore";
 import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
 import { cn } from "@/lib/utils";
 
 const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
@@ -53,7 +54,7 @@ export default function UsersPage() {
     reader.readAsDataURL(file);
   };
 
-  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && form.password.trim();
+  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password);
 
   const handleSave = () => {
     if (!currentUser || !peutSauvegarder) return;
@@ -237,6 +238,7 @@ export default function UsersPage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>
             <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Communicable via Envoi identifiant" className={inputClass} data-testid="user-password" />
+            <p className={cn("text-[11px] mt-1", form.password && !isPasswordValid(form.password) ? "text-red-600" : "text-muted-foreground")}>{PASSWORD_HINT}</p>
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}

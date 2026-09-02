@@ -264,7 +264,9 @@ function useRoleGuard(): boolean {
 }
 
 function Admin({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useAuth();
   const allowed = useRoleGuard();
+  if (!currentUser) return <Redirect to="/login" />;
   return (
     <AdminLayout>
       <Suspense fallback={<PageLoader />}>{allowed ? children : <AccessDenied />}</Suspense>
@@ -283,7 +285,9 @@ function usePortalFeatureGuard(portal: "student" | "teacher"): boolean {
 }
 
 function Student({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("student");
+  if (!currentUser) return <Redirect to="/login" />;
   return (
     <StudentLayout>
       <Suspense fallback={<PageLoader />}>
@@ -296,7 +300,9 @@ function Student({ children }: { children: React.ReactNode }) {
 }
 
 function Teacher({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("teacher");
+  if (!currentUser) return <Redirect to="/login" />;
   return (
     <Suspense fallback={<PageLoader />}>
       <TeacherLayoutMod>
