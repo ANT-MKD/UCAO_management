@@ -3,7 +3,6 @@ import {
   authenticateUser,
   clearAuthSession,
   findUserAccountByIdentifier,
-  getEtudiantById,
   loadAuthSession,
   logAudit,
   pushNotificationEtPersister,
@@ -13,10 +12,11 @@ import {
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
 import { isLocked, registerFailedAttempt, registerSuccessfulLogin, MAX_TENTATIVES } from "@/data/loginSecurityStore";
 import { getCommunicationRolesParType } from "@/data/communicationRolesStore";
-import { estActionInterdite, getMotifBlocageById } from "@/data/motifBlocageStore";
+import { estActionInterdite, motifBlocagePortailPour } from "@/data/motifBlocageStore";
 import { useUserAccounts, useStudentStore } from "@/hooks/useStudentStore";
 import { usePortalAccess } from "@/hooks/usePortalAccessStore";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
+import { useRelances } from "@/hooks/useRelancePaiementStore";
 
 interface User {
   id: string;
@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const portalAccess = usePortalAccess();
   useStudentStore(); // souscription : un motif de blocage assigné en direct doit aussi invalider la session
   useMotifsBlocage();
+  useRelances(); // idem pour une relance impayé nouvellement expirée
 
   /** Invalide une session déjà ouverte dès que le compte est désactivé, son portail coupé, ou (pour
    * un étudiant) qu'un motif de blocage interdisant "portail_etudiant" lui est assigné — jusqu'ici,
@@ -110,9 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("Ce compte a été désactivé (Sécurité → Liste des utilisateurs). Contactez l'administration.");
     }
     if (account.role === "student" && account.linkedId && estActionInterdite(account.linkedId, "portail_etudiant")) {
-      const etudiant = getEtudiantById(account.linkedId);
-      const motif = etudiant?.motifBlocageId ? getMotifBlocageById(etudiant.motifBlocageId) : undefined;
-      throw new Error(`Accès au portail bloqué${motif ? ` — motif : ${motif.intitule}` : ""}. Contactez l'administration.`);
+      const motif = motifBlocagePortailPour(account.linkedId);
+      throw new Error(`Accès au portail bloqué${motif ? ` — motif : ${motif}` : ""}. Contactez l'administration.`);
     }
 
     registerSuccessfulLogin(identifierOrEmail);

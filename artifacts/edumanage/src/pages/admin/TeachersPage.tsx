@@ -1,12 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, Eye, Pencil, Users, X } from "lucide-react";
+import { Plus, Eye, Pencil, Users, X, Download, Upload, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import type { TeacherRecord } from "@/data/teacherStore";
+import { downloadTeacherTemplate, parseTeacherExcel, importTeacherRows, exportTeachersToExcel } from "@/lib/teacherImportExport";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA } from "@/lib/utils";
 
 type Enseignant = TeacherRecord;
@@ -28,13 +31,32 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 
 export default function TeachersPage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const [gradeFilter, setGradeFilter] = useState("");
   const [specialiteFilter, setSpecialiteFilter] = useState("");
   const [tauxMin, setTauxMin] = useState("");
   const [tauxMax, setTauxMax] = useState("");
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const enseignants = useTeachers();
   const specialites = useMemo(() => [...new Set(enseignants.map((e) => e.specialite))], [enseignants]);
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file || !currentUser) return;
+    try {
+      const rows = await parseTeacherExcel(file);
+      if (rows.length === 0) {
+        toast.error("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const created = importTeacherRows(rows, currentUser.id);
+      toast.success(`${created.length} enseignant(s) ajouté(s).`);
+    } catch {
+      toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
 
   const filteredData = useMemo(() => {
     return enseignants.filter((e) => {
@@ -57,7 +79,7 @@ export default function TeachersPage() {
       sortable: true,
       render: (r) => (
         <div className="flex items-center gap-2.5">
-          <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" />
+          <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" src={r.photoDataUrl} />
           <div>
             <div className="font-medium text-foreground text-sm">{r.prenom} {r.nom}</div>
             <div className="text-[10px] text-muted-foreground">{r.specialite}</div>
@@ -68,7 +90,7 @@ export default function TeachersPage() {
     { key: "matricule", header: "Matricule", render: (r) => <span className="font-mono text-xs text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.matricule}</span> },
     {
       key: "grade",
-      header: "Grade",
+      header: "Statut",
       render: (r) => {
         const style = GRADE_COLORS[r.grade] ?? { bg: "#f8fafc", text: "#64748b" };
         return <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: style.bg, color: style.text }}>{r.grade}</span>;
@@ -98,9 +120,21 @@ export default function TeachersPage() {
         title="Enseignants"
         subtitle={`${filteredData.length} enseignant(s) affiché(s)`}
         actions={
-          <button onClick={() => setLocation("/admin/teachers/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus size={15} /> Ajouter un Enseignant
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={downloadTeacherTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
+              <FileSpreadsheet size={13} /> Modèle
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground cursor-pointer" title="Importer via Excel">
+              <Upload size={13} /> Importer
+              <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} data-testid="teacher-import-input" />
+            </label>
+            <button onClick={() => exportTeachersToExcel(filteredData)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste affichée">
+              <Download size={13} /> Exporter
+            </button>
+            <button onClick={() => setLocation("/admin/teachers/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Plus size={15} /> Ajouter un Enseignant
+            </button>
+          </div>
         }
       />
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -118,7 +152,7 @@ export default function TeachersPage() {
         filterPanel={
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Grade</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
               <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 <option value="Permanent">Permanent</option>
@@ -143,7 +177,7 @@ export default function TeachersPage() {
             </div>
             {activeFiltersCount > 0 && (
               <div className="col-span-full flex flex-wrap gap-2">
-                {gradeFilter && <FilterChip label={`Grade: ${gradeFilter}`} onRemove={() => setGradeFilter("")} />}
+                {gradeFilter && <FilterChip label={`Statut: ${gradeFilter}`} onRemove={() => setGradeFilter("")} />}
                 {specialiteFilter && <FilterChip label={`Spécialité: ${specialiteFilter}`} onRemove={() => setSpecialiteFilter("")} />}
                 {tauxMin && <FilterChip label={`Min: ${formatCFA(parseInt(tauxMin))}`} onRemove={() => setTauxMin("")} />}
                 {tauxMax && <FilterChip label={`Max: ${formatCFA(parseInt(tauxMax))}`} onRemove={() => setTauxMax("")} />}

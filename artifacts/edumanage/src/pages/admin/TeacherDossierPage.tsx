@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, BookOpen, Calendar, DollarSign, FileText, Printer } from "lucide-react";
+import { ArrowLeft, Edit, BookOpen, Calendar, DollarSign, FileText, Printer, ClipboardCheck, ClipboardList, StickyNote, Paperclip } from "lucide-react";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { ENSEIGNANTS } from "@/data/mockData";
+import { MemosPanel } from "@/components/admin/MemosPanel";
+import { DocumentsPanel } from "@/components/admin/DocumentsPanel";
+import { useTeachers } from "@/hooks/useTeacherStore";
 import { useSeances } from "@/hooks/useStudentStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
-import { mondayOf } from "@/lib/teacherUtils";
+import { usePointages } from "@/hooks/usePointageStore";
+import { useEvaluations } from "@/hooks/useEvaluationStore";
+import { matchesProf, mondayOf } from "@/lib/teacherUtils";
 import { formatCFA, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+
+const POINTAGE_STATUT_LABEL: Record<string, { label: string; cls: string }> = {
+  brouillon: { label: "Brouillon", cls: "bg-muted text-muted-foreground" },
+  soumis: { label: "Soumis", cls: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
+  valide: { label: "Validé", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+  rejete: { label: "Rejeté", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
+};
 
 interface TeacherDossierPageProps {
   id: string;
@@ -32,8 +43,11 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
   const seances = useSeances();
   const typesSeance = useTypesSeance();
   const decomptes = useDecomptes();
+  const pointages = usePointages();
+  const evaluations = useEvaluations();
 
-  const teacher = ENSEIGNANTS.find((e) => e.id === id);
+  const teachers = useTeachers();
+  const teacher = teachers.find((t) => t.id === id);
   if (!teacher) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -47,13 +61,21 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
 
   const teacherDecomptes = decomptes.filter((d) => d.teacherId === id).sort((a, b) => b.date.localeCompare(a.date));
   const gradeColors = GRADE_COLORS[teacher.grade] ?? { bg: "#f1f5f9", text: "#64748b" };
+  const teacherPointages = pointages.filter((p) => p.teacherId === id).sort((a, b) => b.date.localeCompare(a.date));
+  const teacherDevoirs = evaluations
+    .filter((e) => e.type === "devoir" && (e.professeurId ? e.professeurId === id : matchesProf(teacher, e.professeur)))
+    .sort((a, b) => b.annee.localeCompare(a.annee));
 
   const TABS = [
     { key: "informations", label: "Informations", icon: FileText },
     { key: "modules", label: "Modules", icon: BookOpen },
     { key: "planning", label: "Planning", icon: Calendar },
+    { key: "pointage", label: "Pointage", icon: ClipboardCheck },
+    { key: "devoirs", label: "Devoirs", icon: ClipboardList },
     { key: "decomptes", label: "Décomptes", icon: DollarSign },
     { key: "attestation", label: "Attestation", icon: Printer },
+    { key: "memos", label: "Mémos", icon: StickyNote },
+    { key: "documents", label: "Documents", icon: Paperclip },
   ];
 
   return (
@@ -66,7 +88,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
       </button>
 
       <div className="bg-card border border-border rounded-2xl p-6 mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <UserAvatar name={`${teacher.prenom} ${teacher.nom}`} size="lg" />
+        <UserAvatar name={`${teacher.prenom} ${teacher.nom}`} size="lg" src={teacher.photoDataUrl} />
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h1 className="text-2xl font-extrabold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
@@ -115,7 +137,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
               {[
                 { label: "Prénom & Nom", value: `${teacher.prenom} ${teacher.nom}` },
                 { label: "Matricule", value: teacher.matricule, mono: true },
-                { label: "Grade", value: teacher.grade },
+                { label: "Statut", value: teacher.grade },
                 { label: "Spécialité", value: teacher.specialite },
                 { label: "Taux horaire", value: formatCFA(teacher.tauxHoraire) },
                 { label: "Modules assignés", value: teacher.modulesAssignes },
@@ -365,6 +387,53 @@ ${teacherSeances.map((s) => `<tr><td>${s.ec}</td><td>${s.type}</td><td>${s.class
             </div>
           );
         })()}
+
+        {activeTab === "pointage" && (
+          <div>
+            <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Pointage</h3>
+            {teacherPointages.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Aucun pointage effectué.</p>
+            ) : (
+              <div className="space-y-2">
+                {teacherPointages.map((p) => {
+                  const meta = POINTAGE_STATUT_LABEL[p.statut] ?? { label: p.statut, cls: "bg-muted text-muted-foreground" };
+                  return (
+                    <div key={p.id} className="flex items-center justify-between gap-3 p-3.5 bg-muted/30 rounded-xl border border-border">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">{formatDate(p.date)} · {p.type} · {p.heureDebut}–{p.heureFin}</div>
+                        <div className="text-[11px] text-muted-foreground">{p.volumePointe}h pointée(s){p.remarque ? ` · ${p.remarque}` : ""}</div>
+                      </div>
+                      <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", meta.cls)}>{meta.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "devoirs" && (
+          <div>
+            <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Devoirs</h3>
+            {teacherDevoirs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Aucun devoir effectué.</p>
+            ) : (
+              <div className="space-y-2">
+                {teacherDevoirs.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 p-3.5 bg-muted/30 rounded-xl border border-border">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{d.cours} — {d.classe}</div>
+                      <div className="text-[11px] text-muted-foreground">{d.semestre} · {d.annee} · Poids {d.poids}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "memos" && <MemosPanel entiteType="enseignant" entiteId={id} />}
+        {activeTab === "documents" && <DocumentsPanel entiteType="enseignant" entiteId={id} />}
       </div>
     </div>
   );

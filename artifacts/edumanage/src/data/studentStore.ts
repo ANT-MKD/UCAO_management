@@ -45,6 +45,10 @@ export interface EtudiantRecord {
   pays?: string;
   nationalite?: string;
   cni?: string;
+  adresse?: string;
+  nomTuteur?: string;
+  telTuteur?: string;
+  photoDataUrl?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
   /** Référence vers motifBlocageStore.ts — restreint des actions précises (accès portail,
@@ -978,6 +982,10 @@ export interface NewEtudiantPayload {
   pays?: string;
   nationalite?: string;
   cni?: string;
+  adresse?: string;
+  nomTuteur?: string;
+  telTuteur?: string;
+  photoDataUrl?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
 }
@@ -1013,6 +1021,10 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
     pays: payload.pays,
     nationalite: payload.nationalite,
     cni: payload.cni,
+    adresse: payload.adresse,
+    nomTuteur: payload.nomTuteur,
+    telTuteur: payload.telTuteur,
+    photoDataUrl: payload.photoDataUrl,
     typeAdmission: payload.typeAdmission,
     documentsFournis: payload.documentsFournis,
   };
@@ -1049,6 +1061,27 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
 
   persist();
   return etudiant;
+}
+
+export interface EtudiantInfosPayload {
+  adresse?: string;
+  nomTuteur?: string;
+  telTuteur?: string;
+  lieuNaissance?: string;
+  pays?: string;
+  nationalite?: string;
+  cni?: string;
+  photoDataUrl?: string;
+}
+
+/** Édition des champs d'état civil / contact / photo depuis la fiche étudiant — distinct de
+ * l'inscription (registerNewEtudiant), qui ne s'exécute qu'une fois à la création du dossier. */
+export function updateEtudiantInfos(etudiantId: string, payload: EtudiantInfosPayload, actorId: string): void {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  if (!etudiant) return;
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...payload } : e));
+  logAudit(actorId, "update_etudiant_infos", "etudiant", etudiantId);
+  persist();
 }
 
 export interface ReinscriptionPayload {

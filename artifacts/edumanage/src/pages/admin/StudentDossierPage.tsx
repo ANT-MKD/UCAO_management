@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award, ShieldOff } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award, ShieldOff, Users, StickyNote, Paperclip, Plus, Trash2, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { FormModal } from "@/components/admin/FormModal";
+import { MemosPanel } from "@/components/admin/MemosPanel";
+import { DocumentsPanel } from "@/components/admin/DocumentsPanel";
+import { useContacts } from "@/hooks/useContactStore";
+import { addContact, deleteContact, CONTACT_ROLE_LABELS, type ContactRole } from "@/data/contactStore";
+import { useRelances } from "@/hooks/useRelancePaiementStore";
+import { getRelanceActivePour, relanceEstExpiree, relanceEstResolue } from "@/data/relancePaiementStore";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
 import { setEtudiantMotifBlocage } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,8 +49,12 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const [activeTab, setActiveTab] = useState("informations");
   const [blocageOpen, setBlocageOpen] = useState(false);
   const [motifChoisi, setMotifChoisi] = useState("");
+  const [contactModalRole, setContactModalRole] = useState<ContactRole | null>(null);
+  const [contactForm, setContactForm] = useState({ nomComplet: "", telephone: "", email: "", adresse: "", lien: "" });
+  const contacts = useContacts();
 
   const motifsBlocage = useMotifsBlocage();
+  const relances = useRelances();
   const student = useEtudiant(id);
   const inscriptions = useInscriptions(id);
   const studentPaiements = usePaiementsByEtudiant(id);
@@ -97,10 +107,37 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const totalPaye = studentPaiements.reduce((sum, p) => sum + p.montant, 0);
 
   const motifActif = student.motifBlocageId ? motifsBlocage.find((m) => m.id === student.motifBlocageId) : undefined;
+  const relanceActive = relances.find((r) => r.etudiantId === id && r.statut === "active");
+  const relanceBloquante = relanceActive && !relanceEstResolue(relanceActive) && relanceEstExpiree(relanceActive);
 
   const openBlocage = () => {
     setMotifChoisi(student.motifBlocageId ?? "");
     setBlocageOpen(true);
+  };
+
+  const studentContacts = contacts.filter((c) => c.etudiantId === id);
+  const openContactModal = (role: ContactRole) => {
+    setContactForm({ nomComplet: "", telephone: "", email: "", adresse: "", lien: "" });
+    setContactModalRole(role);
+  };
+  const handleSaveContact = () => {
+    if (!currentUser || !contactModalRole || !contactForm.nomComplet.trim()) return;
+    addContact({
+      etudiantId: id,
+      role: contactModalRole,
+      nomComplet: contactForm.nomComplet.trim(),
+      telephone: contactForm.telephone.trim() || undefined,
+      email: contactForm.email.trim() || undefined,
+      adresse: contactForm.adresse.trim() || undefined,
+      lien: contactForm.lien.trim() || undefined,
+    }, currentUser.id);
+    toast.success("Contact ajouté.");
+    setContactModalRole(null);
+  };
+  const handleDeleteContact = (contactId: string) => {
+    if (!currentUser) return;
+    deleteContact(contactId, currentUser.id);
+    toast.success("Contact supprimé.");
   };
 
   const handleSaveBlocage = () => {
@@ -116,6 +153,9 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
     { key: "notes", label: "Bulletins", icon: FileText },
     { key: "paiements", label: "Paiements", icon: CreditCard },
     { key: "absences", label: "Absences", icon: Calendar },
+    { key: "contacts", label: "Contacts", icon: Users },
+    { key: "memos", label: "Mémos", icon: StickyNote },
+    { key: "documents", label: "Documents", icon: Paperclip },
   ];
 
   return (
@@ -131,7 +171,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
 
       {/* Banner */}
       <div className="bg-card border border-border rounded-2xl p-6 mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <UserAvatar name={`${student.prenom} ${student.nom}`} size="lg" />
+        <UserAvatar name={`${student.prenom} ${student.nom}`} size="lg" src={student.photoDataUrl} />
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h1 className="text-2xl font-extrabold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
@@ -182,6 +222,17 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               <ShieldOff size={12} />
               Blocage actif : {motifActif.intitule}
               <button onClick={openBlocage} className="underline hover:no-underline">Gérer</button>
+            </div>
+          )}
+          {relanceBloquante && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3 py-1.5 w-fit" data-testid="student-relance-bloquante">
+              <ShieldOff size={12} />
+              Portail bloqué — impayé non régularisé depuis le {formatDate(relanceActive!.dateEcheance)}
+            </div>
+          )}
+          {relanceActive && !relanceBloquante && !relanceEstResolue(relanceActive) && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl px-3 py-1.5 w-fit">
+              Relance envoyée — échéance le {formatDate(relanceActive.dateEcheance)}
             </div>
           )}
         </div>
@@ -238,10 +289,14 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                   { label: "Nom", value: student.nom },
                   { label: "Sexe", value: student.sexe === "M" ? "Masculin" : "Féminin" },
                   { label: "Date de naissance", value: formatDate(student.dateNaissance) },
+                  { label: "Lieu de naissance", value: student.lieuNaissance },
+                  { label: "Nationalité", value: student.nationalite },
+                  { label: "Pays", value: student.pays },
+                  { label: "N° CNI / Passeport", value: student.cni },
                   { label: "Matricule", value: student.matricule, mono: true },
                   { label: "1ère inscription", value: String(student.anneePremiereInscription) },
                   { label: "Inscription unique payée", value: student.inscriptionUniquePayee ? "Oui" : "Non" },
-                ].map((f) => (
+                ].filter((f) => f.value).map((f) => (
                   <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                     <span className="text-xs text-muted-foreground w-32 flex-shrink-0">{f.label}</span>
                     <span className={cn("text-sm text-foreground font-medium", f.mono && "font-mono")} style={f.mono ? { fontFamily: "JetBrains Mono, monospace" } : {}}>
@@ -252,15 +307,16 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               </div>
             </div>
             <div>
-              <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Contacts</h3>
+              <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Coordonnées</h3>
               <div className="space-y-3">
                 {[
                   { label: "Email", value: student.email },
                   { label: "Téléphone", value: student.telephone },
+                  { label: "Adresse", value: student.adresse },
                   { label: "Filière", value: student.filiere },
                   { label: "Classe", value: student.classe },
                   { label: "Année", value: student.annee },
-                ].map((f) => (
+                ].filter((f) => f.value).map((f) => (
                   <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                     <span className="text-xs text-muted-foreground w-32 flex-shrink-0">{f.label}</span>
                     <span className="text-sm text-foreground font-medium">{f.value}</span>
@@ -695,7 +751,83 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
             </div>
           );
         })()}
+
+        {activeTab === "contacts" && (
+          <div className="space-y-6">
+            {(["pere", "mere", "tuteur", "autre"] as ContactRole[]).map((role) => {
+              const rows = studentContacts.filter((c) => c.role === role);
+              const multiple = role === "tuteur" || role === "autre";
+              return (
+                <div key={role}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-bold text-foreground">{CONTACT_ROLE_LABELS[role]}{multiple ? "s" : ""}</h4>
+                    {(multiple || rows.length === 0) && (
+                      <button onClick={() => openContactModal(role)} className="flex items-center gap-1 text-xs text-primary font-medium hover:underline" data-testid={`contact-ajouter-${role}`}>
+                        <Plus size={12} /> Ajouter
+                      </button>
+                    )}
+                  </div>
+                  {rows.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Aucun contact renseigné.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {rows.map((c) => (
+                        <div key={c.id} className="flex items-center justify-between gap-3 p-3 bg-muted/30 rounded-xl border border-border" data-testid={`contact-ligne-${c.id}`}>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Phone size={13} className="text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">{c.nomComplet}{c.lien ? ` — ${c.lien}` : ""}</div>
+                              <div className="text-[11px] text-muted-foreground truncate">{[c.telephone, c.email, c.adresse].filter(Boolean).join(" · ") || "—"}</div>
+                            </div>
+                          </div>
+                          <button onClick={() => handleDeleteContact(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {activeTab === "memos" && <MemosPanel entiteType="etudiant" entiteId={id} />}
+        {activeTab === "documents" && <DocumentsPanel entiteType="etudiant" entiteId={id} />}
       </div>
+
+      <FormModal open={!!contactModalRole} onClose={() => setContactModalRole(null)} title={contactModalRole ? `Ajouter — ${CONTACT_ROLE_LABELS[contactModalRole]}` : ""} size="md">
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
+            <input value={contactForm.nomComplet} onChange={(e) => setContactForm((f) => ({ ...f, nomComplet: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="contact-nom" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+              <input value={contactForm.telephone} onChange={(e) => setContactForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+              <input value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+            <input value={contactForm.adresse} onChange={(e) => setContactForm((f) => ({ ...f, adresse: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          {contactModalRole === "autre" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lien de parenté</label>
+              <input value={contactForm.lien} onChange={(e) => setContactForm((f) => ({ ...f, lien: e.target.value }))} placeholder="ex: Grand frère" className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          )}
+          <button onClick={handleSaveContact} disabled={!contactForm.nomComplet.trim()} className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors" data-testid="contact-sauvegarder">
+            Enregistrer
+          </button>
+        </div>
+      </FormModal>
 
       <FormModal open={blocageOpen} onClose={() => setBlocageOpen(false)} title="Motif de blocage" size="md">
         <div className="space-y-3">

@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
-import { Ban, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { Ban, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Mail, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { FormModal } from "@/components/admin/FormModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { setEtudiantsAccess, type EtudiantRecord } from "@/data/studentStore";
-import { cn } from "@/lib/utils";
+import { useRelances } from "@/hooks/useRelancePaiementStore";
+import { envoyerRelancePaiement, relanceEstExpiree, relanceEstResolue, type RelanceRecord } from "@/data/relancePaiementStore";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn, formatCFA, formatDate } from "@/lib/utils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -18,12 +22,20 @@ function programmeLabel(e: EtudiantRecord): string {
 }
 
 export default function StudentsAccessPage() {
+  const { currentUser } = useAuth();
   const etudiants = useStudentStore();
+  const relances = useRelances();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [accessFilter, setAccessFilter] = useState<"" | "autorise" | "interdit">("");
+  const [relanceModalOpen, setRelanceModalOpen] = useState(false);
+  const [relanceCibles, setRelanceCibles] = useState<string[]>([]);
+  const [delaiJours, setDelaiJours] = useState(7);
+
+  const relanceActivePour = (etudiantId: string): RelanceRecord | undefined =>
+    relances.find((r) => r.etudiantId === etudiantId && r.statut === "active");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -93,6 +105,28 @@ export default function StudentsAccessPage() {
     );
   };
 
+  const openRelance = (ids: string[]) => {
+    const cibles = ids.filter((eid) => etudiants.find((e) => e.id === eid && e.soldeDu > 0));
+    if (cibles.length === 0) {
+      toast.message("Aucun impayé", { description: "Aucun étudiant sélectionné n'a de solde dû." });
+      return;
+    }
+    setRelanceCibles(cibles);
+    setDelaiJours(7);
+    setRelanceModalOpen(true);
+  };
+
+  const confirmerRelance = () => {
+    if (!currentUser) return;
+    let count = 0;
+    for (const eid of relanceCibles) {
+      if (envoyerRelancePaiement(eid, delaiJours, currentUser.id)) count++;
+    }
+    toast.success(`Relance envoyée à ${count} étudiant(s) — blocage automatique du portail dans ${delaiJours} jour(s) si non réglé.`);
+    setRelanceModalOpen(false);
+    setSelected(new Set());
+  };
+
   const inputClass =
     "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -129,6 +163,14 @@ export default function StudentsAccessPage() {
           <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
+              onClick={() => openRelance([...selected])}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
+              data-testid="relance-selection"
+            >
+              <Mail size={15} /> Relancer les impayés
+            </button>
+            <button
+              type="button"
               onClick={() => applyAccess("autorise")}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors"
             >
@@ -160,12 +202,13 @@ export default function StudentsAccessPage() {
                 <th className="px-4 py-3 font-semibold">Prénom</th>
                 <th className="px-4 py-3 font-semibold">Programme en cours</th>
                 <th className="px-4 py-3 font-semibold">Statut</th>
+                <th className="px-4 py-3 font-semibold">Situation financière</th>
               </tr>
             </thead>
             <tbody>
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                     Aucun étudiant trouvé
                   </td>
                 </tr>
@@ -212,6 +255,37 @@ export default function StudentsAccessPage() {
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />
                             Autorisé
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {e.soldeDu > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <div className="text-xs font-semibold text-red-600">{formatCFA(e.soldeDu)}</div>
+                              {(() => {
+                                const relance = relanceActivePour(e.id);
+                                if (!relance || relanceEstResolue(relance)) return null;
+                                const expiree = relanceEstExpiree(relance);
+                                return (
+                                  <div className={cn("text-[10px] flex items-center gap-1", expiree ? "text-red-600" : "text-amber-600")}>
+                                    {expiree && <ShieldAlert size={10} />}
+                                    {expiree ? "Portail bloqué" : `Relance — échéance ${formatDate(relance.dateEcheance)}`}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openRelance([e.id])}
+                              className="p-1.5 rounded-lg hover:bg-amber-50 text-muted-foreground hover:text-amber-700 flex-shrink-0"
+                              title="Relancer par email"
+                              data-testid={`relancer-${e.id}`}
+                            >
+                              <Mail size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">À jour</span>
                         )}
                       </td>
                     </tr>
@@ -266,6 +340,21 @@ export default function StudentsAccessPage() {
           </div>
         </div>
       </div>
+
+      <FormModal open={relanceModalOpen} onClose={() => setRelanceModalOpen(false)} title="Relancer par email" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {relanceCibles.length} étudiant(s) recevront un mail les invitant à régulariser leur impayé. Si le solde n'est toujours pas réglé à l'échéance, leur accès au portail étudiant sera automatiquement bloqué.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Délai avant blocage (jours)</label>
+            <input type="number" min={1} value={delaiJours} onChange={(e) => setDelaiJours(Math.max(1, Number(e.target.value)))} className={inputClass} data-testid="relance-delai" />
+          </div>
+          <button onClick={confirmerRelance} className="w-full px-4 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors" data-testid="relance-confirmer">
+            Envoyer la relance
+          </button>
+        </div>
+      </FormModal>
     </div>
   );
 }

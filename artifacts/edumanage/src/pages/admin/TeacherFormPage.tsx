@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Plus, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Upload, User } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { NIVEAUX_ETUDE, generateMatriculeEnseignant } from "@/lib/inscriptionConstants";
+
+const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
 interface FormData {
   prenom: string;
@@ -21,8 +24,6 @@ interface FormData {
   adresse?: string;
   niveauEtude: string;
   grade: "Permanent" | "Vacataire" | "Contractuel";
-  tauxHoraire: number;
-  rib?: string;
 }
 
 interface Props { id?: string; }
@@ -34,14 +35,26 @@ export default function TeacherFormPage({ id }: Props) {
   const [matricule, setMatricule] = useState("");
   const [diplomes, setDiplomes] = useState<string[]>([""]);
   const [specialites, setSpecialites] = useState<string[]>([""]);
+  const [photoDataUrl, setPhotoDataUrl] = useState("");
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       prenom: "", nom: "", sexe: "M", dateNaissance: "", paysNaissance: "Sénégal",
       lieuNaissance: "", nationalite: "Sénégalaise", cni: "", email: "", telephone: "",
-      adresse: "", niveauEtude: "Master", grade: "Vacataire", tauxHoraire: 15000, rib: "",
+      adresse: "", niveauEtude: "Master", grade: "Vacataire",
     },
   });
+
+  const handlePhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
+      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhotoDataUrl(String(reader.result));
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (isEdit && id) {
@@ -61,12 +74,11 @@ export default function TeacherFormPage({ id }: Props) {
           adresse: teacher.adresse ?? "",
           niveauEtude: teacher.niveauEtude ?? "Master",
           grade: teacher.grade,
-          tauxHoraire: teacher.tauxHoraire,
-          rib: teacher.rib ?? "",
         });
         setMatricule(teacher.matricule);
         setSpecialites(teacher.specialites?.length ? teacher.specialites : [teacher.specialite]);
         setDiplomes(teacher.diplomes?.length ? teacher.diplomes : ["Master en " + teacher.specialite]);
+        setPhotoDataUrl(teacher.photoDataUrl ?? "");
       }
     } else {
       setMatricule(generateMatriculeEnseignant());
@@ -84,7 +96,6 @@ export default function TeacherFormPage({ id }: Props) {
       specialite: specialitesRemplies[0] ?? "",
       specialites: specialitesRemplies,
       grade: data.grade,
-      tauxHoraire: data.tauxHoraire,
       email: data.email,
       sexe: data.sexe,
       dateNaissance: data.dateNaissance,
@@ -94,13 +105,15 @@ export default function TeacherFormPage({ id }: Props) {
       cni: data.cni,
       adresse: data.adresse,
       niveauEtude: data.niveauEtude,
-      rib: data.rib,
       diplomes: diplomes.filter(Boolean),
+      photoDataUrl: photoDataUrl || undefined,
     };
     if (isEdit && id) {
+      // Taux horaire et RIB ne sont plus saisis ici — gérés depuis la fiche enseignant
+      // (Taux) ; on ne les touche donc pas pour ne pas écraser une valeur déjà réglée.
       updateTeacher(id, payload, currentUser.id);
     } else {
-      addTeacher(payload, currentUser.id);
+      addTeacher({ ...payload, tauxHoraire: 0 }, currentUser.id);
     }
     setLocation("/admin/teachers");
   };
@@ -135,6 +148,19 @@ export default function TeacherFormPage({ id }: Props) {
         <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-6" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Identité</p>
+            <div className="flex items-center gap-4 mb-4">
+              {photoDataUrl ? (
+                <img src={photoDataUrl} alt="Photo" className="w-16 h-16 rounded-full object-cover border border-border flex-shrink-0" data-testid="teacher-photo-apercu" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <User size={22} className="text-muted-foreground" />
+                </div>
+              )}
+              <label className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors cursor-pointer">
+                <Upload size={14} /> Photo de profil
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="teacher-photo-input" />
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
@@ -224,22 +250,19 @@ export default function TeacherFormPage({ id }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Grade *</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
                 <select {...register("grade")} className={inputClass}>
                   <option value="Permanent">Permanent</option>
                   <option value="Vacataire">Vacataire</option>
                   <option value="Contractuel">Contractuel</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
-                <input {...register("tauxHoraire", { required: true, valueAsNumber: true, min: 0 })} type="number" className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">RIB bancaire</label>
-                <input {...register("rib")} placeholder="SN123456789012345678" className={inputClass} />
-              </div>
             </div>
+            {!isEdit && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Le taux horaire se règle depuis la fiche de l'enseignant une fois créé (onglet Taux).
+              </p>
+            )}
 
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">

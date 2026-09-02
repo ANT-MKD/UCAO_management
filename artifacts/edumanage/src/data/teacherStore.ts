@@ -24,6 +24,7 @@ export interface TeacherRecord {
   rib?: string;
   diplomes?: string[];
   specialites?: string[];
+  photoDataUrl?: string;
 }
 
 const STORAGE_KEY = "edumanage-teacher-store-v1";

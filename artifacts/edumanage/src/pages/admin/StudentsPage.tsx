@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, Eye, Pencil, Download, Users, AlertTriangle, UserX, X, RefreshCw } from "lucide-react";
+import { Plus, Eye, Pencil, Download, Upload, FileSpreadsheet, Users, AlertTriangle, UserX, X, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
@@ -9,6 +10,7 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES } from "@/data/mockData";
 import { useStudentStore, useAnneeActuelle, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import type { EtudiantRecord } from "@/data/studentStore";
+import { downloadStudentTemplate, parseStudentExcel, importStudentRows, exportStudentsToExcel } from "@/lib/studentImportExport";
 import { formatCFA } from "@/lib/utils";
 
 type Etudiant = EtudiantRecord;
@@ -38,6 +40,24 @@ export default function StudentsPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const anneeActuelle = useAnneeActuelle();
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const rows = await parseStudentExcel(file);
+      if (rows.length === 0) {
+        toast.error("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const { created, echecs } = importStudentRows(rows);
+      toast.success(`${created.length} étudiant(s) préinscrit(s)${echecs > 0 ? ` — ${echecs} ligne(s) en échec` : ""}.`);
+    } catch {
+      toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(
     () => [
@@ -97,7 +117,7 @@ export default function StudentsPage() {
             title={`Ouvrir le dossier de ${r.prenom} ${r.nom}`}
             aria-label={`Dossier ${r.prenom} ${r.nom}`}
           >
-            <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" />
+            <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" src={r.photoDataUrl} />
           </button>
           <div>
             <div className="font-medium text-foreground text-sm">{r.prenom} {r.nom}</div>
@@ -256,8 +276,15 @@ export default function StudentsPage() {
         subtitle={`${etudiants.length} étudiants — année ${anneeActuelle}`}
         actions={
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground">
-              <Download size={13} /> CSV
+            <button onClick={downloadStudentTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
+              <FileSpreadsheet size={13} /> Modèle
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground cursor-pointer" title="Importer via Excel">
+              <Upload size={13} /> Importer
+              <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} data-testid="student-import-input" />
+            </label>
+            <button onClick={() => exportStudentsToExcel(filteredData)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste affichée">
+              <Download size={13} /> Exporter
             </button>
             <button
               onClick={() => setLocation("/admin/students/reinscription")}

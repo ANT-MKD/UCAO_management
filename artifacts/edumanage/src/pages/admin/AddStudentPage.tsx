@@ -22,6 +22,8 @@ import {
 import { cn, formatCFA, formatShortDate } from "@/lib/utils";
 import { toast } from "sonner";
 
+const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
+
 const STEPS = [
   { id: 1, label: "État civil", icon: User },
   { id: 2, label: "Scolarité ant.", icon: GraduationCap },
@@ -119,6 +121,18 @@ export default function AddStudentPage() {
   const [modeleFraisId, setModeleFraisId] = useState("");
   const [selectedEcheanceIds, setSelectedEcheanceIds] = useState<Set<string>>(new Set());
   const [motDePasse, setMotDePasse] = useState("");
+  const [photoDataUrl, setPhotoDataUrl] = useState("");
+
+  const handlePhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
+      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhotoDataUrl(String(reader.result));
+    reader.readAsDataURL(file);
+  };
 
   const selectedFiliere = form3.watch("filiereId");
   const typeAdmission = form2.watch("typeAdmission");
@@ -262,6 +276,10 @@ export default function AddStudentPage() {
           pays: step1Data.pays,
           nationalite: step1Data.nationalite,
           cni: step1Data.cni,
+          adresse: step1Data.adresse,
+          nomTuteur: step1Data.nomTuteur,
+          telTuteur: step1Data.telTuteur,
+          photoDataUrl: photoDataUrl || undefined,
           typeAdmission: step2Data?.typeAdmission,
           documentsFournis: docsFournis,
         },
@@ -361,6 +379,21 @@ export default function AddStudentPage() {
         {currentStep === 1 && (
           <form onSubmit={handleStep1} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>État Civil</h3>
+
+            <div className="flex items-center gap-4">
+              {photoDataUrl ? (
+                <img src={photoDataUrl} alt="Photo" className="w-16 h-16 rounded-full object-cover border border-border flex-shrink-0" data-testid="student-photo-apercu" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <User size={22} className="text-muted-foreground" />
+                </div>
+              )}
+              <label className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors cursor-pointer">
+                <Upload size={14} /> Photo de profil
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="student-photo-input" />
+              </label>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <InputField label="Prénom *" error={form1.formState.errors.prenom?.message}>
                 <input {...form1.register("prenom", { required: "Prénom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} className={inputClass} placeholder="Moussa" data-testid="input-prenom" />

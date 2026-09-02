@@ -1,4 +1,5 @@
 import { getEtudiantById, getEtudiants, logAudit } from "./studentStore";
+import { getRelanceActivePour, relanceEstExpiree } from "./relancePaiementStore";
 
 const STORAGE_KEY = "edumanage-motifs-blocage-v1";
 
@@ -111,7 +112,30 @@ export function deleteMotifBlocage(id: string): void {
  * dupliqué qui pourrait diverger. */
 export function estActionInterdite(etudiantId: string, actionId: string): boolean {
   const etudiant = getEtudiantById(etudiantId);
-  if (!etudiant?.motifBlocageId) return false;
-  const motif = getMotifBlocageById(etudiant.motifBlocageId);
-  return motif ? motif.actionsInterdites.includes(actionId) : false;
+  if (etudiant?.motifBlocageId) {
+    const motif = getMotifBlocageById(etudiant.motifBlocageId);
+    if (motif?.actionsInterdites.includes(actionId)) return true;
+  }
+  // Blocage automatique impayé : une relance de paiement expirée sans régularisation coupe
+  // l'accès portail, indépendamment de tout motif de blocage assigné manuellement.
+  if (actionId === "portail_etudiant" && etudiant && etudiant.soldeDu > 0) {
+    const relance = getRelanceActivePour(etudiantId);
+    if (relance && relanceEstExpiree(relance)) return true;
+  }
+  return false;
+}
+
+/** Motif d'affichage (utilisé par le portail de connexion et la fiche étudiant) quand le blocage
+ * vient de la relance impayé plutôt que d'un motif assigné manuellement. */
+export function motifBlocagePortailPour(etudiantId: string): string | undefined {
+  const etudiant = getEtudiantById(etudiantId);
+  if (etudiant?.motifBlocageId) {
+    const motif = getMotifBlocageById(etudiant.motifBlocageId);
+    if (motif?.actionsInterdites.includes("portail_etudiant")) return motif.intitule;
+  }
+  if (etudiant && etudiant.soldeDu > 0) {
+    const relance = getRelanceActivePour(etudiantId);
+    if (relance && relanceEstExpiree(relance)) return "Délai de règlement des impayés dépassé";
+  }
+  return undefined;
 }
