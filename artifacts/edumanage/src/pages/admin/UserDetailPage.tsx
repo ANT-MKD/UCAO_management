@@ -94,7 +94,8 @@ export default function UserDetailPage({ id }: { id: string }) {
   };
 
   const handleGenererPin = () => {
-    const record = genererPin(compte.id, compte.displayName, compte.identifier);
+    if (!currentUser) return;
+    const record = genererPin(compte.id, compte.displayName, compte.identifier, currentUser.id, currentUser.name);
     envoyerMailSysteme({
       destinataireUserId: compte.id,
       destinataireLabel: compte.displayName,

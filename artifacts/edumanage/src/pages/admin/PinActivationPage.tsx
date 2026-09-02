@@ -1,21 +1,24 @@
 import { useMemo, useState } from "react";
-import { KeyRound, Search, X } from "lucide-react";
+import { KeyRound, Search, X, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useUserAccounts } from "@/hooks/useStudentStore";
 import { usePinsActivation } from "@/hooks/usePinActivationStore";
-import { genererPin, statutPin, type PinActivationRecord } from "@/data/pinActivationStore";
+import { genererPin, revoquerPin, statutPin, type PinActivationRecord, type StatutPin } from "@/data/pinActivationStore";
 import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
+import { useAuth } from "@/contexts/AuthContext";
 import type { UserAccountRecord } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
-const STATUT_CONFIG: Record<ReturnType<typeof statutPin>, { label: string; cls: string }> = {
+const STATUT_CONFIG: Record<StatutPin, { label: string; cls: string }> = {
   actif: { label: "Actif", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" },
   utilise: { label: "Utilisé", cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
   expire: { label: "Expiré", cls: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" },
+  remplace: { label: "Remplacé", cls: "bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-500" },
+  revoque: { label: "Révoqué", cls: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" },
 };
 
 function formatDateTime(iso: string) {
@@ -23,6 +26,7 @@ function formatDateTime(iso: string) {
 }
 
 export default function PinActivationPage() {
+  const { currentUser } = useAuth();
   const comptes = useUserAccounts();
   const pins = usePinsActivation();
   const [search, setSearch] = useState("");
@@ -35,8 +39,8 @@ export default function PinActivationPage() {
   }, [comptes, search]);
 
   const handleGenerer = () => {
-    if (!selected) return;
-    const record = genererPin(selected.id, selected.displayName, selected.identifier);
+    if (!selected || !currentUser) return;
+    const record = genererPin(selected.id, selected.displayName, selected.identifier, currentUser.id, currentUser.name);
     envoyerMailSysteme({
       destinataireUserId: selected.id,
       destinataireLabel: selected.displayName,
@@ -49,18 +53,62 @@ export default function PinActivationPage() {
     setSearch("");
   };
 
+  const handleRevoquer = (record: PinActivationRecord) => {
+    if (!currentUser) return;
+    try {
+      revoquerPin(record.id, currentUser.name);
+      toast.success(`PIN de ${record.compteLabel} révoqué.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Révocation impossible");
+    }
+  };
+
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "compteLabel", header: "Compte", sortable: true },
-    { key: "pin", header: "PIN", render: (row) => <span className="font-mono font-semibold">{(row as unknown as PinActivationRecord).pin}</span> },
-    { key: "createdAt", header: "Généré le", sortable: true, render: (row) => formatDateTime((row as unknown as PinActivationRecord).createdAt) },
-    { key: "expiresAt", header: "Expire le", render: (row) => formatDateTime((row as unknown as PinActivationRecord).expiresAt) },
+    {
+      key: "compteLabel",
+      header: "Utilisateur",
+      sortable: true,
+      render: (row) => {
+        const r = row as unknown as PinActivationRecord;
+        return (
+          <div>
+            <span className="font-mono text-xs text-muted-foreground">{r.compteIdentifier}</span>
+            <span className="text-muted-foreground"> — </span>
+            <span className="font-medium text-foreground">{r.compteLabel}</span>
+          </div>
+        );
+      },
+    },
+    { key: "pin", header: "Code pin", render: (row) => <span className="font-mono font-semibold">{(row as unknown as PinActivationRecord).pin}</span> },
+    { key: "createdAt", header: "Date création", sortable: true, render: (row) => formatDateTime((row as unknown as PinActivationRecord).createdAt) },
+    { key: "auteurLabel", header: "Créé par", render: (row) => (row as unknown as PinActivationRecord).auteurLabel },
     {
       key: "statut",
       header: "Statut",
       render: (row) => {
-        const st = statutPin(row as unknown as PinActivationRecord);
+        const r = row as unknown as PinActivationRecord;
+        const st = statutPin(r, pins);
         const cfg = STATUT_CONFIG[st];
         return <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", cfg.cls)}>{cfg.label}</span>;
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right",
+      render: (row) => {
+        const r = row as unknown as PinActivationRecord;
+        const st = statutPin(r, pins);
+        if (st !== "actif") return null;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRevoquer(r); }}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-border hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-muted-foreground transition-colors dark:hover:bg-red-950/40"
+            data-testid={`pin-revoquer-${r.id}`}
+          >
+            <Ban size={12} /> Révoquer
+          </button>
+        );
       },
     },
   ];

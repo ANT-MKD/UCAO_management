@@ -50,7 +50,7 @@ export default function LoginPage() {
       setForgotError("Aucun compte ne correspond à cet identifiant.");
       return;
     }
-    const record = genererPin(compte.id, compte.displayName, compte.identifier);
+    const record = genererPin(compte.id, compte.displayName, compte.identifier, compte.id, "Libre-service (mot de passe oublié)");
     envoyerMailSysteme({
       destinataireUserId: compte.id,
       destinataireLabel: compte.displayName,

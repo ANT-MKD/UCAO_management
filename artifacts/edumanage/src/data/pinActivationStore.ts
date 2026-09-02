@@ -10,17 +10,26 @@ export interface PinActivationRecord {
   pin: string;
   createdAt: string;
   expiresAt: string;
+  auteurId: string;
+  auteurLabel: string;
   utilise: boolean;
   utiliseLe?: string;
+  revoque?: boolean;
+  revoqueLe?: string;
+  revoquePar?: string;
 }
 
-export type StatutPin = "actif" | "utilise" | "expire";
+export type StatutPin = "actif" | "utilise" | "expire" | "remplace" | "revoque";
 
-/** Calculé à la lecture, jamais stocké — un PIN "expire" au fil du temps sans qu'aucune mutation
- * n'ait besoin de tourner en arrière-plan (même principe que statutDerogation). */
-export function statutPin(record: PinActivationRecord): StatutPin {
+/** Calculé à la lecture, jamais stocké. "remplace" reflète le fait que verifierEtConsommerPin() ne
+ * retient jamais que le PIN le plus récent d'un compte — un plus ancien encore non expiré ne sert
+ * déjà plus à rien, autant l'afficher honnêtement plutôt que "Actif". */
+export function statutPin(record: PinActivationRecord, allRecords: PinActivationRecord[]): StatutPin {
+  if (record.revoque) return "revoque";
   if (record.utilise) return "utilise";
   if (new Date(record.expiresAt).getTime() < Date.now()) return "expire";
+  const plusRecent = allRecords.find((r) => r.userId === record.userId);
+  if (plusRecent && plusRecent.id !== record.id) return "remplace";
   return "actif";
 }
 
@@ -64,10 +73,9 @@ function genererCode4Chiffres(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-/** Génère un nouveau PIN pour un compte — le rend actif tout de suite ; les PIN précédents pour
- * ce même compte deviennent naturellement obsolètes (ils restent visibles dans le journal mais
- * verifierEtConsommerPin() ne retient toujours que celui-ci, jamais un plus ancien). */
-export function genererPin(userId: string, compteLabel: string, compteIdentifier: string): PinActivationRecord {
+/** Génère un nouveau PIN pour un compte, attribué à l'admin qui l'a créé — le rend actif tout de
+ * suite ; les PIN précédents pour ce même compte deviennent naturellement obsolètes ("remplace"). */
+export function genererPin(userId: string, compteLabel: string, compteIdentifier: string, auteurId: string, auteurLabel: string): PinActivationRecord {
   const now = new Date();
   const record: PinActivationRecord = {
     id: `pin-${Date.now()}`,
@@ -77,6 +85,8 @@ export function genererPin(userId: string, compteLabel: string, compteIdentifier
     pin: genererCode4Chiffres(),
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + DUREE_VALIDITE_MINUTES * 60 * 1000).toISOString(),
+    auteurId,
+    auteurLabel,
     utilise: false,
   };
   store = [record, ...store];
@@ -84,11 +94,25 @@ export function genererPin(userId: string, compteLabel: string, compteIdentifier
   return record;
 }
 
-/** Vérifie le PIN saisi contre le plus récent PIN actif du compte (jamais un plus ancien, même
- * valide) et le consomme immédiatement s'il correspond — usage unique. */
+/** Annule un PIN avant qu'il soit utilisé — ex. envoyé par erreur, compte compromis. Ne modifie
+ * jamais un PIN déjà consommé/expiré/remplacé : le journal reste un historique honnête. */
+export function revoquerPin(id: string, actorLabel: string): void {
+  const record = store.find((r) => r.id === id);
+  if (!record) return;
+  if (statutPin(record, store) !== "actif") {
+    throw new Error("Seul un PIN actif peut être révoqué.");
+  }
+  record.revoque = true;
+  record.revoqueLe = new Date().toISOString();
+  record.revoquePar = actorLabel;
+  persist();
+}
+
+/** Vérifie le PIN saisi contre le plus récent PIN du compte (jamais un plus ancien, même valide)
+ * et le consomme immédiatement s'il correspond et est actif — usage unique. */
 export function verifierEtConsommerPin(userId: string, pin: string): boolean {
   const dernier = store.find((r) => r.userId === userId);
-  if (!dernier || dernier.pin !== pin.trim() || statutPin(dernier) !== "actif") return false;
+  if (!dernier || dernier.pin !== pin.trim() || statutPin(dernier, store) !== "actif") return false;
   dernier.utilise = true;
   dernier.utiliseLe = new Date().toISOString();
   persist();
