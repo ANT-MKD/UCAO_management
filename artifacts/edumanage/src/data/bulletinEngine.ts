@@ -203,6 +203,34 @@ export function computeMoyenneAnnuelle(etudiantId: string, classeId: string, fil
   return { moyenne, creditsObtenus, creditsTotal };
 }
 
+export interface CreditsCumulesParcours {
+  creditsObtenus: number;
+  creditsTotal: number;
+  detail: { annee: string; niveau: string; creditsObtenus: number; creditsTotal: number }[];
+}
+
+/** Crédits cumulés réels d'un étudiant sur tout son parcours dans une filière (une entrée par
+ * niveau, dernière inscription retenue en cas de redoublement) — utilisé par le garde-fou
+ * d'entrée de niveau (NiveauRecord.creditsRequisEntree, ex. 120 crédits requis pour L3) et par la
+ * fiche étudiant. Repose sur le même historique d'inscriptions que computeMoyenneProgramme, mais
+ * cumule les crédits obtenus plutôt qu'une moyenne pondérée. */
+export function computeCreditsCumulesParcours(etudiantId: string, filiereId: string): CreditsCumulesParcours {
+  const inscriptions = getInscriptionsByEtudiant(etudiantId).filter((i) => i.filiereId === filiereId);
+  const parNiveau = new Map<string, (typeof inscriptions)[number]>();
+  for (const insc of inscriptions) {
+    parNiveau.set(insc.niveau, insc);
+  }
+  const detail = Array.from(parNiveau.values()).map((insc) => {
+    const moyAnnuelle = computeMoyenneAnnuelle(etudiantId, insc.classeId, filiereId, insc.niveau);
+    return { annee: insc.annee, niveau: insc.niveau, creditsObtenus: moyAnnuelle.creditsObtenus, creditsTotal: moyAnnuelle.creditsTotal };
+  });
+  return {
+    creditsObtenus: detail.reduce((s, d) => s + d.creditsObtenus, 0),
+    creditsTotal: detail.reduce((s, d) => s + d.creditsTotal, 0),
+    detail,
+  };
+}
+
 export interface MoyenneProgramme {
   moyenne?: number;
   anneesRetenues: { annee: string; niveau: string; moyenne?: number }[];

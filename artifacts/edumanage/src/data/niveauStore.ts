@@ -8,6 +8,18 @@ export interface NiveauRecord {
   cycleId?: string;
   filiere: string;
   filiereId: string;
+  /** Passage conditionnel (AJAC) : un étudiant qui n'atteint pas le seuil de crédits plein de la
+   * règle de validation "année" mais dépasse creditDetteMin est quand même autorisé à monter au
+   * niveau suivant, avec ses UE non validées comme dette. Absent/false = aucune tolérance (comme
+   * avant), le passage reste tout-ou-rien. */
+  passageConditionnelAutorise?: boolean;
+  /** Seuil minimal de crédits pour bénéficier du passage conditionnel depuis ce niveau — ignoré
+   * si passageConditionnelAutorise est faux. */
+  creditDetteMin?: number;
+  /** Crédits cumulés (tous niveaux antérieurs du cursus confondus) requis pour pouvoir s'inscrire
+   * à CE niveau — le garde-fou d'entrée (ex. 120 crédits requis pour L3). Absent = aucun contrôle,
+   * l'inscription au niveau suit uniquement la délibération du niveau précédent. */
+  creditsRequisEntree?: number;
 }
 
 const STORAGE_KEY = "edumanage-niveau-store-v1";

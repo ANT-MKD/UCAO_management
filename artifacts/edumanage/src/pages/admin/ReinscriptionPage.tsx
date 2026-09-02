@@ -128,7 +128,8 @@ export default function ReinscriptionPage() {
   }, [fraisRef, form4.watch("modeScolarite")]);
 
   const ligneDeliberation = student ? getDerniereLigneDeliberation(student.id) : undefined;
-  const eligibility = student ? checkReinscriptionEligibility(student.id) : null;
+  const niveauCible = NIVEAUX.find((n) => n.id === selectedNiveau);
+  const eligibility = student ? checkReinscriptionEligibility(student.id, niveauCible) : null;
   const derogations = useDerogationsPaiement();
   const derogationActive = student ? derogationActivePour(derogations, student.id, "reinscription") : undefined;
 

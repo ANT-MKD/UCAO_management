@@ -34,6 +34,8 @@ import { useTypesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { statutDerogation, PORTEE_LABELS, type StatutDerogation } from "@/data/derogationPaiementStore";
 import { useAbandons } from "@/hooks/useAbandonStore";
+import { useCreditDettes } from "@/hooks/useCreditDetteStore";
+import { soldeCreditDette } from "@/data/creditDetteStore";
 
 interface StudentDossierPageProps {
   id: string;
@@ -65,6 +67,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const studentReleves = allReleves.filter((r) => r.etudiantId === id);
   const allAttestations = useAttestations();
   const studentAttestations = allAttestations.filter((a) => a.etudiantId === id);
+  const allCreditDettes = useCreditDettes();
+  const studentDettes = allCreditDettes.filter((d) => d.etudiantId === id);
   useMentions(); // s'abonne pour refléter la vraie mention si la configuration change
   useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change
   const [previewReleve, setPreviewReleve] = useState<(typeof studentReleves)[number] | null>(null);
@@ -329,6 +333,36 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
 
         {activeTab === "parcours" && (
           <div>
+            {studentDettes.length > 0 && (
+              <div className="mb-6">
+                <h3 className="font-bold text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>
+                  Dettes de crédits (passage conditionnel — AJAC)
+                </h3>
+                <div className="space-y-2">
+                  {studentDettes.map((d) => (
+                    <div key={d.id} className={cn(
+                      "flex items-center justify-between gap-3 p-3 rounded-xl border text-sm",
+                      d.statut === "en_cours" ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" : "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
+                    )}>
+                      <div>
+                        <span className="font-semibold text-foreground">{d.ueCode} — {d.ueLibelle}</span>
+                        <span className="text-muted-foreground ml-2">{d.ueCredits} crédits · {d.niveauLabelOrigine} ({d.semestreOrigine}) · {d.annee}</span>
+                      </div>
+                      {d.statut === "en_cours" ? (
+                        <button
+                          onClick={() => { soldeCreditDette(d.id, currentUser?.id ?? "admin"); toast.success(`Dette soldée — ${d.ueCode}`); }}
+                          className="shrink-0 px-3 py-1.5 text-xs font-medium border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
+                        >
+                          Marquer soldée
+                        </button>
+                      ) : (
+                        <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-300">Soldée le {d.dateSoldee ? formatDate(d.dateSoldee.slice(0, 10)) : ""}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>
               Historique des inscriptions
             </h3>

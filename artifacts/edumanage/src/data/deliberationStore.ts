@@ -53,6 +53,13 @@ export interface DeliberationRecord {
   dateDeliberation: string;
   statut: "en_cours" | "cloturee" | "reouverte";
   lignes: DeliberationLigne[];
+  /** Seuil de moyenne de passage retenu pour CETTE session (péréquation) — remplace
+   * regle.moyennePassage uniquement pour cette délibération, jamais le paramétrage global.
+   * Absent = seuil standard de la règle de validation appliqué tel quel. */
+  seuilOverride?: number;
+  seuilOverrideRaison?: string;
+  seuilOverrideModifiePar?: string;
+  seuilOverrideModifieLe?: string;
 }
 
 interface Persisted {
@@ -126,13 +133,14 @@ export interface ChargerDeliberationInput {
   effectuePar: string;
 }
 
-function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationInput): DeliberationLigne {
+function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationInput, seuilEffectif?: number): DeliberationLigne {
   const bulletin = computeBulletinPourClasse(e.id, input.classeId, input.semestreAlias);
   const moyenne = bulletin?.moyenneSession ?? 0;
   const absences = getHeuresAbsenceNonJustifieePourEtudiant(e.id, input.classeId, input.semestreAlias);
 
   const declassement = detecterDeclassementEtudiant(e.id, input.classeId, input.filiereId, input.niveauAlias, input.annee, input.semestreAlias);
-  const decisionAuto: DecisionJury = declassement ? "a_declasser" : decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, input.regle);
+  const regleEffective = seuilEffectif !== undefined ? { ...input.regle, moyennePassage: seuilEffectif } : input.regle;
+  const decisionAuto: DecisionJury = declassement ? "a_declasser" : decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, regleEffective);
 
   return {
     etudiantId: e.id,
@@ -164,9 +172,12 @@ export function chargerDeliberation(input: ChargerDeliberationInput): Deliberati
       .filter((l) => l.decisionFinale !== l.decisionAuto)
       .map((l) => [l.etudiantId, l]),
   );
+  // Un seuil de session déjà ajusté (péréquation) reste appliqué au rechargement — recharger ne
+  // doit jamais revenir silencieusement au seuil standard de la règle de validation.
+  const seuilEffectif = existing?.seuilOverride;
 
   const lignes = input.etudiants.map((e) => {
-    const ligne = calculerLigne(e, input);
+    const ligne = calculerLigne(e, input, seuilEffectif);
     const override = overridesParEtudiant.get(e.id);
     if (override) {
       return { ...ligne, decisionFinale: override.decisionFinale, overrideRaison: override.overrideRaison, overrideModifiePar: override.overrideModifiePar };
@@ -214,6 +225,34 @@ export function overrideDecision(deliberationId: string, etudiantId: string, dec
   ligne.decisionFinale = decision;
   ligne.overrideRaison = decision === ligne.decisionAuto ? undefined : raison;
   ligne.overrideModifiePar = decision === ligne.decisionAuto ? undefined : modifiePar;
+  persist();
+}
+
+/** Ajuste le seuil de moyenne de passage retenu pour CETTE session de délibération uniquement
+ * (péréquation) — jamais le paramétrage global (regle.moyennePassage, Paramétrage bulletins).
+ * Recalcule decisionAuto de chaque ligne non déclassée avec le nouveau seuil ; une décision déjà
+ * corrigée manuellement par le jury (decisionFinale !== ancien decisionAuto) n'est jamais écrasée.
+ * Le seuil et son motif restent tracés sur la délibération pour toute relecture ultérieure. */
+export function ajusterSeuilSession(
+  deliberationId: string,
+  nouveauSeuil: number,
+  raison: string,
+  modifiePar: string,
+  regle: RegleValidationRecord,
+): void {
+  const deliberation = getDeliberationById(deliberationId);
+  if (!deliberation || deliberation.statut === "cloturee") return;
+  const regleAjustee: RegleValidationRecord = { ...regle, moyennePassage: nouveauSeuil };
+  deliberation.lignes = deliberation.lignes.map((ligne) => {
+    if (ligne.decisionAuto === "a_declasser") return ligne;
+    const manuellementCorrigee = ligne.decisionFinale !== ligne.decisionAuto;
+    const decisionAuto = decideValidation(ligne.moyenne, ligne.creditsObtenus, ligne.absences, regleAjustee);
+    return { ...ligne, decisionAuto, decisionFinale: manuellementCorrigee ? ligne.decisionFinale : decisionAuto };
+  });
+  deliberation.seuilOverride = nouveauSeuil;
+  deliberation.seuilOverrideRaison = raison;
+  deliberation.seuilOverrideModifiePar = modifiePar;
+  deliberation.seuilOverrideModifieLe = new Date().toISOString();
   persist();
 }
 

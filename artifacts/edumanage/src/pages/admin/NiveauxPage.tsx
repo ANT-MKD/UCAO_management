@@ -50,6 +50,21 @@ export default function NiveauxPage() {
       },
     },
     {
+      key: "creditsRequisEntree",
+      header: "Crédits requis",
+      render: (r) => <span className="text-xs text-muted-foreground">{r.creditsRequisEntree ?? "—"}</span>,
+    },
+    {
+      key: "passageConditionnelAutorise",
+      header: "AJAC",
+      render: (r) =>
+        r.passageConditionnelAutorise ? (
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">≥ {r.creditDetteMin ?? 0} crédits</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
+    },
+    {
       key: "actions",
       header: "Actions",
       render: (r) => (

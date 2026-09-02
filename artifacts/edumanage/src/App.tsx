@@ -91,6 +91,7 @@ const BulletinEtudiantPage = lazy(() => import("@/pages/admin/BulletinEtudiantPa
 const RattrapagePage = lazy(() => import("@/pages/admin/RattrapagePage"));
 const MoyennesPage = lazy(() => import("@/pages/admin/MoyennesPage"));
 const DeliberationsPage = lazy(() => import("@/pages/admin/DeliberationsPage"));
+const DeliberationAnnuellePage = lazy(() => import("@/pages/admin/DeliberationAnnuellePage"));
 const MiseAJourCoursEtudiantPage = lazy(() => import("@/pages/admin/MiseAJourCoursEtudiantPage"));
 const AbandonsPage = lazy(() => import("@/pages/admin/AbandonsPage"));
 const NouvelAbandonPage = lazy(() => import("@/pages/admin/NouvelAbandonPage"));
@@ -762,6 +763,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/deliberations">
         <Admin><DeliberationsPage /></Admin>
+      </Route>
+      <Route path="/admin/deliberations-annuelles">
+        <Admin><DeliberationAnnuellePage /></Admin>
       </Route>
       <Route path="/admin/releves">
         <Admin><RelevesPage /></Admin>

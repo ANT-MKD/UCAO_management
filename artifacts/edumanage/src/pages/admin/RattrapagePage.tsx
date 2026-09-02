@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
-import { Save, CheckCircle, AlertCircle, TrendingUp, Info, RotateCcw } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
+import { Save, CheckCircle, AlertCircle, TrendingUp, Info, RotateCcw, Scale } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
 import {
@@ -26,6 +27,8 @@ const POIDS_EXAMEN_DEFAUT = 70;
 
 export default function RattrapagePage() {
   const { currentUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
   const etudiants = useStudentStore();
   const notes = useNotes();
   const ECS = useEcs();
@@ -44,6 +47,22 @@ export default function RattrapagePage() {
   const [searchStudent, setSearchStudent] = useState("");
   const [entries, setEntries] = useState<Record<string, NoteEntry>>({});
   const [saved, setSaved] = useState(false);
+
+  // Préremplissage depuis un lien direct (ex. "Aller au rattrapage" depuis une ligne "Rattrapage"
+  // de la Délibération) — appliqué une seule fois au montage, sans passer par les handlers de
+  // changement (qui réinitialisent les champs suivants en cascade).
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const f = params.get("filiereId"), a = params.get("annee"), n = params.get("niveauId");
+    const c = params.get("classeId"), s = params.get("semestreId"), e = params.get("ecId");
+    if (f) setFiliereId(f);
+    if (a) setAnnee(a);
+    if (n) setNiveauId(n);
+    if (c) setClasseId(c);
+    if (s) setSemestreId(s);
+    if (e) setEcId(e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lecture des query params une seule fois au montage
+  }, []);
 
   const filiere = FILIERES.find((f) => f.id === filiereId);
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
@@ -319,6 +338,14 @@ export default function RattrapagePage() {
                 <span className="font-bold text-foreground">{bareme}</span>
               </div>
               <p className="text-[11px] text-muted-foreground">Cette note remplace l&apos;examen normal ({evaluationRattrapage.poids}% de la moyenne du cours) dans le calcul final.</p>
+              <button
+                onClick={() => setLocation(`/admin/deliberations?classeId=${classeId}&semestreId=${semestreId}`)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-50 transition-colors"
+                data-testid="rattrapage-aller-deliberation"
+              >
+                <Scale size={13} /> Voir la délibération de cette classe
+              </button>
+              <p className="text-[10px] text-muted-foreground">Les moyennes s&apos;y recalculent automatiquement dès qu&apos;une note de rattrapage est publiée — pensez à recharger la délibération si elle a déjà été effectuée.</p>
             </div>
           )}
         </div>

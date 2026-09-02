@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import {
   Scale, CheckCircle2, XCircle, AlertTriangle, Ban, AlertOctagon,
-  Lock, Unlock, Printer, Users, TrendingUp, Plus, ArrowLeft, Eye, X,
+  Lock, Unlock, Printer, Users, TrendingUp, Plus, ArrowLeft, Eye, X, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -15,10 +15,11 @@ import { useReglesValidation } from "@/hooks/useReglesValidationStore";
 import { useBulletinGenerations } from "@/hooks/useBulletinGenerationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import {
-  chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation,
+  chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation, ajusterSeuilSession,
   DECISION_LABELS,
   type DeliberationRecord, type DecisionJury,
 } from "@/data/deliberationStore";
+import { decideValidation, type RegleValidationRecord } from "@/data/reglesValidationStore";
 import { computeBulletinPourClasse } from "@/data/bulletinEngine";
 import { getEvaluationsForClasseEc, getRattrapageEvaluation } from "@/data/evaluationStore";
 import { getNoteForEvaluation } from "@/data/studentStore";
@@ -101,6 +102,7 @@ function printPv(deliberation: DeliberationRecord) {
 
 export default function DeliberationsPage() {
   const [, setLocation] = useLocation();
+  const urlSearch = useSearch();
   const { currentUser } = useAuth();
   const etudiants = useStudentStore();
   const classes = useClasses();
@@ -117,6 +119,23 @@ export default function DeliberationsPage() {
   const [search, setSearch] = useState("");
   const [drillDownEtudiantId, setDrillDownEtudiantId] = useState<string | null>(null);
   const [editingEtudiantId, setEditingEtudiantId] = useState<string | null>(null);
+
+  // Ouverture directe depuis un lien externe (ex. "Voir la délibération de cette classe" depuis
+  // le Rattrapage) : si une délibération existe déjà pour ce classeId/semestreId, l'ouvrir tout
+  // de suite plutôt que de laisser l'admin la rechercher dans la liste.
+  useEffect(() => {
+    const params = new URLSearchParams(urlSearch);
+    const classeId = params.get("classeId");
+    const semestreId = params.get("semestreId");
+    if (!classeId || !semestreId) return;
+    const match = deliberations.find((d) => d.classeId === classeId && d.semestreId === semestreId);
+    if (match) {
+      setActiveDeliberationId(match.id);
+      setBloqueSansGeneration(null);
+      setMode("detail");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lecture des query params une seule fois au montage
+  }, []);
 
   const filteredDeliberations = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -217,6 +236,8 @@ export default function DeliberationsPage() {
         <DetailDeliberation
           deliberationId={activeDeliberationId}
           auteur={currentUser?.name ?? "Administration"}
+          etudiants={etudiants}
+          reglesValidation={reglesValidation}
           editingEtudiantId={editingEtudiantId}
           setEditingEtudiantId={setEditingEtudiantId}
           onDrillDown={setDrillDownEtudiantId}
@@ -356,9 +377,11 @@ function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation
 }
 
 function DetailDeliberation({
-  deliberationId, auteur, editingEtudiantId, setEditingEtudiantId, onDrillDown,
+  deliberationId, auteur, etudiants, reglesValidation, editingEtudiantId, setEditingEtudiantId, onDrillDown,
 }: {
   deliberationId: string; auteur: string;
+  etudiants: ReturnType<typeof useStudentStore>;
+  reglesValidation: ReturnType<typeof useReglesValidation>;
   editingEtudiantId: string | null; setEditingEtudiantId: (id: string | null) => void;
   onDrillDown: (etudiantId: string) => void;
 }) {
@@ -371,6 +394,33 @@ function DetailDeliberation({
   }
 
   const cloture = deliberation.statut === "cloturee";
+  const regleSemestre = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "semestre");
+
+  const handleRecharger = () => {
+    const semestre = SEMESTRES.find((s) => s.id === deliberation.semestreId);
+    const regle = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "semestre");
+    if (!semestre || !regle) {
+      toast.error("Impossible de recharger — filière/session introuvable ou règle de validation manquante");
+      return;
+    }
+    const roster = etudiants.filter((e) => e.classeId === deliberation.classeId);
+    chargerDeliberation({
+      filiereId: deliberation.filiereId,
+      filiere: deliberation.filiere,
+      annee: deliberation.annee,
+      niveauAlias: deliberation.niveau,
+      niveauLabel: deliberation.niveauLabel,
+      classeId: deliberation.classeId,
+      classe: deliberation.classe,
+      semestreId: deliberation.semestreId,
+      semestreAlias: semestre.alias,
+      semestreLabel: deliberation.semestre,
+      etudiants: roster.map((e) => ({ id: e.id, prenom: e.prenom, nom: e.nom, matricule: e.matricule })),
+      regle,
+      effectuePar: auteur,
+    });
+    toast.success("Délibération rechargée avec les notes actuelles");
+  };
   const displayedLignes = decisionFilter ? deliberation.lignes.filter((l) => l.decisionFinale === decisionFilter) : deliberation.lignes;
 
   const stats = {
@@ -407,6 +457,11 @@ function DetailDeliberation({
             <button onClick={() => printPv(deliberation)} className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors" data-testid="deliberation-pv">
               <Printer size={14} /> PV de délibération
             </button>
+            {!cloture && (
+              <button onClick={handleRecharger} className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors" title="Recalculer les moyennes et décisions avec les notes actuelles (ex. après un rattrapage)" data-testid="deliberation-recharger">
+                <RotateCcw size={14} /> Recharger
+              </button>
+            )}
             {cloture ? (
               <button onClick={() => { reouvrirDeliberation(deliberationId); toast.success("Délibération réouverte"); }} className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-semibold hover:bg-amber-600 transition-colors" data-testid="deliberation-reouvrir">
                 <Unlock size={14} /> Réouvrir
@@ -419,6 +474,21 @@ function DetailDeliberation({
           </div>
         </div>
       </div>
+
+      {deliberation.seuilOverride !== undefined && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-800 dark:text-indigo-300">
+          <Scale size={13} className="shrink-0" />
+          <span>
+            Seuil de session ajusté à <strong>{deliberation.seuilOverride}</strong> par <strong>{deliberation.seuilOverrideModifiePar}</strong>
+            {deliberation.seuilOverrideModifieLe ? ` le ${formatDate(deliberation.seuilOverrideModifieLe.slice(0, 10))}` : ""}
+            {deliberation.seuilOverrideRaison ? ` — motif : ${deliberation.seuilOverrideRaison}` : ""}
+          </span>
+        </div>
+      )}
+
+      {!cloture && regleSemestre && (
+        <SeuilSimulateur deliberation={deliberation} regle={regleSemestre} auteur={auteur} />
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
@@ -538,13 +608,126 @@ function DetailDeliberation({
   );
 }
 
+/** Simulateur de seuil de session (péréquation) : le jury peut déplacer le seuil de moyenne de
+ * passage retenu pour CETTE délibération et voir en direct combien d'étudiants basculeraient,
+ * avant de valider (avec motif obligatoire) — jamais une modification silencieuse ni un
+ * changement du paramétrage global (regle.moyennePassage). Les décisions déjà corrigées
+ * manuellement par le jury (decisionFinale !== decisionAuto) ne bougent jamais avec le curseur. */
+function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: DeliberationRecord; regle: RegleValidationRecord; auteur: string }) {
+  const seuilActuel = deliberation.seuilOverride ?? regle.moyennePassage;
+  const [open, setOpen] = useState(false);
+  const [seuil, setSeuil] = useState(seuilActuel);
+
+  useEffect(() => { setSeuil(seuilActuel); }, [seuilActuel]);
+
+  const lignesAutomatiques = deliberation.lignes.filter((l) => l.decisionFinale === l.decisionAuto && l.decisionAuto !== "a_declasser");
+  const simulation = useMemo(() => {
+    const regleSimulee: RegleValidationRecord = { ...regle, moyennePassage: seuil };
+    const counts: Record<DecisionJury, number> = { admis: 0, ajourne: 0, rattrapage: 0, exclu: 0, a_declasser: 0 };
+    for (const l of deliberation.lignes) {
+      if (l.decisionFinale !== l.decisionAuto || l.decisionAuto === "a_declasser") { counts[l.decisionFinale]++; continue; }
+      counts[decideValidation(l.moyenne, l.creditsObtenus, l.absences, regleSimulee)]++;
+    }
+    return counts;
+  }, [seuil, deliberation.lignes, regle]);
+
+  const bascules = useMemo(() => {
+    const regleSimulee: RegleValidationRecord = { ...regle, moyennePassage: seuil };
+    return lignesAutomatiques.filter((l) => decideValidation(l.moyenne, l.creditsObtenus, l.absences, regleSimulee) !== l.decisionAuto);
+  }, [seuil, lignesAutomatiques, regle]);
+
+  const handleAppliquer = () => {
+    if (seuil === seuilActuel) return;
+    const raison = window.prompt(`Motif de l'ajustement du seuil de cette session (${seuilActuel} → ${seuil}) :`) ?? "";
+    if (!raison.trim()) {
+      toast.error("Un motif est requis pour ajuster le seuil de session");
+      return;
+    }
+    ajusterSeuilSession(deliberation.id, seuil, raison.trim(), auteur, regle);
+    toast.success(`Seuil de session ajusté à ${seuil}`);
+    setOpen(false);
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center justify-between w-full text-left" data-testid="deliberation-seuil-toggle">
+        <div className="flex items-center gap-2">
+          <Scale size={16} className="text-primary" />
+          <div>
+            <h3 className="text-sm font-bold text-foreground">Simulateur de seuil de session</h3>
+            <p className="text-xs text-muted-foreground">
+              Seuil actuel : <strong className="text-foreground">{seuilActuel}</strong>
+              {deliberation.seuilOverride !== undefined ? " (ajusté pour cette session)" : " (standard de la règle de validation)"}
+            </p>
+          </div>
+        </div>
+        <span className="text-xs text-primary font-medium shrink-0">{open ? "Réduire" : "Ajuster"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4">
+          <div className="flex items-center gap-4">
+            <input
+              type="range" min={0} max={20} step={0.25} value={seuil}
+              onChange={(e) => setSeuil(parseFloat(e.target.value))}
+              className="flex-1" data-testid="deliberation-seuil-slider"
+            />
+            <span className="font-mono text-lg font-bold text-foreground w-16 text-right">{seuil.toFixed(2)}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-3">
+              <div className="text-xl font-bold text-emerald-600">{simulation.admis}</div>
+              <div className="text-[10px] text-muted-foreground">Admis</div>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-950/40 rounded-xl p-3">
+              <div className="text-xl font-bold text-amber-600">{simulation.rattrapage}</div>
+              <div className="text-[10px] text-muted-foreground">Rattrapage</div>
+            </div>
+            <div className="bg-red-50 dark:bg-red-950/40 rounded-xl p-3">
+              <div className="text-xl font-bold text-red-600">{simulation.ajourne}</div>
+              <div className="text-[10px] text-muted-foreground">Ajournés</div>
+            </div>
+          </div>
+          {bascules.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {bascules.length} étudiant(s) basculeraient avec ce seuil : {bascules.map((l) => l.etudiant).join(", ")}
+            </p>
+          )}
+          <button
+            onClick={handleAppliquer}
+            disabled={seuil === seuilActuel}
+            className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            data-testid="deliberation-seuil-appliquer"
+          >
+            Valider ce seuil pour cette session
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberationId: string; etudiantId: string; onClose: () => void }) {
+  const [, setLocation] = useLocation();
   const deliberations = useDeliberations();
   const deliberation = deliberations.find((d) => d.id === deliberationId);
   const ligne = deliberation?.lignes.find((l) => l.etudiantId === etudiantId);
   const semestreAlias = SEMESTRES.find((s) => s.id === deliberation?.semestreId)?.alias;
   const bulletin = deliberation && semestreAlias ? computeBulletinPourClasse(etudiantId, deliberation.classeId, semestreAlias) : undefined;
   const [notesEc, setNotesEc] = useState<{ id: string; libelle: string } | null>(null);
+  const niveauId = deliberation ? NIVEAUX.find((n) => n.filiereId === deliberation.filiereId && n.alias === deliberation.niveau)?.id : undefined;
+
+  const allerAuRattrapage = (ecId: string) => {
+    if (!deliberation) return;
+    const params = new URLSearchParams({
+      filiereId: deliberation.filiereId,
+      annee: deliberation.annee,
+      niveauId: niveauId ?? "",
+      classeId: deliberation.classeId,
+      semestreId: deliberation.semestreId,
+      ecId,
+    });
+    setLocation(`/admin/notes/rattrapage?${params.toString()}`);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -577,7 +760,19 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                       {i === 0 && (
                         <td className="px-3 py-2 align-top font-medium text-foreground" rowSpan={ue.ecs.length}>{ue.code} - {ue.libelle}</td>
                       )}
-                      <td className="px-3 py-2 text-muted-foreground">{ec.libelle}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {ec.libelle}
+                        {ec.ef !== undefined && ec.moyenne !== undefined && ec.moyenne < 10 && (
+                          <button
+                            onClick={() => allerAuRattrapage(ec.id)}
+                            className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 hover:opacity-80"
+                            title="Aller au rattrapage de ce module"
+                            data-testid={`deliberation-rattrapage-${ec.id}`}
+                          >
+                            Rattrapage
+                          </button>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-center">{ec.cc !== undefined ? ec.cc.toFixed(2) : "—"}</td>
                       <td className="px-3 py-2 text-center">{ec.ef !== undefined ? ec.ef.toFixed(2) : "—"}</td>
                       <td className="px-3 py-2 text-center font-semibold">{ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>

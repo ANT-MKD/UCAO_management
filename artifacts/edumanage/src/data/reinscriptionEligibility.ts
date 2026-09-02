@@ -1,6 +1,9 @@
 import { getEtudiantById } from "./studentStore";
 import { getDerogationsPaiement, derogationActivePour } from "./derogationPaiementStore";
 import { getDeliberations, DECISION_LABELS, type DeliberationLigne } from "./deliberationStore";
+import { computeCreditsCumulesParcours } from "./bulletinEngine";
+import { getDettesActivesPourEtudiant } from "./creditDetteStore";
+import type { NiveauRecord } from "./niveauStore";
 
 export interface ReinscriptionEligibility {
   decision: "allowed" | "conditional" | "blocked";
@@ -22,7 +25,10 @@ export function getDerniereLigneDeliberation(etudiantId: string): DeliberationLi
  * s'appuyer sur deliberationStore.ts sans créer de cycle d'import : deliberationStore importe
  * (via bulletinEngine/assiduiteEngine/declassementEngine) depuis studentStore.ts, donc
  * studentStore.ts ne peut pas importer deliberationStore.ts en retour. */
-export function checkReinscriptionEligibility(etudiantId: string): ReinscriptionEligibility {
+/** niveauCible : le niveau visé par la réinscription en cours — permet de vérifier le garde-fou
+ * de crédits cumulés (NiveauRecord.creditsRequisEntree, ex. 120 crédits requis pour L3). Optionnel
+ * pour ne pas casser les appels existants qui ne connaissent pas encore le niveau cible. */
+export function checkReinscriptionEligibility(etudiantId: string, niveauCible?: NiveauRecord): ReinscriptionEligibility {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant) return { decision: "blocked", reasons: ["Étudiant introuvable"] };
   const reasons: string[] = [];
@@ -50,6 +56,23 @@ export function checkReinscriptionEligibility(etudiantId: string): Reinscription
   if (ligne && ligne.decisionFinale !== "admis") {
     conditional = true;
     reasons.push(`Délibération : ${DECISION_LABELS[ligne.decisionFinale]}`);
+  }
+
+  // Garde-fou de crédits cumulés (ex. 120 crédits requis pour L3) : un contrôle dur, jamais
+  // contournable par dérogation contrairement aux impayés — sans quoi le passage conditionnel
+  // (AJAC) n'aurait plus de plafond réel.
+  if (niveauCible?.creditsRequisEntree !== undefined) {
+    const { creditsObtenus } = computeCreditsCumulesParcours(etudiantId, etudiant.filiereId);
+    if (creditsObtenus < niveauCible.creditsRequisEntree) {
+      blocked = true;
+      reasons.push(`Crédits cumulés insuffisants pour ${niveauCible.nom} (${creditsObtenus}/${niveauCible.creditsRequisEntree} crédits requis)`);
+    }
+  }
+
+  const dettesActives = getDettesActivesPourEtudiant(etudiantId);
+  if (dettesActives.length > 0) {
+    conditional = true;
+    reasons.push(`${dettesActives.length} UE en dette de crédit (${dettesActives.reduce((s, d) => s + d.ueCredits, 0)} crédits) à régulariser`);
   }
 
   if (blocked) return { decision: "blocked", reasons };

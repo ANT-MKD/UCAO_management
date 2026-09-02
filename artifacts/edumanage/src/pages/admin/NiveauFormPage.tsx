@@ -11,6 +11,9 @@ interface FormData {
   alias: string;
   cycleId: string;
   filiereId: string;
+  passageConditionnelAutorise: boolean;
+  creditDetteMin: number;
+  creditsRequisEntree: number | "";
 }
 
 interface Props { id?: string; }
@@ -21,16 +24,20 @@ export default function NiveauFormPage({ id }: Props) {
   const existing = id ? getNiveauById(id) : undefined;
   const cycles = useCycles();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     defaultValues: existing
       ? {
           nom: existing.nom,
           alias: existing.alias,
           cycleId: existing.cycleId ?? cycles.find((c) => c.intitule === existing.cycle)?.id ?? "",
           filiereId: existing.filiereId,
+          passageConditionnelAutorise: existing.passageConditionnelAutorise ?? false,
+          creditDetteMin: existing.creditDetteMin ?? 0,
+          creditsRequisEntree: existing.creditsRequisEntree ?? "",
         }
-      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "" },
+      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "", passageConditionnelAutorise: false, creditDetteMin: 0, creditsRequisEntree: "" },
   });
+  const passageConditionnelAutorise = watch("passageConditionnelAutorise");
 
   const onSubmit = (data: FormData) => {
     const cycle = cycles.find((c) => c.id === data.cycleId);
@@ -42,6 +49,9 @@ export default function NiveauFormPage({ id }: Props) {
       cycle: cycle?.intitule ?? "",
       filiereId: data.filiereId,
       filiere: filiere?.code ?? "",
+      passageConditionnelAutorise: data.passageConditionnelAutorise,
+      creditDetteMin: data.passageConditionnelAutorise ? Number(data.creditDetteMin) : undefined,
+      creditsRequisEntree: data.creditsRequisEntree === "" ? undefined : Number(data.creditsRequisEntree),
     };
     if (isEdit && existing) {
       updateNiveau(existing.id, payload);
@@ -95,6 +105,31 @@ export default function NiveauFormPage({ id }: Props) {
               {errors.filiereId && <p className="text-xs text-red-500 mt-1">{errors.filiereId.message}</p>}
             </div>
           </div>
+
+          <div className="pt-4 border-t border-border space-y-4">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Passage vers le niveau supérieur</h3>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits cumulés requis pour intégrer ce niveau</label>
+              <input
+                type="number" min={0} step={1} {...register("creditsRequisEntree")}
+                placeholder="ex: 120 pour L3 — laisser vide si aucun contrôle"
+                className={inputClass}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">Si renseigné, l&apos;inscription à ce niveau est bloquée tant que l&apos;étudiant n&apos;a pas ce total de crédits validés sur son parcours (toutes années confondues).</p>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+              <input type="checkbox" {...register("passageConditionnelAutorise")} className="w-4 h-4 rounded border-border" />
+              Autoriser le passage conditionnel (AJAC) depuis ce niveau
+            </label>
+            {passageConditionnelAutorise && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour le passage conditionnel</label>
+                <input type="number" min={0} step={1} {...register("creditDetteMin")} placeholder="ex: 42 sur 60" className={inputClass} />
+                <p className="text-[11px] text-muted-foreground mt-1">En dessous de ce seuil, l&apos;étudiant redouble ce niveau plutôt que de monter avec dette.</p>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-2 border-t border-border">
             <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
               <Save size={14} /> {isEdit ? "Enregistrer les modifications" : "Créer le niveau"}
