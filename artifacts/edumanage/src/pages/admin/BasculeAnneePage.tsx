@@ -7,13 +7,11 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { upsertClasse } from "@/data/structureStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
-import { registerBasculeAnnee } from "@/data/studentStore";
+import { registerBasculeAnnee, nextNiveau } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-
-const NIVEAU_SUIVANT: Record<string, string> = { L1: "L2", L2: "L3", L3: "M1", M1: "M2", M2: "D1" };
 
 function anneeSuivante(annee: string): string {
   const [d, f] = annee.split("-").map(Number);
@@ -48,8 +46,8 @@ export default function BasculeAnneePage() {
 
   const appliquerSuggestions = () => {
     if (!niveau) return;
-    const suggestion = NIVEAU_SUIVANT[niveau.alias];
-    const niveauCibleTrouve = suggestion ? NIVEAUX.find((n) => n.filiereId === filiereId && n.alias === suggestion) : undefined;
+    const suggestion = nextNiveau(niveau.alias);
+    const niveauCibleTrouve = NIVEAUX.find((n) => n.filiereId === filiereId && n.alias === suggestion);
     setNiveauCibleId(niveauCibleTrouve?.id ?? "");
     setAnneeCible(anneeSuivante(annee));
   };

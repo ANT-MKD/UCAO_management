@@ -920,7 +920,11 @@ function nextAnneeLabel(annee: string): string {
   return `${d + 1}-${f + 1}`;
 }
 
-function nextNiveau(niveau: string): string {
+/** Table de succession de niveau unique — utilisée par promoteAcademicYear() (passage en masse)
+ * et par BasculeAnneePage.tsx (bascule manuelle par cohorte), pour éviter que ces deux flux
+ * proposent des suites différentes (ex: L3 restait terminal ici mais menait à M1 côté bascule
+ * manuelle, une même filière ne pouvant logiquement passer de L3 à M1 sans nouvelle admission). */
+export function nextNiveau(niveau: string): string {
   const map: Record<string, string> = {
     L1: "L2",
     L2: "L3",
