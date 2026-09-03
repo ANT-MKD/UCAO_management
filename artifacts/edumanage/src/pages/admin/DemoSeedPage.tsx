@@ -52,8 +52,10 @@ export default function DemoSeedPage() {
           <p className="text-sm text-blue-800 dark:text-blue-200">
             Étape 1 : socle académique. Crée 6 filières types (Informatique de Gestion, Agrobusiness, Sciences de
             Gestion, Comptabilité Finance, Sciences Politiques et Relations Internationales, Qualité Hygiène Sécurité
-            Environnement), chacune avec ses niveaux L1/L2/L3, ses semestres S1 à S6 et une maquette UE/EC complète
-            pour l'année 2025-2026. Action idempotente : relancer ne crée pas de doublons.
+            Environnement), chacune avec ses niveaux L1/L2/L3, ses semestres S1 à S6, une classe par niveau et une
+            maquette UE/EC complète pour l'année 2025-2026 — plus 10 salles de cours (1er étage R1-01 à R1-05, 2e
+            étage R2-01 à R2-05 ; le RDC reste sans salle de cours dédiée, réservé à l'administration). Action
+            idempotente : relancer ne crée pas de doublons.
           </p>
         </div>
 
@@ -61,7 +63,7 @@ export default function DemoSeedPage() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Sera créé (si aucune filière de démo n'existe encore)
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center">
             <div>
               <p className="text-lg font-semibold text-foreground">{apercu.filieres}</p>
               <p className="text-xs text-muted-foreground">Filières</p>
@@ -73,6 +75,14 @@ export default function DemoSeedPage() {
             <div>
               <p className="text-lg font-semibold text-foreground">{apercu.semestres}</p>
               <p className="text-xs text-muted-foreground">Semestres</p>
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-foreground">{apercu.classes}</p>
+              <p className="text-xs text-muted-foreground">Classes</p>
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-foreground">{apercu.salles}</p>
+              <p className="text-xs text-muted-foreground">Salles</p>
             </div>
             <div>
               <p className="text-lg font-semibold text-foreground">{apercu.ueEstime}</p>
@@ -112,7 +122,7 @@ export default function DemoSeedPage() {
                   <span className="font-medium">{r.filiere}</span>
                   <span className="text-muted-foreground">
                     {r.cree
-                      ? `— ${r.niveaux} niveaux, ${r.semestres} semestres, ${r.ueCount} UE, ${r.ecCount} EC`
+                      ? `— ${r.niveaux} niveaux, ${r.semestres} semestres, ${r.classes} classes, ${r.ueCount} UE, ${r.ecCount} EC`
                       : "— déjà existante, ignorée"}
                   </span>
                 </li>

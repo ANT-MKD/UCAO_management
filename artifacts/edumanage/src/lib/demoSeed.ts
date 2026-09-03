@@ -4,6 +4,23 @@ import { addNiveau, getNiveaux } from "@/data/niveauStore";
 import { addSemestre, getSemestres } from "@/data/semestreStore";
 import { importCurriculumRows } from "@/data/curriculumStore";
 import { cycleStore } from "@/data/academicSettingsStore";
+import { upsertClasse, upsertSalle, getSalles, findClassePedagogique } from "@/data/structureStore";
+import { nomClasseStandard } from "@/data/studentStore";
+
+const ANNEE_DEMO = "2025-2026";
+
+/** Bâtiment unique : RDC (administration, aucune salle de cours dédiée) + 1er étage (R1-01..05)
+ * + 2e étage (R2-01..05). Idempotent — une salle dont le nom existe déjà n'est pas recréée. */
+const SALLES_DEMO = [
+  ...Array.from({ length: 5 }, (_, i) => ({
+    nom: `R1-0${i + 1}`,
+    etage: "1er étage",
+  })),
+  ...Array.from({ length: 5 }, (_, i) => ({
+    nom: `R2-0${i + 1}`,
+    etage: "2ème étage",
+  })),
+];
 
 /** 6 filières types d'un établissement UCAO, avec leur responsable pédagogique. Sert de base au
  * générateur de données de démonstration — jamais utilisé ailleurs dans l'app (pas de mock caché
@@ -78,19 +95,50 @@ export interface ResultatSeedFiliere {
   semestres: number;
   ueCount: number;
   ecCount: number;
+  classes: number;
+}
+
+/** Crée les 10 salles types (R1-01..05, R2-01..05) si elles n'existent pas encore. Le RDC n'a
+ * volontairement aucune salle de cours générée ici (administration). */
+export function genererSallesDemo(): { crees: number } {
+  const existantes = new Set(getSalles().map((s) => s.nom));
+  let crees = 0;
+  for (const s of SALLES_DEMO) {
+    if (existantes.has(s.nom)) continue;
+    upsertSalle({
+      nom: s.nom,
+      type: "Salle de cours",
+      capacite: 40,
+      batiment: "Bâtiment principal",
+      etage: s.etage,
+      equipements: ["Vidéoprojecteur", "Tableau blanc"],
+      statut: "actif",
+    });
+    crees++;
+  }
+  return { crees };
+}
+
+/** Vrai si au moins une des 10 salles de démo existe déjà. */
+export function sallesDemoDejaGenerees(): boolean {
+  const existantes = new Set(getSalles().map((s) => s.nom));
+  return SALLES_DEMO.some((s) => existantes.has(s.nom));
 }
 
 /** Étape 1 du générateur de données de démonstration : socle académique complet pour les 6
  * filières types (responsable pédagogique, niveaux L1/L2/L3 avec règles de passage conditionnel
- * AJAC, semestres S1..S6, maquette UE/EC réaliste par domaine). Idempotent — une filière dont le
- * code existe déjà est laissée intacte (jamais de doublon si le bouton est cliqué plusieurs fois). */
+ * AJAC, semestres S1..S6, maquette UE/EC réaliste par domaine, une classe par niveau pour
+ * 2025-2026) plus les 10 salles types. Idempotent — une filière dont le code existe déjà est
+ * laissée intacte (jamais de doublon si le bouton est cliqué plusieurs fois). */
 export function genererDonneesAcademiques(actorId: string): ResultatSeedFiliere[] {
   const cycleLicence = cycleStore.getAll().find((c) => c.code === "LICENCE");
   const resultats: ResultatSeedFiliere[] = [];
 
+  genererSallesDemo();
+
   for (const f of FILIERES_DEMO) {
     if (getFiliereByCode(f.code)) {
-      resultats.push({ filiere: f.code, cree: false, niveaux: 0, semestres: 0, ueCount: 0, ecCount: 0 });
+      resultats.push({ filiere: f.code, cree: false, niveaux: 0, semestres: 0, ueCount: 0, ecCount: 0, classes: 0 });
       continue;
     }
 
@@ -122,7 +170,7 @@ export function genererDonneesAcademiques(actorId: string): ResultatSeedFiliere[
       cycleId: cycleLicence?.id,
       cycle: cycleLicence?.intitule,
       typeProgramme: "semestriel",
-      anneesActives: ["2025-2026"],
+      anneesActives: [ANNEE_DEMO],
       nbClasses: 0,
       nbEtudiants: 0,
     });
@@ -163,6 +211,19 @@ export function genererDonneesAcademiques(actorId: string): ResultatSeedFiliere[
       }
     }
 
+    let classesCount = 0;
+    for (const nd of niveauxDef) {
+      if (findClassePedagogique(filiere.id, nd.alias, ANNEE_DEMO)) continue;
+      upsertClasse({
+        nom: nomClasseStandard(filiere.code, nd.alias, ANNEE_DEMO),
+        filiereId: filiere.id,
+        niveauId: niveauxCrees[nd.alias].id,
+        max: 40,
+        annee: ANNEE_DEMO,
+      });
+      classesCount++;
+    }
+
     const rows: Parameters<typeof importCurriculumRows>[0] = [];
     const semestresList = CURRICULUM_DEMO[f.code] ?? [];
     semestresList.forEach((ueNoms, semIdx) => {
@@ -193,7 +254,7 @@ export function genererDonneesAcademiques(actorId: string): ResultatSeedFiliere[
       filiere: filiere.code, filiereId: filiere.id, niveau: "L1", semestre: "S1",
     });
 
-    resultats.push({ filiere: f.code, cree: true, niveaux: Object.keys(niveauxCrees).length, semestres: semestresCount, ueCount, ecCount });
+    resultats.push({ filiere: f.code, cree: true, niveaux: Object.keys(niveauxCrees).length, semestres: semestresCount, ueCount, ecCount, classes: classesCount });
   }
 
   return resultats;
@@ -214,6 +275,8 @@ export function apercuSocleAcademiqueDemo() {
     filieres: FILIERES_DEMO.length,
     niveaux: FILIERES_DEMO.length * 3,
     semestres: FILIERES_DEMO.length * 6,
+    classes: FILIERES_DEMO.length * 3,
+    salles: SALLES_DEMO.length,
     ueEstime: totalUe,
     ecEstime: totalUe * 2,
   };
