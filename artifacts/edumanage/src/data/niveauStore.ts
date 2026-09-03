@@ -80,7 +80,7 @@ export function getNiveauById(id: string): NiveauRecord | undefined {
 export type NiveauInput = Omit<NiveauRecord, "id">;
 
 export function addNiveau(payload: NiveauInput): NiveauRecord {
-  const record: NiveauRecord = { id: `n-${Date.now()}`, ...payload };
+  const record: NiveauRecord = { id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   niveaux.push(record);
   persist();
   return record;

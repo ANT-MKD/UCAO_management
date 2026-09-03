@@ -86,7 +86,7 @@ export function getTeacherById(id: string): TeacherRecord | undefined {
 export type TeacherInput = Omit<TeacherRecord, "id" | "modulesAssignes" | "heuresMois">;
 
 export function addTeacher(payload: TeacherInput, actorId: string): TeacherRecord {
-  const record: TeacherRecord = { id: `en-${Date.now()}`, modulesAssignes: 0, heuresMois: 0, ...payload };
+  const record: TeacherRecord = { id: `en-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, modulesAssignes: 0, heuresMois: 0, ...payload };
   teachers.push(record);
   logAudit(actorId, "create_teacher", "teacher", record.id, `${record.prenom} ${record.nom}`);
   persist();

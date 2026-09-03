@@ -67,7 +67,7 @@ export function getSemestreById(id: string): SemestreRecord | undefined {
 export type SemestreInput = Omit<SemestreRecord, "id">;
 
 export function addSemestre(payload: SemestreInput): SemestreRecord {
-  const record: SemestreRecord = { id: `s-${Date.now()}`, ...payload };
+  const record: SemestreRecord = { id: `s-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   semestres.push(record);
   persist();
   return record;

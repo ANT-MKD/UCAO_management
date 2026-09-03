@@ -82,7 +82,7 @@ export function getFiliereByCode(code: string): FiliereRecord | undefined {
 export type FiliereInput = Omit<FiliereRecord, "id">;
 
 export function addFiliere(payload: FiliereInput): FiliereRecord {
-  const record: FiliereRecord = { id: `f-${Date.now()}`, ...payload };
+  const record: FiliereRecord = { id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   filieres.push(record);
   persist();
   return record;
