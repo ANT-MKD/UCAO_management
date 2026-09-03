@@ -12,6 +12,8 @@ import {
   PanelLeftOpen,
   LogOut,
   Bell,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +55,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   const [location, setLocation] = useLocation();
   const { currentUser, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useNotifications(currentUser?.id);
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -68,15 +71,43 @@ export function StudentLayout({ children }: StudentLayoutProps) {
     setNotifOpen((o) => !o);
   };
 
+  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <>
+      {visibleNavItems.map((item) => {
+        const Icon = item.icon;
+        const active = location === item.href || location.startsWith(item.href + "/");
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={cn(
+              "group w-full rounded-xl flex items-center gap-3 px-3 py-2.5 text-sm transition-colors",
+              active
+                ? "bg-primary/10 text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              collapsed && "lg:justify-center lg:px-2",
+            )}
+            title={collapsed ? item.label : undefined}
+          >
+            <Icon size={18} className="flex-shrink-0" />
+            <span className={cn("truncate", collapsed && "lg:hidden")}>{item.label}</span>
+          </Link>
+        );
+      })}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-[var(--bg-alt)] flex">
+      {/* Sidebar desktop */}
       <aside
         className={cn(
-          "sticky top-0 h-screen border-r border-border bg-card transition-all duration-200",
+          "hidden lg:flex sticky top-0 h-screen border-r border-border bg-card transition-all duration-200",
           collapsed ? "w-20" : "w-72",
         )}
       >
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col w-full">
           <div className="h-16 px-3 border-b border-border flex items-center justify-between">
             <Link href="/student/dashboard" className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center font-bold text-sm">
@@ -98,27 +129,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           </div>
 
           <nav className="flex-1 p-3 space-y-1">
-            {visibleNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = location === item.href || location.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "group w-full rounded-xl flex items-center gap-3 px-3 py-2.5 text-sm transition-colors",
-                    active
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                    collapsed && "justify-center px-2",
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon size={18} className="flex-shrink-0" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
+            <NavLinks />
           </nav>
 
           <div className="p-3 border-t border-border space-y-2">
@@ -145,15 +156,70 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         </div>
       </aside>
 
-      <main className="flex-1 min-h-screen">
-        <header className="h-16 border-b border-border bg-card px-5 md:px-7 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
-              Espace Étudiant
-            </h1>
-            <p className="text-xs text-muted-foreground">Suivi académique et administratif</p>
+      {/* Menu tiroir (mobile / tablette) */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-y-0 left-0 w-[min(85%,320px)] bg-card border-r border-border shadow-xl flex flex-col animate-in slide-in-from-left-4 duration-200">
+            <div className="h-16 px-4 border-b border-border flex items-center justify-between flex-shrink-0">
+              <span className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
+                Portail Étudiant
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                aria-label="Fermer le menu"
+                data-testid="student-mobile-close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+              <NavLinks onNavigate={() => setMobileOpen(false)} />
+            </nav>
+
+            <div className="p-3 border-t border-border space-y-2 flex-shrink-0">
+              <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+                <UserAvatar name={currentUser?.name || "Étudiant"} size="sm" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{currentUser?.name || "Étudiant"}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{currentUser?.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 flex items-center gap-2"
+              >
+                <LogOut size={16} />
+                Déconnexion
+              </button>
+            </div>
           </div>
-          <div className="relative">
+        </div>
+      )}
+
+      <main className="flex-1 min-h-screen min-w-0">
+        <header className="h-16 border-b border-border bg-card px-3 sm:px-5 md:px-7 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted text-muted-foreground flex-shrink-0"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Ouvrir le menu"
+              data-testid="student-mobile-menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-foreground truncate" style={{ fontFamily: "Outfit, sans-serif" }}>
+                Espace Étudiant
+              </h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">Suivi académique et administratif</p>
+            </div>
+          </div>
+          <div className="relative flex-shrink-0">
             <button
               type="button"
               onClick={handleOpenNotif}
@@ -168,7 +234,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
               )}
             </button>
             {notifOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto">
+              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] max-w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between sticky top-0 bg-popover">
                   <span className="font-semibold text-sm">Notifications</span>
                   <span className="text-xs text-primary font-medium">{unreadCount} non lue(s)</span>
@@ -201,7 +267,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           </div>
         </header>
 
-        <div className="p-5 md:p-7 max-w-[1400px]">{children}</div>
+        <div className="p-3 sm:p-5 md:p-7 max-w-[1400px]">{children}</div>
       </main>
     </div>
   );
