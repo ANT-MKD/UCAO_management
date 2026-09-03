@@ -71,10 +71,11 @@ function evenlySpacedDates(startIso: string, endIso: string, n: number): string[
   return Array.from({ length: n }, (_, i) => new Date(start + step * i).toISOString().slice(0, 10));
 }
 
-/** `dateLimite` d'une ligne grille est un jour/mois ("10/12") sans année : on déduit l'année
- * civile réelle à partir de l'année scolaire (ex: "2025-2026") — septembre à décembre tombent
- * sur la première année, janvier à août sur la seconde. */
-function dateLimiteVersISO(anneeScolaire: string, dateLimite: string): string | undefined {
+/** dateDebut/dateLimite d'une ligne grille sont au format jour/mois ("10/12") sans année : on
+ * déduit l'année civile réelle à partir de l'année scolaire (ex: "2025-2026") — septembre à
+ * décembre tombent sur la première année, janvier à août sur la seconde. Exportée pour que l'UI
+ * puisse afficher le même calcul en aperçu (garde-fou "date début après date fin"). */
+export function resoudreDateJourMois(anneeScolaire: string, dateLimite: string): string | undefined {
   const [jourStr, moisStr] = dateLimite.split("/");
   const jour = Number(jourStr);
   const mois = Number(moisStr);
@@ -101,12 +102,12 @@ export function calculerEcheances(ligne: LigneGrilleFrais, anneeScolaire: string
     return ligne.echeancesPersonnalisees.map((e, i) => ({ index: i + 1, date: e.date, montant: e.montant }));
   }
   const n = Math.max(1, ligne.nbEcheances ?? 1);
-  const dateFinale = ligne.dateLimite ? dateLimiteVersISO(anneeScolaire, ligne.dateLimite) : undefined;
+  const dateFinale = ligne.dateLimite ? resoudreDateJourMois(anneeScolaire, ligne.dateLimite) : undefined;
   if (n <= 1 || !dateFinale) {
     return [{ index: 1, date: dateFinale ?? new Date().toISOString().slice(0, 10), montant: ligne.montant }];
   }
   const montants = splitMontantEgal(ligne.montant, n);
-  const dateInitiale = ligne.dateDebut ? dateLimiteVersISO(anneeScolaire, ligne.dateDebut) : undefined;
+  const dateInitiale = ligne.dateDebut ? resoudreDateJourMois(anneeScolaire, ligne.dateDebut) : undefined;
   if (dateInitiale) {
     const dates = evenlySpacedDates(dateInitiale, dateFinale, n);
     return montants.map((montant, i) => ({ index: i + 1, date: dates[i], montant }));

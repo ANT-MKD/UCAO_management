@@ -14,6 +14,7 @@ import {
   makeLigneGrilleFraisId,
   calculerEcheances,
   nbEcheancesEffectif,
+  resoudreDateJourMois,
   type GrilleFraisRecord,
   type LigneGrilleFrais,
   type EcheancePersonnalisee,
@@ -151,6 +152,16 @@ export default function GrilleFraisPage() {
     );
   };
 
+  /** Garde-fou : avec dateDebut ET dateLimite renseignées, la date de fin résolue (selon l'année
+   * scolaire) doit tomber après la date de début — sinon l'échéancier calculé serait inversé. */
+  const periodeInversee = (l: LigneGrilleFrais): boolean => {
+    if (l.modalite !== "echeances" || !l.dateDebut || !l.dateLimite) return false;
+    const debut = resoudreDateJourMois(annee, l.dateDebut);
+    const fin = resoudreDateJourMois(annee, l.dateLimite);
+    if (!debut || !fin) return false;
+    return debut >= fin;
+  };
+
   const handleSave = () => {
     if (!combinaisonComplete) return;
     if (lignes.some((l) => !l.intitule.trim() || l.montant <= 0)) {
@@ -163,6 +174,10 @@ export default function GrilleFraisPage() {
     }
     if (lignes.some((l) => l.echeancesPersonnalisees && l.echeancesPersonnalisees.some((e) => !e.date || e.montant <= 0))) {
       toast.error("Chaque échéance personnalisée doit avoir une date et un montant supérieur à 0");
+      return;
+    }
+    if (lignes.some(periodeInversee)) {
+      toast.error("La date de début doit être avant la date de fin (une fois rattachées à l'année scolaire) pour chaque ligne à échéances");
       return;
     }
     upsertGrilleFrais({
@@ -468,6 +483,7 @@ export default function GrilleFraisPage() {
                   lignes.map((l) => {
                     const personnalisee = !!l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0;
                     const arrondiInexact = l.modalite === "echeances" && !personnalisee && !!l.nbEcheances && l.montant % l.nbEcheances !== 0;
+                    const inversee = periodeInversee(l);
                     return (
                       <Fragment key={l.id}>
                       <tr className="border-b border-border last:border-0 align-top">
@@ -555,13 +571,20 @@ export default function GrilleFraisPage() {
                             personnalisee ? (
                               <span className="text-xs text-muted-foreground">Dates perso.</span>
                             ) : (
-                              <input
-                                value={l.dateLimite ?? ""}
-                                onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
-                                className={inputClass}
-                                placeholder="JJ/MM"
-                                data-testid={`grille-ligne-date-fin-${l.id}`}
-                              />
+                              <>
+                                <input
+                                  value={l.dateLimite ?? ""}
+                                  onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
+                                  className={inputClass}
+                                  placeholder="JJ/MM"
+                                  data-testid={`grille-ligne-date-fin-${l.id}`}
+                                />
+                                {inversee && (
+                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-periode-inversee-${l.id}`}>
+                                    ⚠ avant la date début une fois rattachée à {annee}
+                                  </p>
+                                )}
+                              </>
                             )
                           )}
                         </td>
