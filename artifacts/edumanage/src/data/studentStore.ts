@@ -650,6 +650,35 @@ export function resetStudentStore() {
   persist();
 }
 
+/** Vide toutes les données opérationnelles de ce store (étudiants, inscriptions, paiements,
+ * notes, séances, relevés, demandes, messages, notifications, audit, cahiers) tout en gardant
+ * uniquement le compte utilisateur `keepUserId` (l'admin qui déclenche la remise à zéro — sans
+ * ça il serait déconnecté par sa propre action) et une année académique par défaut. Utilisé par
+ * la page Sécurité > Réinitialisation des données pour repartir de zéro sans perdre le
+ * paramétrage (qui vit dans d'autres stores, non touchés ici). */
+export function resetOperationalData(keepUserId: string) {
+  const fresh = buildFreshStore();
+  const keptUser = store.users.find((u) => u.id === keepUserId);
+  store = {
+    etudiants: [],
+    inscriptions: [],
+    matriculeCounters: {},
+    annees: fresh.annees,
+    paiements: [],
+    notes: [],
+    seances: [],
+    releves: [],
+    users: keptUser ? [keptUser] : store.users.filter((u) => u.id === keepUserId),
+    requests: [],
+    messages: [],
+    notifications: [],
+    auditLogs: [],
+    cahiers: [],
+    receiptCounter: 0,
+  };
+  persist();
+}
+
 export interface AuthSessionSnapshot {
   id: string;
   name: string;

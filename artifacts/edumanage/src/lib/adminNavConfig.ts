@@ -309,6 +309,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "sec-portails", label: "Portails", href: "/admin/security/portails" },
       { id: "sec-pin-activation", label: "Code pin activation", href: "/admin/security/pin-activation" },
       { id: "sec-audit", label: "Journal d'audit", href: "/admin/audit" },
+      { id: "sec-reset-donnees", label: "Réinitialisation des données", href: "/admin/security/reinitialisation-donnees" },
     ],
   },
 ];

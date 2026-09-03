@@ -194,6 +194,7 @@ const AccessRightsPage = lazy(() => import("@/pages/admin/AccessRightsPage"));
 const EnvoiIdentifiantPage = lazy(() => import("@/pages/admin/EnvoiIdentifiantPage"));
 const PortailsPage = lazy(() => import("@/pages/admin/PortailsPage"));
 const PinActivationPage = lazy(() => import("@/pages/admin/PinActivationPage"));
+const DataResetPage = lazy(() => import("@/pages/admin/DataResetPage"));
 const AdminComingSoonPage = lazy(() => import("@/pages/admin/AdminComingSoonPage"));
 const MessagesPage = lazy(() => import("@/pages/admin/MessagesPage"));
 const RequestsPage = lazy(() => import("@/pages/admin/RequestsPage"));
@@ -857,6 +858,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/security/pin-activation">
         <Admin><PinActivationPage /></Admin>
+      </Route>
+      <Route path="/admin/security/reinitialisation-donnees">
+        <Admin><DataResetPage /></Admin>
       </Route>
       <Route path="/admin/wip/:pageId">
         {(p) => <Admin><AdminComingSoonPage pageId={p.pageId} /></Admin>}
