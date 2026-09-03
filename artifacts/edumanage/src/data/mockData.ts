@@ -19,7 +19,7 @@ export const NIVEAUX: {
 
 export const SEMESTRES: {
   id: string; nom: string; alias: string; niveau: string; niveauId: string; filiere: string;
-  periode: string; statut: string;
+  statut: string;
 }[] = [];
 
 export const CLASSES: {

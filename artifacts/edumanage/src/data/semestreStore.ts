@@ -7,7 +7,6 @@ export interface SemestreRecord {
   niveau: string;
   niveauId: string;
   filiere: string;
-  periode: string;
   statut: "actif" | "futur" | "clos";
 }
 

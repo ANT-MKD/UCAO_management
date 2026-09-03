@@ -18,7 +18,6 @@ export default function SemestresPage() {
     { key: "alias", header: "Alias", render: (r) => <span className="font-mono text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-lg">{r.alias}</span> },
     { key: "niveau", header: "Niveau", render: (r) => <span className="text-sm text-foreground">{r.niveau}</span> },
     { key: "filiere", header: "Filière", render: (r) => <span className="text-xs font-semibold px-2.5 py-1 bg-muted text-foreground rounded-lg">{r.filiere}</span> },
-    { key: "periode", header: "Période", render: (r) => <span className="text-xs text-muted-foreground">{r.periode}</span> },
     { key: "statut", header: "Statut", render: (r) => <StatusBadge status={r.statut} /> },
     {
       key: "actions",

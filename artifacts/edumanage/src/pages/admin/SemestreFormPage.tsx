@@ -10,7 +10,6 @@ interface FormData {
   nom: string;
   alias: string;
   niveauId: string;
-  periode: string;
   statut: "actif" | "futur" | "clos";
 }
 
@@ -24,8 +23,8 @@ export default function SemestreFormPage({ id }: Props) {
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: existing
-      ? { nom: existing.nom, alias: existing.alias, niveauId: existing.niveauId, periode: existing.periode, statut: existing.statut }
-      : { nom: "", alias: "", niveauId: "", periode: "", statut: "futur" },
+      ? { nom: existing.nom, alias: existing.alias, niveauId: existing.niveauId, statut: existing.statut }
+      : { nom: "", alias: "", niveauId: "", statut: "futur" },
   });
 
   const onSubmit = (data: FormData) => {
@@ -36,7 +35,6 @@ export default function SemestreFormPage({ id }: Props) {
       niveauId: data.niveauId,
       niveau: niveau?.alias ?? "",
       filiere: niveau?.filiere ?? "",
-      periode: data.periode.trim(),
       statut: data.statut,
     };
     if (isEdit && existing) {
@@ -84,11 +82,6 @@ export default function SemestreFormPage({ id }: Props) {
                 })}
               </select>
               {errors.niveauId && <p className="text-xs text-red-500 mt-1">{errors.niveauId.message}</p>}
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Période *</label>
-              <input {...register("periode", { required: "Période requise", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Septembre 2025 – Janvier 2026" className={inputClass} />
-              {errors.periode && <p className="text-xs text-red-500 mt-1">{errors.periode.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
