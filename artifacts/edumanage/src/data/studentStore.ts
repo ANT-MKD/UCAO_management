@@ -12,7 +12,7 @@ import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
 import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
 import { estAutorise } from "./communicationRolesStore";
-import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
+import { findClassePedagogique, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
 
@@ -1246,6 +1246,49 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
 
   persist();
   return { count, nextLabel, classesCreated: classesCreees.size };
+}
+
+/** Un niveau est "d'entrée" pour sa filière s'il n'existe aucun autre niveau de la même filière
+ * qui y mène (ex: L1 n'a personne qui "monte" vers lui, contrairement à L2 qui reçoit L1 via
+ * nextNiveau). Sert à repérer L1/BTS1/M1... sans dépendre d'un ordre explicite sur les niveaux. */
+function estNiveauEntree(niveauAlias: string, filiereId: string): boolean {
+  return !NIVEAUX.some(
+    (n) => n.filiereId === filiereId && n.alias !== niveauAlias && nextNiveau(n.alias) === niveauAlias,
+  );
+}
+
+/** Ouverture d'année : combine promoteAcademicYear() (fait monter les cohortes existantes et crée
+ * leurs classes cibles) avec la création automatique, pour chaque filière active, de la classe
+ * d'entrée (L1/BTS1/M1...) de l'année cible si elle n'existe pas déjà — pour que les nouveaux
+ * inscrits aient une classe disponible dès la rentrée, sans devoir la créer filière par filière.
+ * Reprend capacité et salle par défaut de la dernière classe connue pour ce niveau/filière. */
+export function ouvrirAnneeSuivante(sourceAnneeId: string): { count: number; nextLabel: string; classesCreated: number } {
+  const promo = promoteAcademicYear(sourceAnneeId);
+  if (!promo.nextLabel) return promo;
+
+  let classesEntreeCreees = 0;
+  const toutesClasses = getClasses();
+  for (const filiere of FILIERES.filter((f) => f.statut === "actif")) {
+    const niveauxFiliere = NIVEAUX.filter((n) => n.filiereId === filiere.id);
+    for (const niveauEntree of niveauxFiliere.filter((n) => estNiveauEntree(n.alias, filiere.id))) {
+      if (findClasse(filiere.id, niveauEntree.alias, promo.nextLabel)) continue;
+      const historique = toutesClasses
+        .filter((c) => c.filiereId === filiere.id && c.niveau === niveauEntree.alias)
+        .sort((a, b) => b.annee.localeCompare(a.annee));
+      const derniere = historique[0];
+      upsertClasse({
+        nom: nomClasseStandard(filiere.code, niveauEntree.alias, promo.nextLabel),
+        filiereId: filiere.id,
+        niveauId: niveauEntree.id,
+        max: derniere?.max ?? 40,
+        annee: promo.nextLabel,
+        salleParDefautId: derniere?.salleParDefautId,
+      });
+      classesEntreeCreees++;
+    }
+  }
+
+  return { ...promo, classesCreated: promo.classesCreated + classesEntreeCreees };
 }
 
 export function setAnneeActuelle(id: string) {

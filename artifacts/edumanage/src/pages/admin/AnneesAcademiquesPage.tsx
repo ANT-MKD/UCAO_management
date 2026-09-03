@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Plus, Archive, ArrowRight, Calendar, CheckCircle, X, Lock } from "lucide-react";
+import { Plus, Archive, DoorOpen, Calendar, CheckCircle, X, Lock } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import {
-  promoteAcademicYear,
+  ouvrirAnneeSuivante,
   setAnneeActuelle,
   addAnneeAcademique,
   archiveAnnee,
@@ -29,14 +29,14 @@ export default function AnneesAcademiquesPage() {
     setShowModal(false);
   };
 
-  const handlePromote = (id: string) => {
+  const handleOuvrirAnnee = (id: string) => {
     setPromoting(id);
     setTimeout(() => {
-      const { count, nextLabel, classesCreated } = promoteAcademicYear(id);
+      const { count, nextLabel, classesCreated } = ouvrirAnneeSuivante(id);
       setPromoting(null);
-      const suffixeClasses = classesCreated > 0 ? ` (${classesCreated} classe${classesCreated > 1 ? "s" : ""} créée${classesCreated > 1 ? "s" : ""} automatiquement)` : "";
-      setDoneMsg(`${count} préinscriptions créées pour ${nextLabel}${suffixeClasses}`);
-      setTimeout(() => setDoneMsg(""), 5000);
+      const suffixeClasses = classesCreated > 0 ? ` — ${classesCreated} classe${classesCreated > 1 ? "s" : ""} créée${classesCreated > 1 ? "s" : ""} (promotions + classes d'entrée)` : "";
+      setDoneMsg(`Année ${nextLabel} ouverte : ${count} préinscription${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""}${suffixeClasses}`);
+      setTimeout(() => setDoneMsg(""), 6000);
     }, 800);
   };
 
@@ -53,7 +53,7 @@ export default function AnneesAcademiquesPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Années Académiques" }]}
         title="Gestion des Années Académiques"
-        subtitle="Créer, clôturer, archiver et passer à l'année N+1"
+        subtitle="Créer, clôturer, archiver et ouvrir l'année N+1"
         actions={
           <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
             <Plus size={15} /> Nouvelle année
@@ -68,7 +68,7 @@ export default function AnneesAcademiquesPage() {
       )}
 
       <p className="text-xs text-muted-foreground mb-4">
-        Ces actions s&apos;appliquent à toute l&apos;année scolaire d&apos;un coup. Pour clôturer ou faire basculer une classe en particulier, utilisez plutôt Classe &gt; Clôture année / Bascule année.
+        Ces actions s&apos;appliquent à toute l&apos;année scolaire d&apos;un coup. « Ouvrir l&apos;année suivante » fait monter les cohortes existantes d&apos;un niveau (en créant leur classe cible si besoin) ET crée automatiquement la classe d&apos;entrée (L1/BTS1/M1...) de chaque filière active pour les nouveaux inscrits. Pour clôturer ou faire basculer une classe en particulier, utilisez plutôt Classe &gt; Clôture année / Bascule année.
       </p>
 
       <div className="space-y-4">
@@ -104,11 +104,12 @@ export default function AnneesAcademiquesPage() {
                   )}
                   {!a.cloturee && (
                     <button
-                      onClick={() => handlePromote(a.id)}
+                      onClick={() => handleOuvrirAnnee(a.id)}
                       disabled={promoting === a.id}
                       className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      title="Fait monter les cohortes existantes d'un niveau et crée la classe d'entrée de chaque filière pour les nouveaux inscrits"
                     >
-                      <ArrowRight size={12} /> {promoting === a.id ? "Reconduction..." : "Passer à N+1"}
+                      <DoorOpen size={12} /> {promoting === a.id ? "Ouverture..." : "Ouvrir l'année suivante"}
                     </button>
                   )}
                   {!a.cloturee && (
