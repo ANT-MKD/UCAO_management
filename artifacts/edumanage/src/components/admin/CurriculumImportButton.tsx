@@ -2,11 +2,26 @@ import { useRef, useState } from "react";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { FILIERES, NIVEAUX, SEMESTRES } from "@/data/mockData";
 import { importCurriculumRows } from "@/data/curriculumStore";
-import { downloadCurriculumTemplate, parseCurriculumExcel } from "@/lib/curriculumImport";
+import { downloadCurriculumTemplate, parseCurriculumExcel, parseCurriculumWord, parseCurriculumPdf } from "@/lib/curriculumImport";
 import { cn } from "@/lib/utils";
+import type { CurriculumImportRow } from "@/data/curriculumStore";
 
 interface Props {
   className?: string;
+}
+
+function extensionOf(filename: string): string {
+  const i = filename.lastIndexOf(".");
+  return i === -1 ? "" : filename.slice(i + 1).toLowerCase();
+}
+
+async function parseByExtension(file: File): Promise<{ rows: CurriculumImportRow[]; format: string }> {
+  const ext = extensionOf(file.name);
+  if (ext === "xlsx" || ext === "xls" || ext === "csv") return { rows: await parseCurriculumExcel(file), format: "Excel" };
+  if (ext === "docx") return { rows: await parseCurriculumWord(file), format: "Word" };
+  if (ext === "pdf") return { rows: await parseCurriculumPdf(file), format: "PDF" };
+  if (ext === "doc") throw new Error("Le format .doc (Word 97-2003) n'est pas pris en charge — enregistrez le document au format .docx puis réessayez.");
+  throw new Error("Format de fichier non reconnu — utilisez un fichier Excel (.xlsx), Word (.docx) ou PDF.");
 }
 
 export function CurriculumImportButton({ className }: Props) {
@@ -14,7 +29,7 @@ export function CurriculumImportButton({ className }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [filiereId, setFiliereId] = useState("f1");
+  const [filiereId, setFiliereId] = useState(FILIERES[0]?.id ?? "");
   const [niveauId, setNiveauId] = useState("");
   const [semestreId, setSemestreId] = useState("");
 
@@ -25,24 +40,28 @@ export function CurriculumImportButton({ className }: Props) {
     setLoading(true);
     setMessage("");
     try {
-      const rows = await parseCurriculumExcel(file);
+      const { rows, format } = await parseByExtension(file);
       if (rows.length === 0) {
-        setMessage("Aucune ligne valide trouvée dans le fichier.");
+        setMessage(
+          format === "PDF"
+            ? "Aucun tableau exploitable trouvé dans ce PDF — l'extraction ne fonctionne que sur un PDF texte (pas une image scannée) avec un vrai tableau et les mêmes en-têtes que le modèle."
+            : "Aucune ligne valide trouvée dans le fichier.",
+        );
         return;
       }
       const filiere = FILIERES.find((f) => f.id === filiereId);
       const niveau = NIVEAUX.find((n) => n.id === niveauId);
       const semestre = SEMESTRES.find((s) => s.id === semestreId);
       const result = importCurriculumRows(rows, {
-        filiere: filiere?.code ?? "LPIG",
+        filiere: filiere?.code ?? "",
         filiereId,
-        niveau: niveau?.alias ?? "L3",
-        semestre: semestre?.alias ?? rows[0]?.semestre ?? "S5",
+        niveau: niveau?.alias ?? "",
+        semestre: semestre?.alias ?? rows[0]?.semestre ?? "",
       });
-      setMessage(`Import réussi : ${result.ueCount} UE créée(s), ${result.ecCount} EC importé(s).`);
+      setMessage(`Import ${format} réussi : ${result.ueCount} UE créée(s), ${result.ecCount} EC importé(s).`);
     } catch (err) {
       console.error(err);
-      setMessage("Échec de l'import. Vérifiez le format du fichier Excel.");
+      setMessage(err instanceof Error ? err.message : "Échec de l'import. Vérifiez le format du fichier.");
     } finally {
       setLoading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -59,7 +78,7 @@ export function CurriculumImportButton({ className }: Props) {
           className,
         )}
       >
-        <FileSpreadsheet size={15} /> Importer via Excel
+        <FileSpreadsheet size={15} /> Importer (Excel / Word / PDF)
       </button>
 
       {open && (
@@ -70,7 +89,7 @@ export function CurriculumImportButton({ className }: Props) {
               Import programme UE / EC
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Importez un fichier Excel (.xlsx) au format du programme LMD (Code UE, EC, CM, TD, TP, TPE, VHT, Crédits).
+              Importez un fichier Excel (.xlsx), Word (.docx) ou PDF au format du programme LMD (Code UE, EC, CM, TD, TP, TPE, VHT, Crédits) — le document doit contenir un vrai tableau avec ces colonnes.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -81,6 +100,7 @@ export function CurriculumImportButton({ className }: Props) {
                   onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSemestreId(""); }}
                   className="w-full px-2.5 py-2 text-sm border border-border rounded-xl bg-background"
                 >
+                  <option value="">Sélectionner</option>
                   {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
                 </select>
               </div>
@@ -114,20 +134,21 @@ export function CurriculumImportButton({ className }: Props) {
                 onClick={downloadCurriculumTemplate}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
               >
-                <Download size={14} /> Télécharger le modèle
+                <Download size={14} /> Télécharger le modèle (Excel)
               </button>
               <button
                 type="button"
-                disabled={loading}
+                disabled={loading || !filiereId}
                 onClick={() => inputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 disabled:opacity-60"
+                title={!filiereId ? "Sélectionnez d'abord une filière par défaut" : undefined}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Upload size={14} /> {loading ? "Import..." : "Choisir un fichier"}
               </button>
               <input
                 ref={inputRef}
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.xls,.csv,.docx,.pdf"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -145,6 +166,7 @@ export function CurriculumImportButton({ className }: Props) {
             <div className="text-[11px] text-muted-foreground mb-4 space-y-1">
               <p>Colonnes attendues : Code UE, Unité d'enseignement, Code EC, Élément constitutif, CM, TD, TP, TPE, VHT, Crédits, Semestre, Obligatoire.</p>
               <p>Les crédits sont au niveau UE. Plusieurs lignes EC peuvent partager le même Code UE.</p>
+              <p>Excel et Word (tableau) sont fiables. Le PDF dépend d&apos;un vrai calque de texte (pas une image scannée) — vérifiez le résultat après import.</p>
             </div>
 
             <div className="flex justify-end">

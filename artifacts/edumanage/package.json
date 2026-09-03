@@ -76,6 +76,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "mammoth": "^1.12.2",
+    "pdfjs-dist": "^6.3.289",
     "react-qr-code": "^2.2.0",
     "xlsx": "^0.18.5"
   }
