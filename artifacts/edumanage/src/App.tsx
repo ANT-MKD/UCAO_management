@@ -13,6 +13,7 @@ import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { useRoles } from "@/hooks/useRoleStore";
 import { resolveFeatureIdFromLocation } from "@/data/portalFeaturesStore";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import "@/data/hydrateStores";
 
 const queryClient = new QueryClient();
 
