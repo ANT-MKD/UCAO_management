@@ -6,6 +6,7 @@ import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { CurriculumImportButton } from "@/components/admin/CurriculumImportButton";
+import { MaquetteExportButton } from "@/components/admin/MaquetteExportButton";
 import { deleteEc, type EcRecord } from "@/data/curriculumStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useFilieres } from "@/hooks/useFiliereStore";
@@ -51,6 +52,12 @@ export default function ECsPage() {
   const totalVolCm = filtered.reduce((sum, e) => sum + e.volCm, 0);
   const totalVolTd = filtered.reduce((sum, e) => sum + e.volTd, 0);
   const totalVht = filtered.reduce((sum, e) => sum + e.vht, 0);
+  const filiereLabel = filiereId ? filieres.find((f) => f.id === filiereId)?.nom : undefined;
+  const maquetteTitre = [filiereLabel ?? "Toutes filières", niveau, semestre].filter(Boolean).join(" — ");
+  // Restreint la maquette exportée à l'UE choisie si un filtre EC en sélectionne une — sinon les
+  // autres UE du niveau/semestre apparaîtraient à tort comme "sans EC" (leurs EC existent, ils
+  // sont juste hors du filtre courant).
+  const maquetteUes = ueId ? filteredUes.filter((u) => u.id === ueId) : filteredUes;
 
   const columns: Column<EcRecord>[] = [
     { key: "code", header: "Code EC", render: (r) => <span className="font-mono text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-lg" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.code}</span> },
@@ -109,7 +116,8 @@ export default function ECsPage() {
         title="Éléments Constitutifs (EC)"
         subtitle={`${filtered.length} EC — ${totalVht}h VHT (filtre filière → niveau → semestre → UE)`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <MaquetteExportButton ues={maquetteUes} ecs={filtered} titre={maquetteTitre} />
             <CurriculumImportButton />
             <button onClick={() => setLocation("/admin/ecs/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
               <Plus size={15} /> Nouvel EC

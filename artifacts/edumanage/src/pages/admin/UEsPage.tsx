@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { CurriculumImportButton } from "@/components/admin/CurriculumImportButton";
+import { MaquetteExportButton } from "@/components/admin/MaquetteExportButton";
 import { deleteUe, type UeRecord } from "@/data/curriculumStore";
-import { useUes } from "@/hooks/useCurriculumStore";
+import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { FILIERES } from "@/data/mockData";
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -21,6 +22,7 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
 export default function UEsPage() {
   const [, setLocation] = useLocation();
   const ues = useUes();
+  const ecs = useEcs();
   const [filiereId, setFiliereId] = useState("");
   const [niveau, setNiveau] = useState("");
   const [semestre, setSemestre] = useState("");
@@ -42,6 +44,8 @@ export default function UEsPage() {
 
   const totalCredits = filtered.reduce((sum, u) => sum + u.credits, 0);
   const filieresCouvertes = [...new Set(filtered.map((u) => u.filiere))].length;
+  const filiereLabel = filiereId ? FILIERES.find((f) => f.id === filiereId)?.nom : undefined;
+  const maquetteTitre = [filiereLabel ?? "Toutes filières", niveau, semestre].filter(Boolean).join(" — ");
 
   const columns: Column<UeRecord>[] = [
     { key: "code", header: "Code UE", render: (r) => <span className="font-mono text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-lg" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.code}</span> },
@@ -88,7 +92,8 @@ export default function UEsPage() {
         title="Unités d'Enseignement (UE)"
         subtitle={`${filtered.length} UE — ${totalCredits} crédits ECTS (filtre maquette)`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <MaquetteExportButton ues={filtered} ecs={ecs} titre={maquetteTitre} />
             <CurriculumImportButton />
             <button onClick={() => setLocation("/admin/ues/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
               <Plus size={15} /> Nouvelle UE

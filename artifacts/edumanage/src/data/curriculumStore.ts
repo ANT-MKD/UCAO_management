@@ -110,6 +110,10 @@ function load(): CurriculumStore {
 let store = load();
 
 function persist() {
+  // Nouvelles références de tableau : useUes()/useEcs() (useSyncExternalStore) comparent par
+  // Object.is et ne re-rendent pas si getUes()/getEcs() renvoient la même référence — or
+  // upsertUe/upsertEc/deleteUe/deleteEc/importCurriculumRows mutent store.ues/store.ecs en place.
+  store = { ues: store.ues.slice(), ecs: store.ecs.slice() };
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
@@ -171,7 +175,7 @@ export function upsertUe(payload: UePayload, id?: string): UeRecord {
     return existing;
   }
   const ue: UeRecord = {
-    id: `ue-${Date.now()}`,
+    id: `ue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     nbEc: 0,
     ...payload,
   };
@@ -221,7 +225,7 @@ export function upsertEc(payload: EcPayload, id?: string): EcRecord {
   }
 
   const ec: EcRecord = {
-    id: `ec-${Date.now()}`,
+    id: `ec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ...base,
   };
   store.ecs.unshift(ec);
