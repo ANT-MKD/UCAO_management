@@ -15,17 +15,18 @@ interface Props {
  * (édition hors ligne). Réutilisé identique sur les écrans UE et EC. */
 export function MaquetteExportButton({ ues, ecs, titre, className }: Props) {
   const disabled = ues.length === 0;
+  const disabledReason = "Aucune UE à exporter avec ces filtres — créez une UE (« + Nouvelle UE ») ou importez-en via Excel d'abord";
   const btnClass = "flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
-      <button type="button" disabled={disabled} onClick={() => exportCurriculumToExcel(ues, ecs)} title="Exporter la maquette en Excel" className={btnClass} data-testid="maquette-export-excel">
+      <button type="button" disabled={disabled} onClick={() => exportCurriculumToExcel(ues, ecs)} title={disabled ? disabledReason : "Exporter la maquette en Excel"} className={btnClass} data-testid="maquette-export-excel">
         <FileSpreadsheet size={13} /> Excel
       </button>
-      <button type="button" disabled={disabled} onClick={() => exportMaquettePdf(ues, ecs, { titre })} title="Exporter la maquette en PDF" className={btnClass} data-testid="maquette-export-pdf">
+      <button type="button" disabled={disabled} onClick={() => exportMaquettePdf(ues, ecs, { titre })} title={disabled ? disabledReason : "Exporter la maquette en PDF"} className={btnClass} data-testid="maquette-export-pdf">
         <FileText size={13} /> PDF
       </button>
-      <button type="button" disabled={disabled} onClick={() => exportMaquetteWord(ues, ecs, { titre })} title="Exporter la maquette en Word" className={btnClass} data-testid="maquette-export-word">
+      <button type="button" disabled={disabled} onClick={() => exportMaquetteWord(ues, ecs, { titre })} title={disabled ? disabledReason : "Exporter la maquette en Word"} className={btnClass} data-testid="maquette-export-word">
         <FileIcon size={13} /> Word
       </button>
     </div>
