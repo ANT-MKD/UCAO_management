@@ -17,6 +17,11 @@ export interface LigneGrilleFrais {
   montant: number;
   modalite: ModaliteFrais;
   nbEcheances?: number;
+  /** Date de la première échéance ("JJ/MM", même convention que dateLimite). Absente = comportement
+   * historique (échéances mensuelles consécutives se terminant à dateLimite). Présente avec
+   * dateLimite = les échéances sont réparties uniformément entre les deux dates. */
+  dateDebut?: string;
+  /** Date de la dernière échéance ("JJ/MM", sans année — déduite de l'année scolaire). */
   dateLimite?: string;
   /** Échéances définies manuellement (date + montant chacune) — remplace le partage automatique
    * par nbEcheances/dateLimite quand présent. La somme doit égaler `montant`. */
@@ -56,6 +61,16 @@ function splitMontantEgal(total: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => (i < remainder ? base + 1 : base));
 }
 
+/** Répartit `n` dates uniformément entre `startIso` et `endIso` inclus (la première échéance
+ * tombe sur la date de début, la dernière sur la date de fin). */
+function evenlySpacedDates(startIso: string, endIso: string, n: number): string[] {
+  if (n <= 1) return [endIso];
+  const start = new Date(`${startIso}T12:00:00`).getTime();
+  const end = new Date(`${endIso}T12:00:00`).getTime();
+  const step = (end - start) / (n - 1);
+  return Array.from({ length: n }, (_, i) => new Date(start + step * i).toISOString().slice(0, 10));
+}
+
 /** `dateLimite` d'une ligne grille est un jour/mois ("10/12") sans année : on déduit l'année
  * civile réelle à partir de l'année scolaire (ex: "2025-2026") — septembre à décembre tombent
  * sur la première année, janvier à août sur la seconde. */
@@ -71,9 +86,10 @@ function dateLimiteVersISO(anneeScolaire: string, dateLimite: string): string | 
 
 /** Calcule les échéances réelles (date + montant) d'une ligne en modalité "echeances". Si des
  * échéances personnalisées ont été définies (date + montant par échéance), elles priment sur le
- * partage automatique. Sinon, le montant est réparti sur nbEcheances mois consécutifs se
- * terminant à sa dateLimite. Une ligne "avant_inscription", ou sans dateLimite exploitable,
- * renvoie une échéance unique. */
+ * partage automatique. Sinon, le montant est réparti sur nbEcheances : si une dateDebut est
+ * définie, les échéances sont espacées uniformément entre dateDebut et dateLimite ; sinon
+ * (comportement historique) elles tombent sur des mois consécutifs se terminant à dateLimite.
+ * Une ligne "avant_inscription", ou sans dateLimite exploitable, renvoie une échéance unique. */
 /** Nombre d'échéances effectif d'une ligne — la longueur des échéances personnalisées si elles
  * existent, sinon nbEcheances. Sert à afficher "Échéance X/Y" de façon cohérente dans les deux cas. */
 export function nbEcheancesEffectif(ligne: LigneGrilleFrais): number {
@@ -90,6 +106,11 @@ export function calculerEcheances(ligne: LigneGrilleFrais, anneeScolaire: string
     return [{ index: 1, date: dateFinale ?? new Date().toISOString().slice(0, 10), montant: ligne.montant }];
   }
   const montants = splitMontantEgal(ligne.montant, n);
+  const dateInitiale = ligne.dateDebut ? dateLimiteVersISO(anneeScolaire, ligne.dateDebut) : undefined;
+  if (dateInitiale) {
+    const dates = evenlySpacedDates(dateInitiale, dateFinale, n);
+    return montants.map((montant, i) => ({ index: i + 1, date: dates[i], montant }));
+  }
   return montants.map((montant, i) => ({
     index: i + 1,
     date: addMonthsIso(dateFinale, -(n - 1 - i)),

@@ -445,21 +445,22 @@ export default function GrilleFraisPage() {
       ) : (
         <>
           <div className="bg-card border border-border rounded-xl overflow-x-auto mb-4" style={{ boxShadow: "var(--shadow-sm)" }}>
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[1050px] text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-4 py-3 w-[30%]">Intitulé</th>
                   <th className="text-right px-3 py-3">Montant HT</th>
                   <th className="text-left px-3 py-3">Modalité</th>
                   <th className="text-center px-3 py-3">Échéances</th>
-                  <th className="text-left px-3 py-3">Date limite</th>
+                  <th className="text-left px-3 py-3">Date début</th>
+                  <th className="text-left px-3 py-3">Date fin</th>
                   <th className="px-3 py-3 w-10" />
                 </tr>
               </thead>
               <tbody>
                 {lignes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                       Aucune ligne — cliquez sur « Ajouter une ligne »
                     </td>
                   </tr>
@@ -536,13 +537,30 @@ export default function GrilleFraisPage() {
                         <td className="px-3 py-3">
                           {l.modalite === "echeances" && (
                             personnalisee ? (
-                              <span className="text-xs text-muted-foreground">Dates personnalisées</span>
+                              <span className="text-xs text-muted-foreground">Dates perso.</span>
+                            ) : (
+                              <input
+                                value={l.dateDebut ?? ""}
+                                onChange={(e) => updateLigne(l.id, { dateDebut: e.target.value })}
+                                className={inputClass}
+                                placeholder="JJ/MM"
+                                title="Optionnel — sans date début, les échéances tombent chaque mois avant la date fin"
+                                data-testid={`grille-ligne-date-debut-${l.id}`}
+                              />
+                            )
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {l.modalite === "echeances" && (
+                            personnalisee ? (
+                              <span className="text-xs text-muted-foreground">Dates perso.</span>
                             ) : (
                               <input
                                 value={l.dateLimite ?? ""}
                                 onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
                                 className={inputClass}
                                 placeholder="JJ/MM"
+                                data-testid={`grille-ligne-date-fin-${l.id}`}
                               />
                             )
                           )}
@@ -569,7 +587,7 @@ export default function GrilleFraisPage() {
                       </tr>
                       {personnalisee && (
                         <tr className="border-b border-border last:border-0 bg-muted/20">
-                          <td colSpan={6} className="px-4 py-3">
+                          <td colSpan={7} className="px-4 py-3">
                             <div className="space-y-2">
                               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                                 Échéances personnalisées — {l.intitule || "cette ligne"}
@@ -624,7 +642,7 @@ export default function GrilleFraisPage() {
                   <tr className="bg-muted/20 font-semibold">
                     <td className="px-4 py-3">Total HT</td>
                     <td className="px-3 py-3 text-right">{formatCFA(lignes.reduce((s, l) => s + l.montant, 0))}</td>
-                    <td colSpan={4} />
+                    <td colSpan={5} />
                   </tr>
                 </tfoot>
               )}
@@ -655,7 +673,7 @@ export default function GrilleFraisPage() {
       <FormModal open={importOpen} onClose={() => setImportOpen(false)} title="Importer une grille tarifaire" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date limite.
+            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date début, Date limite.
             Le fichier remplace intégralement les grilles pour les combinaisons qu&apos;il contient.
           </p>
           <div className="flex flex-wrap gap-2">

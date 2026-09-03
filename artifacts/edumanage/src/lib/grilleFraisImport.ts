@@ -6,7 +6,7 @@ import { makeGrilleFraisId, makeLigneGrilleFraisId } from "@/data/grilleFraisSto
 
 const HEADERS = [
   "Filière", "Niveau", "Année", "Modèle de frais",
-  "Intitulé", "Montant", "Modalité", "Échéances", "Date limite",
+  "Intitulé", "Montant", "Modalité", "Échéances", "Date début", "Date limite",
 ] as const;
 
 const DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
@@ -65,6 +65,7 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
     const modaliteTxt = str(get(raw, "modalite", "modalité")).toLowerCase();
     const modalite: ModaliteFrais = modaliteTxt.includes("echeance") || modaliteTxt.includes("échéance") ? "echeances" : "avant_inscription";
     const nbEcheances = modalite === "echeances" ? num(get(raw, "echeances", "échéances", "nb echeances")) || undefined : undefined;
+    const dateDebut = modalite === "echeances" ? str(get(raw, "date debut", "date début")) || undefined : undefined;
     const dateLimite = modalite === "echeances" ? str(get(raw, "date limite")) || undefined : undefined;
 
     const key = makeGrilleFraisId(filiere.id, niveauRec.alias, annee, modele.id);
@@ -73,7 +74,7 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
       group = { filiereId: filiere.id, niveau: niveauRec.alias, annee, modeleFraisId: modele.id, lignes: [] };
       groups.set(key, group);
     }
-    group.lignes.push({ id: makeLigneGrilleFraisId(), intitule, montant, modalite, nbEcheances, dateLimite });
+    group.lignes.push({ id: makeLigneGrilleFraisId(), intitule, montant, modalite, nbEcheances, dateDebut, dateLimite });
   }
 
   return Array.from(groups.entries()).map(([id, g]) => ({ id, ...g }));
@@ -82,8 +83,8 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
 export function downloadGrilleFraisTemplate() {
   const sample: (string | number)[][] = [
     [...HEADERS],
-    ["LPIG", "L3", "2025-2026", "Privé", "Frais d'inscription", 120000, "Avant inscription", "", ""],
-    ["LPIG", "L3", "2025-2026", "Privé", "Frais de scolarité", 520000, "Échéances", 8, "10/12"],
+    ["LPIG", "L3", "2025-2026", "Privé", "Frais d'inscription", 120000, "Avant inscription", "", "", ""],
+    ["LPIG", "L3", "2025-2026", "Privé", "Frais de scolarité", 520000, "Échéances", 8, "10/09", "10/06"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(sample);
   const wb = XLSX.utils.book_new();
@@ -106,6 +107,7 @@ export function exportGrillesFraisExcel(grilles: GrilleFraisRecord[], modelesFra
         l.montant,
         l.modalite === "echeances" ? "Échéances" : "Avant inscription",
         l.nbEcheances ?? "",
+        l.dateDebut ?? "",
         l.dateLimite ?? "",
       ]);
     }
