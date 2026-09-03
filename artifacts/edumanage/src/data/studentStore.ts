@@ -1,6 +1,7 @@
 import {
   ETUDIANTS as SEED_ETUDIANTS,
   FILIERES,
+  NIVEAUX,
   ANNEES_ACADEMIQUES,
   PAIEMENTS as SEED_PAIEMENTS,
   NOTES as SEED_NOTES,
@@ -11,7 +12,7 @@ import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
 import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
 import { estAutorise } from "./communicationRolesStore";
-import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif } from "./structureStore";
+import { findClassePedagogique, getClasseById, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
 
@@ -936,6 +937,16 @@ function findClasse(filiereId: string, niveau: string, annee: string) {
   return findClassePedagogique(filiereId, niveau, annee);
 }
 
+/** Dérive le nom de la classe cible à partir de celui de la classe source en remplaçant l'alias
+ * de niveau (ex: "LGL-L1-A" → "LGL-L2-A"). Si l'alias n'apparaît pas tel quel dans le nom source,
+ * retombe sur la convention utilisée par la bascule manuelle (BasculeAnneePage). */
+function deriveClasseNom(nomSource: string, aliasSource: string, aliasCible: string, filiereCode: string): string {
+  const escaped = aliasSource.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`\\b${escaped}\\b`, "i");
+  if (re.test(nomSource)) return nomSource.replace(re, aliasCible);
+  return `${aliasCible}-${filiereCode}-A`;
+}
+
 export interface NewEtudiantPayload {
   prenom: string;
   nom: string;
@@ -1131,9 +1142,9 @@ export function registerInscriptionCorrection(payload: ReinscriptionPayload, mot
   return creerInscriptionEtMettreAJourEtudiant(payload, "correction", motif);
 }
 
-export function promoteAcademicYear(sourceAnneeId: string): { count: number; nextLabel: string } {
+export function promoteAcademicYear(sourceAnneeId: string): { count: number; nextLabel: string; classesCreated: number } {
   const source = store.annees.find((a) => a.id === sourceAnneeId);
-  if (!source) return { count: 0, nextLabel: "" };
+  if (!source) return { count: 0, nextLabel: "", classesCreated: 0 };
 
   const nextLabel = nextAnneeLabel(source.libelle);
   const exists = store.annees.some((a) => a.libelle === nextLabel);
@@ -1148,6 +1159,8 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
     (e) => e.annee === source.libelle && e.statut !== "suspendu" && e.statut !== "abandon",
   );
 
+  // Une seule classe cible créée par (filière, niveau) même si plusieurs étudiants la partagent.
+  const classesCreees = new Map<string, ReturnType<typeof upsertClasse>>();
   let count = 0;
   for (const e of actifs) {
     const already = store.inscriptions.some(
@@ -1156,7 +1169,29 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
     if (already) continue;
 
     const niveau = nextNiveau(e.niveau);
-    const classe = findClasse(e.filiereId, niveau, nextLabel) ?? findClasse(e.filiereId, niveau, source.libelle);
+    const cacheKey = `${e.filiereId}|${niveau}`;
+    let classe = findClasse(e.filiereId, niveau, nextLabel) ?? classesCreees.get(cacheKey);
+
+    // La classe N+1 n'existe pas encore : on la crée automatiquement au lieu de rattacher
+    // silencieusement l'étudiant à sa classe de l'année source (bug historique — l'étudiant se
+    // retrouvait "préinscrit" dans une classe du mauvais niveau/année).
+    if (!classe) {
+      const niveauRecord = NIVEAUX.find((n) => n.filiereId === e.filiereId && n.alias === niveau);
+      if (niveauRecord) {
+        const classeSource = e.classeId ? getClasseById(e.classeId) : undefined;
+        const filiere = FILIERES.find((f) => f.id === e.filiereId);
+        const nom = deriveClasseNom(classeSource?.nom ?? e.classe, e.niveau, niveau, filiere?.code ?? e.filiere);
+        classe = upsertClasse({
+          nom,
+          filiereId: e.filiereId,
+          niveauId: niveauRecord.id,
+          max: classeSource?.max ?? 40,
+          annee: nextLabel,
+          salleParDefautId: classeSource?.salleParDefautId,
+        });
+        classesCreees.set(cacheKey, classe);
+      }
+    }
 
     store.inscriptions.push({
       id: `ins-pre-${e.id}-${nextLabel}`,
@@ -1176,7 +1211,7 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
   }
 
   persist();
-  return { count, nextLabel };
+  return { count, nextLabel, classesCreated: classesCreees.size };
 }
 
 export function setAnneeActuelle(id: string) {

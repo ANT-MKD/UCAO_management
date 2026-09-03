@@ -32,10 +32,11 @@ export default function AnneesAcademiquesPage() {
   const handlePromote = (id: string) => {
     setPromoting(id);
     setTimeout(() => {
-      const { count, nextLabel } = promoteAcademicYear(id);
+      const { count, nextLabel, classesCreated } = promoteAcademicYear(id);
       setPromoting(null);
-      setDoneMsg(`${count} préinscriptions créées pour ${nextLabel}`);
-      setTimeout(() => setDoneMsg(""), 4000);
+      const suffixeClasses = classesCreated > 0 ? ` (${classesCreated} classe${classesCreated > 1 ? "s" : ""} créée${classesCreated > 1 ? "s" : ""} automatiquement)` : "";
+      setDoneMsg(`${count} préinscriptions créées pour ${nextLabel}${suffixeClasses}`);
+      setTimeout(() => setDoneMsg(""), 5000);
     }, 800);
   };
 
