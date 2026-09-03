@@ -197,7 +197,7 @@ export function upsertClasse(payload: ClassePayload, id?: string): ClassePedagog
   }
 
   const row: ClassePedagogiqueRecord = {
-    id: `cl-${Date.now()}`,
+    id: `cl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     inscrits: 0,
     ...base,
   };
@@ -261,7 +261,7 @@ export function upsertSalle(payload: SallePayload, id?: string): SallePhysiqueRe
     }
   }
 
-  const row: SallePhysiqueRecord = { id: `sa-${Date.now()}`, ...base };
+  const row: SallePhysiqueRecord = { id: `sa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...base };
   store.salles.unshift(row);
   persist();
   return row;

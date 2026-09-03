@@ -1016,7 +1016,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
   const anneePremiere = parseMatriculeYear(matricule);
 
   const etudiant: EtudiantRecord = {
-    id: `et-${Date.now()}`,
+    id: `et-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     prenom: payload.prenom,
     nom: payload.nom,
     matricule,
@@ -1176,9 +1176,19 @@ export function registerInscriptionCorrection(payload: ReinscriptionPayload, mot
   return creerInscriptionEtMettreAJourEtudiant(payload, "correction", motif);
 }
 
-export function promoteAcademicYear(sourceAnneeId: string): { count: number; nextLabel: string; classesCreated: number } {
+/** Ce que devient un étudiant actif lors du passage d'année : "monter" (niveau suivant, cas
+ * normal — admis ou admis avec dette AJAC), "meme_niveau" (redouble), "exclure" (aucune
+ * préinscription, il quitte l'établissement), "attendre" (aucune décision fiable disponible —
+ * on ne préinscrit personne au hasard, l'étudiant sera traité plus tard, à la main ou en
+ * relançant l'ouverture d'année une fois la délibération faite). */
+export type DecisionPassageAnnee = "monter" | "meme_niveau" | "exclure" | "attendre";
+
+export function promoteAcademicYear(
+  sourceAnneeId: string,
+  resoudreDecision?: (etudiant: EtudiantRecord) => DecisionPassageAnnee,
+): { count: number; nextLabel: string; classesCreated: number; enAttente: number; exclus: number } {
   const source = store.annees.find((a) => a.id === sourceAnneeId);
-  if (!source) return { count: 0, nextLabel: "", classesCreated: 0 };
+  if (!source) return { count: 0, nextLabel: "", classesCreated: 0, enAttente: 0, exclus: 0 };
 
   const nextLabel = nextAnneeLabel(source.libelle);
   const exists = store.annees.some((a) => a.libelle === nextLabel);
@@ -1196,17 +1206,23 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
   // Une seule classe cible créée par (filière, niveau) même si plusieurs étudiants la partagent.
   const classesCreees = new Map<string, ReturnType<typeof upsertClasse>>();
   let count = 0;
+  let enAttente = 0;
+  let exclus = 0;
   for (const e of actifs) {
     const already = store.inscriptions.some(
       (i) => i.etudiantId === e.id && i.annee === nextLabel,
     );
     if (already) continue;
 
-    const niveau = nextNiveau(e.niveau);
+    const decision = resoudreDecision ? resoudreDecision(e) : "monter";
+    if (decision === "exclure") { exclus++; continue; }
+    if (decision === "attendre") { enAttente++; continue; }
+
+    const niveau = decision === "meme_niveau" ? e.niveau : nextNiveau(e.niveau);
     const cacheKey = `${e.filiereId}|${niveau}`;
     let classe = findClasse(e.filiereId, niveau, nextLabel) ?? classesCreees.get(cacheKey);
 
-    // La classe N+1 n'existe pas encore : on la crée automatiquement au lieu de rattacher
+    // La classe cible n'existe pas encore : on la crée automatiquement au lieu de rattacher
     // silencieusement l'étudiant à sa classe de l'année source (bug historique — l'étudiant se
     // retrouvait "préinscrit" dans une classe du mauvais niveau/année).
     if (!classe) {
@@ -1245,7 +1261,7 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
   }
 
   persist();
-  return { count, nextLabel, classesCreated: classesCreees.size };
+  return { count, nextLabel, classesCreated: classesCreees.size, enAttente, exclus };
 }
 
 /** Un niveau est "d'entrée" pour sa filière s'il n'existe aucun autre niveau de la même filière
@@ -1262,8 +1278,11 @@ function estNiveauEntree(niveauAlias: string, filiereId: string): boolean {
  * d'entrée (L1/BTS1/M1...) de l'année cible si elle n'existe pas déjà — pour que les nouveaux
  * inscrits aient une classe disponible dès la rentrée, sans devoir la créer filière par filière.
  * Reprend capacité et salle par défaut de la dernière classe connue pour ce niveau/filière. */
-export function ouvrirAnneeSuivante(sourceAnneeId: string): { count: number; nextLabel: string; classesCreated: number } {
-  const promo = promoteAcademicYear(sourceAnneeId);
+export function ouvrirAnneeSuivante(
+  sourceAnneeId: string,
+  resoudreDecision?: (etudiant: EtudiantRecord) => DecisionPassageAnnee,
+): { count: number; nextLabel: string; classesCreated: number; enAttente: number; exclus: number } {
+  const promo = promoteAcademicYear(sourceAnneeId, resoudreDecision);
   if (!promo.nextLabel) return promo;
 
   let classesEntreeCreees = 0;

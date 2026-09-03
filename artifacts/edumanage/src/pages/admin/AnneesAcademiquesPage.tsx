@@ -9,10 +9,28 @@ import {
   archiveAnnee,
   desarchiverAnnee,
   cloturerAnnee,
+  type EtudiantRecord,
+  type DecisionPassageAnnee,
 } from "@/data/studentStore";
+import { getDeliberationAnnuelleForClasse } from "@/data/deliberationAnnuelleStore";
 import { useAnneesAcademiques, useStudentStore } from "@/hooks/useStudentStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+/** Décide le sort d'un étudiant lors de l'ouverture d'année à partir de la délibération annuelle
+ * de sa classe : "admis"/"admis_avec_dette" (AJAC) montent au niveau suivant, "redouble" reste au
+ * même niveau, "exclu" ne reçoit aucune préinscription. Tant que la délibération de sa classe
+ * n'est pas clôturée (ou n'existe pas encore), on n'invente rien : l'étudiant attend. */
+function resoudreDecisionAnnuelle(etudiant: EtudiantRecord): DecisionPassageAnnee {
+  if (!etudiant.classeId) return "attendre";
+  const deliberation = getDeliberationAnnuelleForClasse(etudiant.classeId);
+  if (!deliberation || deliberation.statut !== "cloturee") return "attendre";
+  const ligne = deliberation.lignes.find((l) => l.etudiantId === etudiant.id);
+  if (!ligne) return "attendre";
+  if (ligne.decisionFinale === "exclu") return "exclure";
+  if (ligne.decisionFinale === "redouble") return "meme_niveau";
+  return "monter";
+}
 
 export default function AnneesAcademiquesPage() {
   const annees = useAnneesAcademiques();
@@ -32,11 +50,15 @@ export default function AnneesAcademiquesPage() {
   const handleOuvrirAnnee = (id: string) => {
     setPromoting(id);
     setTimeout(() => {
-      const { count, nextLabel, classesCreated } = ouvrirAnneeSuivante(id);
+      const { count, nextLabel, classesCreated, enAttente, exclus } = ouvrirAnneeSuivante(id, resoudreDecisionAnnuelle);
       setPromoting(null);
-      const suffixeClasses = classesCreated > 0 ? ` — ${classesCreated} classe${classesCreated > 1 ? "s" : ""} créée${classesCreated > 1 ? "s" : ""} (promotions + classes d'entrée)` : "";
-      setDoneMsg(`Année ${nextLabel} ouverte : ${count} préinscription${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""}${suffixeClasses}`);
-      setTimeout(() => setDoneMsg(""), 6000);
+      const details: string[] = [];
+      if (classesCreated > 0) details.push(`${classesCreated} classe${classesCreated > 1 ? "s" : ""} créée${classesCreated > 1 ? "s" : ""}`);
+      if (enAttente > 0) details.push(`${enAttente} en attente de délibération (à traiter via Réinscription une fois le jury statué)`);
+      if (exclus > 0) details.push(`${exclus} exclu${exclus > 1 ? "s" : ""} (aucune préinscription créée)`);
+      const suffixe = details.length > 0 ? ` — ${details.join(", ")}` : "";
+      setDoneMsg(`Année ${nextLabel} ouverte : ${count} préinscription${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""}${suffixe}`);
+      setTimeout(() => setDoneMsg(""), 8000);
     }, 800);
   };
 
@@ -68,7 +90,7 @@ export default function AnneesAcademiquesPage() {
       )}
 
       <p className="text-xs text-muted-foreground mb-4">
-        Ces actions s&apos;appliquent à toute l&apos;année scolaire d&apos;un coup. « Ouvrir l&apos;année suivante » fait monter les cohortes existantes d&apos;un niveau (en créant leur classe cible si besoin) ET crée automatiquement la classe d&apos;entrée (L1/BTS1/M1...) de chaque filière active pour les nouveaux inscrits. Pour clôturer ou faire basculer une classe en particulier, utilisez plutôt Classe &gt; Clôture année / Bascule année.
+        Ces actions s&apos;appliquent à toute l&apos;année scolaire d&apos;un coup. « Ouvrir l&apos;année suivante » consulte la délibération annuelle clôturée de chaque classe : admis et admis avec dette (AJAC) montent au niveau suivant, les redoublants restent au même niveau, les exclus ne sont pas préinscrits, et les étudiants sans délibération clôturée attendent (à traiter ensuite via Réinscription, ou en relançant l&apos;action plus tard). Elle crée aussi automatiquement la classe d&apos;entrée (L1/BTS1/M1...) de chaque filière active pour les nouveaux inscrits. Pour clôturer ou faire basculer une classe en particulier, utilisez plutôt Classe &gt; Clôture année / Bascule année.
       </p>
 
       <div className="space-y-4">
