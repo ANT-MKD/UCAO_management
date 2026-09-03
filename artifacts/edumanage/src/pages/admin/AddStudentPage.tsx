@@ -282,6 +282,7 @@ export default function AddStudentPage() {
           photoDataUrl: photoDataUrl || undefined,
           typeAdmission: step2Data?.typeAdmission,
           documentsFournis: docsFournis,
+          motDePasse: motDePasse || undefined,
         },
         finalMatricule,
       );

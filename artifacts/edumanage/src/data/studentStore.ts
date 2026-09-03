@@ -1007,6 +1007,9 @@ export interface NewEtudiantPayload {
   photoDataUrl?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
+  /** Mot de passe affiché à l'admin à l'inscription (bouton "Générer mot de passe"). Absent =
+   * "demo123" par défaut (compte de démonstration, jamais communiqué à un vrai étudiant). */
+  motDePasse?: string;
 }
 
 export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: string): EtudiantRecord {
@@ -1055,7 +1058,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
       id: `u-student-${etudiant.id}`,
       role: "student",
       email: etudiant.email,
-      password: "demo123",
+      password: payload.motDePasse || "demo123",
       identifier: etudiant.matricule,
       displayName: `${etudiant.prenom} ${etudiant.nom}`,
       linkedId: etudiant.id,
