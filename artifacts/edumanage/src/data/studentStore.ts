@@ -970,14 +970,15 @@ function findClasse(filiereId: string, niveau: string, annee: string) {
   return findClassePedagogique(filiereId, niveau, annee);
 }
 
-/** Dérive le nom de la classe cible à partir de celui de la classe source en remplaçant l'alias
- * de niveau (ex: "LGL-L1-A" → "LGL-L2-A"). Si l'alias n'apparaît pas tel quel dans le nom source,
- * retombe sur la convention utilisée par la bascule manuelle (BasculeAnneePage). */
-function deriveClasseNom(nomSource: string, aliasSource: string, aliasCible: string, filiereCode: string): string {
-  const escaped = aliasSource.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`\\b${escaped}\\b`, "i");
-  if (re.test(nomSource)) return nomSource.replace(re, aliasCible);
-  return `${aliasCible}-${filiereCode}-A`;
+/** Nom de classe standard de l'établissement : SIGLE + numéro de niveau + année scolaire
+ * compactée (ex: filière LPIG, niveau L2, année 2025-2026 → "LPIG2-25/26"). Une seule classe
+ * existe par niveau et par année (pas de sections A/B), donc ce nom est toujours déterministe —
+ * pas besoin de le dériver d'un nom de classe existant. */
+export function nomClasseStandard(filiereCode: string, niveauAlias: string, annee: string): string {
+  const numeroNiveau = niveauAlias.match(/\d+$/)?.[0] ?? niveauAlias;
+  const [debut, fin] = annee.split("-");
+  const anneeCourte = debut && fin ? `${debut.slice(-2)}/${fin.slice(-2)}` : annee;
+  return `${filiereCode}${numeroNiveau}-${anneeCourte}`;
 }
 
 export interface NewEtudiantPayload {
@@ -1213,7 +1214,7 @@ export function promoteAcademicYear(sourceAnneeId: string): { count: number; nex
       if (niveauRecord) {
         const classeSource = e.classeId ? getClasseById(e.classeId) : undefined;
         const filiere = FILIERES.find((f) => f.id === e.filiereId);
-        const nom = deriveClasseNom(classeSource?.nom ?? e.classe, e.niveau, niveau, filiere?.code ?? e.filiere);
+        const nom = nomClasseStandard(filiere?.code ?? e.filiere, niveau, nextLabel);
         classe = upsertClasse({
           nom,
           filiereId: e.filiereId,

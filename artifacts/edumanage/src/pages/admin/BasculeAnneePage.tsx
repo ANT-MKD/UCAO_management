@@ -7,7 +7,7 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { upsertClasse } from "@/data/structureStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
-import { registerBasculeAnnee, nextNiveau } from "@/data/studentStore";
+import { registerBasculeAnnee, nextNiveau, nomClasseStandard } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +66,7 @@ export default function BasculeAnneePage() {
   const handleCreerClasseCible = () => {
     if (!niveauCible) return;
     const filiere = FILIERES.find((f) => f.id === filiereId);
-    const nom = `${niveauCible.alias}-${filiere?.code ?? ""}-A`;
+    const nom = nomClasseStandard(filiere?.code ?? "", niveauCible.alias, anneeCible);
     const created = upsertClasse({ nom, filiereId, niveauId: niveauCible.id, max: 40, annee: anneeCible });
     toast.success(`Classe ${created.nom} créée pour ${anneeCible}`);
   };
