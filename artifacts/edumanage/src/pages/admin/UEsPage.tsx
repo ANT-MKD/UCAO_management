@@ -44,8 +44,6 @@ export default function UEsPage() {
 
   const totalCredits = filtered.reduce((sum, u) => sum + u.credits, 0);
   const filieresCouvertes = [...new Set(filtered.map((u) => u.filiere))].length;
-  const filiereLabel = filiereId ? FILIERES.find((f) => f.id === filiereId)?.nom : undefined;
-  const maquetteTitre = [filiereLabel ?? "Toutes filières", niveau, semestre].filter(Boolean).join(" — ");
 
   const columns: Column<UeRecord>[] = [
     { key: "code", header: "Code UE", render: (r) => <span className="font-mono text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-lg" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.code}</span> },
@@ -93,7 +91,7 @@ export default function UEsPage() {
         subtitle={`${filtered.length} UE — ${totalCredits} crédits ECTS (filtre maquette)`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <MaquetteExportButton ues={filtered} ecs={ecs} titre={maquetteTitre} />
+            <MaquetteExportButton ues={filtered} ecs={ecs} />
             <CurriculumImportButton />
             <button onClick={() => setLocation("/admin/ues/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
               <Plus size={15} /> Nouvelle UE

@@ -52,8 +52,6 @@ export default function ECsPage() {
   const totalVolCm = filtered.reduce((sum, e) => sum + e.volCm, 0);
   const totalVolTd = filtered.reduce((sum, e) => sum + e.volTd, 0);
   const totalVht = filtered.reduce((sum, e) => sum + e.vht, 0);
-  const filiereLabel = filiereId ? filieres.find((f) => f.id === filiereId)?.nom : undefined;
-  const maquetteTitre = [filiereLabel ?? "Toutes filières", niveau, semestre].filter(Boolean).join(" — ");
   // Restreint la maquette exportée à l'UE choisie si un filtre EC en sélectionne une — sinon les
   // autres UE du niveau/semestre apparaîtraient à tort comme "sans EC" (leurs EC existent, ils
   // sont juste hors du filtre courant).
@@ -117,7 +115,7 @@ export default function ECsPage() {
         subtitle={`${filtered.length} EC — ${totalVht}h VHT (filtre filière → niveau → semestre → UE)`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <MaquetteExportButton ues={maquetteUes} ecs={filtered} titre={maquetteTitre} />
+            <MaquetteExportButton ues={maquetteUes} ecs={filtered} />
             <CurriculumImportButton />
             <button onClick={() => setLocation("/admin/ecs/new")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
               <Plus size={15} /> Nouvel EC
