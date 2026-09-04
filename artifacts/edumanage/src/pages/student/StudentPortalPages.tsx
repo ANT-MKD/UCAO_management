@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import type { UeRecord, EcRecord } from "@/data/curriculumStore";
 import { DataTable, type Column } from "@/components/admin/DataTable";
+import { computeBulletin } from "@/data/bulletinEngine";
+import { KPICard } from "@/components/admin/KPICard";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import { useEvenements } from "@/hooks/useEvenementStore";
@@ -248,33 +251,210 @@ export function StudentSchedulePage() {
   );
 }
 
+const TYPE_LABELS: Record<string, string> = { CC: "Contrôle continu", EF: "Examen" };
+
+const REPARTITION_DEFS = [
+  { label: "Très bien (16-20)", color: "#10b981" },
+  { label: "Bien (14-15.99)", color: "#2563eb" },
+  { label: "Assez bien (10-13.99)", color: "#f59e0b" },
+  { label: "Insuffisant (< 10)", color: "#ef4444" },
+];
+function bucketRepartition(note: number): number {
+  if (note >= 16) return 0;
+  if (note >= 14) return 1;
+  if (note >= 10) return 2;
+  return 3;
+}
+
+interface MatiereRow extends Record<string, unknown> {
+  id: string;
+  matiere: string;
+  code: string;
+  ue: string;
+  prof: string;
+  cc: string;
+  examen: string;
+  moyenne: string;
+  credits: number;
+}
+
+/** Suivi des notes en cours — jamais un verdict officiel (ça, c'est Relevés & bulletins, avec
+ * mention et décision de jury réelles). computeBulletin() n'est réutilisé ici que pour son
+ * calcul de moyenne pondérée par les vrais coefficients, pas pour un statut "validé". */
 export function StudentNotesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
   const notes = useNotes();
+  const ues = useUes();
+  const ecs = useEcs();
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
-  const published = notes.filter((n) => n.etudiantId === student?.id && n.statut === "publie");
+
+  const [onglet, setOnglet] = useState<"matieres" | "evaluations">("matieres");
+  const [semestreSelectionne, setSemestreSelectionne] = useState("");
+
+  const mesUes = useMemo(
+    () => ues.filter((u) => u.filiereId === student?.filiereId && u.niveau === student?.niveau).sort((a, b) => a.semestre.localeCompare(b.semestre)),
+    [ues, student?.filiereId, student?.niveau],
+  );
+  const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
+  const semestreActif = semestreSelectionne || semestres[0] || "";
+
+  const bulletin = useMemo(() => {
+    if (!student || !semestreActif) return undefined;
+    return computeBulletin(student.id, student.classeId, student.filiereId, student.niveau, semestreActif);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student, semestreActif, notes, ecs]);
+
+  const lignesMatieres = useMemo(() => {
+    if (!bulletin) return [];
+    return bulletin.ues.flatMap((ue) => ue.ecs.map((ec) => {
+      const ecRecord = ecs.find((e) => e.id === ec.id);
+      return { ...ec, ue: ue.libelle, responsable: ecRecord?.responsable || "Responsable non assigné" };
+    }));
+  }, [bulletin, ecs]);
+
+  const ecIdsSemestre = useMemo(() => new Set(lignesMatieres.map((l) => l.id)), [lignesMatieres]);
+  const notesDuSemestre = useMemo(
+    () => notes
+      .filter((n) => n.etudiantId === student?.id && n.statut === "publie" && ecIdsSemestre.has(n.ecId))
+      .sort((a, b) => a.ec.localeCompare(b.ec) || a.type.localeCompare(b.type)),
+    [notes, student?.id, ecIdsSemestre],
+  );
+
+  const repartition = useMemo(() => {
+    const counts = [0, 0, 0, 0];
+    for (const n of notesDuSemestre) counts[bucketRepartition(n.note)]++;
+    return REPARTITION_DEFS.map((b, i) => ({ ...b, count: counts[i] })).filter((b) => b.count > 0);
+  }, [notesDuSemestre]);
+
+  const pctCredits = bulletin && bulletin.creditsTotal > 0 ? Math.round((bulletin.creditsObtenus / bulletin.creditsTotal) * 100) : 0;
+
+  const matiereRows: MatiereRow[] = useMemo(() => lignesMatieres.map((l) => ({
+    id: l.id,
+    matiere: l.libelle,
+    code: l.code,
+    ue: l.ue,
+    prof: l.responsable,
+    cc: l.cc !== undefined ? l.cc.toFixed(2) : "—",
+    examen: l.ef !== undefined ? l.ef.toFixed(2) : "—",
+    moyenne: l.moyenne !== undefined ? l.moyenne.toFixed(2) : "—",
+    credits: l.credits,
+  })), [lignesMatieres]);
+
+  const matiereColumns: Column<MatiereRow>[] = [
+    {
+      key: "matiere", header: "Matière", sortable: true,
+      render: (r) => (<div><div className="font-medium text-foreground">{r.matiere}</div><div className="text-[11px] text-muted-foreground">{r.code} · {r.ue}</div></div>),
+    },
+    { key: "prof", header: "Professeur", sortable: true },
+    { key: "cc", header: "CC", sortable: true },
+    { key: "examen", header: "Examen", sortable: true },
+    {
+      key: "moyenne", header: "Moyenne", sortable: true,
+      render: (r) => {
+        const v = r.moyenne as string;
+        if (v === "—") return v;
+        return <span className={cn("font-bold", parseFloat(v) >= 10 ? "text-emerald-600" : "text-red-500")}>{v}/20</span>;
+      },
+    },
+    { key: "credits", header: "Crédits", sortable: true },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mes notes</h2>
-        <p className="text-sm text-muted-foreground mt-1">Notes publiées, détail par module (EC)</p>
+      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Notes</h2>
+          <p className="text-sm text-muted-foreground mt-1">Suivi de vos notes par semestre, matière et évaluation</p>
+        </div>
+        {semestres.length > 0 && (
+          <select
+            value={semestreActif}
+            onChange={(e) => setSemestreSelectionne(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="notes-semestre"
+          >
+            {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-5">
-        {published.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-10">Aucune note publiée pour l'instant.</p>
-        ) : (
-          <div className="space-y-2">
-            {published.map((n) => (
-              <div key={n.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-2.5">
-                <p className="font-medium">{n.ec}</p>
-                <span className={`font-bold ${n.note >= 10 ? "text-emerald-600" : "text-red-500"}`}>{n.note}/20</span>
-              </div>
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <KPICard icon={GraduationCap} label="Moyenne générale" value={bulletin?.moyenneSession !== undefined ? `${bulletin.moyenneSession.toFixed(2)}/20` : "—"} accentColor={bulletin?.moyenneSession !== undefined && bulletin.moyenneSession >= 10 ? "#10b981" : "#ef4444"} />
+        <KPICard icon={Award} label="Crédits obtenus" value={bulletin ? `${bulletin.creditsObtenus}/${bulletin.creditsTotal}` : "—"} subtitle={bulletin ? `${pctCredits}% obtenus` : undefined} accentColor="#2563eb" />
+        <KPICard icon={FileText} label="Notes publiées" value={notesDuSemestre.length} accentColor="#8b5cf6" />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4 min-w-0">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+            {([["matieres", "Par matières"], ["evaluations", "Par évaluations"]] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setOnglet(key)}
+                className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-colors", onglet === key ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
+                data-testid={`notes-onglet-${key}`}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        )}
+
+          {onglet === "matieres" ? (
+            matiereRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune matière pour ce semestre.</p>
+            ) : (
+              <DataTable columns={matiereColumns} data={matiereRows} pageSize={10} emptyMessage="Aucune matière pour ce semestre." />
+            )
+          ) : notesDuSemestre.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune note publiée pour ce semestre.</p>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border">
+              {notesDuSemestre.map((n) => (
+                <div key={n.id} className="flex items-center justify-between gap-3 p-3.5" data-testid={`notes-evaluation-${n.id}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{n.ec}</p>
+                    <p className="text-[11px] text-muted-foreground">{TYPE_LABELS[n.type] ?? n.type}{n.session === "rattrapage" ? " · Rattrapage" : ""}</p>
+                  </div>
+                  <span className={cn("font-bold text-sm flex-shrink-0", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{n.note}/20</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5 h-fit">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+              <PieChartIcon size={16} className="text-violet-600" />
+            </div>
+            <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Répartition des notes</h3>
+          </div>
+          {repartition.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-8">Aucune note publiée pour l&apos;instant.</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={repartition} cx="50%" cy="50%" outerRadius={65} innerRadius={35} dataKey="count">
+                    {repartition.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number, _n, item) => [`${v} note(s)`, item.payload.label]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 mt-2">
+                {repartition.map((d) => (
+                  <div key={d.label} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                    <span className="text-muted-foreground">{d.label}</span>
+                    <span className="font-semibold text-foreground ml-auto">{d.count}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
