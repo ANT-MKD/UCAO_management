@@ -1,25 +1,18 @@
 import { useMemo } from "react";
 import { useLocation } from "wouter";
 import {
-  CalendarDays, FileText, AlertTriangle, Bell, ArrowRight, ChevronRight,
+  CalendarDays, FileText, AlertTriangle, ArrowRight, ChevronRight,
   Wallet, CalendarX, UserCheck, Clock, User,
 } from "lucide-react";
 import { KPICard } from "@/components/admin/KPICard";
-import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useStudentRequests, useMessages, useCahiers } from "@/hooks/useStudentStore";
+import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useCahiers } from "@/hooks/useStudentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { PubliciteBanner } from "@/components/PubliciteBanner";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
-import { montantQuittance } from "@/pages/admin/PaiementsPage";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-
-const ALERT_STYLES: Record<string, { dot: string; border: string; bg: string }> = {
-  danger: { dot: "#ef4444", border: "#fecaca", bg: "#fef2f2" },
-  warning: { dot: "#f59e0b", border: "#fde68a", bg: "#fffbeb" },
-  info: { dot: "#4f46e5", border: "#c7d2fe", bg: "#eef2ff" },
-};
 
 const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
   CM: { bg: "#eef2ff", text: "#4f46e5" },
@@ -34,8 +27,6 @@ export default function StudentDashboardPage() {
   const students = useStudentStore();
   const notes = useNotes();
   const seances = useSeances();
-  const requests = useStudentRequests();
-  const messages = useMessages(currentUser?.id);
   useCahiers(); // s'abonne pour refléter les cahiers de séance réellement soumis (assiduité)
 
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
@@ -48,14 +39,9 @@ export default function StudentDashboardPage() {
     : "--";
 
   const paiementsPayes = useMemo(() => paiements.filter((p) => p.statut !== "annule" && p.montant > 0), [paiements]);
-  const impayes = useMemo(() => paiements.filter((p) => p.statut !== "annule" && p.montant < montantQuittance(p)), [paiements]);
 
   const assiduiteRows = student ? getAssiduiteRowsPourEtudiant(student.id) : [];
   const taux = student ? getTauxPresencePourEtudiant(student.id) : { present: 0, total: 0, pct: 100 };
-
-  const mesDemandes = useMemo(() => requests.filter((r) => r.studentId === student?.id), [requests, student?.id]);
-  const demandesEnCours = useMemo(() => mesDemandes.filter((r) => r.status === "nouveau" || r.status === "en_cours"), [mesDemandes]);
-  const messagesNonLus = useMemo(() => messages.filter((m) => m.toUserId === currentUser?.id && !m.read), [messages, currentUser?.id]);
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const weekMonday = mondayOf(todayIso);
@@ -74,52 +60,6 @@ export default function StudentDashboardPage() {
 
   const todayJourNum = new Date().getDay();
   const todaySeances = useMemo(() => weekSeances.filter((s) => s.jour === todayJourNum), [weekSeances, todayJourNum]);
-
-  // À faire — actions concrètes construites à partir de signaux réels du profil étudiant
-  const aFaire = useMemo(() => {
-    const list: { id: string; type: "danger" | "warning" | "info"; message: string; href: string; actionLabel: string }[] = [];
-    if (student && student.soldeDu > 0) {
-      const echeances = impayes.map((p) => p.dateLimite).filter((d): d is string => !!d).sort();
-      const enRetard = echeances.length > 0 && echeances[0] < todayIso;
-      list.push({
-        id: "solde",
-        type: enRetard ? "danger" : "warning",
-        message: enRetard
-          ? `Paiement en retard : votre solde de ${formatCFA(student.soldeDu)} est en retard.`
-          : `Solde dû : ${formatCFA(student.soldeDu)}${echeances[0] ? ` — échéance le ${formatShortDate(echeances[0])}` : ""}.`,
-        href: "/student/payer-factures",
-        actionLabel: "Régulariser",
-      });
-    }
-    if (taux.total > 0 && taux.pct < 80) {
-      list.push({
-        id: "assiduite",
-        type: "warning",
-        message: `Assiduité faible : votre taux de présence est actuellement de ${taux.pct}%.`,
-        href: "/student/absences",
-        actionLabel: "Voir mes absences",
-      });
-    }
-    if (demandesEnCours.length > 0) {
-      list.push({
-        id: "demandes",
-        type: "info",
-        message: `${demandesEnCours.length} demande(s) en cours de traitement.`,
-        href: "/student/requests",
-        actionLabel: "Consulter",
-      });
-    }
-    if (messagesNonLus.length > 0) {
-      list.push({
-        id: "messages",
-        type: "info",
-        message: `${messagesNonLus.length} message(s) non lu(s).`,
-        href: "/student/messages",
-        actionLabel: "Lire mes messages",
-      });
-    }
-    return list;
-  }, [student, impayes, taux, demandesEnCours.length, messagesNonLus.length, todayIso]);
 
   return (
     <div className="space-y-6">
@@ -142,39 +82,6 @@ export default function StudentDashboardPage() {
           <User size={14} /> Voir mon profil <ArrowRight size={12} />
         </button>
       </section>
-
-      {aFaire.length > 0 && (
-        <section className="bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                <Bell size={16} className="text-amber-600" />
-              </div>
-              <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>À faire</h3>
-            </div>
-          </div>
-          <div className="p-3 space-y-2">
-            {aFaire.map((a) => {
-              const style = ALERT_STYLES[a.type];
-              return (
-                <div
-                  key={a.id}
-                  onClick={() => setLocation(a.href)}
-                  className="flex items-center gap-3 p-3 rounded-xl border transition-colors hover:shadow-sm cursor-pointer"
-                  style={{ background: style.bg, borderColor: style.border }}
-                  data-testid={`student-alerte-${a.id}`}
-                >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: style.dot }} />
-                  <p className="text-xs text-foreground leading-relaxed font-medium flex-1">{a.message}</p>
-                  <span className="text-xs font-bold flex items-center gap-1 flex-shrink-0" style={{ color: style.dot }}>
-                    {a.actionLabel} <ArrowRight size={11} />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <KPICard icon={CalendarDays} label="Séances cette semaine" value={weekSeances.length} accentColor="#2563eb" />
