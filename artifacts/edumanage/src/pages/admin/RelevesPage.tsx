@@ -111,6 +111,9 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
       </body></html>`;
   }
   const { moyenne: moy, creditsObtenus, creditsTotal } = resolved;
+  // Année réelle DE CE SEMESTRE (pas l'année actuelle de l'étudiant, qui avance à chaque passage
+  // de niveau) — repli sur l'année actuelle pour les relevés créés avant l'ajout du champ.
+  const anneeReleve = entry.annee ?? resolved.etudiant.annee;
   const [prenomEtu, ...nomEtuParts] = entry.etudiant.split(" ");
   const nomComplet = `${entry.matricule} - ${nomEtuParts.join(" ").toUpperCase()} ${prenomEtu}`;
   const etab = getEtablissement();
@@ -193,7 +196,7 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
       <div class="l4">${etab.nom}</div>
       <div class="l2">${etab.adresse}</div>
     </div>
-    <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${resolved.etudiant.annee.split("-")[0]}</span><span class="seal-top">&nbsp;</span></div>
+    <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${anneeReleve.split("-")[0]}</span><span class="seal-top">&nbsp;</span></div>
   </div>
 
   <div class="title-pill">Relevé de Notes ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</div>
@@ -202,7 +205,7 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
   <div class="identity-lines">
     <div><span class="id-label">Prénom et Nom :</span><span class="id-value">${nomComplet}</span></div>
     <div><span class="id-label">Date de naissance :</span><span class="id-value">${resolved.etudiant.dateNaissance ? formatDate(resolved.etudiant.dateNaissance) : "—"}${resolved.etudiant.lieuNaissance ? ` à ${resolved.etudiant.lieuNaissance}` : ""}</span></div>
-    <div><span class="id-label">Inscrit en :</span><span class="id-value">${resolved.filiereNomComplet} en ${resolved.niveauLabel} pour l'année académique ${resolved.etudiant.annee}</span></div>
+    <div><span class="id-label">Inscrit en :</span><span class="id-value">${resolved.filiereNomComplet} en ${resolved.niveauLabel} pour l'année académique ${anneeReleve}</span></div>
     <div><span class="id-label">Classe :</span><span class="id-value">${entry.classe}</span></div>
   </div>
 
@@ -253,7 +256,7 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
   <div class="footer">
     <div>${etab.nom}${etab.adresse ? ` — ${etab.adresse}` : ""}</div>
     <div>${[etab.telephone && `Tél : ${etab.telephone}`, etab.email && `Email : ${etab.email}`, etab.siteWeb && `Site web : ${etab.siteWeb}`].filter(Boolean).join(" · ")}</div>
-    <div>N° REL-${resolved.semestreAlias}-${resolved.etudiant.annee.split("-")[0]}-${entry.matricule.split("-").pop()?.padStart(4,"0")} — Ce document est officiel et certifié conforme aux registres de l'institution.</div>
+    <div>N° REL-${resolved.semestreAlias}-${anneeReleve.split("-")[0]}-${entry.matricule.split("-").pop()?.padStart(4,"0")} — Ce document est officiel et certifié conforme aux registres de l'institution.</div>
   </div>
 </body>
 </html>`;

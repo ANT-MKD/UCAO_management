@@ -146,6 +146,7 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
         semestreId: input.semestreId,
         semestre: input.semestreLabel,
         statut: "genere",
+        annee: input.annee,
       });
       releveId = releve.id;
     }

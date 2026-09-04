@@ -322,6 +322,12 @@ export interface ReleveRecord {
    * avant son introduction. Quand présent, c'est la vraie clé de déduplication (un relevé par
    * étudiant et par semestre, plus fragmenté par EC) ; sinon repli sur ecId (comportement historique). */
   semestreId?: string;
+  /** Année académique réelle à laquelle ce semestre a été effectué — distincte de l'année
+   * *actuelle* de l'étudiant (EtudiantRecord.annee), qui avance à chaque passage de niveau.
+   * Indispensable pour qu'un redoublant ait deux relevés distincts pour un même semestreId
+   * (stable d'une année sur l'autre) au lieu que le second écrase le premier. Optionnel pour
+   * compat avec les relevés créés avant son introduction. */
+  annee?: string;
 }
 
 interface StoreData {
@@ -2020,10 +2026,13 @@ export function generateRelevesForClasseEc(classeId: string, ecId: string): void
 
   // La session réelle est déduite de l'évaluation posée pour cette classe/EC (Nouvelle évaluation),
   // jamais d'une chaîne fabriquée — sans quoi resolveBulletin() ne peut plus faire correspondre
-  // ce relevé à un vrai semestre (voir RelevesPage.tsx).
+  // ce relevé à un vrai semestre (voir RelevesPage.tsx). Sans évaluation posée, il n'existe donc
+  // aucun relevé officiel à générer pour l'instant — mieux vaut ne rien créer que polluer
+  // l'historique de l'étudiant avec une entrée "Semestre inconnu" à jamais irrésolvable.
   const evaluation = getEvaluations().find((e) => e.classeId === classeId && e.ecId === ecId);
   const semestreObj = evaluation ? SEMESTRES.find((s) => s.id === evaluation.semestreId) : undefined;
-  const semestre = semestreObj ? `${semestreObj.nom} (${semestreObj.alias})` : "Semestre inconnu";
+  if (!semestreObj) return;
+  const semestre = `${semestreObj.nom} (${semestreObj.alias})`;
 
   for (const etudiantId of studentIds) {
     const etudiant = getEtudiantById(etudiantId);
@@ -2034,10 +2043,11 @@ export function generateRelevesForClasseEc(classeId: string, ecId: string): void
       matricule: etudiant.matricule,
       classe: etudiant.classe,
       filiere: etudiant.filiere,
-      semestreId: semestreObj?.id,
+      semestreId: semestreObj.id,
       semestre,
       ecId,
       statut: "genere",
+      annee: etudiant.annee,
     });
   }
 }
@@ -2053,16 +2063,22 @@ export interface UpsertRelevePayload {
   semestre: string;
   ecId?: string;
   statut: "genere" | "envoye" | "en_attente";
+  /** Année académique réelle de ce semestre (voir ReleveRecord.annee) — fait partie de la clé de
+   * déduplication dès qu'elle est connue, pour qu'un redoublant garde un relevé distinct par
+   * année au lieu que le second écrase le premier (semestreId, lui, est stable d'une année sur
+   * l'autre). */
+  annee?: string;
 }
 
-/** Crée ou met à jour LE relevé d'un étudiant pour un semestre — un seul par (étudiant, semestre)
- * dès que semestreId est connu, au lieu d'un par EC noté (qui fragmentait la liste en autant de
- * lignes identiques que d'EC publiés). Repli sur ecId pour les relevés créés avant l'ajout de
- * semestreId, afin de ne pas dupliquer les entrées historiques au prochain passage. */
+/** Crée ou met à jour LE relevé d'un étudiant pour un semestre et une année — un seul par
+ * (étudiant, semestre, année) dès que semestreId et annee sont connus, au lieu d'un par EC noté
+ * (qui fragmentait la liste en autant de lignes identiques que d'EC publiés). Repli sur ecId pour
+ * les relevés créés avant l'ajout de semestreId, afin de ne pas dupliquer les entrées historiques
+ * au prochain passage. */
 export function upsertReleve(payload: UpsertRelevePayload): ReleveRecord {
   const dateGeneration = new Date().toISOString().slice(0, 10);
   const existing = payload.semestreId
-    ? store.releves.find((r) => r.etudiantId === payload.etudiantId && r.semestreId === payload.semestreId)
+    ? store.releves.find((r) => r.etudiantId === payload.etudiantId && r.semestreId === payload.semestreId && r.annee === payload.annee)
     : store.releves.find((r) => r.etudiantId === payload.etudiantId && r.ecId === payload.ecId);
   if (existing) {
     Object.assign(existing, payload, { dateGeneration });
@@ -2070,7 +2086,7 @@ export function upsertReleve(payload: UpsertRelevePayload): ReleveRecord {
     return existing;
   }
   const record: ReleveRecord = {
-    id: `rel-${payload.etudiantId}-${payload.semestreId ?? payload.ecId ?? Date.now()}`,
+    id: `rel-${payload.etudiantId}-${payload.semestreId ?? payload.ecId ?? Date.now()}-${payload.annee ?? "sa"}`,
     etudiantId: payload.etudiantId,
     etudiant: payload.etudiant,
     matricule: payload.matricule,
@@ -2081,6 +2097,7 @@ export function upsertReleve(payload: UpsertRelevePayload): ReleveRecord {
     ecId: payload.ecId ?? "",
     statut: payload.statut,
     dateGeneration,
+    annee: payload.annee,
   };
   store.releves.push(record);
   persist();

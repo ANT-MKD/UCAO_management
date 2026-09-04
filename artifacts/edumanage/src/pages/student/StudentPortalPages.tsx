@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers, useAnneeActuelle } from "@/hooks/useStudentStore";
+import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers, useAnneeActuelle, useInscriptions } from "@/hooks/useStudentStore";
+import { FILIERES, SEMESTRES } from "@/data/mockData";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import type { UeRecord, EcRecord } from "@/data/curriculumStore";
 import { DataTable, type Column } from "@/components/admin/DataTable";
@@ -465,6 +466,29 @@ export function StudentNotesPage() {
   );
 }
 
+function releveSortKey(r: ReleveRecord): number {
+  const anneeStart = parseInt((r.annee ?? "0").split("-")[0], 10) || 0;
+  const semNum = parseInt(/S(\d+)/.exec(r.semestre)?.[1] ?? "0", 10) || 0;
+  return anneeStart * 10 + semNum;
+}
+
+const DECISION_TONE: Record<string, { bg: string; text: string }> = {
+  admis: { bg: "bg-emerald-50 dark:bg-emerald-950", text: "text-emerald-700 dark:text-emerald-300" },
+  ajourne: { bg: "bg-red-50 dark:bg-red-950", text: "text-red-700 dark:text-red-300" },
+  rattrapage: { bg: "bg-amber-50 dark:bg-amber-950", text: "text-amber-700 dark:text-amber-300" },
+  exclu: { bg: "bg-red-50 dark:bg-red-950", text: "text-red-700 dark:text-red-300" },
+  a_declasser: { bg: "bg-purple-50 dark:bg-purple-950", text: "text-purple-700 dark:text-purple-300" },
+};
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground text-right">{value}</span>
+    </div>
+  );
+}
+
 export function StudentRelevesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
@@ -472,57 +496,254 @@ export function StudentRelevesPage() {
   useMentions(); // s'abonne pour refléter la vraie mention si la configuration change
   useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
-  const mesReleves = releves.filter((r) => r.etudiantId === student?.id);
+  const inscriptions = useInscriptions(student?.id ?? "");
+
+  const [selectedId, setSelectedId] = useState("");
+  const [tab, setTab] = useState<"notes" | "bulletin" | "historique">("notes");
   const [previewReleve, setPreviewReleve] = useState<ReleveRecord | null>(null);
+
+  const mesReleves = useMemo(
+    () => releves.filter((r) => r.etudiantId === student?.id).sort((a, b) => releveSortKey(b) - releveSortKey(a)),
+    [releves, student?.id],
+  );
+  const selected = mesReleves.find((r) => r.id === selectedId) ?? mesReleves[0];
+  const resolved = selected ? resolveBulletin(selected, students) : undefined;
+
+  const filiereObj = student ? FILIERES.find((f) => f.id === student.filiereId) : undefined;
+  const totalSemestresProgramme = filiereObj ? SEMESTRES.filter((s) => s.filiere === filiereObj.code).length : 0;
+  const semestresValides = useMemo(
+    () => mesReleves.filter((r) => resolveBulletin(r, students)?.decision === "admis").length,
+    [mesReleves, students],
+  );
+  const inscriptionCorrespondante = selected ? inscriptions.find((i) => i.annee === selected.annee) : undefined;
+
+  if (!student) return null;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Relevés & bulletins</h2>
-        <p className="text-sm text-muted-foreground mt-1">Même moteur de calcul que le bulletin officiel — aucune moyenne recalculée séparément.</p>
+      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Relevés & bulletins</h2>
+          <p className="text-sm text-muted-foreground mt-1">Même moteur de calcul que le bulletin officiel — aucune moyenne recalculée séparément.</p>
+        </div>
+        {mesReleves.length > 0 && (
+          <select
+            value={selected?.id ?? ""}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="releves-semestre"
+          >
+            {mesReleves.map((r) => (
+              <option key={r.id} value={r.id}>{r.semestre}{r.annee ? ` — ${r.annee}` : ""}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {mesReleves.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">
-          Aucun bulletin officiel disponible pour l'instant.
+          Aucun relevé officiel disponible pour l'instant.
         </p>
       ) : (
-        mesReleves.map((releve) => {
-          const resolved = resolveBulletin(releve, students);
-          return (
-            <div key={releve.id} className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="font-bold text-sm">{releve.semestre}</h3>
-                  {resolved && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Moyenne <span className="font-bold text-foreground">{resolved.moyenne.toFixed(2)}/20</span> · Mention {resolved.mention} · Décision : <span className="font-medium">{resolved.decisionLabel}</span>
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => setPreviewReleve(releve)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors flex-shrink-0"
-                  data-testid={`portal-bulletin-apercu-${releve.id}`}
-                >
-                  <Eye size={13} /> Aperçu bulletin
-                </button>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <KPICard
+              icon={GraduationCap}
+              label="Moyenne du semestre"
+              value={resolved ? `${resolved.moyenne.toFixed(2)}/20` : "—"}
+              accentColor={resolved && resolved.moyenne >= 10 ? "#10b981" : "#ef4444"}
+            />
+            <KPICard
+              icon={Award}
+              label="Crédits obtenus"
+              value={resolved ? `${resolved.creditsObtenus}/${resolved.creditsTotal}` : "—"}
+              subtitle={resolved && resolved.creditsTotal > 0 ? `${Math.round((resolved.creditsObtenus / resolved.creditsTotal) * 100)}% obtenus` : undefined}
+              accentColor="#2563eb"
+            />
+            <KPICard
+              icon={CheckCircle2}
+              label="Semestres validés"
+              value={`${semestresValides}/${totalSemestresProgramme || mesReleves.length}`}
+              accentColor="#8b5cf6"
+            />
+            <KPICard
+              icon={Trophy}
+              label="Rang dans la classe"
+              value={resolved?.rang ? `${resolved.rang}/${resolved.totalClasse}` : "—"}
+              accentColor="#f59e0b"
+            />
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 space-y-4 min-w-0">
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+                {([["notes", "Relevé de notes"], ["bulletin", "Bulletins"], ["historique", "Historique"]] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-colors", tab === key ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
+                    data-testid={`releves-onglet-${key}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              {resolved && (
-                <div className="space-y-1.5">
-                  {resolved.ues.map((ue) => (
-                    <div key={ue.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-1.5">
-                      <span className="font-medium">{ue.code} — {ue.libelle}</span>
-                      <span className={`font-bold ${ue.moyenne !== undefined && ue.moyenne >= 10 ? "text-emerald-600" : "text-red-500"}`}>
-                        {ue.moyenne !== undefined ? `${ue.moyenne.toFixed(2)}/20` : "—"}
+
+              {tab === "notes" && (
+                !resolved ? (
+                  <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Détail indisponible pour ce relevé.</p>
+                ) : (
+                  <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-foreground">Relevé de notes — {selected.semestre}</h3>
+                      <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap", DECISION_TONE[resolved.decision ?? ""]?.bg ?? "bg-muted", DECISION_TONE[resolved.decision ?? ""]?.text ?? "text-muted-foreground")}>
+                        {resolved.decisionLabel}
                       </span>
                     </div>
-                  ))}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground uppercase">
+                            <th className="px-4 py-3">Matières</th>
+                            <th className="px-4 py-3">CC</th>
+                            <th className="px-4 py-3">Examen</th>
+                            <th className="px-4 py-3">Moyenne</th>
+                            <th className="px-4 py-3">Crédits</th>
+                            <th className="px-4 py-3">Résultat</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {resolved.ues.map((ue) => (
+                            <Fragment key={ue.id}>
+                              <tr className="border-b border-border bg-muted/30">
+                                <td className="px-4 py-2.5 font-bold text-foreground">{ue.code} — {ue.libelle}</td>
+                                <td className="px-4 py-2.5" />
+                                <td className="px-4 py-2.5" />
+                                <td className={cn("px-4 py-2.5 font-bold", ue.moyenne !== undefined ? (ue.moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "")}>
+                                  {ue.moyenne !== undefined ? `${ue.moyenne.toFixed(2)}/20` : "—"}
+                                </td>
+                                <td className="px-4 py-2.5 font-medium">{ue.creditsObtenus}/{ue.credits}</td>
+                                <td className={cn("px-4 py-2.5 font-medium", ue.validee ? "text-emerald-600" : "text-red-500")}>{ue.validee ? "Validée" : "Non validée"}</td>
+                              </tr>
+                              {ue.ecs.map((ec) => (
+                                <tr key={ec.id} className="border-b border-border last:border-0">
+                                  <td className="px-4 py-2.5 pl-8 text-muted-foreground">{ec.libelle}</td>
+                                  <td className="px-4 py-2.5">{ec.cc !== undefined ? ec.cc.toFixed(2) : "—"}</td>
+                                  <td className="px-4 py-2.5">{ec.ef !== undefined ? ec.ef.toFixed(2) : "—"}</td>
+                                  <td className={cn("px-4 py-2.5 font-medium", ec.moyenne !== undefined ? (ec.moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "")}>
+                                    {ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}
+                                  </td>
+                                  <td className="px-4 py-2.5" />
+                                  <td className="px-4 py-2.5" />
+                                </tr>
+                              ))}
+                            </Fragment>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-muted/40 font-bold text-foreground">
+                            <td className="px-4 py-3">Moyenne {selected.semestre}</td>
+                            <td className="px-4 py-3" colSpan={2} />
+                            <td className="px-4 py-3">{resolved.moyenne.toFixed(2)}/20</td>
+                            <td className="px-4 py-3">{resolved.creditsObtenus}/{resolved.creditsTotal}</td>
+                            <td className="px-4 py-3" />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {tab === "bulletin" && (
+                <div className="rounded-2xl border border-border bg-card p-8 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                    <FileText size={24} className="text-primary" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">Bulletin officiel — {selected.semestre}{selected.annee ? ` (${selected.annee})` : ""}</p>
+                  <p className="text-xs text-muted-foreground mt-1 mb-4">Document identique à celui imprimé par l'administration.</p>
+                  <button
+                    onClick={() => setPreviewReleve(selected)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+                    data-testid={`portal-bulletin-apercu-${selected.id}`}
+                  >
+                    <Eye size={14} /> Voir le bulletin
+                  </button>
+                </div>
+              )}
+
+              {tab === "historique" && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {mesReleves.map((r) => {
+                    const res = resolveBulletin(r, students);
+                    const isActive = r.id === selected?.id;
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => { setSelectedId(r.id); setTab("notes"); }}
+                        className={cn("text-left rounded-2xl border p-4 transition-colors", isActive ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-border bg-card hover:bg-muted/50")}
+                        data-testid={`releves-historique-${r.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-bold text-foreground">{r.semestre.replace(/\s*\(S\d+\)/, "")}</span>
+                          {res && (
+                            <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", DECISION_TONE[res.decision ?? ""]?.bg ?? "bg-muted", DECISION_TONE[res.decision ?? ""]?.text ?? "text-muted-foreground")}>
+                              {res.decisionLabel}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{r.annee ?? "Année inconnue"}</p>
+                        <div className="flex gap-4 mt-2.5 text-xs">
+                          <span className="text-muted-foreground">Moyenne <strong className="text-foreground">{res ? `${res.moyenne.toFixed(2)}/20` : "—"}</strong></span>
+                          <span className="text-muted-foreground">Crédits <strong className="text-foreground">{res ? `${res.creditsObtenus}/${res.creditsTotal}` : "—"}</strong></span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
-          );
-        })
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h3 className="text-sm font-bold text-foreground mb-3">Bulletin du semestre</h3>
+                <div className="rounded-xl border border-dashed border-border p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <FileText size={18} className="text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">{selected.semestre}</p>
+                    <p className="text-[11px] text-muted-foreground">{selected.annee ?? "—"}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPreviewReleve(selected)}
+                  className="w-full mt-3 flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
+                >
+                  <Eye size={13} /> Voir le bulletin
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h3 className="text-sm font-bold text-foreground mb-2">Informations académiques</h3>
+                <InfoRow label="Programme" value={resolved?.filiereNomComplet ?? student.filiere} />
+                <InfoRow label="Niveau" value={resolved?.niveauLabel ?? student.niveau} />
+                <InfoRow label="Année académique" value={selected.annee ?? "—"} />
+                <InfoRow label="Statut" value={student.statut} />
+                <InfoRow label="Date d'inscription" value={inscriptionCorrespondante ? formatDate(inscriptionCorrespondante.dateInscription) : "—"} />
+              </div>
+
+              {resolved && (
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <h3 className="text-sm font-bold text-foreground mb-2">Appréciation</h3>
+                  <p className="text-sm text-muted-foreground">{resolved.appreciation}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {previewReleve && (
