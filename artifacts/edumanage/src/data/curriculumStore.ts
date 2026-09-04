@@ -307,7 +307,7 @@ export function importCurriculumRows(
         libelle: row.libelleEc,
         ueId: ue.id,
         coeff: 1,
-        credits: 0,
+        credits: row.credits || 0,
         volCm: cm,
         volTd: td,
         volTp: tp,

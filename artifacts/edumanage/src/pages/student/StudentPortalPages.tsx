@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import type { UeRecord, EcRecord } from "@/data/curriculumStore";
+import { DataTable, type Column } from "@/components/admin/DataTable";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import { useEvenements } from "@/hooks/useEvenementStore";
@@ -716,6 +717,28 @@ const COURSE_COLORS = [
  * réalisées / VHT (getCahierStatsForEc), prochaine séance = la plus proche séance future
  * planifiée pour cet EC, dernière note = la dernière note publiée pour cet EC. Aucune donnée
  * inventée (pas de date d'évaluation : EvaluationRecord n'en porte pas). */
+type ProgressionBucket = "non_commence" | "en_cours" | "termine";
+function bucketProgression(pct: number): ProgressionBucket {
+  if (pct <= 0) return "non_commence";
+  if (pct >= 100) return "termine";
+  return "en_cours";
+}
+
+interface CoursTableRow extends Record<string, unknown> {
+  id: string;
+  cours: string;
+  code: string;
+  ue: string;
+  semestre: string;
+  prof: string;
+  credits: number;
+  vht: number;
+  progression: number;
+  prochain: string;
+  note: string;
+  ressources: number;
+}
+
 export function StudentCoursPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
@@ -730,25 +753,38 @@ export function StudentCoursPage() {
 
   const [query, setQuery] = useState("");
   const [semestreFiltre, setSemestreFiltre] = useState("");
+  const [viewMode, setViewMode] = useState<"grille" | "liste" | "tableau">("grille");
+  const [showFiltresAvances, setShowFiltresAvances] = useState(false);
+  const [profFiltre, setProfFiltre] = useState("");
+  const [progressionFiltre, setProgressionFiltre] = useState<"" | ProgressionBucket>("");
+  const [avecRessourcesSeulement, setAvecRessourcesSeulement] = useState(false);
+  const [avecNoteSeulement, setAvecNoteSeulement] = useState(false);
+  const [tri, setTri] = useState<"nom" | "progression" | "credits">("nom");
 
   const mesUes = useMemo(
     () => ues.filter((u) => u.filiereId === student?.filiereId && u.niveau === student?.niveau).sort((a, b) => a.semestre.localeCompare(b.semestre) || a.code.localeCompare(b.code)),
     [ues, student?.filiereId, student?.niveau],
   );
   const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
+  const profsDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    for (const ue of mesUes) for (const ec of ecs.filter((e) => e.ueId === ue.id)) if (ec.responsable) set.add(ec.responsable);
+    return Array.from(set).sort();
+  }, [mesUes, ecs]);
 
-  const mesCours = useMemo(() => {
+  const mesCoursBase = useMemo(() => {
     const list: { ue: UeRecord; ec: EcRecord }[] = [];
     for (const ue of mesUes) {
       if (semestreFiltre && ue.semestre !== semestreFiltre) continue;
       for (const ec of ecs.filter((e) => e.ueId === ue.id)) {
         const q = query.trim().toLowerCase();
         if (q && !`${ec.code} ${ec.libelle} ${ec.responsable}`.toLowerCase().includes(q)) continue;
+        if (profFiltre && ec.responsable !== profFiltre) continue;
         list.push({ ue, ec });
       }
     }
     return list;
-  }, [mesUes, ecs, semestreFiltre, query]);
+  }, [mesUes, ecs, semestreFiltre, query, profFiltre]);
 
   const todayIso = new Date().toISOString().slice(0, 10);
   function prochaineSeancePourEc(ecId: string) {
@@ -769,6 +805,75 @@ export function StudentCoursPage() {
     return mine[mine.length - 1];
   }
 
+  const coursEnrichis = useMemo(() => {
+    let list = mesCoursBase.map(({ ue, ec }, i) => ({
+      ue,
+      ec,
+      color: COURSE_COLORS[i % COURSE_COLORS.length],
+      stats: getCahierStatsForEc(ec.id),
+      prochaine: prochaineSeancePourEc(ec.id),
+      derniereNote: derniereNotePourEc(ec.id),
+      nbRessources: ressources.filter((r) => r.ecId === ec.id).length,
+    }));
+    if (progressionFiltre) list = list.filter((c) => bucketProgression(c.stats.pctProgramme) === progressionFiltre);
+    if (avecRessourcesSeulement) list = list.filter((c) => c.nbRessources > 0);
+    if (avecNoteSeulement) list = list.filter((c) => !!c.derniereNote);
+    if (tri === "progression") list = [...list].sort((a, b) => b.stats.pctProgramme - a.stats.pctProgramme);
+    else if (tri === "credits") list = [...list].sort((a, b) => b.ec.credits - a.ec.credits);
+    else list = [...list].sort((a, b) => a.ec.libelle.localeCompare(b.ec.libelle));
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mesCoursBase, ressources, seances, notes, student?.id, progressionFiltre, avecRessourcesSeulement, avecNoteSeulement, tri]);
+
+  const activeAdvancedCount = [profFiltre, progressionFiltre, avecRessourcesSeulement, avecNoteSeulement].filter(Boolean).length;
+  function resetFiltresAvances() {
+    setProfFiltre("");
+    setProgressionFiltre("");
+    setAvecRessourcesSeulement(false);
+    setAvecNoteSeulement(false);
+    setTri("nom");
+  }
+
+  const tableRows: CoursTableRow[] = useMemo(() => coursEnrichis.map((c) => ({
+    id: c.ec.id,
+    cours: c.ec.libelle,
+    code: c.ec.code,
+    ue: c.ue.libelle,
+    semestre: c.ue.semestre,
+    prof: c.ec.responsable || "—",
+    credits: c.ec.credits,
+    vht: c.ec.vht,
+    progression: c.stats.pctProgramme,
+    prochain: c.prochaine ? `${formatShortDate(c.prochaine.dateIso)} · ${c.prochaine.s.heureDebut}` : "—",
+    note: c.derniereNote ? `${c.derniereNote.note}/20` : "—",
+    ressources: c.nbRessources,
+  })), [coursEnrichis]);
+
+  const tableColumns: Column<CoursTableRow>[] = [
+    {
+      key: "cours", header: "Cours", sortable: true,
+      render: (r) => (<div><div className="font-medium text-foreground">{r.cours}</div><div className="text-[11px] text-muted-foreground">{r.code}</div></div>),
+    },
+    { key: "ue", header: "UE", sortable: true },
+    { key: "semestre", header: "Sem.", sortable: true },
+    { key: "prof", header: "Professeur", sortable: true },
+    { key: "credits", header: "Crédits", sortable: true },
+    {
+      key: "progression", header: "Progression", sortable: true,
+      render: (r) => <span className={cn("font-semibold", (r.progression as number) >= 100 && "text-emerald-600")}>{r.progression as number}%</span>,
+    },
+    { key: "prochain", header: "Prochain cours" },
+    {
+      key: "note", header: "Dernière note",
+      render: (r) => {
+        const v = r.note as string;
+        if (v === "—") return v;
+        return <span className={cn("font-semibold", parseFloat(v) >= 10 ? "text-emerald-600" : "text-red-500")}>{v}</span>;
+      },
+    },
+    { key: "ressources", header: "Ressources", render: (r) => `${r.ressources as number} ress.` },
+  ];
+
   // Historique réel des années précédentes : reconstruit à partir des notes publiées de
   // l'étudiant (seule trace réellement conservée par EC/année dans le modèle de données).
   const anneesPrecedentes = useMemo(() => {
@@ -788,93 +893,196 @@ export function StudentCoursPage() {
         <p className="text-sm text-muted-foreground mt-1">{student?.filiere} · {student?.niveau} · Année {anneeActuelle} — maquette pédagogique</p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un cours, un professeur…"
-            className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            data-testid="cours-recherche"
-          />
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <div className="flex flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher un cours, un professeur…"
+              className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              data-testid="cours-recherche"
+            />
+          </div>
+          <select
+            value={semestreFiltre}
+            onChange={(e) => setSemestreFiltre(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="cours-filtre-semestre"
+          >
+            <option value="">Tous les semestres</option>
+            {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowFiltresAvances((v) => !v)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2.5 text-sm border rounded-xl transition-colors",
+              showFiltresAvances || activeAdvancedCount > 0 ? "bg-primary text-white border-primary" : "border-border text-muted-foreground hover:bg-muted",
+            )}
+            data-testid="cours-toggle-filtres-avances"
+          >
+            <SlidersHorizontal size={14} /> Filtres avancés
+            {activeAdvancedCount > 0 && (
+              <span className={cn("inline-flex items-center justify-center min-w-[16px] h-[16px] text-[10px] font-bold rounded-full px-1", showFiltresAvances || activeAdvancedCount > 0 ? "bg-white text-primary" : "bg-primary text-white")}>
+                {activeAdvancedCount}
+              </span>
+            )}
+            {showFiltresAvances ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1 flex-shrink-0 ml-auto">
+            {([["grille", LayoutGrid, "Grille"], ["liste", List, "Liste"], ["tableau", Table2, "Tableau"]] as const).map(([mode, Icon, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                title={label}
+                className={cn("p-2 rounded-md transition-colors", viewMode === mode ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
+                data-testid={`cours-vue-${mode}`}
+              >
+                <Icon size={15} />
+              </button>
+            ))}
+          </div>
         </div>
-        <select
-          value={semestreFiltre}
-          onChange={(e) => setSemestreFiltre(e.target.value)}
-          className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          data-testid="cours-filtre-semestre"
-        >
-          <option value="">Tous les semestres</option>
-          {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+
+        {showFiltresAvances && (
+          <div className="pt-3 border-t border-border grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <select
+              value={profFiltre}
+              onChange={(e) => setProfFiltre(e.target.value)}
+              className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              data-testid="cours-filtre-prof"
+            >
+              <option value="">Tous les professeurs</option>
+              {profsDisponibles.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select
+              value={progressionFiltre}
+              onChange={(e) => setProgressionFiltre(e.target.value as "" | ProgressionBucket)}
+              className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              data-testid="cours-filtre-progression"
+            >
+              <option value="">Toute progression</option>
+              <option value="non_commence">Non commencé</option>
+              <option value="en_cours">En cours</option>
+              <option value="termine">Terminé</option>
+            </select>
+            <select
+              value={tri}
+              onChange={(e) => setTri(e.target.value as "nom" | "progression" | "credits")}
+              className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              data-testid="cours-tri"
+            >
+              <option value="nom">Trier par nom</option>
+              <option value="progression">Trier par progression</option>
+              <option value="credits">Trier par crédits</option>
+            </select>
+            <div className="flex items-center gap-4 flex-wrap">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={avecRessourcesSeulement} onChange={(e) => setAvecRessourcesSeulement(e.target.checked)} data-testid="cours-filtre-avec-ressources" />
+                Avec ressources
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={avecNoteSeulement} onChange={(e) => setAvecNoteSeulement(e.target.checked)} data-testid="cours-filtre-avec-note" />
+                Avec note publiée
+              </label>
+            </div>
+            {activeAdvancedCount > 0 && (
+              <button type="button" onClick={resetFiltresAvances} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors">
+                <X size={11} /> Effacer les filtres avancés
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {mesCours.length === 0 ? (
+      {coursEnrichis.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucun cours ne correspond.</p>
+      ) : viewMode === "tableau" ? (
+        <DataTable columns={tableColumns} data={tableRows} pageSize={10} emptyMessage="Aucun cours ne correspond." />
+      ) : viewMode === "liste" ? (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border">
+          {coursEnrichis.map((c) => (
+            <div key={c.ec.id} className="flex items-center gap-3 p-3.5 hover:bg-muted/40 transition-colors" data-testid={`cours-liste-${c.ec.id}`}>
+              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", c.color.bg)}>
+                <BookOpen size={14} className={c.color.text} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-foreground truncate">{c.ec.libelle}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{c.ec.code} · {c.ue.libelle} · {c.ec.responsable || "Responsable non assigné"}</div>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0 hidden sm:inline-block">{c.ue.semestre}</span>
+              <div className="w-24 flex-shrink-0 hidden md:block">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${c.stats.pctProgramme}%`, background: c.color.bar }} />
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5 text-right">{c.stats.pctProgramme}%</div>
+              </div>
+              <span className="text-xs text-muted-foreground flex-shrink-0 w-14 text-right hidden sm:block">{c.ec.credits} cr.</span>
+              <Link href="/student/ressources" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" title={`${c.nbRessources} ressource(s)`}>
+                <Library size={14} />
+              </Link>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {mesCours.map(({ ue, ec }, i) => {
-            const color = COURSE_COLORS[i % COURSE_COLORS.length];
-            const stats = getCahierStatsForEc(ec.id);
-            const prochaine = prochaineSeancePourEc(ec.id);
-            const derniereNote = derniereNotePourEc(ec.id);
-            const nbRessources = ressources.filter((r) => r.ecId === ec.id).length;
-            return (
-              <div key={ec.id} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: "var(--shadow-sm)" }} data-testid={`cours-ec-${ec.id}`}>
-                <div className="p-4 flex-1">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", color.bg)}>
-                      <BookOpen size={16} className={color.text} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-sm text-foreground leading-tight">{ec.libelle}</h3>
-                      <p className="text-[11px] text-muted-foreground truncate">{ec.code} · {ue.libelle}</p>
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">{ue.semestre}</span>
+          {coursEnrichis.map(({ ue, ec, color, stats, prochaine, derniereNote, nbRessources }) => (
+            <div key={ec.id} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: "var(--shadow-sm)" }} data-testid={`cours-ec-${ec.id}`}>
+              <div className="p-4 flex-1">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", color.bg)}>
+                    <BookOpen size={16} className={color.text} />
                   </div>
-
-                  <p className="text-xs text-muted-foreground truncate mb-1">{ec.responsable || "Responsable non assigné"}</p>
-                  <p className="text-[11px] text-muted-foreground mb-3">{ec.credits} crédit(s) · {ec.vht}h VHT</p>
-
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="text-muted-foreground">Progression du programme</span>
-                      <span className="font-semibold text-foreground">{stats.pctProgramme}%</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${stats.pctProgramme}%`, background: color.bar }} />
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-sm text-foreground leading-tight">{ec.libelle}</h3>
+                    <p className="text-[11px] text-muted-foreground truncate">{ec.code} · {ue.libelle}</p>
                   </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">{ue.semestre}</span>
+                </div>
 
-                  <div className="space-y-1.5 text-[11px]">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <Clock size={11} className="flex-shrink-0" />
-                      {prochaine ? (
-                        <span className="truncate">Prochain cours : {formatShortDate(prochaine.dateIso)} · {prochaine.s.heureDebut} · {prochaine.s.salle}</span>
-                      ) : (
-                        <span>Aucune séance à venir planifiée</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <GraduationCap size={11} className="flex-shrink-0" />
-                      {derniereNote ? (
-                        <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{derniereNote.note}/20</span> ({derniereNote.type})</span>
-                      ) : (
-                        <span>Aucune note publiée</span>
-                      )}
-                    </div>
+                <p className="text-xs text-muted-foreground truncate mb-1">{ec.responsable || "Responsable non assigné"}</p>
+                <p className="text-[11px] text-muted-foreground mb-3">{ec.credits} crédit(s) · {ec.vht}h VHT</p>
+
+                <div className="mb-3">
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="text-muted-foreground">Progression du programme</span>
+                    <span className="font-semibold text-foreground">{stats.pctProgramme}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${stats.pctProgramme}%`, background: color.bar }} />
                   </div>
                 </div>
-                <Link
-                  href="/student/ressources"
-                  className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border text-xs font-medium text-primary hover:bg-muted/60 transition-colors"
-                >
-                  <Library size={12} /> {nbRessources} ressource{nbRessources !== 1 ? "s" : ""} disponible{nbRessources !== 1 ? "s" : ""}
-                </Link>
+
+                <div className="space-y-1.5 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Clock size={11} className="flex-shrink-0" />
+                    {prochaine ? (
+                      <span className="truncate">Prochain cours : {formatShortDate(prochaine.dateIso)} · {prochaine.s.heureDebut} · {prochaine.s.salle}</span>
+                    ) : (
+                      <span>Aucune séance à venir planifiée</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <GraduationCap size={11} className="flex-shrink-0" />
+                    {derniereNote ? (
+                      <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{derniereNote.note}/20</span> ({derniereNote.type})</span>
+                    ) : (
+                      <span>Aucune note publiée</span>
+                    )}
+                  </div>
+                </div>
               </div>
-            );
-          })}
+              <Link
+                href="/student/ressources"
+                className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border text-xs font-medium text-primary hover:bg-muted/60 transition-colors"
+              >
+                <Library size={12} /> {nbRessources} ressource{nbRessources !== 1 ? "s" : ""} disponible{nbRessources !== 1 ? "s" : ""}
+              </Link>
+            </div>
+          ))}
         </div>
       )}
 
