@@ -55,6 +55,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "acad-salles", label: "Salles", href: "/admin/salles" },
       { id: "acad-ues", label: "Unités d'Ens. (UE)", href: "/admin/ues" },
       { id: "acad-ecs", label: "Éléments Const. (EC)", href: "/admin/ecs" },
+      { id: "acad-ressources", label: "Ressources pédagogiques", href: "/admin/ressources-pedagogiques" },
     ],
   },
   {

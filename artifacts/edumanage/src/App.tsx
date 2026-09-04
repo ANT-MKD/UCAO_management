@@ -33,6 +33,7 @@ const ClassesPage = lazy(() => import("@/pages/admin/ClassesPage"));
 const SallesPage = lazy(() => import("@/pages/admin/SallesPage"));
 const UEsPage = lazy(() => import("@/pages/admin/UEsPage"));
 const ECsPage = lazy(() => import("@/pages/admin/ECsPage"));
+const RessourcesPedagogiquesPage = lazy(() => import("@/pages/admin/RessourcesPedagogiquesPage"));
 const AcademicParametragePage = lazy(() => import("@/pages/admin/AcademicParametragePage"));
 
 // Académiques - formulaires dédiés
@@ -213,8 +214,15 @@ const TeacherRallongePage = lazy(() => import("@/pages/teacher/TeacherPortalPage
 const TeacherContractPortalPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherContractPage })));
 const TeacherCahierPage = lazy(() => import("@/pages/teacher/TeacherCahierPage"));
 const StudentSchedulePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentSchedulePage })));
-const StudentGradesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentGradesPage })));
-const StudentPaymentsPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentPaymentsPage })));
+const StudentCoursPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentCoursPage })));
+const StudentNotesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentNotesPage })));
+const StudentRelevesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentRelevesPage })));
+const StudentAbsencesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentAbsencesPage })));
+const StudentRessourcesPage = lazy(() => import("@/pages/student/StudentRessourcesPage"));
+const StudentCahierPage = lazy(() => import("@/pages/student/StudentCahierPage"));
+const StudentFraisPayePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentFraisPayePage })));
+const StudentFraisImpayePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentFraisImpayePage })));
+const StudentPayerFacturesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentPayerFacturesPage })));
 const StudentProfilePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentProfilePage })));
 
 function PageLoader() {
@@ -710,6 +718,9 @@ function AppRouter() {
       <Route path="/admin/ecs">
         <Admin><ECsPage /></Admin>
       </Route>
+      <Route path="/admin/ressources-pedagogiques">
+        <Admin><RessourcesPedagogiquesPage /></Admin>
+      </Route>
       <Route path="/admin/schedule">
         <Admin><SchedulePage /></Admin>
       </Route>
@@ -915,11 +926,32 @@ function AppRouter() {
       <Route path="/student/schedule">
         <Student><StudentSchedulePage /></Student>
       </Route>
-      <Route path="/student/grades">
-        <Student><StudentGradesPage /></Student>
+      <Route path="/student/cours">
+        <Student><StudentCoursPage /></Student>
       </Route>
-      <Route path="/student/payments">
-        <Student><StudentPaymentsPage /></Student>
+      <Route path="/student/notes">
+        <Student><StudentNotesPage /></Student>
+      </Route>
+      <Route path="/student/releves">
+        <Student><StudentRelevesPage /></Student>
+      </Route>
+      <Route path="/student/absences">
+        <Student><StudentAbsencesPage /></Student>
+      </Route>
+      <Route path="/student/ressources">
+        <Student><StudentRessourcesPage /></Student>
+      </Route>
+      <Route path="/student/cahier">
+        <Student><StudentCahierPage /></Student>
+      </Route>
+      <Route path="/student/frais-paye">
+        <Student><StudentFraisPayePage /></Student>
+      </Route>
+      <Route path="/student/frais-impaye">
+        <Student><StudentFraisImpayePage /></Student>
+      </Route>
+      <Route path="/student/payer-factures">
+        <Student><StudentPayerFacturesPage /></Student>
       </Route>
       <Route path="/student/profile">
         <Student><StudentProfilePage /></Student>

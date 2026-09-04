@@ -14,6 +14,13 @@ import {
   Bell,
   Menu,
   X,
+  BookOpen,
+  NotebookPen,
+  Library,
+  GraduationCap,
+  CalendarX,
+  Wallet,
+  CircleDollarSign,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,8 +44,15 @@ interface StudentNavItem {
 const ICONS_BY_ID: Record<string, React.ElementType> = {
   "student-dashboard": LayoutDashboard,
   "student-schedule": CalendarDays,
-  "student-grades": FileText,
-  "student-payments": CreditCard,
+  "student-cours": BookOpen,
+  "student-cahier": NotebookPen,
+  "student-ressources": Library,
+  "student-notes": FileText,
+  "student-releves": GraduationCap,
+  "student-absences": CalendarX,
+  "student-frais-paye": Wallet,
+  "student-frais-impaye": CircleDollarSign,
+  "student-payer-factures": CreditCard,
   "student-messages": MessageCircle,
   "student-requests": ClipboardList,
   "student-profile": User,
@@ -128,11 +142,11 @@ export function StudentLayout({ children }: StudentLayoutProps) {
             </button>
           </div>
 
-          <nav className="flex-1 p-3 space-y-1">
+          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
             <NavLinks />
           </nav>
 
-          <div className="p-3 border-t border-border space-y-2">
+          <div className="p-3 border-t border-border space-y-2 flex-shrink-0">
             <div className={cn("flex items-center gap-3 rounded-xl px-2 py-2", collapsed && "justify-center")}>
               <UserAvatar name={currentUser?.name || "Étudiant"} size="sm" />
               {!collapsed && (
