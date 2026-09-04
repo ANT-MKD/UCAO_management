@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2, MapPin, AlertTriangle } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2, MapPin, AlertTriangle, Phone, Mail, Wallet } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,13 +21,14 @@ import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "
 import { mondayOf } from "@/lib/teacherUtils";
 import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
-import { montantQuittance } from "@/pages/admin/PaiementsPage";
+import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { payerQuittance } from "@/data/studentStore";
 import { enregistrerEncaissement } from "@/data/encaissementStore";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant, getPresenceHebdoPourEtudiant, getPresenceParEcPourEtudiant, getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
 import { relanceEstExpiree } from "@/data/relancePaiementStore";
+import { getEtablissement } from "@/data/etablissementStore";
 import { useRelances } from "@/hooks/useRelancePaiementStore";
 import type { ReleveRecord } from "@/data/studentStore";
 
@@ -1003,6 +1004,12 @@ export function StudentFraisImpayePage() {
 
 const MOYENS_PAIEMENT_EN_LIGNE = ["wave", "orange"];
 
+const STATUT_QUITTANCE_TONE: Record<string, { bg: string; text: string }> = {
+  "Payé": { bg: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300", text: "text-emerald-700" },
+  "Acompte": { bg: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300", text: "text-amber-700" },
+  "Impayé": { bg: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300", text: "text-red-700" },
+};
+
 export function StudentPayerFacturesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
@@ -1010,8 +1017,40 @@ export function StudentPayerFacturesPage() {
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
   const modesPaiement = useModesPaiementFinance();
   const modesEnLigne = modesPaiement.filter((m) => MOYENS_PAIEMENT_EN_LIGNE.some((k) => m.intitule.toLowerCase().includes(k)));
-  const impayes = paiements.filter((p) => p.statut !== "annule" && p.montant < montantQuittance(p));
+  const etablissement = getEtablissement();
 
+  const nonAnnules = useMemo(() => paiements.filter((p) => p.statut !== "annule"), [paiements]);
+  const impayes = useMemo(() => nonAnnules.filter((p) => p.montant < montantQuittance(p)), [nonAnnules]);
+  const payes = useMemo(() => nonAnnules.filter((p) => p.montant > 0), [nonAnnules]);
+
+  const totalFacture = nonAnnules.reduce((s, p) => s + montantQuittance(p), 0);
+  const totalPaye = payes.reduce((s, p) => s + p.montant, 0);
+  const montantDu = student?.soldeDu ?? 0;
+  const pctPaye = totalFacture > 0 ? Math.round((totalPaye / totalFacture) * 100) : 0;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const echeances = impayes.map((p) => p.dateLimite).filter((d): d is string => !!d).sort();
+  const prochaineEcheance = echeances[0];
+  const statutGlobal = montantDu === 0 ? "À jour" : totalPaye > 0 ? "Partiel" : "Impayé";
+  const statutGlobalColor = montantDu === 0 ? "#10b981" : totalPaye > 0 ? "#f59e0b" : "#ef4444";
+
+  const mesFactures = useMemo(
+    () => [...nonAnnules].sort((a, b) => (b.date || "").localeCompare(a.date || "")),
+    [nonAnnules],
+  );
+
+  const historique = useMemo(() => {
+    const map = new Map<string, typeof payes>();
+    for (const p of payes) {
+      const key = moisLabel(p.date);
+      const arr = map.get(key) ?? [];
+      arr.push(p);
+      map.set(key, arr);
+    }
+    return [...map.entries()];
+  }, [payes]);
+
+  const [tab, setTab] = useState<"factures" | "payer" | "historique">("factures");
   const [selectedId, setSelectedId] = useState<string>("");
   const [montant, setMontant] = useState<number>(0);
   const [moyen, setMoyen] = useState<string>("");
@@ -1025,6 +1064,11 @@ export function StudentPayerFacturesPage() {
     setSelectedId(id);
     const p = impayes.find((x) => x.id === id);
     setMontant(p ? montantQuittance(p) - p.montant : 0);
+  };
+
+  const goPayerFacture = (id: string) => {
+    selectQuittance(id);
+    setTab("payer");
   };
 
   const handlePayer = () => {
@@ -1070,91 +1114,256 @@ export function StudentPayerFacturesPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4">
       <div className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Payer une facture en ligne</h2>
-        <p className="text-sm text-muted-foreground mt-1">Solde dû : <span className={(student?.soldeDu ?? 0) > 0 ? "text-red-500 font-semibold" : "text-emerald-600 font-semibold"}>{formatCFA(student?.soldeDu ?? 0)}</span></p>
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Payer une facture</h2>
+        <p className="text-sm text-muted-foreground mt-1">Vos factures, vos règlements en ligne et l'historique de vos paiements</p>
       </div>
 
-      <div className="flex items-start gap-2.5 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
-        <ShieldAlert size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-700 dark:text-amber-400">
-          Simulation de paiement en ligne — aucune passerelle Wave/Orange Money réelle n'est branchée (mode démo). Le règlement saisi ici est cependant enregistré comme un vrai paiement dans votre dossier, exactement comme s'il avait été encaissé par l'administration.
-        </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+        <KPICard icon={FileText} label="Total facturé" value={formatCFA(totalFacture)} accentColor="#2563eb" />
+        <KPICard icon={ShieldAlert} label="Montant dû" value={formatCFA(montantDu)} accentColor={montantDu > 0 ? "#ef4444" : "#10b981"} />
+        <KPICard icon={CreditCard} label="Montant payé" value={formatCFA(totalPaye)} subtitle={`${pctPaye}% du total`} accentColor="#10b981" />
+        <KPICard icon={Clock} label="Prochaine échéance" value={prochaineEcheance ? formatShortDate(prochaineEcheance) : "—"} accentColor="#f59e0b" />
+        <KPICard icon={CheckCircle2} label="Statut global" value={statutGlobal} subtitle={statutGlobal === "Partiel" ? "Partiellement payé" : undefined} accentColor={statutGlobalColor} />
       </div>
 
-      {impayes.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune facture à régler — vous êtes à jour.</p>
-      ) : (
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Facture à régler <span className="text-red-500">*</span></label>
-            <select
-              value={selectedId}
-              onChange={(e) => selectQuittance(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-              data-testid="payer-facture-select"
-            >
-              <option value="">— Sélectionner —</option>
-              {impayes.map((p) => (
-                <option key={p.id} value={p.id}>{p.rubrique} — reste {formatCFA(montantQuittance(p) - p.montant)}</option>
-              ))}
-            </select>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4 min-w-0">
+          <div className="flex gap-1 rounded-xl border border-border bg-card p-1 overflow-x-auto">
+            {(
+              [
+                ["factures", "Mes factures"],
+                ["payer", "Payer une facture"],
+                ["historique", "Historique des paiements"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-colors",
+                  tab === key ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted",
+                )}
+                data-testid={`payer-facture-onglet-${key}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {selected && (
-            <>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant à payer (max {formatCFA(resteSelected)}) <span className="text-red-500">*</span></label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={resteSelected}
-                    value={montant || ""}
-                    onChange={(e) => setMontant(Number(e.target.value) || 0)}
-                    className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    data-testid="payer-facture-montant"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement <span className="text-red-500">*</span></label>
-                  <select
-                    value={moyen}
-                    onChange={(e) => setMoyen(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    data-testid="payer-facture-moyen"
-                  >
-                    <option value="">— Sélectionner —</option>
-                    {modesEnLigne.map((m) => (
-                      <option key={m.id} value={m.intitule}>{m.intitule}</option>
-                    ))}
-                  </select>
-                </div>
+          {tab === "factures" &&
+            (mesFactures.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune facture émise pour le moment.</p>
+            ) : (
+              <div className="space-y-2">
+                {mesFactures.map((p) => {
+                  const statut = statutQuittance(p);
+                  const tone = STATUT_QUITTANCE_TONE[statut] ?? STATUT_QUITTANCE_TONE["Impayé"];
+                  const reste = montantQuittance(p) - p.montant;
+                  const enRetard = statut !== "Payé" && !!p.dateLimite && p.dateLimite < today;
+                  return (
+                    <div key={p.id} className="rounded-2xl border border-border bg-card p-4 flex flex-wrap items-center justify-between gap-3" data-testid={`ma-facture-${p.id}`}>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-foreground">{p.rubrique}</p>
+                          <span className={cn("text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap", tone.bg)}>{statut}</span>
+                          {enRetard && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">En retard</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Émise le {formatDate(p.date)}
+                          {p.dateLimite && ` · échéance ${formatShortDate(p.dateLimite)}`} · Reçu {p.numeroRecu || p.reference}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {statut === "Payé" ? (
+                          <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline whitespace-nowrap">Voir reçu</button>
+                        ) : (
+                          <>
+                            <p className="text-sm font-bold text-red-500 whitespace-nowrap">{formatCFA(reste)}</p>
+                            <button
+                              type="button"
+                              onClick={() => goPayerFacture(p.id)}
+                              className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+                              data-testid={`ma-facture-payer-${p.id}`}
+                            >
+                              Payer
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Numéro utilisé pour la transaction <span className="text-red-500">*</span></label>
-                <input
-                  value={numero}
-                  onChange={(e) => setNumero(e.target.value)}
-                  placeholder="ex: 77 000 00 00"
-                  className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  data-testid="payer-facture-numero"
-                />
+            ))}
+
+          {tab === "payer" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2.5 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
+                <ShieldAlert size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Simulation de paiement en ligne — aucune passerelle Wave/Orange Money réelle n'est branchée (mode démo). Le règlement saisi ici est cependant enregistré comme un vrai paiement dans votre dossier, exactement comme s'il avait été encaissé par l'administration.
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={handlePayer}
-                disabled={paying || !moyen || montant <= 0}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
-                data-testid="payer-facture-confirmer"
-              >
-                <CreditCard size={15} /> {paying ? "Paiement en cours…" : `Payer ${formatCFA(montant)}`}
-              </button>
-            </>
+
+              {impayes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune facture à régler — vous êtes à jour.</p>
+              ) : (
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Facture à régler <span className="text-red-500">*</span></label>
+                    <select
+                      value={selectedId}
+                      onChange={(e) => selectQuittance(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      data-testid="payer-facture-select"
+                    >
+                      <option value="">— Sélectionner —</option>
+                      {impayes.map((p) => (
+                        <option key={p.id} value={p.id}>{p.rubrique} — reste {formatCFA(montantQuittance(p) - p.montant)}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selected && (
+                    <>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant à payer (max {formatCFA(resteSelected)}) <span className="text-red-500">*</span></label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={resteSelected}
+                            value={montant || ""}
+                            onChange={(e) => setMontant(Number(e.target.value) || 0)}
+                            className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            data-testid="payer-facture-montant"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement <span className="text-red-500">*</span></label>
+                          <select
+                            value={moyen}
+                            onChange={(e) => setMoyen(e.target.value)}
+                            className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            data-testid="payer-facture-moyen"
+                          >
+                            <option value="">— Sélectionner —</option>
+                            {modesEnLigne.map((m) => (
+                              <option key={m.id} value={m.intitule}>{m.intitule}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Numéro utilisé pour la transaction <span className="text-red-500">*</span></label>
+                        <input
+                          value={numero}
+                          onChange={(e) => setNumero(e.target.value)}
+                          placeholder="ex: 77 000 00 00"
+                          className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          data-testid="payer-facture-numero"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handlePayer}
+                        disabled={paying || !moyen || montant <= 0}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                        data-testid="payer-facture-confirmer"
+                      >
+                        <CreditCard size={15} /> {paying ? "Paiement en cours…" : `Payer ${formatCFA(montant)}`}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           )}
+
+          {tab === "historique" &&
+            (historique.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucun paiement enregistré.</p>
+            ) : (
+              <div className="space-y-4">
+                {historique.map(([mois, items]) => (
+                  <div key={mois} className="rounded-2xl border border-border bg-card overflow-hidden">
+                    <div className="px-5 py-3 border-b border-border bg-muted/30">
+                      <h3 className="text-xs font-bold text-muted-foreground uppercase">{mois}</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {items.map((p) => {
+                        const c = moyenPaiementColor(p.moyen || "—");
+                        return (
+                          <div key={p.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground">{p.rubrique}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(p.date)} · Reçu {p.numeroRecu || p.reference}</p>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              {p.moyen && (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{ color: c.color, background: c.bg }}>{p.moyen}</span>
+                              )}
+                              <p className="text-sm font-bold text-emerald-600 whitespace-nowrap">{formatCFA(p.montant)}</p>
+                              <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline whitespace-nowrap">Imprimer</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
         </div>
-      )}
+
+        <div className="space-y-4 min-w-0">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+              <Wallet size={15} className="text-primary" /> Moyens de paiement acceptés
+            </h3>
+            {modesPaiement.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Aucun moyen de paiement configuré.</p>
+            ) : (
+              <ul className="space-y-2">
+                {modesPaiement.map((m) => (
+                  <li key={m.id} className="flex items-center gap-2 text-sm text-foreground min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                    <span className="truncate min-w-0">{m.intitule}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <h3 className="text-sm font-bold text-foreground mb-3">Besoin d'aide ?</h3>
+            {etablissement.telephone || etablissement.email ? (
+              <div className="space-y-2.5 text-sm">
+                {etablissement.telephone && (
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Phone size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <span className="text-foreground truncate min-w-0">{etablissement.telephone}</span>
+                  </div>
+                )}
+                {etablissement.email && (
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Mail size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <span className="text-foreground truncate min-w-0">{etablissement.email}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Coordonnées non renseignées par l'établissement.</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-3">Pour toute question sur une facture ou un paiement, contactez le service financier de {etablissement.nom}.</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
