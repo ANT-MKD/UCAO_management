@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers } from "@/hooks/useStudentStore";
+import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers, useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
+import type { UeRecord, EcRecord } from "@/data/curriculumStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import { useEvenements } from "@/hooks/useEvenementStore";
+import { useRessourcesPourClasse } from "@/hooks/useRessourcePedagogiqueStore";
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
+import { getCahierStatsForEc } from "@/data/studentStore";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
 import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
@@ -699,51 +702,204 @@ export function StudentProfilePage() {
   );
 }
 
+const COURSE_COLORS = [
+  { bg: "bg-blue-100", text: "text-blue-600", bar: "#2563eb" },
+  { bg: "bg-emerald-100", text: "text-emerald-600", bar: "#10b981" },
+  { bg: "bg-violet-100", text: "text-violet-600", bar: "#8b5cf6" },
+  { bg: "bg-amber-100", text: "text-amber-600", bar: "#f59e0b" },
+  { bg: "bg-pink-100", text: "text-pink-600", bar: "#ec4899" },
+  { bg: "bg-indigo-100", text: "text-indigo-600", bar: "#4f46e5" },
+];
+
+/** Mes cours — une carte par EC réel de la maquette du niveau/filière de l'étudiant, avec des
+ * indicateurs tous dérivés de données réelles : progression = heures de cahier de texte
+ * réalisées / VHT (getCahierStatsForEc), prochaine séance = la plus proche séance future
+ * planifiée pour cet EC, dernière note = la dernière note publiée pour cet EC. Aucune donnée
+ * inventée (pas de date d'évaluation : EvaluationRecord n'en porte pas). */
 export function StudentCoursPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
   const ues = useUes();
   const ecs = useEcs();
+  const seances = useSeances();
+  const notes = useNotes();
+  const anneeActuelle = useAnneeActuelle();
+  useCahiers(); // s'abonne pour refléter la progression (cahiers de séance réellement soumis)
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
+  const ressources = useRessourcesPourClasse(student?.classeId ?? "");
+
+  const [query, setQuery] = useState("");
+  const [semestreFiltre, setSemestreFiltre] = useState("");
+
   const mesUes = useMemo(
     () => ues.filter((u) => u.filiereId === student?.filiereId && u.niveau === student?.niveau).sort((a, b) => a.semestre.localeCompare(b.semestre) || a.code.localeCompare(b.code)),
     [ues, student?.filiereId, student?.niveau],
   );
+  const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
+
+  const mesCours = useMemo(() => {
+    const list: { ue: UeRecord; ec: EcRecord }[] = [];
+    for (const ue of mesUes) {
+      if (semestreFiltre && ue.semestre !== semestreFiltre) continue;
+      for (const ec of ecs.filter((e) => e.ueId === ue.id)) {
+        const q = query.trim().toLowerCase();
+        if (q && !`${ec.code} ${ec.libelle} ${ec.responsable}`.toLowerCase().includes(q)) continue;
+        list.push({ ue, ec });
+      }
+    }
+    return list;
+  }, [mesUes, ecs, semestreFiltre, query]);
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  function prochaineSeancePourEc(ecId: string) {
+    const candidates = seances
+      .filter((s) => s.ecId === ecId && s.classeId === student?.classeId)
+      .map((s) => {
+        const d = new Date(`${s.semaineDu}T12:00:00`);
+        d.setDate(d.getDate() + (s.jour - 1));
+        return { s, dateIso: d.toISOString().slice(0, 10) };
+      })
+      .filter((x) => x.dateIso >= todayIso)
+      .sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.s.heureDebut.localeCompare(b.s.heureDebut));
+    return candidates[0];
+  }
+
+  function derniereNotePourEc(ecId: string) {
+    const mine = notes.filter((n) => n.ecId === ecId && n.etudiantId === student?.id && n.statut === "publie");
+    return mine[mine.length - 1];
+  }
+
+  // Historique réel des années précédentes : reconstruit à partir des notes publiées de
+  // l'étudiant (seule trace réellement conservée par EC/année dans le modèle de données).
+  const anneesPrecedentes = useMemo(() => {
+    const map = new Map<string, { ec: string; note: number }[]>();
+    for (const n of notes) {
+      if (n.etudiantId !== student?.id || n.statut !== "publie" || n.annee === anneeActuelle) continue;
+      if (!map.has(n.annee)) map.set(n.annee, []);
+      map.get(n.annee)!.push({ ec: n.ec, note: n.note });
+    }
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [notes, student?.id, anneeActuelle]);
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mes cours</h2>
-        <p className="text-sm text-muted-foreground mt-1">{student?.filiere} · {student?.niveau} — maquette pédagogique</p>
+        <p className="text-sm text-muted-foreground mt-1">{student?.filiere} · {student?.niveau} · Année {anneeActuelle} — maquette pédagogique</p>
       </div>
-      {mesUes.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucun cours configuré pour votre filière/niveau.</p>
+
+      <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un cours, un professeur…"
+            className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="cours-recherche"
+          />
+        </div>
+        <select
+          value={semestreFiltre}
+          onChange={(e) => setSemestreFiltre(e.target.value)}
+          className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+          data-testid="cours-filtre-semestre"
+        >
+          <option value="">Tous les semestres</option>
+          {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
+      {mesCours.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucun cours ne correspond.</p>
       ) : (
-        mesUes.map((ue) => {
-          const mesEcs = ecs.filter((e) => e.ueId === ue.id);
-          return (
-            <div key={ue.id} className="rounded-2xl border border-border bg-card p-5" data-testid={`cours-ue-${ue.id}`}>
-              <div className="flex items-center justify-between gap-3 mb-1">
-                <h3 className="font-bold text-sm">{ue.code} — {ue.libelle}</h3>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">{ue.semestre}</span>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {mesCours.map(({ ue, ec }, i) => {
+            const color = COURSE_COLORS[i % COURSE_COLORS.length];
+            const stats = getCahierStatsForEc(ec.id);
+            const prochaine = prochaineSeancePourEc(ec.id);
+            const derniereNote = derniereNotePourEc(ec.id);
+            const nbRessources = ressources.filter((r) => r.ecId === ec.id).length;
+            return (
+              <div key={ec.id} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: "var(--shadow-sm)" }} data-testid={`cours-ec-${ec.id}`}>
+                <div className="p-4 flex-1">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", color.bg)}>
+                      <BookOpen size={16} className={color.text} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-sm text-foreground leading-tight">{ec.libelle}</h3>
+                      <p className="text-[11px] text-muted-foreground truncate">{ec.code} · {ue.libelle}</p>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">{ue.semestre}</span>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground truncate mb-1">{ec.responsable || "Responsable non assigné"}</p>
+                  <p className="text-[11px] text-muted-foreground mb-3">{ec.credits} crédit(s) · {ec.vht}h VHT</p>
+
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between text-[11px] mb-1">
+                      <span className="text-muted-foreground">Progression du programme</span>
+                      <span className="font-semibold text-foreground">{stats.pctProgramme}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${stats.pctProgramme}%`, background: color.bar }} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Clock size={11} className="flex-shrink-0" />
+                      {prochaine ? (
+                        <span className="truncate">Prochain cours : {formatShortDate(prochaine.dateIso)} · {prochaine.s.heureDebut} · {prochaine.s.salle}</span>
+                      ) : (
+                        <span>Aucune séance à venir planifiée</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <GraduationCap size={11} className="flex-shrink-0" />
+                      {derniereNote ? (
+                        <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{derniereNote.note}/20</span> ({derniereNote.type})</span>
+                      ) : (
+                        <span>Aucune note publiée</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <Link
+                  href="/student/ressources"
+                  className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border text-xs font-medium text-primary hover:bg-muted/60 transition-colors"
+                >
+                  <Library size={12} /> {nbRessources} ressource{nbRessources !== 1 ? "s" : ""} disponible{nbRessources !== 1 ? "s" : ""}
+                </Link>
               </div>
-              <p className="text-xs text-muted-foreground mb-3">{ue.credits} crédits · {ue.type}{ue.description && ` · ${ue.description}`}</p>
-              {mesEcs.length > 0 && (
-                <div className="space-y-1.5">
-                  {mesEcs.map((e) => (
-                    <div key={e.id} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-1.5">
-                      <div>
-                        <span className="font-medium">{e.code} — {e.libelle}</span>
-                        <p className="text-[11px] text-muted-foreground">{e.responsable || "Responsable non assigné"}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">{e.credits} cr. · {e.vht}h</span>
+            );
+          })}
+        </div>
+      )}
+
+      {anneesPrecedentes.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="font-bold text-sm text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Années précédentes</h3>
+          <div className="space-y-4">
+            {anneesPrecedentes.map(([annee, items]) => (
+              <div key={annee}>
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Année {annee}</p>
+                <div className="space-y-1">
+                  {items.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-1.5">
+                      <span className="text-foreground">{it.ec}</span>
+                      <span className={cn("font-semibold text-xs", it.note >= 10 ? "text-emerald-600" : "text-red-500")}>{it.note}/20</span>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          );
-        })
+              </div>
+            ))}
+          </div>
+          <Link href="/student/releves" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium mt-3">
+            Voir mes relevés & bulletins
+          </Link>
+        </div>
       )}
     </div>
   );
