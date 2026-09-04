@@ -16,6 +16,8 @@ const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl b
 interface NoteRow {
   id: string;
   date: string;
+  dateAffichee: string;
+  modifiee: boolean;
   cours: string;
   session: string;
   enseignePar: string;
@@ -65,16 +67,20 @@ export default function NotesEtudiantPage() {
 
   // Chaque note est enrichie via l'évaluation réelle correspondante (classeId+ecId+type)
   // quand elle existe ; les notes de seed antérieures au module Évaluation n'en ont pas —
-  // on affiche alors "—" plutôt que d'inventer une session, un enseignant ou une date.
+  // on affiche alors "—" plutôt que d'inventer une session ou un enseignant. La date, elle,
+  // vient toujours de la note elle-même (dateModification si resaisie, sinon dateCreation).
   const rows: NoteRow[] = notes
     .filter((n) => n.etudiantId === etudiantId)
     .map((n): NoteRow => {
       const classe = getClasseById(n.classeId);
       const evType: "devoir" | "examen" = n.type === "CC" ? "devoir" : "examen";
       const ev = evaluations.find((e) => e.classeId === n.classeId && e.ecId === n.ecId && e.type === evType && e.session === n.session);
+      const dateReelle = n.dateModification ?? n.dateCreation;
       return {
         id: n.id,
-        date: ev?.dateCreation ?? "—",
+        date: dateReelle,
+        dateAffichee: new Date(dateReelle).toLocaleDateString("fr-FR"),
+        modifiee: Boolean(n.dateModification),
         cours: n.ec,
         session: ev?.semestre ?? "—",
         enseignePar: ev?.professeur ?? "—",
@@ -101,7 +107,12 @@ export default function NotesEtudiantPage() {
   const columns: Column<NoteRow>[] = [
     {
       key: "date", header: "Date", sortable: true,
-      render: (r) => <span className="text-sm text-foreground">{r.date}</span>,
+      render: (r) => (
+        <div>
+          <span className="text-sm text-foreground">{r.dateAffichee}</span>
+          {r.modifiee && <p className="text-[11px] text-muted-foreground">Modifiée</p>}
+        </div>
+      ),
     },
     {
       key: "cours", header: "Cours",

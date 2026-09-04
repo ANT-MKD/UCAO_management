@@ -317,7 +317,7 @@ export function StudentNotesPage() {
   const notesDuSemestre = useMemo(
     () => notes
       .filter((n) => n.etudiantId === student?.id && n.statut === "publie" && ecIdsSemestre.has(n.ecId))
-      .sort((a, b) => a.ec.localeCompare(b.ec) || a.type.localeCompare(b.type)),
+      .sort((a, b) => (b.dateModification ?? b.dateCreation).localeCompare(a.dateModification ?? a.dateCreation)),
     [notes, student?.id, ecIdsSemestre],
   );
 
@@ -416,6 +416,11 @@ export function StudentNotesPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{n.ec}</p>
                     <p className="text-[11px] text-muted-foreground">{TYPE_LABELS[n.type] ?? n.type}{n.session === "rattrapage" ? " · Rattrapage" : ""}</p>
+                    <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                      {n.dateModification
+                        ? `Modifiée le ${new Date(n.dateModification).toLocaleDateString("fr-FR")}`
+                        : `Ajoutée le ${new Date(n.dateCreation).toLocaleDateString("fr-FR")}`}
+                    </p>
                   </div>
                   <span className={cn("font-bold text-sm flex-shrink-0", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{n.note}/20</span>
                 </div>

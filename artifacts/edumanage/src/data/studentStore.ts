@@ -210,6 +210,11 @@ export interface NoteRecord {
    * simplifié (ex. TeacherGradesPage). Indispensable dès qu'un EC a plusieurs évaluations du même
    * rôle (devoir/examen) : sans lui, deux devoirs distincts s'écraseraient l'un l'autre. */
   evaluationId?: string;
+  /** Horodatage réel de la première saisie de cette note (jamais réécrit ensuite). */
+  dateCreation: string;
+  /** Horodatage réel de la dernière modification — absent tant que la note n'a jamais été
+   * resaisie après sa création initiale. */
+  dateModification?: string;
 }
 
 export type UserRole = "admin" | "teacher" | "student";
@@ -442,6 +447,7 @@ function seedNotes(): NoteRecord[] {
     statut: n.statut === "publie" ? "publie" : "brouillon_prof",
     classeId: SEED_ETUDIANTS.find((e) => e.id === n.etudiantId)?.classeId ?? "",
     annee: "2025-2026",
+    dateCreation: new Date().toISOString(),
   }));
 }
 
@@ -1850,6 +1856,7 @@ export function saveNotesGrid(
       if (existing) {
         existing.note = note;
         existing.statut = statut;
+        existing.dateModification = new Date().toISOString();
       } else {
         store.notes.push({
           id: `no-${input.etudiantId}-${ecId}-${type}-${session ?? "normale"}-${Date.now()}`,
@@ -1864,6 +1871,7 @@ export function saveNotesGrid(
           classeId,
           annee,
           session,
+          dateCreation: new Date().toISOString(),
         });
       }
     }
@@ -1916,6 +1924,7 @@ export function saveNoteEvaluationGrid(
     if (existing) {
       existing.note = input.note;
       existing.statut = statut;
+      existing.dateModification = new Date().toISOString();
     } else {
       store.notes.push({
         id: `no-${input.etudiantId}-${evaluationId}-${Date.now()}`,
@@ -1931,6 +1940,7 @@ export function saveNoteEvaluationGrid(
         annee,
         session,
         evaluationId,
+        dateCreation: new Date().toISOString(),
       });
     }
   }
