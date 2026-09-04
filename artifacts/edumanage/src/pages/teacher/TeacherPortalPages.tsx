@@ -22,7 +22,7 @@ import { PubliciteBanner } from "@/components/PubliciteBanner";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
-function matchProf(label: string, userName?: string) {
+export function matchProf(label: string, userName?: string) {
   if (!userName) return false;
   const last = userName.split(" ").pop() ?? "";
   return label === userName || label.includes(last) || userName.includes(label.split(" ").pop() ?? "");

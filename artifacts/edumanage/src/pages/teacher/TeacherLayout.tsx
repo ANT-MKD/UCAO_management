@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Bell,
+  Library,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ const ICONS_BY_ID: Record<string, React.ElementType> = {
   "teacher-modules": BookOpen,
   "teacher-grades": ClipboardList,
   "teacher-cahier": NotebookPen,
+  "teacher-ressources": Library,
   "teacher-rallonge": Clock3,
   "teacher-contract": FileText,
 };

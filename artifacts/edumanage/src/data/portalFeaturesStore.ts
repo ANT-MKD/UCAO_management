@@ -32,6 +32,7 @@ export const TEACHER_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "teacher-modules", label: "Mes modules", href: "/teacher/modules" },
   { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades" },
   { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier" },
+  { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources" },
   { id: "teacher-rallonge", label: "Demande de rallonge", href: "/teacher/rallonge" },
   { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract" },
 ];
