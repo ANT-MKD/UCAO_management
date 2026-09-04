@@ -1,12 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers } from "@/hooks/useStudentStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
+import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
+import { useEvenements } from "@/hooks/useEvenementStore";
+import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
+import { mondayOf } from "@/lib/teacherUtils";
 import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
 import { montantQuittance } from "@/pages/admin/PaiementsPage";
@@ -17,53 +21,224 @@ import { enregistrerEncaissement } from "@/data/encaissementStore";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
 import type { ReleveRecord } from "@/data/studentStore";
 
-const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+const JOURS_GRID = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
+const PX_PER_H = 80;
+const FALLBACK_COLOR = "#4f46e5";
 
+function shadeFromColor(hex: string): { bg: string; border: string; text: string } {
+  return { bg: `${hex}18`, border: hex, text: hex };
+}
+
+function timeToPixels(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h - 8) * PX_PER_H + m * (PX_PER_H / 60);
+}
+
+function getDuration(start: string, end: string): number {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  return ((eh * 60 + em) - (sh * 60 + sm)) * (PX_PER_H / 60);
+}
+
+/** Emploi du temps de l'étudiant — grille en lecture seule reprenant le design de l'EDT admin
+ * (mêmes couleurs par type, même ligne "heure actuelle"), sans le glisser-déposer ni les
+ * sélecteurs de vue (classe/salle/prof) qui n'ont pas de sens côté étudiant. */
 export function StudentSchedulePage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
   const seances = useSeances();
+  const evenements = useEvenements();
+  const TYPES_SEANCE = useTypesSeance();
+  useJoursFeries();
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
-  const mine = useMemo(
-    () => seances.filter((s) => s.classeId === student?.classeId).sort((a, b) => a.jour - b.jour || a.heureDebut.localeCompare(b.heureDebut)),
-    [seances, student?.classeId],
+
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekViewMode, setWeekViewMode] = useState<"semaine" | "jour">("semaine");
+
+  const now = new Date();
+  const todayDow = now.getDay() === 0 ? 7 : now.getDay();
+  const currentTimeY = (now.getHours() - 8) * PX_PER_H + now.getMinutes() * (PX_PER_H / 60);
+  const showTimeLine = now.getHours() >= 8 && now.getHours() < 20;
+
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7) + weekOffset * 7);
+  const weekMonday = mondayOf(weekStart.toISOString().slice(0, 10));
+  const weekDays = useMemo(() => Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(`${weekMonday}T12:00:00`);
+    d.setDate(d.getDate() + i);
+    return d;
+  }), [weekMonday]);
+  const weekEnd = weekDays[5];
+  const weekLabel = `${weekDays[0].getDate()} – ${weekEnd.getDate()} ${weekDays[0].toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
+
+  const todayJourNum = Math.min((now.getDay() + 6) % 7 + 1, 6);
+  const displayDayIdxs = weekViewMode === "jour" ? [todayJourNum - 1] : [0, 1, 2, 3, 4, 5];
+
+  const weekSeances = useMemo(
+    () => seances.filter((s) => s.classeId === student?.classeId && s.semaineDu === weekMonday),
+    [seances, student?.classeId, weekMonday],
+  );
+  const weekEvenements = useMemo(
+    () => evenements.filter((e) => !e.classeId || e.classeId === student?.classeId),
+    [evenements, student?.classeId],
   );
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Emploi du temps</h2>
-        <p className="text-sm text-muted-foreground mt-1">{student?.classe} · {student?.filiere}</p>
+      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Emploi du temps</h2>
+          <p className="text-sm text-muted-foreground mt-1">{student?.classe} · {student?.filiere}</p>
+        </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          <button onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors" data-testid="edt-etudiant-week-prev"><ChevronLeft size={16} /></button>
+          <span className="text-sm font-medium text-foreground px-2">Sem. du {weekLabel}</span>
+          <button onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors" data-testid="edt-etudiant-week-next"><ChevronRight size={16} /></button>
+          <button onClick={() => setWeekOffset(0)} className="px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors">Aujourd&apos;hui</button>
+          {(["semaine", "jour"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setWeekViewMode(mode)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors capitalize",
+                weekViewMode === mode ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        {mine.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-10">Aucune séance pour votre classe.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3">Jour</th>
-                <th className="px-4 py-3">Horaire</th>
-                <th className="px-4 py-3">Module (EC)</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Salle</th>
-                <th className="px-4 py-3">Professeur</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mine.map((s) => (
-                <tr key={s.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-medium">{JOURS[s.jour] ?? s.jour}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{s.heureDebut} – {s.heureFin}</td>
-                  <td className="px-4 py-3">{s.ec}</td>
-                  <td className="px-4 py-3"><span className="text-xs px-2 py-0.5 rounded bg-muted">{s.type}</span></td>
-                  <td className="px-4 py-3 text-muted-foreground">{s.salle}</td>
-                  <td className="px-4 py-3">{s.prof}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+
+      <div className="flex gap-3 flex-wrap">
+        {TYPES_SEANCE.map((t) => {
+          const c = shadeFromColor(t.couleur);
+          return (
+            <div key={t.id} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: c.text }}>
+              <span className="w-3 h-3 rounded-sm" style={{ background: c.bg, border: `2px solid ${c.border}` }} />{t.code}
+            </div>
+          );
+        })}
+      </div>
+
+      {weekSeances.length === 0 && weekEvenements.filter((e) => weekDays.some((d) => d.toISOString().slice(0, 10) === e.date)).length === 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+          Aucune séance planifiée pour la semaine du {formatShortDate(weekMonday)}.
+        </div>
+      )}
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: weekViewMode === "semaine" ? 720 : 320 }}>
+            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${displayDayIdxs.length}, 1fr)` }}>
+              <div className="border-b border-r border-border" />
+              {displayDayIdxs.map((dayIdx) => {
+                const dayNum = dayIdx + 1;
+                const dateIso = weekDays[dayIdx].toISOString().slice(0, 10);
+                const ferie = getJourFerieCouvrant(dateIso);
+                return (
+                  <div
+                    key={dayIdx}
+                    title={ferie ? `Jour férié — ${ferie.intitule}` : undefined}
+                    className={cn(
+                      "px-2 py-3 text-center text-xs font-semibold border-b border-r border-border last:border-r-0",
+                      dayNum === todayDow && weekOffset === 0 && "bg-primary/5 text-primary",
+                      ferie && "bg-amber-50 text-amber-700",
+                    )}
+                  >
+                    {JOURS_GRID[dayIdx]}
+                    {ferie && <div className="text-[9px] font-normal normal-case truncate">{ferie.intitule}</div>}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid relative" style={{ gridTemplateColumns: `56px repeat(${displayDayIdxs.length}, 1fr)` }}>
+              <div className="border-r border-border">
+                {HOURS.map((h) => (
+                  <div key={h} className="border-b border-border last:border-0 flex items-start justify-end pr-2 pt-1" style={{ height: PX_PER_H }}>
+                    <span className="text-[10px] text-muted-foreground">{h}:00</span>
+                  </div>
+                ))}
+              </div>
+
+              {displayDayIdxs.map((dayIdx) => {
+                const dayNum = dayIdx + 1;
+                const dateIso = weekDays[dayIdx].toISOString().slice(0, 10);
+                const daySeances = weekSeances.filter((s) => s.jour === dayNum);
+                const dayEvenements = weekEvenements.filter((e) => e.date === dateIso);
+                return (
+                  <div
+                    key={dayIdx}
+                    className={cn("relative border-r border-border last:border-r-0", dayNum === todayDow && weekOffset === 0 && "bg-primary/[0.02]")}
+                  >
+                    {HOURS.map((h) => (
+                      <div key={h} className="border-b border-border/50 last:border-0" style={{ height: PX_PER_H }} />
+                    ))}
+
+                    {daySeances.map((s) => {
+                      const typeRecord = TYPES_SEANCE.find((t) => t.code === s.type);
+                      const colors = shadeFromColor(typeRecord?.couleur ?? FALLBACK_COLOR);
+                      const top = timeToPixels(s.heureDebut);
+                      const height = getDuration(s.heureDebut, s.heureFin);
+                      return (
+                        <div
+                          key={s.id}
+                          data-testid={`edt-etudiant-seance-${s.id}`}
+                          className="absolute left-1 right-1 rounded-lg px-2 py-1.5 overflow-hidden"
+                          style={{
+                            top: `${top}px`, height: `${Math.max(height, 40)}px`,
+                            background: colors.bg, borderLeft: `3px solid ${colors.border}`,
+                            zIndex: 5, boxShadow: "var(--shadow-sm)",
+                          }}
+                        >
+                          <div className="text-[10px] font-bold truncate" style={{ color: colors.text }}>{s.ec}</div>
+                          <div className="text-[9px] text-muted-foreground">{s.heureDebut}–{s.heureFin}</div>
+                          {height > 50 && (
+                            <>
+                              <div className="text-[9px] text-muted-foreground truncate">{s.salle}</div>
+                              <div className="text-[9px] text-muted-foreground truncate">{s.prof}</div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {dayEvenements.map((ev) => {
+                      const typeRecord = TYPES_SEANCE.find((t) => t.code === ev.type);
+                      const colors = shadeFromColor(typeRecord?.couleur ?? FALLBACK_COLOR);
+                      const top = timeToPixels(ev.heureDebut);
+                      const height = getDuration(ev.heureDebut, ev.heureFin);
+                      return (
+                        <div
+                          key={ev.id}
+                          className="absolute left-1 right-1 rounded-lg px-2 py-1.5 overflow-hidden border-dashed"
+                          style={{
+                            top: `${top}px`, height: `${Math.max(height, 40)}px`,
+                            background: colors.bg, border: `2px dashed ${colors.border}`,
+                            zIndex: 4,
+                          }}
+                        >
+                          <div className="text-[10px] font-bold truncate" style={{ color: colors.text }}>{ev.objet}</div>
+                          <div className="text-[9px] text-muted-foreground">{ev.heureDebut}–{ev.heureFin} · {ev.type}</div>
+                        </div>
+                      );
+                    })}
+
+                    {dayNum === todayDow && weekOffset === 0 && showTimeLine && (
+                      <div className="absolute left-0 right-0 z-30 pointer-events-none flex items-center" style={{ top: `${currentTimeY}px` }}>
+                        <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                        <div className="flex-1 h-[1.5px] bg-red-500" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
