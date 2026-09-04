@@ -1,5 +1,6 @@
 import { getCahiers, getEtudiantById, durationHours } from "./studentStore";
 import { getAbsencePeriodeCouvrant } from "./absencePeriodeStore";
+import { mondayOf } from "@/lib/teacherUtils";
 
 /** Une ligne d'assiduité = une absence ou un retard réellement constaté par un cahier de
  * textes soumis (jamais un brouillon) — jamais ressaisi ailleurs. Justifie() vérifie d'abord la
@@ -19,6 +20,9 @@ export interface AssiduiteRow {
   annee: string;
   semestre: string;
   date: string;
+  heureDebut: string;
+  heureFin: string;
+  salle: string;
   prof: string;
   type: "absence" | "retard";
   retardMinutes?: number;
@@ -51,6 +55,9 @@ export function getAssiduiteRows(): AssiduiteRow[] {
         annee: c.annee,
         semestre: c.semestre,
         date: c.date,
+        heureDebut: c.heureDebut,
+        heureFin: c.heureFin,
+        salle: c.salle,
         prof: c.prof,
         type: p.statut === "absent" ? "absence" : "retard",
         retardMinutes: p.retardMinutes,
@@ -69,9 +76,10 @@ export function getAssiduiteRowsPourEtudiant(etudiantId: string): AssiduiteRow[]
 
 /** Taux de présence réel d'un étudiant : séances où il a été noté présent, sur toutes les
  * séances où il apparaît dans un cahier de textes réellement soumis — jamais un total de
- * séances fabriqué. */
-export function getTauxPresencePourEtudiant(etudiantId: string): { present: number; total: number; pct: number } {
-  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon");
+ * séances fabriqué. Filtrable par semestre (alias réel, ex. "S1") pour scoper aux séances de
+ * la période sélectionnée plutôt qu'à l'historique complet. */
+export function getTauxPresencePourEtudiant(etudiantId: string, semestreAlias?: string): { present: number; total: number; pct: number } {
+  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && (!semestreAlias || c.semestre === semestreAlias));
   let present = 0;
   let total = 0;
   for (const c of cahiers) {
@@ -81,6 +89,65 @@ export function getTauxPresencePourEtudiant(etudiantId: string): { present: numb
     if (p.statut === "present") present++;
   }
   return { present, total, pct: total > 0 ? Math.round((present / total) * 100) : 100 };
+}
+
+export interface PresenceHebdo {
+  semaineLabel: string;
+  weekStart: string;
+  present: number;
+  total: number;
+  pct: number;
+}
+
+/** Évolution réelle de la présence semaine par semaine — une entrée seulement pour chaque
+ * semaine où l'étudiant apparaît dans au moins un cahier réellement soumis, jamais une semaine
+ * future ou vide comblée artificiellement. */
+export function getPresenceHebdoPourEtudiant(etudiantId: string, semestreAlias?: string): PresenceHebdo[] {
+  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && (!semestreAlias || c.semestre === semestreAlias));
+  const parSemaine = new Map<string, { present: number; total: number }>();
+  for (const c of cahiers) {
+    const p = c.presences.find((x) => x.etudiantId === etudiantId);
+    if (!p) continue;
+    const weekStart = mondayOf(c.date);
+    const entry = parSemaine.get(weekStart) ?? { present: 0, total: 0 };
+    entry.total++;
+    if (p.statut === "present") entry.present++;
+    parSemaine.set(weekStart, entry);
+  }
+  return [...parSemaine.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([weekStart, e], i) => ({
+      semaineLabel: `Sem. ${i + 1}`,
+      weekStart,
+      present: e.present,
+      total: e.total,
+      pct: e.total > 0 ? Math.round((e.present / e.total) * 100) : 0,
+    }));
+}
+
+export interface PresenceParEc {
+  ec: string;
+  present: number;
+  total: number;
+  pct: number;
+}
+
+/** Taux de présence réel par matière (EC) — permet de repérer les cours où l'assiduité décroche,
+ * jamais une moyenne globale déguisée en détail par matière. */
+export function getPresenceParEcPourEtudiant(etudiantId: string, semestreAlias?: string): PresenceParEc[] {
+  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && (!semestreAlias || c.semestre === semestreAlias));
+  const parEc = new Map<string, { present: number; total: number }>();
+  for (const c of cahiers) {
+    const p = c.presences.find((x) => x.etudiantId === etudiantId);
+    if (!p) continue;
+    const entry = parEc.get(c.ec) ?? { present: 0, total: 0 };
+    entry.total++;
+    if (p.statut === "present") entry.present++;
+    parEc.set(c.ec, entry);
+  }
+  return [...parEc.entries()]
+    .map(([ec, e]) => ({ ec, present: e.present, total: e.total, pct: e.total > 0 ? Math.round((e.present / e.total) * 100) : 0 }))
+    .sort((a, b) => b.pct - a.pct);
 }
 
 /** Heures d'absence réellement non justifiées d'un étudiant pour une classe/session — utilisées

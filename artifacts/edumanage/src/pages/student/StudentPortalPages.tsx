@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2, MapPin, AlertTriangle } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useSeances, useNotes, usePaiementsByEtudiant, useReleves, useCahiers, useAnneeActuelle, useInscriptions } from "@/hooks/useStudentStore";
@@ -26,7 +26,7 @@ import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { payerQuittance } from "@/data/studentStore";
 import { enregistrerEncaissement } from "@/data/encaissementStore";
-import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
+import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant, getPresenceHebdoPourEtudiant, getPresenceParEcPourEtudiant, getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
 import type { ReleveRecord } from "@/data/studentStore";
 
 const JOURS_GRID = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -1519,62 +1519,324 @@ export function StudentCoursPage() {
   );
 }
 
+function AbsenceLigne({ r, withMatiere = true }: { r: ReturnType<typeof getAssiduiteRowsPourEtudiant>[number]; withMatiere?: boolean }) {
+  return (
+    <tr className="border-b border-border last:border-0" data-testid={`absence-ligne-${r.id}`}>
+      <td className="px-4 py-3 whitespace-nowrap">{formatDate(r.date)}</td>
+      {withMatiere && (
+        <td className="px-4 py-3">
+          <div className="font-medium text-foreground">{r.ec}</div>
+          <div className="text-[11px] text-muted-foreground">{r.prof}</div>
+        </td>
+      )}
+      <td className="px-4 py-3">
+        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap", r.type === "absence" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300")}>
+          {r.type === "absence" ? "Absence" : `Retard${r.retardMinutes ? ` (${r.retardMinutes} min)` : ""}`}
+        </span>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{r.heureDebut}–{r.heureFin}</td>
+      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><MapPin size={11} />{r.salle || "—"}</span>
+      </td>
+      <td className="px-4 py-3">
+        {r.justifie ? (
+          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Justifiée{r.justification ? ` — ${r.justification}` : ""}</span>
+        ) : (
+          <div>
+            <p className="text-xs text-muted-foreground">Non justifiée</p>
+            <Link href="/student/requests" className="text-xs text-primary hover:underline whitespace-nowrap" data-testid={`absence-justifier-${r.id}`}>
+              Demander une justification
+            </Link>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function StudentAbsencesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
+  const ues = useUes();
   useCahiers(); // s'abonne pour refléter les cahiers de séance réellement soumis
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
-  const rows = student ? getAssiduiteRowsPourEtudiant(student.id) : [];
-  const taux = student ? getTauxPresencePourEtudiant(student.id) : { present: 0, total: 0, pct: 100 };
+
+  const [semestreSelectionne, setSemestreSelectionne] = useState("");
+  const [onglet, setOnglet] = useState<"apercu" | "matieres" | "historique">("apercu");
+  const [matiereFiltre, setMatiereFiltre] = useState("");
+
+  const mesUes = useMemo(
+    () => ues.filter((u) => u.filiereId === student?.filiereId && u.niveau === student?.niveau).sort((a, b) => a.semestre.localeCompare(b.semestre)),
+    [ues, student?.filiereId, student?.niveau],
+  );
+  const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
+  const semestreActif = semestreSelectionne || semestres[0] || "";
+
+  const rowsSemestre = useMemo(
+    () => (student ? getAssiduiteRowsPourEtudiant(student.id).filter((r) => r.semestre === semestreActif) : []),
+    [student, semestreActif],
+  );
+  const matieres = useMemo(() => Array.from(new Set(rowsSemestre.map((r) => r.ec))).sort(), [rowsSemestre]);
+  const rowsFiltrees = useMemo(
+    () => (matiereFiltre ? rowsSemestre.filter((r) => r.ec === matiereFiltre) : rowsSemestre),
+    [rowsSemestre, matiereFiltre],
+  );
+
+  const taux = student ? getTauxPresencePourEtudiant(student.id, semestreActif || undefined) : { present: 0, total: 0, pct: 100 };
+  const hebdo = useMemo(() => (student ? getPresenceHebdoPourEtudiant(student.id, semestreActif || undefined) : []), [student, semestreActif]);
+  const parMatiere = useMemo(() => (student ? getPresenceParEcPourEtudiant(student.id, semestreActif || undefined) : []), [student, semestreActif]);
+  const heuresNonJustifiees = student && student.classeId ? getHeuresAbsenceNonJustifieePourEtudiant(student.id, student.classeId, semestreActif) : 0;
+
+  const absencesCount = rowsSemestre.filter((r) => r.type === "absence").length;
+  const retardsCount = rowsSemestre.filter((r) => r.type === "retard").length;
+
+  const repartition = [
+    { label: "Présences", color: "#10b981", count: taux.present },
+    { label: "Retards", color: "#f59e0b", count: retardsCount },
+    { label: "Absences", color: "#ef4444", count: absencesCount },
+  ].filter((d) => d.count > 0);
+
+  if (!student) return null;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap justify-between gap-3">
+      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Absences & retards</h2>
+          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Absences / retards</h2>
           <p className="text-sm text-muted-foreground mt-1">Constatés à partir des cahiers de séance réellement soumis</p>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Taux de présence</p>
-          <p className={`text-xl font-bold ${taux.pct >= 80 ? "text-emerald-600" : "text-red-500"}`}>{taux.pct}%</p>
-          <p className="text-[11px] text-muted-foreground">{taux.present}/{taux.total} séances</p>
-        </div>
-      </div>
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-10">Aucune absence ni retard constaté.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Module (EC)</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Justifié</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-0" data-testid={`absence-ligne-${r.id}`}>
-                  <td className="px-4 py-3">{formatDate(r.date)}</td>
-                  <td className="px-4 py-3">{r.ec}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", r.type === "absence" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700")}>
-                      {r.type === "absence" ? "Absence" : `Retard${r.retardMinutes ? ` (${r.retardMinutes} min)` : ""}`}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.justifie ? (
-                      <span className="text-xs text-emerald-600 font-medium">Justifié{r.justification ? ` — ${r.justification}` : ""}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Non justifié</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {semestres.length > 0 && (
+          <select
+            value={semestreActif}
+            onChange={(e) => setSemestreSelectionne(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="absences-semestre"
+          >
+            {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard icon={CheckCircle2} label="Taux de présence" value={`${taux.pct}%`} subtitle={`${taux.present}/${taux.total} séances`} accentColor={taux.pct >= 80 ? "#10b981" : "#ef4444"} />
+        <KPICard icon={ShieldAlert} label="Absences" value={absencesCount} subtitle={taux.total > 0 ? `${Math.round((absencesCount / taux.total) * 100)}% des séances` : undefined} accentColor="#ef4444" />
+        <KPICard icon={Clock} label="Retards" value={retardsCount} subtitle={taux.total > 0 ? `${Math.round((retardsCount / taux.total) * 100)}% des séances` : undefined} accentColor="#f59e0b" />
+        <KPICard icon={Library} label="Total séances" value={taux.total} subtitle="Cette période" accentColor="#2563eb" />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4 min-w-0">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+            {([["apercu", "Vue d'ensemble"], ["matieres", "Par matière"], ["historique", "Historique"]] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setOnglet(key)}
+                className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-colors", onglet === key ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
+                data-testid={`absences-onglet-${key}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {onglet === "apercu" && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-4 min-w-0">
+                <div className="rounded-2xl border border-border bg-card p-5 min-w-0">
+                  <h3 className="text-sm font-bold text-foreground mb-3">Répartition des statuts</h3>
+                  {repartition.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-8">Aucune séance constatée pour l'instant.</p>
+                  ) : (
+                    <>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <PieChart>
+                          <Pie data={repartition} cx="50%" cy="50%" outerRadius={65} innerRadius={35} dataKey="count">
+                            {repartition.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                          </Pie>
+                          <Tooltip formatter={(v: number, _n, item) => [`${v} séance(s)`, item.payload.label]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="space-y-1.5 mt-2">
+                        {repartition.map((d) => (
+                          <div key={d.label} className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2 h-2 rounded-full" style={{ background: d.color }} />{d.label}</span>
+                            <span className="font-semibold text-foreground">{d.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card p-5 min-w-0">
+                  <h3 className="text-sm font-bold text-foreground mb-3">Évolution de la présence</h3>
+                  {hebdo.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-8">Pas encore assez de séances pour une évolution.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={hebdo} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="semaineLabel" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip formatter={(v: number) => [`${v}%`, "Présence"]} />
+                        <Line type="monotone" dataKey="pct" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-foreground">Dernières absences et retards</h3>
+                  {rowsSemestre.length > 6 && (
+                    <button type="button" onClick={() => setOnglet("historique")} className="text-xs text-primary hover:underline">Voir tout →</button>
+                  )}
+                </div>
+                {rowsSemestre.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-10">Aucune absence ni retard constaté ce semestre.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground uppercase">
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Matière</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3">Heure</th>
+                          <th className="px-4 py-3">Salle</th>
+                          <th className="px-4 py-3">Justification</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rowsSemestre.slice(0, 6).map((r) => <AbsenceLigne key={r.id} r={r} />)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {onglet === "matieres" && (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              {parMatiere.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-10">Aucune séance constatée ce semestre.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground uppercase">
+                        <th className="px-4 py-3">Matière</th>
+                        <th className="px-4 py-3">Séances</th>
+                        <th className="px-4 py-3">Absences</th>
+                        <th className="px-4 py-3">Retards</th>
+                        <th className="px-4 py-3">Taux de présence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parMatiere.map((m) => {
+                        const abs = rowsSemestre.filter((r) => r.ec === m.ec && r.type === "absence").length;
+                        const ret = rowsSemestre.filter((r) => r.ec === m.ec && r.type === "retard").length;
+                        return (
+                          <tr key={m.ec} className="border-b border-border last:border-0">
+                            <td className="px-4 py-3 font-medium text-foreground">{m.ec}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{m.total}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{abs}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{ret}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[120px]">
+                                  <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.pct >= 80 ? "#10b981" : m.pct >= 60 ? "#f59e0b" : "#ef4444" }} />
+                                </div>
+                                <span className="font-semibold text-foreground text-xs">{m.pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {onglet === "historique" && (
+            <>
+              {matieres.length > 0 && (
+                <select
+                  value={matiereFiltre}
+                  onChange={(e) => setMatiereFiltre(e.target.value)}
+                  className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  data-testid="absences-filtre-matiere"
+                >
+                  <option value="">Toutes les matières</option>
+                  {matieres.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              )}
+              <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                {rowsFiltrees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-10">Aucune absence ni retard constaté.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground uppercase">
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Matière</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3">Heure</th>
+                          <th className="px-4 py-3">Salle</th>
+                          <th className="px-4 py-3">Justification</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rowsFiltrees.map((r) => <AbsenceLigne key={r.id} r={r} />)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="space-y-4 min-w-0">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <h3 className="text-sm font-bold text-foreground mb-3">Taux de présence par matière</h3>
+            {parMatiere.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Aucune donnée pour l'instant.</p>
+            ) : (
+              <div className="space-y-3">
+                {parMatiere.slice(0, 6).map((m) => (
+                  <div key={m.ec} className="min-w-0">
+                    <div className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <span className="text-foreground truncate pr-2 min-w-0">{m.ec}</span>
+                      <span className="font-semibold text-foreground flex-shrink-0">{m.pct}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.pct >= 80 ? "#10b981" : m.pct >= 60 ? "#f59e0b" : "#ef4444" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">Conséquence</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Vous cumulez actuellement <strong className="text-foreground">{heuresNonJustifiees} h</strong> d'absence non justifiée ce semestre. Au-delà de 10h, une exclusion disciplinaire peut être prononcée par le jury de délibération.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
