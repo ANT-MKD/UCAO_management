@@ -800,9 +800,14 @@ export function StudentFraisPayePage() {
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
   const payes = useMemo(() => paiements.filter((p) => p.statut !== "annule" && p.montant > 0), [paiements]);
+  const nonAnnules = useMemo(() => paiements.filter((p) => p.statut !== "annule"), [paiements]);
 
   const [query, setQuery] = useState("");
   const [moyenFiltre, setMoyenFiltre] = useState("");
+
+  const totalPaye = payes.reduce((s, p) => s + p.montant, 0);
+  const montantExigible = nonAnnules.reduce((s, p) => s + montantQuittance(p), 0);
+  const montantRestant = student?.soldeDu ?? 0;
 
   const moyens = useMemo(() => Array.from(new Set(payes.map((p) => p.moyen).filter(Boolean))).sort(), [payes]);
 
@@ -829,15 +834,16 @@ export function StudentFraisPayePage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Frais payés</h2>
-          <p className="text-sm text-muted-foreground mt-1">Historique des règlements effectivement encaissés</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Total réglé</p>
-          <p className="text-xl font-bold text-emerald-600">{formatCFA(payes.reduce((s, p) => s + p.montant, 0))}</p>
-        </div>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Frais payés</h2>
+        <p className="text-sm text-muted-foreground mt-1">Historique des règlements effectivement encaissés</p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard icon={CreditCard} label="Total payé" value={formatCFA(totalPaye)} accentColor="#10b981" />
+        <KPICard icon={FileText} label="Montant exigible" value={formatCFA(montantExigible)} accentColor="#2563eb" />
+        <KPICard icon={CheckCircle2} label="Montant restant" value={formatCFA(montantRestant)} subtitle={montantRestant > 0 ? undefined : "Rien à payer"} accentColor={montantRestant > 0 ? "#ef4444" : "#10b981"} />
+        <KPICard icon={Clock} label="Paiements effectués" value={payes.length} accentColor="#8b5cf6" />
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
@@ -919,17 +925,30 @@ export function StudentFraisImpayePage() {
   const today = new Date().toISOString().slice(0, 10);
   const relanceActive = student ? relances.find((r) => r.etudiantId === student.id && r.statut === "active" && !relanceEstExpiree(r)) : undefined;
 
+  const soldeDu = student?.soldeDu ?? 0;
+  const echeances = impayes.map((p) => p.dateLimite).filter((d): d is string => !!d).sort();
+  const prochaineEcheance = echeances[0];
+  const joursAvantEcheance = prochaineEcheance ? Math.ceil((new Date(prochaineEcheance).getTime() - new Date(today).getTime()) / 86400000) : undefined;
+  const enRetardGlobal = echeances.some((d) => d < today);
+
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Frais impayés</h2>
-          <p className="text-sm text-muted-foreground mt-1">Factures en attente de règlement</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Solde dû</p>
-          <p className={`text-xl font-bold ${(student?.soldeDu ?? 0) > 0 ? "text-red-500" : "text-emerald-600"}`}>{formatCFA(student?.soldeDu ?? 0)}</p>
-        </div>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Frais impayés</h2>
+        <p className="text-sm text-muted-foreground mt-1">Factures en attente de règlement</p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard icon={CreditCard} label="Total impayé" value={formatCFA(soldeDu)} subtitle={`${impayes.length} facture(s) en attente`} accentColor={soldeDu > 0 ? "#ef4444" : "#10b981"} />
+        <KPICard
+          icon={Clock}
+          label="Prochaine échéance"
+          value={prochaineEcheance ? formatShortDate(prochaineEcheance) : "—"}
+          subtitle={joursAvantEcheance !== undefined ? (joursAvantEcheance >= 0 ? `Dans ${joursAvantEcheance} jour(s)` : `Dépassée de ${-joursAvantEcheance} jour(s)`) : undefined}
+          accentColor="#f59e0b"
+        />
+        <KPICard icon={FileText} label="Factures en attente" value={impayes.length} accentColor="#2563eb" />
+        <KPICard icon={ShieldAlert} label="Statut global" value={enRetardGlobal ? "En retard" : "À jour"} accentColor={enRetardGlobal ? "#ef4444" : "#10b981"} />
       </div>
 
       {relanceActive && (
