@@ -27,6 +27,8 @@ import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { payerQuittance } from "@/data/studentStore";
 import { enregistrerEncaissement } from "@/data/encaissementStore";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant, getPresenceHebdoPourEtudiant, getPresenceParEcPourEtudiant, getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
+import { relanceEstExpiree } from "@/data/relancePaiementStore";
+import { useRelances } from "@/hooks/useRelancePaiementStore";
 import type { ReleveRecord } from "@/data/studentStore";
 
 const JOURS_GRID = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -786,12 +788,44 @@ function printRecu(p: import("@/data/studentStore").PaiementRecord) {
   w.document.close();
 }
 
+function moisLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function StudentFraisPayePage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
-  const payes = paiements.filter((p) => p.statut !== "annule" && p.montant > 0);
+  const payes = useMemo(() => paiements.filter((p) => p.statut !== "annule" && p.montant > 0), [paiements]);
+
+  const [query, setQuery] = useState("");
+  const [moyenFiltre, setMoyenFiltre] = useState("");
+
+  const moyens = useMemo(() => Array.from(new Set(payes.map((p) => p.moyen).filter(Boolean))).sort(), [payes]);
+
+  const filtres = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return payes.filter((p) => {
+      if (moyenFiltre && p.moyen !== moyenFiltre) return false;
+      if (!q) return true;
+      const haystack = [p.rubrique, ...(p.lignes?.map((l) => l.label) ?? [])].join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [payes, query, moyenFiltre]);
+
+  const groupes = useMemo(() => {
+    const map = new Map<string, typeof filtres>();
+    for (const p of filtres) {
+      const key = moisLabel(p.date);
+      const arr = map.get(key) ?? [];
+      arr.push(p);
+      map.set(key, arr);
+    }
+    return [...map.entries()];
+  }, [filtres]);
 
   return (
     <div className="space-y-4">
@@ -805,50 +839,71 @@ export function StudentFraisPayePage() {
           <p className="text-xl font-bold text-emerald-600">{formatCFA(payes.reduce((s, p) => s + p.montant, 0))}</p>
         </div>
       </div>
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        {payes.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-10">Aucun paiement enregistré.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Rubrique</th>
-                <th className="px-4 py-3">Moyen</th>
-                <th className="px-4 py-3">Montant</th>
-                <th className="px-4 py-3">Reçu</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {payes.map((p) => {
-                const c = moyenPaiementColor(p.moyen || "—");
-                return (
-                  <tr key={p.id} className="border-b border-border last:border-0" data-testid={`frais-paye-${p.id}`}>
-                    <td className="px-4 py-3">{formatDate(p.date)}</td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-foreground">{p.rubrique}</div>
-                      {p.lignes && p.lignes.length > 1 && (
-                        <div className="text-[10px] text-muted-foreground mt-0.5">{p.lignes.map((l) => l.label).join(" · ")}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {p.moyen && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ color: c.color, background: c.bg }}>{p.moyen}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-emerald-600">{formatCFA(p.montant)}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{p.numeroRecu || p.reference}</td>
-                    <td className="px-4 py-3">
-                      <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline">Imprimer</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+
+      <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher une rubrique..."
+            className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="frais-paye-recherche"
+          />
+        </div>
+        {moyens.length > 0 && (
+          <select
+            value={moyenFiltre}
+            onChange={(e) => setMoyenFiltre(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="frais-paye-filtre-moyen"
+          >
+            <option value="">Tous les moyens</option>
+            {moyens.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
         )}
       </div>
+
+      {groupes.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">
+          {payes.length === 0 ? "Aucun paiement enregistré." : "Aucun paiement ne correspond à votre recherche."}
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {groupes.map(([mois, items]) => (
+            <div key={mois} className="rounded-2xl border border-border bg-card overflow-hidden">
+              <div className="px-5 py-3 border-b border-border bg-muted/30">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase">{mois}</h3>
+              </div>
+              <div className="divide-y divide-border">
+                {items.map((p) => {
+                  const c = moyenPaiementColor(p.moyen || "—");
+                  return (
+                    <div key={p.id} className="p-4 flex flex-wrap items-center justify-between gap-3" data-testid={`frais-paye-${p.id}`}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">{p.rubrique}</p>
+                        {p.lignes && p.lignes.length > 1 && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{p.lignes.map((l) => l.label).join(" · ")}</p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {formatDate(p.date)} · Reçu {p.numeroRecu || p.reference}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {p.moyen && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{ color: c.color, background: c.bg }}>{p.moyen}</span>
+                        )}
+                        <p className="text-sm font-bold text-emerald-600 whitespace-nowrap">{formatCFA(p.montant)}</p>
+                        <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline whitespace-nowrap">Imprimer</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -858,7 +913,11 @@ export function StudentFraisImpayePage() {
   const students = useStudentStore();
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
+  const relances = useRelances();
   const impayes = paiements.filter((p) => p.statut !== "annule" && p.montant < montantQuittance(p));
+
+  const today = new Date().toISOString().slice(0, 10);
+  const relanceActive = student ? relances.find((r) => r.etudiantId === student.id && r.statut === "active" && !relanceEstExpiree(r)) : undefined;
 
   return (
     <div className="space-y-4">
@@ -872,22 +931,42 @@ export function StudentFraisImpayePage() {
           <p className={`text-xl font-bold ${(student?.soldeDu ?? 0) > 0 ? "text-red-500" : "text-emerald-600"}`}>{formatCFA(student?.soldeDu ?? 0)}</p>
         </div>
       </div>
+
+      {relanceActive && (
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" />
+          </div>
+          <p className="text-sm text-foreground">
+            Un rappel de paiement vous a été envoyé le <strong>{formatDate(relanceActive.dateEnvoi)}</strong>. Merci de régulariser votre situation avant le <strong>{formatDate(relanceActive.dateEcheance)}</strong>, faute de quoi l'accès à votre portail sera automatiquement suspendu.
+          </p>
+        </div>
+      )}
+
       {impayes.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune facture impayée — vous êtes à jour.</p>
       ) : (
         <div className="space-y-2">
           {impayes.map((p) => {
             const reste = montantQuittance(p) - p.montant;
+            const enRetard = !!p.dateLimite && p.dateLimite < today;
             return (
               <div key={p.id} className="rounded-2xl border border-border bg-card p-4 flex flex-wrap items-center justify-between gap-3" data-testid={`frais-impaye-${p.id}`}>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{p.rubrique}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-foreground">{p.rubrique}</p>
+                    {p.dateLimite && (
+                      <span className={cn("text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap", enRetard ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300")}>
+                        {enRetard ? "En retard" : "À venir"}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Émise le {formatDate(p.date)}{p.dateLimite && ` · échéance ${formatShortDate(p.dateLimite)}`}
                     {p.montant > 0 && ` · ${formatCFA(p.montant)} déjà réglé`}
                   </p>
                 </div>
-                <p className="text-lg font-bold text-red-500">{formatCFA(reste)}</p>
+                <p className="text-lg font-bold text-red-500 flex-shrink-0">{formatCFA(reste)}</p>
               </div>
             );
           })}
