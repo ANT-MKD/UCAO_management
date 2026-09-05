@@ -1,4 +1,5 @@
 import { peekNextMatricule } from "@/data/studentStore";
+import { getTeachers } from "@/data/teacherStore";
 
 export const SERIES_BAC = ["S1", "S2", "S3", "L", "L1", "L2", "G1", "G2", "STI", "STEG", "Autre"] as const;
 
@@ -55,10 +56,20 @@ export function generateMatriculeEtudiant(filiereCode?: string): string {
   return peekNextMatricule(filiereCode ?? "XXX");
 }
 
-export function generateMatriculeEnseignant(): string {
+/** Séquentiel et garanti unique (contre les fiches existantes + les matricules déjà réservés dans
+ * le même lot d'import) — un tirage au hasard pouvait produire un matricule déjà pris par un autre
+ * compte, ce qui bloquait silencieusement la création du compte de connexion lié. */
+export function generateMatriculeEnseignant(reserved: string[] = []): string {
   const year = new Date().getFullYear();
-  const seq = String(Math.floor(Math.random() * 900) + 100).padStart(3, "0");
-  return `ENS-${year}-${seq}`;
+  const prefix = `ENS-${year}-`;
+  const existing = [...getTeachers().map((t) => t.matricule), ...reserved];
+  let maxSeq = 99;
+  for (const m of existing) {
+    if (!m.startsWith(prefix)) continue;
+    const seq = Number(m.slice(prefix.length));
+    if (!Number.isNaN(seq)) maxSeq = Math.max(maxSeq, seq);
+  }
+  return `${prefix}${String(maxSeq + 1).padStart(3, "0")}`;
 }
 
 export function generateMotDePasse(): string {

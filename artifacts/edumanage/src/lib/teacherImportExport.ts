@@ -49,6 +49,7 @@ export async function parseTeacherExcel(file: File): Promise<ParsedTeacherRow[]>
   const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
   const rows: ParsedTeacherRow[] = [];
+  const matriculesReserves: string[] = [];
   for (const raw of json) {
     const prenom = str(get(raw, "prenom", "prénom"));
     const nom = str(get(raw, "nom"));
@@ -59,12 +60,14 @@ export async function parseTeacherExcel(file: File): Promise<ParsedTeacherRow[]>
     const statutTxt = str(get(raw, "statut", "grade"));
     const sexeTxt = str(get(raw, "sexe")).toUpperCase();
     const dernierDiplome = str(get(raw, "dernier diplome", "diplome"));
+    const matricule = generateMatriculeEnseignant(matriculesReserves);
+    matriculesReserves.push(matricule);
 
     rows.push({
       payload: {
         prenom,
         nom: nom.toUpperCase(),
-        matricule: generateMatriculeEnseignant(),
+        matricule,
         telephone,
         specialite,
         specialites: [specialite],
