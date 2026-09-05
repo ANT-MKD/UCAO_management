@@ -19,7 +19,6 @@ import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { getCahierStatsForEc } from "@/data/studentStore";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
-import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useMentions } from "@/hooks/useMentionsStore";
@@ -1364,54 +1363,6 @@ export function StudentPayerFacturesPage() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-export function StudentProfilePage() {
-  const { currentUser } = useAuth();
-  const students = useStudentStore();
-  const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
-  if (!student) return <p className="text-sm text-muted-foreground">Profil introuvable.</p>;
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-4 max-w-2xl">
-      <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mon profil</h2>
-      <p className="text-xs text-muted-foreground">Le matricule est définitif dès la 1ère inscription.</p>
-      {[
-        ["Matricule", student.matricule],
-        ["Nom", `${student.prenom} ${student.nom}`],
-        ["Email", student.email],
-        ["Téléphone", student.telephone || "—"],
-        ["Filière", student.filiere],
-        ["Niveau", student.niveau],
-        ["Classe pédagogique", student.classe],
-        ["Année", student.annee],
-      ].map(([label, value]) => (
-        <div key={label} className="flex justify-between border-b border-border py-2 text-sm">
-          <span className="text-muted-foreground">{label}</span>
-          <span className="font-medium">{value}</span>
-        </div>
-      ))}
-
-      {(student.documentsFournis?.length ?? 0) > 0 && (
-        <div className="pt-3 border-t border-border">
-          <h3 className="text-sm font-semibold text-foreground mb-2" style={{ fontFamily: "Outfit, sans-serif" }}>
-            Pièces justificatives déposées
-          </h3>
-          <ul className="space-y-1 text-sm">
-            {student.documentsFournis!.map((docId) => {
-              const label = DOCUMENTS_INSCRIPTION.find((d) => d.id === docId)?.label ?? docId;
-              return (
-                <li key={docId} className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">{docId}</span>
-                  <span className="text-foreground font-medium">{label}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

@@ -242,6 +242,9 @@ export interface UserAccountRecord {
    * modules autorisés. Absent = accès complet (comportement historique, jamais cassé pour les
    * comptes existants). */
   roleId?: string;
+  /** Horodatage du dernier changement de mot de passe réel (changeOwnPassword) — absent tant que
+   * le compte n'a jamais changé son mot de passe initial. */
+  passwordUpdatedAt?: string;
 }
 
 export interface StudentRequestRecord {
@@ -806,6 +809,19 @@ export function updateUserPassword(userId: string, newPassword: string): void {
   persist();
 }
 
+/** Changement de mot de passe par le titulaire du compte lui-même — exige l'ancien mot de passe
+ * (contrairement à updateUserPassword, utilisé par le flux PIN où l'identité est déjà vérifiée
+ * autrement). Retourne false sans rien modifier si l'ancien mot de passe est incorrect. */
+export function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): boolean {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user || user.password !== currentPassword) return false;
+  user.password = newPassword;
+  user.passwordUpdatedAt = new Date().toISOString();
+  logAudit(userId, "update_password", "user_account", userId);
+  persist();
+  return true;
+}
+
 export function getUserAccountById(id: string): UserAccountRecord | undefined {
   return store.users.find((u) => u.id === id);
 }
@@ -1102,6 +1118,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
 
 export interface EtudiantInfosPayload {
   adresse?: string;
+  telephone?: string;
   nomTuteur?: string;
   telTuteur?: string;
   lieuNaissance?: string;
@@ -2247,6 +2264,8 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
   store.requests = [req, ...store.requests];
   const admin = store.users.find((u) => u.role === "admin");
   if (admin) pushNotification(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
+  const auteur = store.users.find((u) => u.linkedId === payload.studentId && u.role === "student");
+  if (auteur) logAudit(auteur.id, "create_request", "request", req.id, req.subject);
   persist();
   return req;
 }
@@ -2259,6 +2278,8 @@ export function cancelStudentRequest(id: string, studentId: string): void {
   if (!req || req.studentId !== studentId || req.status !== "nouveau") return;
   req.status = "annule";
   req.updatedAt = new Date().toISOString();
+  const auteur = store.users.find((u) => u.linkedId === studentId && u.role === "student");
+  if (auteur) logAudit(auteur.id, "cancel_request", "request", req.id, req.subject);
   persist();
 }
 

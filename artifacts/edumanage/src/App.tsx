@@ -224,7 +224,7 @@ const StudentCahierPage = lazy(() => import("@/pages/student/StudentCahierPage")
 const StudentFraisPayePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentFraisPayePage })));
 const StudentFraisImpayePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentFraisImpayePage })));
 const StudentPayerFacturesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentPayerFacturesPage })));
-const StudentProfilePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentProfilePage })));
+const StudentProfilePage = lazy(() => import("@/pages/student/StudentProfilePage"));
 
 function PageLoader() {
   return (
