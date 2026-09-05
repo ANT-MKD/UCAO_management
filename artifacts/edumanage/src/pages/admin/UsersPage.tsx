@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Plus, Image as ImageIcon, Eye, Download } from "lucide-react";
+import { Plus, Image as ImageIcon, Eye, Download, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
@@ -13,8 +13,15 @@ import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { generateMotDePasse } from "@/lib/inscriptionConstants";
 import { exportUsersToExcel } from "@/lib/userExport";
 import { cn } from "@/lib/utils";
+
+interface CompteGenere {
+  nom: string;
+  identifiant: string;
+  motDePasse: string;
+}
 
 const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
@@ -42,6 +49,8 @@ export default function UsersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkResults, setBulkResults] = useState<CompteGenere[] | null>(null);
 
   const filtered = roleFilter ? comptes.filter((c) => c.role === roleFilter) : comptes;
 
@@ -92,6 +101,37 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Création impossible");
     }
+  };
+
+  const handleBulkLink = () => {
+    if (!currentUser) return;
+    const crees: CompteGenere[] = [];
+    const echecs: string[] = [];
+    for (const t of teachersDisponibles) {
+      const motDePasse = generateMotDePasse();
+      try {
+        creerCompteStaff(
+          {
+            role: "teacher",
+            prenom: t.prenom,
+            nom: t.nom,
+            identifier: t.matricule,
+            email: t.email?.trim() || `${t.matricule.toLowerCase()}@edumanage.local`,
+            password: motDePasse,
+            telephone: t.telephone,
+            photoDataUrl: t.photoDataUrl,
+            linkedId: t.id,
+          },
+          currentUser.id,
+        );
+        crees.push({ nom: `${t.prenom} ${t.nom}`, identifiant: t.matricule, motDePasse });
+      } catch (err) {
+        echecs.push(`${t.prenom} ${t.nom} (${err instanceof Error ? err.message : "erreur inconnue"})`);
+      }
+    }
+    setBulkResults(crees);
+    if (echecs.length) toast.error(`${echecs.length} fiche(s) non reliée(s) : ${echecs.join(", ")}`);
+    if (crees.length) toast.success(`${crees.length} compte(s) créé(s).`);
   };
 
   const columns: Column<Record<string, unknown>>[] = [
@@ -175,6 +215,16 @@ export default function UsersPage() {
             <button onClick={() => exportUsersToExcel(filtered)} className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste" data-testid="user-export">
               <Download size={13} /> Exporter
             </button>
+            {teachersDisponibles.length > 0 && (
+              <button
+                onClick={() => { setBulkResults(null); setBulkOpen(true); }}
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors text-muted-foreground"
+                title="Créer un compte pour chaque fiche enseignant sans compte"
+                data-testid="user-bulk-link"
+              >
+                <Link2 size={13} /> Relier {teachersDisponibles.length} enseignant(s) sans compte
+              </button>
+            )}
             <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="user-ajouter">
               <Plus size={14} /> Ajouter
             </button>
@@ -304,6 +354,50 @@ export default function UsersPage() {
             Sauvegarder
           </button>
         </div>
+      </FormModal>
+
+      <FormModal open={bulkOpen} onClose={() => setBulkOpen(false)} title="Relier les enseignants sans compte" size="md">
+        {!bulkResults ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {teachersDisponibles.length} fiche(s) enseignant n'ont pas encore de compte de connexion. Un compte sera créé pour chacune (identifiant = matricule, mot de passe généré) :
+            </p>
+            <div className="max-h-60 overflow-y-auto border border-border rounded-xl divide-y divide-border">
+              {teachersDisponibles.map((t) => (
+                <div key={t.id} className="px-3 py-2 flex items-center justify-between text-sm">
+                  <span>{t.prenom} {t.nom}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{t.matricule}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleBulkLink}
+              className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+              data-testid="user-bulk-confirm"
+            >
+              Créer {teachersDisponibles.length} compte(s)
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Comptes créés — communiquez ces mots de passe aux professeurs concernés (ils pourront ensuite le changer depuis leur profil) :
+            </p>
+            <div className="max-h-72 overflow-y-auto border border-border rounded-xl divide-y divide-border">
+              {bulkResults.map((r) => (
+                <div key={r.identifiant} className="px-3 py-2 flex items-center justify-between text-sm gap-2" data-testid="user-bulk-result-row">
+                  <span className="truncate">{r.nom}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{r.identifiant}</span>
+                  <span className="font-mono text-xs font-semibold">{r.motDePasse}</span>
+                </div>
+              ))}
+              {bulkResults.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground">Aucun compte créé.</p>}
+            </div>
+            <button onClick={() => setBulkOpen(false)} className="w-full px-4 py-2.5 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+              Fermer
+            </button>
+          </div>
+        )}
       </FormModal>
     </div>
   );
