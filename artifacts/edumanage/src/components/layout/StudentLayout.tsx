@@ -21,11 +21,12 @@ import {
   CalendarX,
   Wallet,
   CircleDollarSign,
+  FileStack,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useNotifications } from "@/hooks/useStudentStore";
+import { useNotifications, useMessages, useStudentRequests } from "@/hooks/useStudentStore";
 import { markNotificationRead } from "@/data/studentStore";
 import { STUDENT_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
@@ -55,6 +56,7 @@ const ICONS_BY_ID: Record<string, React.ElementType> = {
   "student-payer-factures": CreditCard,
   "student-messages": MessageCircle,
   "student-requests": ClipboardList,
+  "student-documents": FileStack,
   "student-profile": User,
 };
 
@@ -64,6 +66,12 @@ const STUDENT_NAV_ITEMS: StudentNavItem[] = STUDENT_PORTAL_FEATURES.map((f) => (
   href: f.href,
   icon: ICONS_BY_ID[f.id],
 }));
+
+/** Horodatage de dernière visite de "Mes demandes", posé par StudentRequestsPage.tsx à son
+ * montage — sert uniquement à calculer le badge "non lu" du sidebar, jamais une donnée métier. */
+export function requestsLastSeenKey(userId: string): string {
+  return `edumanage-requests-lastseen-${userId}`;
+}
 
 export function StudentLayout({ children }: StudentLayoutProps) {
   const [location, setLocation] = useLocation();
@@ -75,6 +83,24 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const portalFeatures = usePortalFeatures();
   const visibleNavItems = STUDENT_NAV_ITEMS.filter((item) => portalFeatures[item.id] !== false);
+  const mainNavItems = visibleNavItems.filter((item) => item.id !== "student-profile");
+  const profileNavItem = visibleNavItems.find((item) => item.id === "student-profile");
+
+  const messages = useMessages(currentUser?.id);
+  const unreadMessages = messages.filter((m) => m.toUserId === currentUser?.id && !m.read).length;
+
+  const allRequests = useStudentRequests();
+  const requestsLastSeen = currentUser && typeof window !== "undefined"
+    ? localStorage.getItem(requestsLastSeenKey(currentUser.id)) ?? ""
+    : "";
+  const unreadRequests = allRequests.filter(
+    (r) => r.studentId === currentUser?.linkedId && r.status !== "nouveau" && r.status !== "annule" && r.updatedAt > requestsLastSeen,
+  ).length;
+
+  const NAV_BADGES: Record<string, number> = {
+    "student-messages": unreadMessages,
+    "student-requests": unreadRequests,
+  };
 
   const handleLogout = () => {
     logout();
@@ -85,11 +111,12 @@ export function StudentLayout({ children }: StudentLayoutProps) {
     setNotifOpen((o) => !o);
   };
 
-  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
+  const NavList = ({ items, onNavigate }: { items: StudentNavItem[]; onNavigate?: () => void }) => (
     <>
-      {visibleNavItems.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon;
         const active = location === item.href || location.startsWith(item.href + "/");
+        const badgeCount = NAV_BADGES[item.id] ?? 0;
         return (
           <Link
             key={item.href}
@@ -105,7 +132,18 @@ export function StudentLayout({ children }: StudentLayoutProps) {
             title={collapsed ? item.label : undefined}
           >
             <Icon size={18} className="flex-shrink-0" />
-            <span className={cn("truncate", collapsed && "lg:hidden")}>{item.label}</span>
+            <span className={cn("truncate flex-1", collapsed && "lg:hidden")}>{item.label}</span>
+            {badgeCount > 0 && (
+              <span
+                className={cn(
+                  "flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center",
+                  collapsed && "lg:hidden",
+                )}
+                data-testid={`nav-badge-${item.id}`}
+              >
+                {badgeCount > 9 ? "9+" : badgeCount}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -143,8 +181,14 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           </div>
 
           <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-            <NavLinks />
+            <NavList items={mainNavItems} />
           </nav>
+
+          {profileNavItem && (
+            <div className="px-3 pt-2 border-t border-border space-y-1 flex-shrink-0">
+              <NavList items={[profileNavItem]} />
+            </div>
+          )}
 
           <div className="p-3 border-t border-border space-y-2 flex-shrink-0">
             <div className={cn("flex items-center gap-3 rounded-xl px-2 py-2", collapsed && "justify-center")}>
@@ -191,8 +235,14 @@ export function StudentLayout({ children }: StudentLayoutProps) {
             </div>
 
             <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-              <NavLinks onNavigate={() => setMobileOpen(false)} />
+              <NavList items={mainNavItems} onNavigate={() => setMobileOpen(false)} />
             </nav>
+
+            {profileNavItem && (
+              <div className="px-3 pt-2 border-t border-border space-y-1 flex-shrink-0">
+                <NavList items={[profileNavItem]} onNavigate={() => setMobileOpen(false)} />
+              </div>
+            )}
 
             <div className="p-3 border-t border-border space-y-2 flex-shrink-0">
               <div className="flex items-center gap-3 rounded-xl px-2 py-2">
@@ -248,34 +298,44 @@ export function StudentLayout({ children }: StudentLayoutProps) {
               )}
             </button>
             {notifOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] max-w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto">
-                <div className="px-4 py-3 border-b border-border flex items-center justify-between sticky top-0 bg-popover">
+              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] max-w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden flex flex-col">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
                   <span className="font-semibold text-sm">Notifications</span>
                   <span className="text-xs text-primary font-medium">{unreadCount} non lue(s)</span>
                 </div>
-                {notifications.length === 0 ? (
-                  <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune notification</p>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
-                      className={cn(
-                        "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
-                        !n.read && "bg-primary/[0.03]",
-                      )}
-                      data-testid={`student-notification-${n.id}`}
-                    >
-                      <div className="flex gap-2">
-                        {!n.read && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
-                        <div className={!n.read ? "" : "pl-3.5"}>
-                          <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune notification</p>
+                  ) : (
+                    notifications.slice(0, 8).map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
+                        className={cn(
+                          "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
+                          !n.read && "bg-primary/[0.03]",
+                        )}
+                        data-testid={`student-notification-${n.id}`}
+                      >
+                        <div className="flex gap-2">
+                          {!n.read && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
+                          <div className={!n.read ? "" : "pl-3.5"}>
+                            <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+                <Link
+                  href="/student/notifications"
+                  onClick={() => setNotifOpen(false)}
+                  className="px-4 py-2.5 text-xs font-medium text-primary text-center hover:bg-muted transition-colors border-t border-border flex-shrink-0"
+                  data-testid="student-notifications-see-all"
+                >
+                  Voir toutes les notifications
+                </Link>
               </div>
             )}
           </div>

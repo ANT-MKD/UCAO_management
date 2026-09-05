@@ -2374,6 +2374,17 @@ export function markNotificationRead(notificationId: string, userId: string) {
   persist();
 }
 
+export function markAllNotificationsRead(userId: string) {
+  let changed = false;
+  for (const n of store.notifications) {
+    if (n.userId === userId && !n.read) {
+      n.read = true;
+      changed = true;
+    }
+  }
+  if (changed) persist();
+}
+
 export function getAuditLogs(): AuditLogRecord[] {
   return store.auditLogs;
 }

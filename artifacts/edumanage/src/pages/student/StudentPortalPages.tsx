@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Eye, CreditCard, ShieldAlert, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2, MapPin, AlertTriangle, Phone, Mail, Wallet } from "lucide-react";
+import { Eye, CreditCard, ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight, Search, Clock, Library, BookOpen, GraduationCap, LayoutGrid, List, Table2, SlidersHorizontal, ChevronDown, ChevronUp, X, Award, FileText, PieChart as PieChartIcon, Trophy, CheckCircle2, MapPin, AlertTriangle, Phone, Mail, Wallet } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,8 @@ import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant, getPresenceH
 import { relanceEstExpiree } from "@/data/relancePaiementStore";
 import { getEtablissement } from "@/data/etablissementStore";
 import { useRelances } from "@/hooks/useRelancePaiementStore";
+import { derogationActivePour } from "@/data/derogationPaiementStore";
+import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import type { ReleveRecord } from "@/data/studentStore";
 
 const JOURS_GRID = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -519,6 +521,18 @@ export function StudentRelevesPage() {
   );
   const inscriptionCorrespondante = selected ? inscriptions.find((i) => i.annee === selected.annee) : undefined;
 
+  const progression = useMemo(
+    () =>
+      [...mesReleves]
+        .sort((a, b) => releveSortKey(a) - releveSortKey(b))
+        .map((r) => {
+          const res = resolveBulletin(r, students);
+          return { semestre: r.semestre.replace(/\s*\(S\d+\)/, ""), annee: r.annee, moyenne: res?.moyenne };
+        })
+        .filter((p): p is { semestre: string; annee: string | undefined; moyenne: number } => p.moyenne !== undefined),
+    [mesReleves, students],
+  );
+
   if (!student) return null;
 
   return (
@@ -676,7 +690,23 @@ export function StudentRelevesPage() {
               )}
 
               {tab === "historique" && (
-                <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-4">
+                  {progression.length >= 2 && (
+                    <div className="rounded-2xl border border-border bg-card p-5">
+                      <h3 className="text-sm font-bold text-foreground mb-1">Progression de la moyenne</h3>
+                      <p className="text-xs text-muted-foreground mb-3">Moyenne réelle obtenue à chaque semestre validé, dans l'ordre chronologique.</p>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={progression} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="semestre" tick={{ fontSize: 11 }} />
+                          <YAxis domain={[0, 20]} tick={{ fontSize: 11 }} />
+                          <Tooltip formatter={(v: number) => [`${(v as number).toFixed(2)}/20`, "Moyenne"]} labelFormatter={(l, items) => `${l}${items?.[0]?.payload?.annee ? " — " + items[0].payload.annee : ""}`} />
+                          <Line type="monotone" dataKey="moyenne" stroke="#4f46e5" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                  <div className="grid sm:grid-cols-2 gap-3">
                   {mesReleves.map((r) => {
                     const res = resolveBulletin(r, students);
                     const isActive = r.id === selected?.id;
@@ -704,6 +734,7 @@ export function StudentRelevesPage() {
                       </button>
                     );
                   })}
+                  </div>
                 </div>
               )}
             </div>
@@ -920,10 +951,12 @@ export function StudentFraisImpayePage() {
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
   const relances = useRelances();
+  const derogations = useDerogationsPaiement();
   const impayes = paiements.filter((p) => p.statut !== "annule" && p.montant < montantQuittance(p));
 
   const today = new Date().toISOString().slice(0, 10);
   const relanceActive = student ? relances.find((r) => r.etudiantId === student.id && r.statut === "active" && !relanceEstExpiree(r)) : undefined;
+  const derogationActive = student ? derogationActivePour(derogations, student.id, "global") : undefined;
 
   const soldeDu = student?.soldeDu ?? 0;
   const echeances = impayes.map((p) => p.dateLimite).filter((d): d is string => !!d).sort();
@@ -951,13 +984,26 @@ export function StudentFraisImpayePage() {
         <KPICard icon={ShieldAlert} label="Statut global" value={enRetardGlobal ? "En retard" : "À jour"} accentColor={enRetardGlobal ? "#ef4444" : "#10b981"} />
       </div>
 
+      {derogationActive && (
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 flex items-start gap-3" data-testid="frais-impaye-derogation-active">
+          <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center flex-shrink-0">
+            <ShieldCheck size={16} className="text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p className="text-sm text-foreground">
+            Une dérogation de paiement vous protège d'une suspension d'accès jusqu'au <strong>{formatDate(derogationActive.dateFin)}</strong> (réf. {derogationActive.reference}
+            {derogationActive.motif ? ` — ${derogationActive.motif}` : ""}). Votre solde dû reste néanmoins exigible.
+          </p>
+        </div>
+      )}
+
       {relanceActive && (
         <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 p-4 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center flex-shrink-0">
             <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" />
           </div>
           <p className="text-sm text-foreground">
-            Un rappel de paiement vous a été envoyé le <strong>{formatDate(relanceActive.dateEnvoi)}</strong>. Merci de régulariser votre situation avant le <strong>{formatDate(relanceActive.dateEcheance)}</strong>, faute de quoi l'accès à votre portail sera automatiquement suspendu.
+            Un rappel de paiement vous a été envoyé le <strong>{formatDate(relanceActive.dateEnvoi)}</strong>. Merci de régulariser votre situation avant le <strong>{formatDate(relanceActive.dateEcheance)}</strong>
+            {derogationActive ? ", cependant la dérogation en cours vous protège de la suspension automatique de l'accès" : ", faute de quoi l'accès à votre portail sera automatiquement suspendu"}.
           </p>
         </div>
       )}

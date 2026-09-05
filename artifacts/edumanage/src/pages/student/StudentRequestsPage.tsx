@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ClipboardList,
@@ -25,6 +25,7 @@ import { useStudentRequests } from "@/hooks/useStudentStore";
 import { PORTEE_LABELS, type PorteeDerogation } from "@/data/derogationPaiementStore";
 import { KPICard } from "@/components/admin/KPICard";
 import { FormModal } from "@/components/admin/FormModal";
+import { requestsLastSeenKey } from "@/components/layout/StudentLayout";
 import { cn, formatDate } from "@/lib/utils";
 
 type ReqType = StudentRequestRecord["type"];
@@ -81,6 +82,13 @@ export default function StudentRequestsPage() {
     () => [...allRequests.filter((r) => r.studentId === currentUser?.linkedId)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [allRequests, currentUser?.linkedId],
   );
+
+  /** Marque la visite de cette page — sert uniquement au badge "non lu" du sidebar
+   * (StudentLayout.tsx), jamais une donnée métier persistée dans studentStore. */
+  useEffect(() => {
+    if (!currentUser) return;
+    localStorage.setItem(requestsLastSeenKey(currentUser.id), new Date().toISOString());
+  }, [currentUser, myRequests]);
 
   const [tab, setTab] = useState<"toutes" | "attente" | "validees" | "refusees" | "annulees">("toutes");
   const [query, setQuery] = useState("");

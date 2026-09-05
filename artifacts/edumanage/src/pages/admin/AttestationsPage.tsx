@@ -39,7 +39,9 @@ const STATUT_CONFIG = {
   envoyee: { label: "Envoyée", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" },
 };
 
-function buildAttestationHtml(entry: AttestationRecord) {
+/** Réutilisée telle quelle par le portail étudiant (StudentDocumentsPage.tsx) pour imprimer une
+ * attestation déjà générée — jamais un second gabarit qui risquerait de diverger de celui-ci. */
+export function buildAttestationHtml(entry: AttestationRecord) {
   const nomEtablissement = getEtablissement().nom;
   let corps = "";
   if (entry.type === "reussite") {

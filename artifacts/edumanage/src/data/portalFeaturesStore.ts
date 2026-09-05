@@ -22,6 +22,7 @@ export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "student-payer-factures", label: "Payer factures", href: "/student/payer-factures" },
   { id: "student-messages", label: "Messagerie", href: "/student/messages" },
   { id: "student-requests", label: "Mes demandes", href: "/student/requests" },
+  { id: "student-documents", label: "Mes documents", href: "/student/documents" },
   { id: "student-profile", label: "Profil", href: "/student/profile" },
 ];
 

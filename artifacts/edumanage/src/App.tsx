@@ -225,6 +225,8 @@ const StudentFraisPayePage = lazy(() => import("@/pages/student/StudentPortalPag
 const StudentFraisImpayePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentFraisImpayePage })));
 const StudentPayerFacturesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentPayerFacturesPage })));
 const StudentProfilePage = lazy(() => import("@/pages/student/StudentProfilePage"));
+const StudentNotificationsPage = lazy(() => import("@/pages/student/StudentNotificationsPage"));
+const StudentDocumentsPage = lazy(() => import("@/pages/student/StudentDocumentsPage"));
 
 function PageLoader() {
   return (
@@ -965,6 +967,12 @@ function AppRouter() {
       </Route>
       <Route path="/student/requests">
         <Student><StudentRequestsPage /></Student>
+      </Route>
+      <Route path="/student/documents">
+        <Student><StudentDocumentsPage /></Student>
+      </Route>
+      <Route path="/student/notifications">
+        <Student><StudentNotificationsPage /></Student>
       </Route>
       <Route path="/">
         <Suspense fallback={<PageLoader />}><LandingPage /></Suspense>
