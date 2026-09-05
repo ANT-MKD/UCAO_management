@@ -1,4 +1,5 @@
 import { getDecompteById, payerDecompte, reverserPaiementDecompte, type DecompteLigne } from "./decompteStore";
+import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-decompte-paiements-v1";
 
@@ -155,6 +156,10 @@ export function enregistrerPaiementDecompte(
 
   store.records = [record, ...store.records];
   persist();
+
+  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
+  if (compte) pushNotificationEtPersister(compte.id, `Paiement enregistré sur votre décompte ${record.decompteReference} : ${record.montant.toLocaleString("fr-FR")} FCFA`);
+
   return { ok: true, record };
 }
 

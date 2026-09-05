@@ -13,11 +13,17 @@ import {
   PanelLeftOpen,
   Bell,
   Library,
+  CalendarX,
+  Gauge,
+  Wallet,
+  CircleDollarSign,
+  MessageCircle,
+  User,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useNotifications } from "@/hooks/useStudentStore";
+import { useNotifications, useMessages } from "@/hooks/useStudentStore";
 import { markNotificationRead } from "@/data/studentStore";
 import { TEACHER_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
@@ -29,8 +35,15 @@ const ICONS_BY_ID: Record<string, React.ElementType> = {
   "teacher-grades": ClipboardList,
   "teacher-cahier": NotebookPen,
   "teacher-ressources": Library,
+  "teacher-absences": CalendarX,
+  "teacher-pointage": Clock3,
+  "teacher-volume": Gauge,
   "teacher-rallonge": Clock3,
+  "teacher-vacations": Wallet,
+  "teacher-decomptes": CircleDollarSign,
   "teacher-contract": FileText,
+  "teacher-messages": MessageCircle,
+  "teacher-profile": User,
 };
 
 const NAV = TEACHER_PORTAL_FEATURES.map((f) => ({
@@ -47,8 +60,37 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useNotifications(currentUser?.id);
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const messages = useMessages(currentUser?.id);
+  const unreadMessages = messages.filter((m) => m.toUserId === currentUser?.id && !m.read).length;
   const portalFeatures = usePortalFeatures();
   const visibleNav = NAV.filter((item) => portalFeatures[item.id] !== false);
+  const mainNav = visibleNav.filter((item) => item.id !== "teacher-profile");
+  const profileNavItem = visibleNav.find((item) => item.id === "teacher-profile");
+
+  const NAV_BADGES: Record<string, number> = { "teacher-messages": unreadMessages };
+
+  const renderNavItem = (item: (typeof NAV)[number]) => {
+    const active = location === item.to;
+    const badgeCount = NAV_BADGES[item.id] ?? 0;
+    return (
+      <Link
+        key={item.to}
+        href={item.to}
+        className={cn(
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+          active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        <item.icon className="w-4 h-4 shrink-0" />
+        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+        {badgeCount > 0 && (
+          <span className={cn("flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center", collapsed && "hidden")}>
+            {badgeCount > 9 ? "9+" : badgeCount}
+          </span>
+        )}
+      </Link>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -63,24 +105,14 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
             {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {visibleNav.map((item) => {
-            const active = location === item.to;
-            return (
-              <Link
-                key={item.to}
-                href={item.to}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
-                  active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                <item.icon className="w-4 h-4 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+          {mainNav.map(renderNavItem)}
         </nav>
+        {profileNavItem && (
+          <div className="px-2 pt-2 border-t border-border">
+            {renderNavItem(profileNavItem)}
+          </div>
+        )}
         <div className="p-3 border-t border-border space-y-2">
           {!collapsed && (
             <div className="flex items-center gap-2 px-1">
@@ -118,34 +150,44 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
               )}
             </button>
             {notifOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden max-h-96 overflow-y-auto">
-                <div className="px-4 py-3 border-b border-border flex items-center justify-between sticky top-0 bg-popover">
+              <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden flex flex-col">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
                   <span className="font-semibold text-sm">Notifications</span>
                   <span className="text-xs text-primary font-medium">{unreadCount} non lue(s)</span>
                 </div>
-                {notifications.length === 0 ? (
-                  <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune notification</p>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
-                      className={cn(
-                        "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
-                        !n.read && "bg-primary/[0.03]",
-                      )}
-                      data-testid={`teacher-notification-${n.id}`}
-                    >
-                      <div className="flex gap-2">
-                        {!n.read && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
-                        <div className={!n.read ? "" : "pl-3.5"}>
-                          <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune notification</p>
+                  ) : (
+                    notifications.filter((n) => !n.archived).slice(0, 8).map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
+                        className={cn(
+                          "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
+                          !n.read && "bg-primary/[0.03]",
+                        )}
+                        data-testid={`teacher-notification-${n.id}`}
+                      >
+                        <div className="flex gap-2">
+                          {!n.read && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
+                          <div className={!n.read ? "" : "pl-3.5"}>
+                            <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+                <Link
+                  href="/teacher/notifications"
+                  onClick={() => setNotifOpen(false)}
+                  className="px-4 py-2.5 text-xs font-medium text-primary text-center hover:bg-muted transition-colors border-t border-border flex-shrink-0"
+                  data-testid="teacher-notifications-see-all"
+                >
+                  Voir toutes les notifications
+                </Link>
               </div>
             )}
           </div>

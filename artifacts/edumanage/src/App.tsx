@@ -214,6 +214,14 @@ const TeacherRallongePage = lazy(() => import("@/pages/teacher/TeacherPortalPage
 const TeacherContractPortalPage = lazy(() => import("@/pages/teacher/TeacherPortalPages").then((m) => ({ default: m.TeacherContractPage })));
 const TeacherCahierPage = lazy(() => import("@/pages/teacher/TeacherCahierPage"));
 const TeacherRessourcesPage = lazy(() => import("@/pages/teacher/TeacherRessourcesPage"));
+const TeacherAbsencesPage = lazy(() => import("@/pages/teacher/TeacherAbsencesPage"));
+const TeacherPointagePage = lazy(() => import("@/pages/teacher/TeacherPointagePage"));
+const TeacherVolumeHorairePage = lazy(() => import("@/pages/teacher/TeacherVolumeHorairePage"));
+const TeacherVacationsPage = lazy(() => import("@/pages/teacher/TeacherVacationsPage"));
+const TeacherDecomptesPage = lazy(() => import("@/pages/teacher/TeacherDecomptesPage"));
+const TeacherMessagesPage = lazy(() => import("@/pages/teacher/TeacherMessagesPage"));
+const TeacherProfilePage = lazy(() => import("@/pages/teacher/TeacherProfilePage"));
+const TeacherNotificationsPage = lazy(() => import("@/pages/teacher/TeacherNotificationsPage"));
 const StudentSchedulePage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentSchedulePage })));
 const StudentCoursPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentCoursPage })));
 const StudentNotesPage = lazy(() => import("@/pages/student/StudentPortalPages").then((m) => ({ default: m.StudentNotesPage })));
@@ -922,6 +930,30 @@ function AppRouter() {
       </Route>
       <Route path="/teacher/contract">
         <Teacher><TeacherContractPortalPage /></Teacher>
+      </Route>
+      <Route path="/teacher/absences">
+        <Teacher><TeacherAbsencesPage /></Teacher>
+      </Route>
+      <Route path="/teacher/pointage">
+        <Teacher><TeacherPointagePage /></Teacher>
+      </Route>
+      <Route path="/teacher/volume">
+        <Teacher><TeacherVolumeHorairePage /></Teacher>
+      </Route>
+      <Route path="/teacher/vacations">
+        <Teacher><TeacherVacationsPage /></Teacher>
+      </Route>
+      <Route path="/teacher/decomptes">
+        <Teacher><TeacherDecomptesPage /></Teacher>
+      </Route>
+      <Route path="/teacher/messages">
+        <Teacher><TeacherMessagesPage /></Teacher>
+      </Route>
+      <Route path="/teacher/profile">
+        <Teacher><TeacherProfilePage /></Teacher>
+      </Route>
+      <Route path="/teacher/notifications">
+        <Teacher><TeacherNotificationsPage /></Teacher>
       </Route>
       <Route path="/teacher">
         <Redirect to="/teacher/dashboard" />

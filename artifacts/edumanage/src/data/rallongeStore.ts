@@ -1,4 +1,5 @@
 import { getTeacherVolume, makeTeacherVolumeId, upsertTeacherVolumes } from "@/data/teacherVolumeStore";
+import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
 
 const STORAGE_KEY = "edumanage-rallonges-v1";
 
@@ -113,5 +114,15 @@ export function updateRallongeStatut(
   }
 
   persist();
+
+  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
+  if (compte) {
+    if (statut === "valide") {
+      pushNotificationEtPersister(compte.id, `Votre demande de rallonge (+${record.vhSupplementaire}h) a été validée.`);
+    } else if (statut === "rejete") {
+      pushNotificationEtPersister(compte.id, `Votre demande de rallonge a été rejetée${record.motifRejet ? " — " + record.motifRejet : ""}.`);
+    }
+  }
+
   return record;
 }

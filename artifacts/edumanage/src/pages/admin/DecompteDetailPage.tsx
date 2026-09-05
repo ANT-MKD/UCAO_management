@@ -15,7 +15,9 @@ const TYPE_LABEL: Record<string, string> = {
   a_terme: "À terme",
 };
 
-function buildDecompteHtml(args: {
+/** Réutilisée telle quelle par le portail enseignant (TeacherDecomptesPage.tsx) pour imprimer un
+ * décompte déjà émis — jamais un second gabarit qui risquerait de diverger de celui-ci. */
+export function buildDecompteHtml(args: {
   reference: string;
   date: string;
   professeur: string;

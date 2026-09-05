@@ -1,3 +1,5 @@
+import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+
 const STORAGE_KEY = "edumanage-decomptes-v1";
 
 export type TypeDecompte = "taux_horaire" | "forfait" | "a_terme";
@@ -129,6 +131,10 @@ export function genererDecompte(payload: GenererDecomptePayload): DecompteRecord
 
   store.records = [record, ...store.records];
   persist();
+
+  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
+  if (compte) pushNotificationEtPersister(compte.id, `Nouveau décompte disponible : ${record.reference} (${record.netAPayer.toLocaleString("fr-FR")} FCFA net à payer)`);
+
   return record;
 }
 

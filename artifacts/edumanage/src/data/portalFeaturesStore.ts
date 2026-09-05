@@ -34,8 +34,15 @@ export const TEACHER_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades" },
   { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier" },
   { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources" },
+  { id: "teacher-absences", label: "Mes absences", href: "/teacher/absences" },
+  { id: "teacher-pointage", label: "Mon pointage", href: "/teacher/pointage" },
+  { id: "teacher-volume", label: "Mon volume horaire", href: "/teacher/volume" },
   { id: "teacher-rallonge", label: "Demande de rallonge", href: "/teacher/rallonge" },
+  { id: "teacher-vacations", label: "Mes vacations", href: "/teacher/vacations" },
+  { id: "teacher-decomptes", label: "Mes décomptes", href: "/teacher/decomptes" },
   { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract" },
+  { id: "teacher-messages", label: "Messagerie", href: "/teacher/messages" },
+  { id: "teacher-profile", label: "Profil", href: "/teacher/profile" },
 ];
 
 /** Item toujours accessible dans chaque portail : c'est là que le login redirige, le désactiver

@@ -1,5 +1,5 @@
 import { VACATIONS } from "./mockData";
-import { logAudit } from "./studentStore";
+import { logAudit, getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
 export type VacationStatut = "brouillon" | "valide" | "paye";
 
@@ -98,4 +98,7 @@ export function markVacationPaid(id: string, moyen: string, actorId: string) {
   v.moyen = moyen;
   logAudit(actorId, "pay_vacation", "vacation", id, `${v.enseignant} — ${v.mois} — ${moyen}`);
   persist();
+
+  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === v.enseignantId);
+  if (compte) pushNotificationEtPersister(compte.id, `Votre vacation de ${v.mois} a été payée (${v.montantTotal.toLocaleString("fr-FR")} FCFA, ${moyen})`);
 }
