@@ -1,4 +1,5 @@
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
+import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-attestation-store-v1";
 
@@ -161,6 +162,10 @@ export function genererAttestation(input: GenererAttestationInput): AttestationR
   };
   store.unshift(record);
   persist();
+
+  const compte = getUserAccounts().find((u) => u.role === "student" && u.linkedId === input.etudiantId);
+  if (compte) pushNotificationEtPersister(compte.id, `Nouveau document disponible : ${record.typeLabel} (${record.numero})`);
+
   return record;
 }
 

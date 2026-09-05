@@ -51,6 +51,11 @@ export interface EtudiantRecord {
   photoDataUrl?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
+  /** Scan (base64) de chaque pièce d'inscription déposée par l'étudiant lui-même depuis "Mes
+   * documents" — indexé par le même id que DOCUMENTS_INSCRIPTION/documentsFournis. Distinct de
+   * documentsFournis (qui ne fait que déclarer la pièce reçue, ex. à l'inscription au guichet) :
+   * un id peut être dans documentsFournis sans fichier ici (déposé physiquement), jamais l'inverse. */
+  documentsFichiers?: Record<string, string>;
   /** Référence vers motifBlocageStore.ts — restreint des actions précises (accès portail,
    * impression de documents) sans désactiver le dossier de l'étudiant. Absent = aucun blocage. */
   motifBlocageId?: string;
@@ -282,6 +287,9 @@ export interface NotificationRecord {
   message: string;
   createdAt: string;
   read: boolean;
+  /** Rangée sans être supprimée — jamais posée automatiquement, seulement par une action
+   * explicite de l'utilisateur sur sa page Notifications. */
+  archived?: boolean;
 }
 
 export interface AuditLogRecord {
@@ -1135,6 +1143,22 @@ export function updateEtudiantInfos(etudiantId: string, payload: EtudiantInfosPa
   if (!etudiant) return;
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...payload } : e));
   logAudit(actorId, "update_etudiant_infos", "etudiant", etudiantId);
+  persist();
+}
+
+/** Dépôt d'une pièce d'inscription par l'étudiant lui-même (portail, "Mes documents") — marque la
+ * pièce comme fournie (documentsFournis) et conserve le scan (documentsFichiers), pour qu'un
+ * document manquant à l'inscription puisse être régularisé sans repasser par le guichet. Le
+ * secrétariat le retrouve ensuite dans le Dossier étudiant (onglet Documents). */
+export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileDataUrl: string, actorId: string): void {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  if (!etudiant) return;
+  const documentsFournis = etudiant.documentsFournis?.includes(docId)
+    ? etudiant.documentsFournis
+    : [...(etudiant.documentsFournis ?? []), docId];
+  const documentsFichiers = { ...(etudiant.documentsFichiers ?? {}), [docId]: fileDataUrl };
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, documentsFournis, documentsFichiers } : e));
+  logAudit(actorId, "upload_document", "etudiant", etudiantId, docId);
   persist();
 }
 
@@ -2383,6 +2407,14 @@ export function markAllNotificationsRead(userId: string) {
     }
   }
   if (changed) persist();
+}
+
+export function archiveNotification(notificationId: string, userId: string, archived = true) {
+  const n = store.notifications.find((x) => x.id === notificationId && x.userId === userId);
+  if (!n) return;
+  n.archived = archived;
+  if (archived) n.read = true;
+  persist();
 }
 
 export function getAuditLogs(): AuditLogRecord[] {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award, ShieldOff, Users, StickyNote, Paperclip, Plus, Trash2, Phone } from "lucide-react";
+import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award, ShieldOff, Users, StickyNote, Paperclip, Plus, Trash2, Phone, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { StatusBadge } from "@/components/admin/StatusBadge";
@@ -36,6 +36,7 @@ import { statutDerogation, PORTEE_LABELS, type StatutDerogation } from "@/data/d
 import { useAbandons } from "@/hooks/useAbandonStore";
 import { useCreditDettes } from "@/hooks/useCreditDetteStore";
 import { soldeCreditDette } from "@/data/creditDetteStore";
+import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 
 interface StudentDossierPageProps {
   id: string;
@@ -828,7 +829,48 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
         )}
 
         {activeTab === "memos" && <MemosPanel entiteType="etudiant" entiteId={id} />}
-        {activeTab === "documents" && <DocumentsPanel entiteType="etudiant" entiteId={id} />}
+        {activeTab === "documents" && (
+          <div className="space-y-6">
+            <div>
+              <h4 className="text-sm font-bold text-foreground mb-2">Pièces d'inscription</h4>
+              <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+                {DOCUMENTS_INSCRIPTION.map((doc) => {
+                  const fournie = !!student?.documentsFournis?.includes(doc.id);
+                  const fichier = student?.documentsFichiers?.[doc.id];
+                  return (
+                    <div key={doc.id} className="flex items-center justify-between gap-3 p-3 bg-card" data-testid={`dossier-piece-${doc.id}`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {fournie ? <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" /> : <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />}
+                        <span className="text-sm text-foreground truncate">{doc.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full", fournie ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300")}>
+                          {fournie ? "Fournie" : "Manquante"}
+                        </span>
+                        {fichier && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const win = window.open("", "_blank");
+                              if (!win) return;
+                              if (fichier.startsWith("data:application/pdf")) win.location.href = fichier;
+                              else { win.document.write(`<!DOCTYPE html><html><body style="margin:0"><img src="${fichier}" style="max-width:100%" /></body></html>`); win.document.close(); }
+                            }}
+                            className="text-xs text-primary hover:underline"
+                            data-testid={`dossier-piece-voir-${doc.id}`}
+                          >
+                            Voir le scan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <DocumentsPanel entiteType="etudiant" entiteId={id} />
+          </div>
+        )}
       </div>
 
       <FormModal open={!!contactModalRole} onClose={() => setContactModalRole(null)} title={contactModalRole ? `Ajouter — ${CONTACT_ROLE_LABELS[contactModalRole]}` : ""} size="md">
