@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Upload, User } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Upload, User, Key } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
+import { creerCompteStaff } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
-import { NIVEAUX_ETUDE, generateMatriculeEnseignant } from "@/lib/inscriptionConstants";
+import { NIVEAUX_ETUDE, generateMatriculeEnseignant, generateMotDePasse } from "@/lib/inscriptionConstants";
 
 const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
@@ -36,6 +37,7 @@ export default function TeacherFormPage({ id }: Props) {
   const [diplomes, setDiplomes] = useState<string[]>([""]);
   const [specialites, setSpecialites] = useState<string[]>([""]);
   const [photoDataUrl, setPhotoDataUrl] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -113,7 +115,28 @@ export default function TeacherFormPage({ id }: Props) {
       // (Taux) ; on ne les touche donc pas pour ne pas écraser une valeur déjà réglée.
       updateTeacher(id, payload, currentUser.id);
     } else {
-      addTeacher({ ...payload, tauxHoraire: 0 }, currentUser.id);
+      const teacher = addTeacher({ ...payload, tauxHoraire: 0 }, currentUser.id);
+      try {
+        creerCompteStaff(
+          {
+            role: "teacher",
+            prenom: payload.prenom,
+            nom: payload.nom,
+            identifier: matricule,
+            email: payload.email,
+            password: motDePasse || "demo123",
+            telephone: payload.telephone,
+            photoDataUrl: payload.photoDataUrl,
+            linkedId: teacher.id,
+          },
+          currentUser.id,
+        );
+        toast.success("Enseignant ajouté et compte de connexion créé.");
+      } catch (err) {
+        toast.error(
+          `Enseignant ajouté, mais compte de connexion non créé (${err instanceof Error ? err.message : "erreur inconnue"}). Vous pourrez le relier depuis Sécurité > Utilisateurs.`,
+        );
+      }
     }
     setLocation("/admin/teachers");
   };
@@ -312,6 +335,25 @@ export default function TeacherFormPage({ id }: Props) {
               </div>
             </div>
           </div>
+
+          {!isEdit && (
+            <div className="border-t border-border pt-4">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-2">Accès portail professeur</p>
+              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule ({matricule}) + mot de passe généré (modifiable par le professeur depuis son profil)</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-xl font-mono text-sm" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                  {motDePasse || "—"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMotDePasse(generateMotDePasse())}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
+                >
+                  <Key size={14} /> Générer mot de passe
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2 border-t border-border">
             <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">

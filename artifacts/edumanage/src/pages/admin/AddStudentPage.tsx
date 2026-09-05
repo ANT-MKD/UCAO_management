@@ -17,7 +17,7 @@ import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, nbEchean
 import {
   SERIES_BAC, STATUTS_INSCRIPTION, TYPES_ADMISSION, DOCUMENTS_INSCRIPTION,
   STATUTS_PAIEMENT,
-  generateMotDePasseEtudiant,
+  generateMotDePasse,
 } from "@/lib/inscriptionConstants";
 import { cn, formatCFA, formatShortDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -780,7 +780,7 @@ export default function AddStudentPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMotDePasse(generateMotDePasseEtudiant())}
+                  onClick={() => setMotDePasse(generateMotDePasse())}
                   className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
                 >
                   <Key size={14} /> Générer mot de passe

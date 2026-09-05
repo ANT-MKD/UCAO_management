@@ -61,7 +61,7 @@ export function generateMatriculeEnseignant(): string {
   return `ENS-${year}-${seq}`;
 }
 
-export function generateMotDePasseEtudiant(): string {
+export function generateMotDePasse(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let pwd = "";
   for (let i = 0; i < 8; i++) {
