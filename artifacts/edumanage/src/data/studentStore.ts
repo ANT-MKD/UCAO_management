@@ -845,11 +845,16 @@ export interface CreerCompteStaffPayload {
   fonction?: string;
   photoDataUrl?: string;
   roleId?: string;
+  /** Fiche enseignant (teacherStore.ts) à relier — obligatoire pour role "teacher" : sans ce lien,
+   * currentUser.linkedId ne résout jamais vers un TeacherRecord et tout le portail enseignant
+   * ("Mes modules", "Mon EDT", "Mon contrat"...) resterait vide pour ce compte. Sans objet pour
+   * role "admin", qui n'a pas de fiche séparée à relier. */
+  linkedId?: string;
 }
 
 /** Crée un vrai compte de connexion admin/professeur (jamais un étudiant — géré par le parcours
  * d'inscription). Rejette un identifiant ou un email déjà pris, comme le ferait un vrai système
- * d'authentification. */
+ * d'authentification, ainsi qu'une fiche enseignant déjà reliée à un autre compte. */
 export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: string): UserAccountRecord {
   const idLower = payload.identifier.trim().toLowerCase();
   const emailLower = payload.email.trim().toLowerCase();
@@ -858,6 +863,9 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
   }
   if (store.users.some((u) => u.email.toLowerCase() === emailLower)) {
     throw new Error("Cet email est déjà utilisé par un autre compte.");
+  }
+  if (payload.role === "teacher" && payload.linkedId && store.users.some((u) => u.role === "teacher" && u.linkedId === payload.linkedId)) {
+    throw new Error("Cette fiche enseignant est déjà reliée à un autre compte.");
   }
   const account: UserAccountRecord = {
     id: `u-staff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -871,6 +879,7 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
     photoDataUrl: payload.photoDataUrl,
     actif: true,
     roleId: payload.roleId,
+    linkedId: payload.role === "teacher" ? payload.linkedId : undefined,
   };
   store.users = [...store.users, account];
   logAudit(creePar, "create_user_account", "user_account", account.id, account.displayName);

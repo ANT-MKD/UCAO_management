@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Plus, Image as ImageIcon, Eye, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -8,6 +8,7 @@ import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useUserAccounts } from "@/hooks/useStudentStore";
 import { useRoles } from "@/hooks/useRoleStore";
+import { useTeachers } from "@/hooks/useTeacherStore";
 import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,7 @@ const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
 const EMPTY_FORM = {
   role: "teacher" as "admin" | "teacher",
+  teacherId: "",
   prenom: "",
   nom: "",
   identifier: "",
@@ -35,12 +37,19 @@ export default function UsersPage() {
   const [, setLocation] = useLocation();
   const comptes = useUserAccounts().filter((c) => c.role !== "student");
   const roles = useRoles();
+  const teachers = useTeachers();
   const [roleFilter, setRoleFilter] = useState<"" | "admin" | "teacher">("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState("");
 
   const filtered = roleFilter ? comptes.filter((c) => c.role === roleFilter) : comptes;
+
+  /** Fiches enseignant pas encore reliées à un compte de connexion — une fiche ne peut être
+   * choisie que par un seul compte, jamais deux, sans quoi deux comptes se disputeraient le même
+   * currentUser.linkedId. */
+  const teachersDejaLies = new Set(comptes.filter((c) => c.role === "teacher" && c.linkedId).map((c) => c.linkedId));
+  const teachersDisponibles = teachers.filter((t) => !teachersDejaLies.has(t.id));
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -55,7 +64,7 @@ export default function UsersPage() {
     reader.readAsDataURL(file);
   };
 
-  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password);
+  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password) && (form.role !== "teacher" || form.teacherId);
 
   const handleSave = () => {
     if (!currentUser || !peutSauvegarder) return;
@@ -73,6 +82,7 @@ export default function UsersPage() {
           fonction: form.fonction || undefined,
           roleId: form.roleId || undefined,
           photoDataUrl: form.photoDataUrl || undefined,
+          linkedId: form.role === "teacher" ? form.teacherId : undefined,
         },
         currentUser.id,
       );
@@ -201,22 +211,58 @@ export default function UsersPage() {
               <img src={form.photoDataUrl} alt="Aperçu" className="mt-2 w-16 h-16 rounded-full object-cover border border-border" data-testid="user-photo-apercu" />
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
-              <input value={form.prenom} onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))} className={inputClass} data-testid="user-prenom" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-              <input value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={inputClass} data-testid="user-nom" />
-            </div>
-          </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Profil *</label>
-            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as "admin" | "teacher" }))} className={inputClass} data-testid="user-role">
+            <select
+              value={form.role}
+              onChange={(e) => {
+                const role = e.target.value as "admin" | "teacher";
+                setForm((f) => (role === "teacher" ? { ...f, role, teacherId: "", prenom: "", nom: "" } : { ...f, role, teacherId: "" }));
+              }}
+              className={inputClass}
+              data-testid="user-role"
+            >
               <option value="teacher">{PORTAL_LABELS.teacher}</option>
               <option value="admin">{PORTAL_LABELS.admin}</option>
             </select>
+          </div>
+
+          {form.role === "teacher" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fiche enseignant *</label>
+              {teachersDisponibles.length === 0 ? (
+                <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                  Aucune fiche enseignant disponible — toutes sont déjà reliées à un compte, ou aucune n'existe encore.{" "}
+                  <Link href="/admin/teachers/new" className="text-primary hover:underline font-medium">Créer une fiche enseignant</Link>.
+                </p>
+              ) : (
+                <select
+                  value={form.teacherId}
+                  onChange={(e) => {
+                    const t = teachersDisponibles.find((x) => x.id === e.target.value);
+                    setForm((f) => ({ ...f, teacherId: e.target.value, prenom: t?.prenom ?? "", nom: t?.nom ?? "" }));
+                  }}
+                  className={inputClass}
+                  data-testid="user-teacher-select"
+                >
+                  <option value="">Sélectionner une fiche...</option>
+                  {teachersDisponibles.map((t) => (
+                    <option key={t.id} value={t.id}>{t.prenom} {t.nom} — {t.matricule}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
+              <input value={form.prenom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-prenom" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+              <input value={form.nom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-nom" />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Identifiant *</label>
