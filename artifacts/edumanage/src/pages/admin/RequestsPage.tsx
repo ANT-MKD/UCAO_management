@@ -20,6 +20,7 @@ const TYPE_LABELS: Record<StudentRequestRecord["type"], string> = {
   attestation: "Attestation",
   reclamation_note: "Réclamation de note",
   demande_rallonge: "Demande de rallonge",
+  autre: "Autre demande",
 };
 
 const STATUS_LABELS: Record<StudentRequestRecord["status"], string> = {
@@ -27,6 +28,7 @@ const STATUS_LABELS: Record<StudentRequestRecord["status"], string> = {
   en_cours: "En cours",
   valide: "Validé",
   rejete: "Rejeté",
+  annule: "Annulée",
 };
 
 const STATUS_COLORS: Record<StudentRequestRecord["status"], string> = {
@@ -34,6 +36,7 @@ const STATUS_COLORS: Record<StudentRequestRecord["status"], string> = {
   en_cours: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
   valide: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
   rejete: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
+  annule: "bg-muted text-muted-foreground",
 };
 
 export default function RequestsPage() {
@@ -225,40 +228,48 @@ export default function RequestsPage() {
                       </p>
                     )}
 
-                    <div className="mb-4">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                        Réponse / commentaire interne
-                      </label>
-                      <textarea
-                        value={resolution}
-                        onChange={(e) => setResolution(e.target.value)}
-                        placeholder="Motif de validation ou de rejet..."
-                        className={cn(inputClass, "min-h-[100px]")}
-                      />
-                    </div>
+                    {selected.status === "annule" ? (
+                      <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                        Cette demande a été annulée par l'étudiant avant sa prise en charge — aucune action possible.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mb-4">
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                            Réponse / commentaire interne
+                          </label>
+                          <textarea
+                            value={resolution}
+                            onChange={(e) => setResolution(e.target.value)}
+                            placeholder="Motif de validation ou de rejet..."
+                            className={cn(inputClass, "min-h-[100px]")}
+                          />
+                        </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => handleStatus("en_cours")}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
-                      >
-                        <Clock size={14} /> Prendre en charge
-                      </button>
-                      <button
-                        onClick={() => handleStatus("valide")}
-                        disabled={!peutValiderRallonge}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                        data-testid="requete-valider"
-                      >
-                        <Check size={14} /> Valider
-                      </button>
-                      <button
-                        onClick={() => handleStatus("rejete")}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 text-white text-sm hover:bg-red-700"
-                      >
-                        <X size={14} /> Rejeter
-                      </button>
-                    </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleStatus("en_cours")}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
+                          >
+                            <Clock size={14} /> Prendre en charge
+                          </button>
+                          <button
+                            onClick={() => handleStatus("valide")}
+                            disabled={!peutValiderRallonge}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                            data-testid="requete-valider"
+                          >
+                            <Check size={14} /> Valider
+                          </button>
+                          <button
+                            onClick={() => handleStatus("rejete")}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 text-white text-sm hover:bg-red-700"
+                          >
+                            <X size={14} /> Rejeter
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </>
                 );
               })()}

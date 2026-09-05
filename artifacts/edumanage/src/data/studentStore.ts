@@ -247,11 +247,14 @@ export interface UserAccountRecord {
 export interface StudentRequestRecord {
   id: string;
   studentId: string;
-  type: "justificatif_absence" | "attestation" | "reclamation_note" | "demande_rallonge";
+  type: "justificatif_absence" | "attestation" | "reclamation_note" | "demande_rallonge" | "autre";
   subject: string;
   message: string;
-  status: "nouveau" | "en_cours" | "valide" | "rejete";
+  status: "nouveau" | "en_cours" | "valide" | "rejete" | "annule";
   createdAt: string;
+  /** Dernière modification de statut — égale à createdAt tant que personne n'a touché à la
+   * demande (secrétariat ou étudiant via annulation). */
+  updatedAt: string;
   handledBy?: string;
   resolution?: string;
   /** Uniquement pour type "demande_rallonge" — la portée et la date de fin souhaitées par
@@ -2232,10 +2235,12 @@ export function getStudentRequests(): StudentRequestRecord[] {
   return store.requests;
 }
 
-export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "status">): StudentRequestRecord {
+export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "updatedAt" | "status">): StudentRequestRecord {
+  const now = new Date().toISOString();
   const req: StudentRequestRecord = {
     id: `req-${Date.now()}`,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
     status: "nouveau",
     ...payload,
   };
@@ -2246,6 +2251,17 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
   return req;
 }
 
+/** Annulation par l'étudiant lui-même — uniquement tant que le secrétariat ne s'en est pas encore
+ * saisi ("nouveau"). Une demande déjà prise en charge, validée ou rejetée n'est plus annulable
+ * par l'étudiant : il doit passer par la messagerie pour toute modification à ce stade. */
+export function cancelStudentRequest(id: string, studentId: string): void {
+  const req = store.requests.find((r) => r.id === id);
+  if (!req || req.studentId !== studentId || req.status !== "nouveau") return;
+  req.status = "annule";
+  req.updatedAt = new Date().toISOString();
+  persist();
+}
+
 /** Valider une demande "demande_rallonge" exige que handledBy soit un validateur réellement
  * désigné (communicationRolesStore, rôle "validateur_rallonge") — jamais une validation de
  * complaisance. Une fois validée, elle crée une vraie DerogationPaiementRecord (Finance) à partir
@@ -2253,11 +2269,12 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
  * au moment de la validation — connecte Communication → Finance sans étape manuelle intermédiaire. */
 export function updateStudentRequestStatus(id: string, status: StudentRequestRecord["status"], handledBy: string, resolution?: string) {
   const req = store.requests.find((r) => r.id === id);
-  if (!req) return;
+  if (!req || req.status === "annule") return;
   if (status === "valide" && req.type === "demande_rallonge" && !estAutorise("validateur_rallonge", handledBy)) {
     throw new Error("Seul un validateur désigné (Paramétrage communication) peut approuver une demande de rallonge.");
   }
   req.status = status;
+  req.updatedAt = new Date().toISOString();
   req.handledBy = handledBy;
   req.resolution = resolution;
 
