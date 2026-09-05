@@ -271,11 +271,3 @@ export function deleteSalle(id: string) {
   store.salles = store.salles.filter((s) => s.id !== id);
   persist();
 }
-
-/** Affecte une salle physique par défaut à une classe pédagogique */
-export function assignSalleToClasse(classeId: string, salleId: string | undefined) {
-  const c = store.classes.find((x) => x.id === classeId);
-  if (!c) return;
-  c.salleParDefautId = salleId;
-  persist();
-}

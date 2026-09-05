@@ -852,7 +852,7 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
     throw new Error("Cet email est déjà utilisé par un autre compte.");
   }
   const account: UserAccountRecord = {
-    id: `u-staff-${Date.now()}`,
+    id: `u-staff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role: payload.role,
     email: payload.email.trim(),
     password: payload.password,
@@ -2151,7 +2151,7 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
   const classe = getClasseById(payload.classeId);
   const salle = getSalleById(payload.salleId);
   const candidate: SeanceSlot = {
-    id: `se-${Date.now()}`,
+    id: `se-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     ...payload,
     ec: ec?.libelle,
     classe: classe?.nom,
@@ -2335,7 +2335,7 @@ export function getMessages(): MessageRecord[] {
 
 export function sendMessage(fromUserId: string, toUserId: string, subject: string, content: string): MessageRecord {
   const msg: MessageRecord = {
-    id: `msg-${Date.now()}`,
+    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     fromUserId,
     toUserId,
     subject,

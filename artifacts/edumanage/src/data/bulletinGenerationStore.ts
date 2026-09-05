@@ -166,7 +166,7 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
   const statut: BulletinGenerationRecord["statut"] = nbEchec + nbDeclasses === 0 ? "succes" : nbSucces === 0 ? "echec" : "partiel";
 
   const record: BulletinGenerationRecord = {
-    id: `gen-${Date.now()}`,
+    id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     numero: nextNumero(),
     filiereId: input.filiereId,
     filiere: input.filiere,

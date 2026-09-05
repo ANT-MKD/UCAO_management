@@ -162,7 +162,7 @@ export function envoyerMail(payload: EnvoyerMailPayload): MailEnvoyeRecord {
   const now = new Date().toISOString();
 
   const mail: MailEnvoyeRecord = {
-    id: `mail-${Date.now()}`,
+    id: `mail-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     auteurId: payload.auteurId,
     auteurLabel: payload.auteurLabel,
     date: now,
@@ -203,7 +203,7 @@ export interface MailSystemePayload {
 export function envoyerMailSysteme(payload: MailSystemePayload): MailEnvoyeRecord {
   const now = new Date().toISOString();
   const mail: MailEnvoyeRecord = {
-    id: `mail-${Date.now()}`,
+    id: `mail-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     auteurId: "system",
     auteurLabel: "Système",
     date: now,

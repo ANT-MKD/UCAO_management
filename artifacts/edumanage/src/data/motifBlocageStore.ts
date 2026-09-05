@@ -1,5 +1,6 @@
 import { getEtudiantById, getEtudiants, logAudit } from "./studentStore";
 import { getRelanceActivePour, relanceEstExpiree } from "./relancePaiementStore";
+import { trouverDerogationIdentique } from "./derogationPaiementStore";
 
 const STORAGE_KEY = "edumanage-motifs-blocage-v1";
 
@@ -117,10 +118,14 @@ export function estActionInterdite(etudiantId: string, actionId: string): boolea
     if (motif?.actionsInterdites.includes(actionId)) return true;
   }
   // Blocage automatique impayé : une relance de paiement expirée sans régularisation coupe
-  // l'accès portail, indépendamment de tout motif de blocage assigné manuellement.
+  // l'accès portail, indépendamment de tout motif de blocage assigné manuellement — sauf si une
+  // vraie dérogation de paiement à portée "global" couvre justement cet étudiant (Mes demandes →
+  // demande de rallonge validée par un validateur désigné, voir derogationPaiementStore.ts).
   if (actionId === "portail_etudiant" && etudiant && etudiant.soldeDu > 0) {
-    const relance = getRelanceActivePour(etudiantId);
-    if (relance && relanceEstExpiree(relance)) return true;
+    if (!trouverDerogationIdentique(etudiantId, "global")) {
+      const relance = getRelanceActivePour(etudiantId);
+      if (relance && relanceEstExpiree(relance)) return true;
+    }
   }
   return false;
 }
@@ -133,7 +138,7 @@ export function motifBlocagePortailPour(etudiantId: string): string | undefined 
     const motif = getMotifBlocageById(etudiant.motifBlocageId);
     if (motif?.actionsInterdites.includes("portail_etudiant")) return motif.intitule;
   }
-  if (etudiant && etudiant.soldeDu > 0) {
+  if (etudiant && etudiant.soldeDu > 0 && !trouverDerogationIdentique(etudiantId, "global")) {
     const relance = getRelanceActivePour(etudiantId);
     if (relance && relanceEstExpiree(relance)) return "Délai de règlement des impayés dépassé";
   }

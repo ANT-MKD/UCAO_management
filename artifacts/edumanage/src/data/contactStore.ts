@@ -72,14 +72,6 @@ export function addContact(payload: ContactInput, actorId: string): ContactRecor
   return record;
 }
 
-export function updateContact(id: string, patch: Partial<ContactInput>, actorId: string): void {
-  const contact = store.find((c) => c.id === id);
-  if (!contact) return;
-  store = store.map((c) => (c.id === id ? { ...c, ...patch } : c));
-  logAudit(actorId, "update_contact", "etudiant", contact.etudiantId, contact.nomComplet);
-  persist();
-}
-
 export function deleteContact(id: string, actorId: string): void {
   const contact = store.find((c) => c.id === id);
   store = store.filter((c) => c.id !== id);

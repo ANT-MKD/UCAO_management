@@ -99,14 +99,6 @@ export function envoyerRelancePaiement(etudiantId: string, delaiJours: number, a
   return record;
 }
 
-export function annulerRelance(id: string, actorId: string): void {
-  const relance = store.find((r) => r.id === id);
-  if (!relance) return;
-  store = store.map((r) => (r.id === id ? { ...r, statut: "annulee" as const } : r));
-  logAudit(actorId, "annuler_relance_paiement", "etudiant", relance.etudiantId);
-  persist();
-}
-
 /** Une relance "active" se résout d'elle-même dès que l'étudiant n'a plus d'impayé — jamais un
  * flag écrit en base, toujours réévalué en direct (comme relanceEstExpiree), pour ne pas avoir à
  * intercepter chaque point d'entrée de paiement (AddPaiementPage, réinscription, quittance...). */

@@ -138,7 +138,7 @@ export function genererAttestation(input: GenererAttestationInput): AttestationR
     decisionConstatee = eligibilite.decision;
   }
   const record: AttestationRecord = {
-    id: `att-${Date.now()}`,
+    id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     numero: prochainNumero(),
     etudiantId: input.etudiantId,
     etudiant: input.etudiant,

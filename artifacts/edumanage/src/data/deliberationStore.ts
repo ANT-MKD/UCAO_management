@@ -195,7 +195,7 @@ export function chargerDeliberation(input: ChargerDeliberationInput): Deliberati
   }
 
   const record: DeliberationRecord = {
-    id: `delib-${Date.now()}`,
+    id: `delib-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     filiereId: input.filiereId,
     filiere: input.filiere,
     annee: input.annee,
