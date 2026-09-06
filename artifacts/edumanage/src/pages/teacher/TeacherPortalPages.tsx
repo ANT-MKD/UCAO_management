@@ -5,7 +5,7 @@ import {
   User, ArrowRight, ChevronRight as ChevronRightIcon, Clock, CalendarX, Repeat, Receipt,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSeances, useStudentStore } from "@/hooks/useStudentStore";
+import { useSeances } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
@@ -13,7 +13,6 @@ import { useEvenements } from "@/hooks/useEvenementStore";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
-import { saveNotesGrid, submitNotesForValidation } from "@/data/studentStore";
 import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
 import { mondayOf, matchesProf, dateToJour } from "@/lib/teacherUtils";
@@ -421,118 +420,6 @@ export function TeacherSchedulePage() {
           emptyMessage={`Aucune séance planifiée pour la semaine du ${formatShortDate(weekMonday)}.`}
         />
       )}
-    </div>
-  );
-}
-
-export function TeacherModulesPage() {
-  const { currentUser } = useAuth();
-  const ecs = useEcs();
-  const ues = useUes();
-  const mine = ecs.filter((e) => matchProf(e.responsable, currentUser?.name));
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mes modules</h2>
-      {mine.map((e) => {
-        const ue = ues.find((u) => u.id === e.ueId);
-        return (
-          <div key={e.id} className="rounded-2xl border border-border bg-card p-4">
-            <p className="font-bold text-sm">{e.code} â€” {e.libelle}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              UE : {ue?.code ?? e.ue} Â· CM {e.volCm}h / TD {e.volTd}h / TP {e.volTp}h Â· VHT {e.vht}h
-            </p>
-          </div>
-        );
-      })}
-      {mine.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          Aucun EC avec vous comme responsable. Les sÃ©ances EDT restent visibles dans Â« Mon EDT Â».
-        </p>
-      )}
-    </div>
-  );
-}
-
-export function TeacherGradesPage() {
-  const { currentUser } = useAuth();
-  const students = useStudentStore();
-  const classes = useClasses();
-  const ecs = useEcs();
-  const [classeId, setClasseId] = useState("");
-  const [ecId, setEcId] = useState("");
-  const [cc, setCc] = useState("12");
-  const [examen, setExamen] = useState("10");
-  const [etudiantId, setEtudiantId] = useState("");
-
-  const mineEcs = useMemo(() => {
-    const byResp = ecs.filter((e) => matchProf(e.responsable, currentUser?.name));
-    return byResp.length ? byResp : ecs;
-  }, [ecs, currentUser?.name]);
-
-  const classeStudents = students.filter((s) => s.classeId === classeId);
-
-  function handleSave(submit: boolean) {
-    const ec = ecs.find((x) => x.id === ecId);
-    const s = students.find((x) => x.id === etudiantId);
-    if (!ec || !s || !classeId) {
-      toast.error("Classe, EC et Ã©tudiant requis");
-      return;
-    }
-    try {
-      saveNotesGrid(
-        classeId,
-        ec.id,
-        `${ec.code} â€” ${ec.libelle}`,
-        [{ etudiantId: s.id, cc: Number(cc), examen: Number(examen) }],
-        false,
-      );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Enregistrement impossible");
-      return;
-    }
-    if (submit) {
-      submitNotesForValidation(classeId, ec.id);
-      toast.success("Notes soumises Ã  validation admin");
-    } else {
-      toast.success("Brouillon enregistrÃ© (CC 30% / Examen 70%)");
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Saisie des notes</h2>
-        <p className="text-xs text-muted-foreground">Workflow : brouillon â†’ soumission admin â†’ validation â†’ publication</p>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <select className="rounded-xl border border-border bg-background px-3 py-2 text-sm" value={classeId} onChange={(e) => setClasseId(e.target.value)}>
-            <option value="">Classe pÃ©dagogique</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>{c.nom}</option>
-            ))}
-          </select>
-          <select className="rounded-xl border border-border bg-background px-3 py-2 text-sm" value={ecId} onChange={(e) => setEcId(e.target.value)}>
-            <option value="">Ã‰lÃ©ment constitutif</option>
-            {mineEcs.map((e) => (
-              <option key={e.id} value={e.id}>{e.code} â€” {e.libelle}</option>
-            ))}
-          </select>
-          <select className="rounded-xl border border-border bg-background px-3 py-2 text-sm" value={etudiantId} onChange={(e) => setEtudiantId(e.target.value)}>
-            <option value="">Ã‰tudiant</option>
-            {classeStudents.map((s) => (
-              <option key={s.id} value={s.id}>{s.matricule} â€” {s.prenom} {s.nom}</option>
-            ))}
-          </select>
-          <div className="grid grid-cols-2 gap-2">
-            <input type="number" min={0} max={20} step={0.25} className="rounded-xl border border-border bg-background px-3 py-2 text-sm" value={cc} onChange={(e) => setCc(e.target.value)} placeholder="CC" title="CC (30%)" />
-            <input type="number" min={0} max={20} step={0.25} className="rounded-xl border border-border bg-background px-3 py-2 text-sm" value={examen} onChange={(e) => setExamen(e.target.value)} placeholder="Examen" title="Examen (70%)" />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => handleSave(false)} className="px-4 py-2 rounded-xl border border-border text-sm">Brouillon</button>
-          <button type="button" onClick={() => handleSave(true)} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium">Soumettre Ã  l&apos;admin</button>
-        </div>
-      </div>
     </div>
   );
 }

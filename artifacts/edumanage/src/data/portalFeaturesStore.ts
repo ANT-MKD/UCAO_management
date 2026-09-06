@@ -30,7 +30,7 @@ export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
 export const TEACHER_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "teacher-dashboard", label: "Tableau de bord", href: "/teacher/dashboard" },
   { id: "teacher-schedule", label: "Mon EDT", href: "/teacher/schedule" },
-  { id: "teacher-modules", label: "Mes modules", href: "/teacher/modules" },
+  { id: "teacher-modules", label: "Mes cours", href: "/teacher/modules" },
   { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades" },
   { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier" },
   { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources" },
