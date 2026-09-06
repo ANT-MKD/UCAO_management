@@ -648,6 +648,28 @@ function invalidateDerivedCaches() {
 
 function persist() {
   syncAnneesToMockData();
+  // Nouvelles références de tableau : useEtudiants()/useCahiers()/useStudentRequests()/... (tous
+  // basés sur useSyncExternalStore) comparent leur snapshot par Object.is et ne re-rendent pas si
+  // getX() renvoie la même référence de tableau — or de nombreuses fonctions de ce fichier (ex.
+  // updateStudentRequestStatus, validateCahier) mutent un enregistrement en place sans jamais
+  // réassigner le tableau qui le contient. Sans ce clonage, l'écran qui a déclenché l'action ne
+  // se met à jour qu'après une navigation ou un rechargement complet.
+  store = {
+    ...store,
+    etudiants: store.etudiants.slice(),
+    inscriptions: store.inscriptions.slice(),
+    annees: store.annees.slice(),
+    paiements: store.paiements.slice(),
+    notes: store.notes.slice(),
+    seances: store.seances.slice(),
+    releves: store.releves.slice(),
+    users: store.users.slice(),
+    requests: store.requests.slice(),
+    messages: store.messages.slice(),
+    notifications: store.notifications.slice(),
+    auditLogs: store.auditLogs.slice(),
+    cahiers: store.cahiers.slice(),
+  };
   writeStoreToLocalStorage(store);
   invalidateDerivedCaches();
   notify();
