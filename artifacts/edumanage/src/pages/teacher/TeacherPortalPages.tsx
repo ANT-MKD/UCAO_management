@@ -568,6 +568,7 @@ export function TeacherRallongePage() {
         {mine.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-10">Aucune demande de rallonge envoyée.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
@@ -609,6 +610,7 @@ export function TeacherRallongePage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

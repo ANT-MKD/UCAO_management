@@ -78,6 +78,7 @@ export default function TeacherDecomptesPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
@@ -126,6 +127,7 @@ export default function TeacherDecomptesPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

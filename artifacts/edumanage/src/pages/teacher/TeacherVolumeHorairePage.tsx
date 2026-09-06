@@ -71,6 +71,7 @@ export default function TeacherVolumeHorairePage() {
         <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucun cours trouvé pour cette année académique.</p>
       ) : (
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
@@ -96,6 +97,7 @@ export default function TeacherVolumeHorairePage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

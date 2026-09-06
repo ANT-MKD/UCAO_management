@@ -231,6 +231,7 @@ export default function TeacherModulesPage() {
             </div>
           ) : (
             <div className="bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
@@ -268,6 +269,7 @@ export default function TeacherModulesPage() {
                   })}
                 </tbody>
               </table>
+          </div>
             </div>
           )}
         </div>

@@ -19,6 +19,8 @@ import {
   CircleDollarSign,
   MessageCircle,
   User,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -57,6 +59,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useNotifications(currentUser?.id);
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -69,22 +72,24 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
 
   const NAV_BADGES: Record<string, number> = { "teacher-messages": unreadMessages };
 
-  const renderNavItem = (item: (typeof NAV)[number]) => {
+  const renderNavItem = (item: (typeof NAV)[number], opts?: { forceExpanded?: boolean; onNavigate?: () => void }) => {
     const active = location === item.to;
     const badgeCount = NAV_BADGES[item.id] ?? 0;
+    const expanded = opts?.forceExpanded || !collapsed;
     return (
       <Link
         key={item.to}
         href={item.to}
+        onClick={opts?.onNavigate}
         className={cn(
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
           active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
       >
         <item.icon className="w-4 h-4 shrink-0" />
-        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+        {expanded && <span className="flex-1 truncate">{item.label}</span>}
         {badgeCount > 0 && (
-          <span className={cn("flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center", collapsed && "hidden")}>
+          <span className={cn("flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center", !expanded && "hidden")}>
             {badgeCount > 9 ? "9+" : badgeCount}
           </span>
         )}
@@ -94,7 +99,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <aside className={cn("border-r border-border bg-card transition-all flex flex-col shrink-0", collapsed ? "w-16" : "w-60")}>
+      <aside className={cn("hidden lg:flex border-r border-border bg-card transition-all flex-col shrink-0", collapsed ? "w-16" : "w-60")}>
         <div className="h-14 flex items-center justify-between px-3 border-b border-border">
           {!collapsed && (
             <span className="font-bold text-sm truncate" style={{ fontFamily: "Outfit, sans-serif" }}>
@@ -106,7 +111,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {mainNav.map(renderNavItem)}
+          {mainNav.map((item) => renderNavItem(item))}
         </nav>
         {profileNavItem && (
           <div className="px-2 pt-2 border-t border-border">
@@ -133,9 +138,54 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
+
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-y-0 left-0 w-[min(85%,320px)] bg-card border-r border-border shadow-xl flex flex-col animate-in slide-in-from-left-4 duration-200">
+            <div className="h-14 flex items-center justify-between px-3 border-b border-border shrink-0">
+              <span className="font-bold text-sm truncate" style={{ fontFamily: "Outfit, sans-serif" }}>
+                Espace enseignant
+              </span>
+              <button type="button" onClick={() => setMobileOpen(false)} className="p-2 rounded-lg hover:bg-muted" data-testid="teacher-mobile-nav-close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+              {mainNav.map((item) => renderNavItem(item, { forceExpanded: true, onNavigate: () => setMobileOpen(false) }))}
+            </nav>
+            {profileNavItem && (
+              <div className="px-2 pt-2 border-t border-border">
+                {renderNavItem(profileNavItem, { forceExpanded: true, onNavigate: () => setMobileOpen(false) })}
+              </div>
+            )}
+            <div className="p-3 border-t border-border space-y-2 shrink-0">
+              <div className="flex items-center gap-2 px-1">
+                <UserAvatar name={currentUser?.name ?? "Prof"} size="sm" />
+                <p className="text-xs truncate">{currentUser?.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  setLocation("/login");
+                }}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full px-2 py-2 rounded-lg hover:bg-muted"
+              >
+                <LogOut className="w-4 h-4" />
+                Déconnexion
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 overflow-auto flex flex-col">
-        <header className="h-14 border-b border-border bg-card px-4 md:px-6 flex items-center justify-end shrink-0">
-          <div className="relative">
+        <header className="h-14 border-b border-border bg-card px-4 md:px-6 flex items-center justify-between shrink-0">
+          <button type="button" onClick={() => setMobileOpen(true)} className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="teacher-mobile-nav-open">
+            <Menu size={20} />
+          </button>
+          <div className="relative ml-auto">
             <button
               type="button"
               onClick={() => setNotifOpen((o) => !o)}
@@ -150,7 +200,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
               )}
             </button>
             {notifOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden flex flex-col">
+              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] max-w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden flex flex-col">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
                   <span className="font-semibold text-sm">Notifications</span>
                   <span className="text-xs text-primary font-medium">{unreadCount} non lue(s)</span>

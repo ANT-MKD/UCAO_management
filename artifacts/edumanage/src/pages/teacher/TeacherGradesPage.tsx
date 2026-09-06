@@ -354,6 +354,7 @@ export default function TeacherGradesPage() {
                 </div>
               </div>
 
+          <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
@@ -420,6 +421,7 @@ export default function TeacherGradesPage() {
                   })}
                 </tbody>
               </table>
+          </div>
 
               <div className="flex gap-3 px-5 py-4 border-t border-border flex-wrap">
                 <button onClick={() => handleSave(false)} className="flex items-center gap-2 px-5 py-2.5 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors" data-testid="notes-brouillon">
