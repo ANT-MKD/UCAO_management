@@ -1,15 +1,20 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { CalendarCheck, ClipboardCheck, UserCheck2, XCircle, Paperclip, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSeances, useCahiers, useStudentStore } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
+import { useTeachers } from "@/hooks/useTeacherStore";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { getAbsencePeriodeCouvrant } from "@/data/absencePeriodeStore";
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { useJoursFeries } from "@/hooks/useScheduleSettingsStore";
-import { mondayOf } from "@/lib/teacherUtils";
+import { mondayOf, matchesProf } from "@/lib/teacherUtils";
+import { TAILLE_MAX_RESSOURCE_OCTETS } from "@/data/ressourcePedagogiqueStore";
+import { KPICard } from "@/components/admin/KPICard";
+import { cn } from "@/lib/utils";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
@@ -29,16 +34,17 @@ const STATUT_CLS: Record<string, string> = {
   brouillon: "bg-slate-100 text-slate-600",
 };
 
+const STATUT_DOT: Record<string, string> = {
+  soumis: "bg-amber-500",
+  valide: "bg-emerald-500",
+  rejete: "bg-red-500",
+  brouillon: "bg-slate-400",
+};
+
 /** Jour de semaine (1=Lundi…6=Samedi) d'une date ISO — même convention que SeanceRecord.jour,
  * qui coïncide avec Date.getDay() (0=Dimanche…6=Samedi) sauf pour le dimanche (hors cours). */
 function jourDeLaSemaine(dateIso: string): number {
   return new Date(`${dateIso}T00:00:00`).getDay();
-}
-
-function matchProf(label: string, userName?: string) {
-  if (!userName) return false;
-  const last = userName.split(" ").pop() ?? "";
-  return label === userName || label.includes(last) || userName.includes(label.split(" ").pop() ?? "");
 }
 
 const inputClass = "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm";
@@ -51,9 +57,12 @@ export function TeacherCahierPage() {
   const students = useStudentStore();
   const ecs = useEcs();
   const ues = useUes();
+  const teachers = useTeachers();
   usePortefeuilleCours(); // souscription pour re-rendre quand une exception cours étudiant change
   useAbsencesPeriode(); // souscription pour re-rendre quand une déclaration de période change
   useJoursFeries(); // souscription pour re-rendre quand la liste des jours fériés change
+
+  const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
   const [seanceId, setSeanceId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -63,7 +72,7 @@ export function TeacherCahierPage() {
   const [resume, setResume] = useState("");
   const [competences, setCompetences] = useState("");
   const [liens, setLiens] = useState("");
-  const [photos, setPhotos] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [pieces, setPieces] = useState<CahierAttachment[]>([]);
   const [presences, setPresences] = useState<CahierPresenceEntry[]>([]);
   const [devoirDonne, setDevoirDonne] = useState("");
@@ -76,7 +85,7 @@ export function TeacherCahierPage() {
   const [etatSeance, setEtatSeance] = useState<"preparee" | "realisee" | "annulee">("realisee");
   const [motifAnnulation, setMotifAnnulation] = useState("");
 
-  const mine = seances.filter((s) => matchProf(s.prof, currentUser?.name) && s.semaineDu === mondayOf(date));
+  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof) && s.semaineDu === mondayOf(date));
   const seance = seances.find((s) => s.id === seanceId);
   const ec = ecs.find((e) => e.id === seance?.ecId);
   const ue = ues.find((u) => u.id === ec?.ueId);
@@ -126,16 +135,36 @@ export function TeacherCahierPage() {
 
   function addPiece(file: File | null) {
     if (!file) return;
-    setPieces((prev) => [
-      ...prev,
-      {
-        id: `pj-${Date.now()}`,
-        nom: file.name,
-        type: file.type || "application/octet-stream",
-        tailleKo: Math.round(file.size / 1024),
-        ref: file.name,
-      },
-    ]);
+    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
+      toast.error(`Fichier trop lourd (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPieces((prev) => [
+        ...prev,
+        {
+          id: `pj-${Date.now()}`,
+          nom: file.name,
+          type: file.type || "application/octet-stream",
+          tailleKo: Math.round(file.size / 1024),
+          ref: file.name,
+          dataUrl: String(reader.result),
+        },
+      ]);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function addPhoto(file: File | null) {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
+      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhotos((prev) => [...prev, String(reader.result)]);
+    reader.readAsDataURL(file);
   }
 
   function toggleEval(t: string) {
@@ -163,7 +192,7 @@ export function TeacherCahierPage() {
       resume: resume || motifAnnulation,
       competences,
       liensExternes: liens.split("\n").map((l) => l.trim()).filter(Boolean),
-      photosTableau: photos.split("\n").map((l) => l.trim()).filter(Boolean),
+      photosTableau: photos,
       piecesJointes: pieces,
       presences,
       travail: devoirDonne
@@ -183,7 +212,7 @@ export function TeacherCahierPage() {
       setResume("");
       setCompetences("");
       setLiens("");
-      setPhotos("");
+      setPhotos([]);
       setPieces([]);
       setDevoirDonne("");
       setEvalTypes([]);
@@ -206,7 +235,7 @@ export function TeacherCahierPage() {
     setResume(c.resume);
     setCompetences(c.competences);
     setLiens((c.liensExternes || []).join("\n"));
-    setPhotos((c.photosTableau || []).join("\n"));
+    setPhotos(c.photosTableau || []);
     setPieces(c.piecesJointes || []);
     setPresences(c.presences);
     setDevoirDonne(c.travail?.devoirDonne ?? "");
@@ -234,7 +263,17 @@ export function TeacherCahierPage() {
     }
   }
 
-  const mineCahiers = cahiers.filter((c) => matchProf(c.prof, currentUser?.name));
+  const mineCahiers = useMemo(
+    () => cahiers.filter((c) => myTeacher && matchesProf(myTeacher, c.prof)).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
+    [cahiers, myTeacher],
+  );
+  const moisCourant = new Date().toISOString().slice(0, 7);
+  const cahiersCeMois = mineCahiers.filter((c) => c.date.startsWith(moisCourant) && c.statut !== "brouillon");
+  const cahiersSoumis = mineCahiers.filter((c) => c.statut !== "brouillon");
+  const cahiersRejetes = mineCahiers.filter((c) => c.statut === "rejete");
+  const tauxPresenceMoyenGlobal = cahiersSoumis.length
+    ? Math.round((cahiersSoumis.reduce((s, c) => s + (c.tauxPresence || 0), 0) / cahiersSoumis.length) * 10) / 10
+    : 0;
   const presentCount = presences.filter((p) => p.statut === "present").length;
   const taux = presences.length ? Math.round((presentCount / presences.length) * 1000) / 10 : 0;
 
@@ -288,6 +327,13 @@ export function TeacherCahierPage() {
           </div>
         )}
       </div>
+
+      <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard icon={CalendarCheck} label="Cahiers ce mois" value={cahiersCeMois.length} accentColor="#2563eb" />
+        <KPICard icon={ClipboardCheck} label="Cahiers soumis" value={cahiersSoumis.length} accentColor="#8b5cf6" />
+        <KPICard icon={UserCheck2} label="Présence moyenne" value={`${tauxPresenceMoyenGlobal}%`} accentColor={tauxPresenceMoyenGlobal >= 80 ? "#10b981" : "#f59e0b"} />
+        <KPICard icon={XCircle} label="Cahiers rejetés" value={cahiersRejetes.length} accentColor={cahiersRejetes.length > 0 ? "#ef4444" : "#10b981"} />
+      </section>
 
       <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
         <div>
@@ -432,13 +478,19 @@ export function TeacherCahierPage() {
               <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
                 <h3 className="font-bold text-sm">Documents & médias</h3>
                 <div>
-                  <label className={labelClass}>Joindre un fichier (PDF, PPT, vidéo…)</label>
-                  <input type="file" className="text-sm" onChange={(e) => addPiece(e.target.files?.[0] ?? null)} />
+                  <label className={labelClass}>Joindre un fichier (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko)</label>
+                  <input type="file" className="text-sm" onChange={(e) => { addPiece(e.target.files?.[0] ?? null); e.target.value = ""; }} />
                   {pieces.length > 0 && (
                     <ul className="mt-2 space-y-1">
                       {pieces.map((p) => (
-                        <li key={p.id} className="text-xs flex justify-between border-b border-border py-1">
-                          <span>{p.nom} ({p.tailleKo} Ko)</span>
+                        <li key={p.id} className="text-xs flex items-center justify-between border-b border-border py-1">
+                          <a
+                            href={p.dataUrl}
+                            download={p.nom}
+                            className={cn("flex items-center gap-1.5", p.dataUrl ? "text-primary hover:underline" : "text-muted-foreground")}
+                          >
+                            <Paperclip size={11} /> {p.nom} {p.tailleKo ? `(${p.tailleKo} Ko)` : ""}
+                          </a>
                           <button type="button" className="text-red-500" onClick={() => setPieces((prev) => prev.filter((x) => x.id !== p.id))}>Retirer</button>
                         </li>
                       ))}
@@ -450,8 +502,24 @@ export function TeacherCahierPage() {
                   <textarea className={`${inputClass} min-h-[60px]`} value={liens} onChange={(e) => setLiens(e.target.value)} placeholder="https://…" />
                 </div>
                 <div>
-                  <label className={labelClass}>Photos du tableau (références / noms, un par ligne)</label>
-                  <textarea className={`${inputClass} min-h-[50px]`} value={photos} onChange={(e) => setPhotos(e.target.value)} />
+                  <label className={labelClass}>Photos du tableau (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko chacune)</label>
+                  <input type="file" accept="image/*" className="text-sm" onChange={(e) => { addPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                  {photos.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {photos.map((src, i) => (
+                        <div key={i} className="relative">
+                          <img src={src} alt={`Photo du tableau ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-border" />
+                          <button
+                            type="button"
+                            onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -578,26 +646,37 @@ export function TeacherCahierPage() {
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <h3 className="font-bold text-sm mb-3">Mes cahiers soumis</h3>
-        <p className="text-xs text-muted-foreground -mt-2 mb-3">Cliquez sur un cahier non validé pour le rouvrir et le corriger.</p>
-        {mineCahiers.map((c) => {
-          const modifiable = c.statut !== "valide";
-          return (
-            <div
-              key={c.id}
-              onClick={() => modifiable && loadCahierForEdit(c)}
-              className={`border-b border-border py-3 text-sm ${modifiable ? "cursor-pointer hover:bg-muted/40 rounded-lg px-2 -mx-2" : ""} ${editingCahierId === c.id ? "bg-amber-50" : ""}`}
-              title={modifiable ? "Rouvrir ce cahier pour le modifier" : "Cahier validé — non modifiable"}
-            >
-              <div className="flex flex-wrap justify-between gap-2">
-                <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${STATUT_CLS[c.statut] ?? "bg-muted"}`}>{c.statut} · {c.etatSeance}</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">{c.date} · {c.typeSeance} · présence {c.tauxPresence}%</p>
-              <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>
-            </div>
-          );
-        })}
-        {mineCahiers.length === 0 && <p className="text-sm text-muted-foreground">Aucun cahier.</p>}
+        <p className="text-xs text-muted-foreground -mt-2 mb-4">Cliquez sur un cahier non validé pour le rouvrir et le corriger.</p>
+        {mineCahiers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun cahier.</p>
+        ) : (
+          <div className="relative pl-6 border-l-2 border-indigo-200 space-y-4">
+            {mineCahiers.map((c) => {
+              const modifiable = c.statut !== "valide";
+              return (
+                <div key={c.id} className="relative">
+                  <div className={cn("absolute -left-[29px] top-4 w-3 h-3 rounded-full border-2 border-card", STATUT_DOT[c.statut] ?? "bg-slate-400")} />
+                  <div
+                    onClick={() => modifiable && loadCahierForEdit(c)}
+                    className={cn(
+                      "ml-2 p-4 rounded-xl border border-border bg-muted/20 text-sm",
+                      modifiable && "cursor-pointer hover:bg-muted/40",
+                      editingCahierId === c.id && "bg-amber-50 border-amber-200",
+                    )}
+                    title={modifiable ? "Rouvrir ce cahier pour le modifier" : "Cahier validé — non modifiable"}
+                  >
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUT_CLS[c.statut] ?? "bg-muted")}>{c.statut} · {c.etatSeance}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{c.date} · {c.typeSeance} · présence {c.tauxPresence}%</p>
+                    <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

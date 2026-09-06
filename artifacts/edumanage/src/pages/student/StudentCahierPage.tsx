@@ -208,10 +208,36 @@ export default function StudentCahierPage() {
                         <div className="mt-3 pt-3 border-t border-border">
                           <p className="text-xs font-semibold text-foreground mb-1.5">Pièces jointes</p>
                           <div className="flex flex-wrap gap-2">
-                            {c.piecesJointes.map((p) => (
-                              <span key={p.id} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-muted text-muted-foreground">
-                                <Paperclip size={11} /> {p.nom}
-                              </span>
+                            {c.piecesJointes.map((p) =>
+                              p.dataUrl ? (
+                                <a
+                                  key={p.id}
+                                  href={p.dataUrl}
+                                  download={p.nom}
+                                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-muted text-primary hover:underline"
+                                >
+                                  <Paperclip size={11} /> {p.nom}
+                                </a>
+                              ) : (
+                                <span key={p.id} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-muted text-muted-foreground">
+                                  <Paperclip size={11} /> {p.nom}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {c.photosTableau && c.photosTableau.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <p className="text-xs font-semibold text-foreground mb-1.5">Photos du tableau</p>
+                          <div className="flex flex-wrap gap-2">
+                            {c.photosTableau.map((src, i) => (
+                              <img
+                                key={i}
+                                src={src}
+                                alt={`Photo du tableau ${i + 1}`}
+                                className="w-16 h-16 object-cover rounded-lg border border-border"
+                              />
                             ))}
                           </div>
                         </div>

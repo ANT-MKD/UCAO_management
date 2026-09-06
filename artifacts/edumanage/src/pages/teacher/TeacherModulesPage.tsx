@@ -58,7 +58,11 @@ export default function TeacherModulesPage() {
     const classe = classes.find((c) => c.id === course.classeId);
 
     const mesSeances = seances.filter((s) => s.ecId === course.ecId && s.classeId === course.classeId && s.annee === annee && myTeacher && matchesProf(myTeacher, s.prof));
-    const mesCahiers = cahiers.filter((c) => c.ecId === course.ecId && c.classeId === course.classeId && c.annee === annee && myTeacher && matchesProf(myTeacher, c.prof) && c.etatSeance !== "annulee");
+    // Même définition de "séance réalisée" que getCahierStatsForEc (Cahier de séance) : état
+    // "réalisée" ET statut soumis/validé — un brouillon ou une séance seulement préparée ne
+    // compte pas encore comme faite, pour que la progression affichée ici et sur Cahier de
+    // séance ne se contredisent jamais.
+    const mesCahiers = cahiers.filter((c) => c.ecId === course.ecId && c.classeId === course.classeId && c.annee === annee && myTeacher && matchesProf(myTeacher, c.prof) && c.etatSeance === "realisee" && (c.statut === "soumis" || c.statut === "valide"));
     const vhRealise = myTeacher
       ? pointages.filter((p) => p.teacherId === myTeacher.id && p.ecId === course.ecId && p.classeId === course.classeId && p.annee === annee && p.statut === "valide").reduce((s, p) => s + p.volumePointe, 0)
       : 0;

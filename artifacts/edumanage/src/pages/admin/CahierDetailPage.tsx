@@ -123,7 +123,17 @@ export default function CahierDetailPage({ id }: { id: string }) {
           <div className="grid sm:grid-cols-3 gap-3 text-xs">
             <div>
               <p className="font-semibold text-muted-foreground mb-1">Documents</p>
-              <ul className="space-y-0.5">{(c.piecesJointes || []).map((p) => <li key={p.id}>{p.nom}</li>)}</ul>
+              <ul className="space-y-0.5">
+                {(c.piecesJointes || []).map((p) => (
+                  <li key={p.id}>
+                    {p.dataUrl ? (
+                      <a href={p.dataUrl} download={p.nom} className="text-primary hover:underline">{p.nom}</a>
+                    ) : (
+                      p.nom
+                    )}
+                  </li>
+                ))}
+              </ul>
               {!c.piecesJointes?.length && <span className="text-muted-foreground">—</span>}
             </div>
             <div>
@@ -133,8 +143,15 @@ export default function CahierDetailPage({ id }: { id: string }) {
             </div>
             <div>
               <p className="font-semibold text-muted-foreground mb-1">Photos tableau</p>
-              <ul className="space-y-0.5">{(c.photosTableau || []).map((l) => <li key={l}>{l}</li>)}</ul>
-              {!c.photosTableau?.length && <span className="text-muted-foreground">—</span>}
+              {c.photosTableau?.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {c.photosTableau.map((src, i) => (
+                    <img key={i} src={src} alt={`Photo du tableau ${i + 1}`} className="w-14 h-14 object-cover rounded-lg border border-border" />
+                  ))}
+                </div>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
             </div>
           </div>
         )}

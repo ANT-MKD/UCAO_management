@@ -129,8 +129,11 @@ export interface CahierAttachment {
   nom: string;
   type: string;
   tailleKo?: number;
-  /** Référence locale (nom fichier) — pas de stockage binaire lourd */
+  /** Référence locale (nom fichier) — conservée pour les pièces antérieures à dataUrl */
   ref: string;
+  /** Contenu réel du fichier en base64 — absent sur les pièces jointes antérieures à cette
+   * fonctionnalité (ref/nom seuls, non téléchargeables) */
+  dataUrl?: string;
 }
 
 export interface CahierTravail {
