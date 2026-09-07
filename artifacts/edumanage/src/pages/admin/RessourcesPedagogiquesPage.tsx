@@ -1,14 +1,11 @@
 import { useMemo, useState } from "react";
-import { FileText, Download, Library } from "lucide-react";
+import { Download, ExternalLink, Library } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEcs } from "@/hooks/useCurriculumStore";
 import { useRessourcesPourClasse } from "@/hooks/useRessourcePedagogiqueStore";
-import { formatDate } from "@/lib/utils";
-
-function formatTaille(octets: number): string {
-  return octets > 1024 * 1024 ? `${(octets / (1024 * 1024)).toFixed(1)} Mo` : `${Math.round(octets / 1024)} Ko`;
-}
+import { formatDate, cn } from "@/lib/utils";
+import { formatTailleRessource, RESSOURCE_TYPE_STYLES, detecterTypeRessource } from "@/lib/ressourceUtils";
 
 /** Lecture seule : le dépôt des ressources se fait côté professeur (portail enseignant), qui est
  * le seul à savoir quels supports appartiennent à ses propres modules. Cette page sert à
@@ -77,21 +74,33 @@ export default function RessourcesPedagogiquesPage() {
             <p className="text-sm text-muted-foreground text-center py-8">Aucune ressource déposée pour l&apos;instant.</p>
           ) : (
             <div className="space-y-2">
-              {ressourcesFiltrees.map((r) => (
-                <div key={r.id} className="flex items-center gap-3 p-3.5 bg-muted/30 rounded-xl border border-border" data-testid={`ressource-ligne-${r.id}`}>
-                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <FileText size={15} className="text-primary" />
+              {ressourcesFiltrees.map((r) => {
+                const style = RESSOURCE_TYPE_STYLES[detecterTypeRessource(r)];
+                const Icon = style.icon;
+                return (
+                  <div key={r.id} className="flex items-center gap-3 p-3.5 bg-muted/30 rounded-xl border border-border" data-testid={`ressource-ligne-${r.id}`}>
+                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", style.bg)}>
+                      <Icon size={15} className={style.text} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{r.titre}{r.ec && <span className="text-muted-foreground font-normal"> — {r.ec}</span>}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {r.url ? "Lien externe" : `${r.nom} · ${formatTailleRessource(r.tailleOctets || 0)}`} · {formatDate(r.ajouteLe.slice(0, 10))} · déposé par {r.ajoutePar}
+                      </div>
+                      {r.description && <div className="text-xs text-muted-foreground mt-0.5">{r.description}</div>}
+                    </div>
+                    {r.url ? (
+                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-ouvrir-${r.id}`}>
+                        <ExternalLink size={14} />
+                      </a>
+                    ) : (
+                      <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-telecharger-${r.id}`}>
+                        <Download size={14} />
+                      </a>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{r.titre}{r.ec && <span className="text-muted-foreground font-normal"> — {r.ec}</span>}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{r.nom} · {formatTaille(r.tailleOctets)} · {formatDate(r.ajouteLe.slice(0, 10))} · déposé par {r.ajoutePar}</div>
-                    {r.description && <div className="text-xs text-muted-foreground mt-0.5">{r.description}</div>}
-                  </div>
-                  <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-telecharger-${r.id}`}>
-                    <Download size={14} />
-                  </a>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

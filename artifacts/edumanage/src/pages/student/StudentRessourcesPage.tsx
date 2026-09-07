@@ -1,18 +1,12 @@
 import { useMemo, useState } from "react";
-import {
-  FileText, Download, Search, FileSpreadsheet, Presentation, FileImage, FileArchive,
-  File as FileIcon, LayoutGrid, List, Library, BookOpen, HardDrive,
-} from "lucide-react";
+import { Download, ExternalLink, Search, LayoutGrid, List, Library, BookOpen, HardDrive } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { useRessourcesPourClasse } from "@/hooks/useRessourcePedagogiqueStore";
 import { KPICard } from "@/components/admin/KPICard";
 import { formatDate, cn } from "@/lib/utils";
+import { formatTailleRessource, RESSOURCE_TYPE_STYLES, detecterTypeRessource } from "@/lib/ressourceUtils";
 import type { RessourcePedagogiqueRecord } from "@/data/ressourcePedagogiqueStore";
-
-function formatTaille(octets: number): string {
-  return octets > 1024 * 1024 ? `${(octets / (1024 * 1024)).toFixed(1)} Mo` : `${Math.round(octets / 1024)} Ko`;
-}
 
 const COURSE_COLORS = [
   { bg: "bg-blue-100", text: "text-blue-600" },
@@ -22,27 +16,6 @@ const COURSE_COLORS = [
   { bg: "bg-pink-100", text: "text-pink-600" },
   { bg: "bg-indigo-100", text: "text-indigo-600" },
 ];
-
-const FILE_TYPE_STYLES: Record<string, { icon: typeof FileText; bg: string; text: string }> = {
-  "PDF": { icon: FileText, bg: "bg-red-100", text: "text-red-600" },
-  "Documents Word": { icon: FileText, bg: "bg-blue-100", text: "text-blue-600" },
-  "Feuilles de calcul": { icon: FileSpreadsheet, bg: "bg-emerald-100", text: "text-emerald-600" },
-  "Présentations": { icon: Presentation, bg: "bg-amber-100", text: "text-amber-600" },
-  "Images": { icon: FileImage, bg: "bg-violet-100", text: "text-violet-600" },
-  "Archives": { icon: FileArchive, bg: "bg-slate-200", text: "text-slate-600" },
-  "Autres documents": { icon: FileIcon, bg: "bg-muted", text: "text-muted-foreground" },
-};
-
-function detecterTypeFichier(nom: string): string {
-  const ext = nom.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return "PDF";
-  if (["doc", "docx"].includes(ext)) return "Documents Word";
-  if (["xls", "xlsx", "csv"].includes(ext)) return "Feuilles de calcul";
-  if (["ppt", "pptx"].includes(ext)) return "Présentations";
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "Images";
-  if (["zip", "rar", "7z"].includes(ext)) return "Archives";
-  return "Autres documents";
-}
 
 const TOUTE_LA_CLASSE = "__classe__";
 
@@ -60,7 +33,7 @@ export default function StudentRessourcesPage() {
   const [tri, setTri] = useState<"recent" | "nom" | "taille">("recent");
 
   const coursConcernes = useMemo(() => new Set(ressources.map((r) => r.ecId).filter(Boolean)).size, [ressources]);
-  const poidsTotal = useMemo(() => ressources.reduce((s, r) => s + r.tailleOctets, 0), [ressources]);
+  const poidsTotal = useMemo(() => ressources.reduce((s, r) => s + (r.tailleOctets || 0), 0), [ressources]);
 
   const parcoursCours = useMemo(() => {
     const map = new Map<string, { id: string; label: string; count: number }>();
@@ -76,7 +49,7 @@ export default function StudentRessourcesPage() {
   const typesDisponibles = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of ressources) {
-      const t = detecterTypeFichier(r.nom);
+      const t = detecterTypeRessource(r);
       map.set(t, (map.get(t) ?? 0) + 1);
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
@@ -87,22 +60,22 @@ export default function StudentRessourcesPage() {
     let list = ressources.filter((r) => {
       if (ecFiltre === TOUTE_LA_CLASSE && r.ecId) return false;
       if (ecFiltre && ecFiltre !== TOUTE_LA_CLASSE && r.ecId !== ecFiltre) return false;
-      if (typeFiltre && detecterTypeFichier(r.nom) !== typeFiltre) return false;
-      if (q && !`${r.titre} ${r.description ?? ""} ${r.ec ?? ""} ${r.ajoutePar} ${r.nom}`.toLowerCase().includes(q)) return false;
+      if (typeFiltre && detecterTypeRessource(r) !== typeFiltre) return false;
+      if (q && !`${r.titre} ${r.description ?? ""} ${r.ec ?? ""} ${r.ajoutePar} ${r.nom ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
     if (onglet === "recentes") {
       return [...list].sort((a, b) => b.ajouteLe.localeCompare(a.ajouteLe)).slice(0, 12);
     }
     if (tri === "nom") list = [...list].sort((a, b) => a.titre.localeCompare(b.titre));
-    else if (tri === "taille") list = [...list].sort((a, b) => b.tailleOctets - a.tailleOctets);
+    else if (tri === "taille") list = [...list].sort((a, b) => (b.tailleOctets || 0) - (a.tailleOctets || 0));
     else list = [...list].sort((a, b) => b.ajouteLe.localeCompare(a.ajouteLe));
     return list;
   }, [ressources, query, ecFiltre, typeFiltre, tri, onglet]);
 
   function renderCarte(r: RessourcePedagogiqueRecord) {
-    const type = detecterTypeFichier(r.nom);
-    const style = FILE_TYPE_STYLES[type];
+    const type = detecterTypeRessource(r);
+    const style = RESSOURCE_TYPE_STYLES[type];
     const Icon = style.icon;
     return (
       <div key={r.id} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: "var(--shadow-sm)" }} data-testid={`etudiant-ressource-${r.id}`}>
@@ -117,23 +90,37 @@ export default function StudentRessourcesPage() {
             </div>
           </div>
           {r.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{r.description}</p>}
-          <p className="text-[11px] text-muted-foreground">{formatTaille(r.tailleOctets)} · {formatDate(r.ajouteLe.slice(0, 10))} · {r.ajoutePar}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {r.url ? "Lien externe" : formatTailleRessource(r.tailleOctets || 0)} · {formatDate(r.ajouteLe.slice(0, 10))} · {r.ajoutePar}
+          </p>
         </div>
-        <a
-          href={r.dataUrl}
-          download={r.nom}
-          className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border text-xs font-medium text-primary hover:bg-muted/60 transition-colors"
-          data-testid={`etudiant-ressource-telecharger-${r.id}`}
-        >
-          <Download size={12} /> Télécharger
-        </a>
+        {r.url ? (
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border text-xs font-medium text-primary hover:bg-muted/60 transition-colors"
+            data-testid={`etudiant-ressource-ouvrir-${r.id}`}
+          >
+            <ExternalLink size={12} /> Ouvrir le lien
+          </a>
+        ) : (
+          <a
+            href={r.dataUrl}
+            download={r.nom}
+            className="flex items-center gap-1.5 px-4 py-2.5 border-t border-border text-xs font-medium text-primary hover:bg-muted/60 transition-colors"
+            data-testid={`etudiant-ressource-telecharger-${r.id}`}
+          >
+            <Download size={12} /> Télécharger
+          </a>
+        )}
       </div>
     );
   }
 
   function renderLigne(r: RessourcePedagogiqueRecord) {
-    const type = detecterTypeFichier(r.nom);
-    const style = FILE_TYPE_STYLES[type];
+    const type = detecterTypeRessource(r);
+    const style = RESSOURCE_TYPE_STYLES[type];
     const Icon = style.icon;
     return (
       <div key={r.id} className="flex items-center gap-3 p-3.5 hover:bg-muted/40 transition-colors" data-testid={`etudiant-ressource-${r.id}`}>
@@ -145,10 +132,16 @@ export default function StudentRessourcesPage() {
           <div className="text-[11px] text-muted-foreground truncate">{r.ec || "Toute la classe"} · {r.ajoutePar}</div>
         </div>
         <span className="text-[11px] text-muted-foreground flex-shrink-0 hidden sm:block">{formatDate(r.ajouteLe.slice(0, 10))}</span>
-        <span className="text-[11px] text-muted-foreground flex-shrink-0 w-14 text-right hidden sm:block">{formatTaille(r.tailleOctets)}</span>
-        <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-telecharger-${r.id}`}>
-          <Download size={14} />
-        </a>
+        <span className="text-[11px] text-muted-foreground flex-shrink-0 w-14 text-right hidden sm:block">{r.url ? "Lien" : formatTailleRessource(r.tailleOctets || 0)}</span>
+        {r.url ? (
+          <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-ouvrir-${r.id}`}>
+            <ExternalLink size={14} />
+          </a>
+        ) : (
+          <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-telecharger-${r.id}`}>
+            <Download size={14} />
+          </a>
+        )}
       </div>
     );
   }
@@ -163,7 +156,7 @@ export default function StudentRessourcesPage() {
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <KPICard icon={Library} label="Ressources disponibles" value={ressources.length} accentColor="#2563eb" />
         <KPICard icon={BookOpen} label="Cours concernés" value={coursConcernes} accentColor="#10b981" />
-        <KPICard icon={HardDrive} label="Poids total" value={formatTaille(poidsTotal)} accentColor="#8b5cf6" />
+        <KPICard icon={HardDrive} label="Poids total" value={formatTailleRessource(poidsTotal)} accentColor="#8b5cf6" />
       </div>
 
       {parcoursCours.length > 0 && (
@@ -270,13 +263,13 @@ export default function StudentRessourcesPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 h-fit">
-          <h3 className="font-bold text-sm text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Types de fichiers</h3>
+          <h3 className="font-bold text-sm text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Types de ressources</h3>
           {typesDisponibles.length === 0 ? (
             <p className="text-xs text-muted-foreground">Aucune ressource pour l&apos;instant.</p>
           ) : (
             <div className="space-y-1">
               {typesDisponibles.map(([type, count]) => {
-                const style = FILE_TYPE_STYLES[type];
+                const style = RESSOURCE_TYPE_STYLES[type];
                 const Icon = style.icon;
                 const actif = typeFiltre === type;
                 return (

@@ -10,9 +10,13 @@ export interface RessourcePedagogiqueRecord {
   ec?: string;
   titre: string;
   description?: string;
-  nom: string;
-  dataUrl: string;
-  tailleOctets: number;
+  /** Ressource fichier téléversé — absents pour une ressource de type lien externe (voir `url`). */
+  nom?: string;
+  dataUrl?: string;
+  tailleOctets?: number;
+  /** Ressource lien externe (ex. documentation en ligne, vidéo hébergée ailleurs) — mutuellement
+   * exclusif avec nom/dataUrl/tailleOctets. */
+  url?: string;
   ajouteLe: string;
   ajoutePar: string;
 }

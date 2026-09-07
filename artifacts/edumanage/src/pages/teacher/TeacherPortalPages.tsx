@@ -32,12 +32,6 @@ import { PubliciteBanner } from "@/components/PubliciteBanner";
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const FALLBACK_COLOR = "#4f46e5";
 
-export function matchProf(label: string, userName?: string) {
-  if (!userName) return false;
-  const last = userName.split(" ").pop() ?? "";
-  return label === userName || label.includes(last) || userName.includes(label.split(" ").pop() ?? "");
-}
-
 export function TeacherDashboardPage() {
   const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
