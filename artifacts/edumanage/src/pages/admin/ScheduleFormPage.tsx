@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useMemo, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Check, Calendar, Clock, MapPin, User, BookOpen, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -7,41 +7,40 @@ import { ENSEIGNANTS } from "@/data/mockData";
 import { addSeance } from "@/data/studentStore";
 import { useEcs } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
+import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
+import { dateToJour, mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
 
-const JOURS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-  { value: 6, label: "Samedi" },
-];
+const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
-const TYPES = ["CM", "TD", "TP", "EX"] as const;
+function prochainLundi(): string {
+  const monday = mondayOf(new Date().toISOString().slice(0, 10));
+  const d = new Date(`${monday}T12:00:00`);
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
 
 interface SeanceForm {
   ecId: string;
   classeId: string;
   salleId: string;
   prof: string;
-  jour: number;
+  date: string;
   heureDebut: string;
   heureFin: string;
-  type: typeof TYPES[number];
+  type: string;
   notes?: string;
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  CM: "#4f46e5", TD: "#10b981", TP: "#8b5cf6", EX: "#ef4444",
-};
-
 export default function ScheduleFormPage() {
   const [, setLocation] = useLocation();
+  const searchStr = useSearch();
+  const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
   const [submitted, setSubmitted] = useState(false);
   const ECS = useEcs();
   const CLASSES = useClasses();
   const SALLES = useSalles();
+  const TYPES_SEANCE = useTypesSeance().filter((t) => t.categorie === "emploi_du_temps");
   const [conflicts, setConflicts] = useState<string[]>([]);
 
   const form = useForm<SeanceForm>({
@@ -50,10 +49,10 @@ export default function ScheduleFormPage() {
       classeId: CLASSES[0]?.id ?? "",
       salleId: SALLES[0]?.id ?? "",
       prof: ENSEIGNANTS[0] ? `${ENSEIGNANTS[0].prenom} ${ENSEIGNANTS[0].nom}` : "",
-      jour: 1,
-      heureDebut: "08:00",
-      heureFin: "10:00",
-      type: "CM",
+      date: params.get("date") || prochainLundi(),
+      heureDebut: params.get("heureDebut") || "08:00",
+      heureFin: params.get("heureFin") || "10:00",
+      type: TYPES_SEANCE[0]?.code ?? "CM",
       notes: "",
     },
   });
@@ -62,16 +61,22 @@ export default function ScheduleFormPage() {
   const ec = ECS.find((e) => e.id === values.ecId);
   const classe = CLASSES.find((c) => c.id === values.classeId);
   const salle = SALLES.find((s) => s.id === values.salleId);
-  const jourLabel = JOURS.find((j) => j.value === Number(values.jour))?.label;
+  const jourLabel = values.date ? JOURS[dateToJour(values.date)] : undefined;
+  const typeColor = TYPES_SEANCE.find((t) => t.code === values.type)?.couleur ?? "#4f46e5";
 
   const onSubmit = form.handleSubmit((data) => {
     setConflicts([]);
+    if (dateToJour(data.date) === 7) {
+      setConflicts(["Aucun cours ne peut être planifié un dimanche — choisissez une date du lundi au samedi"]);
+      return;
+    }
     const result = addSeance({
       ecId: data.ecId,
       classeId: data.classeId,
       salleId: data.salleId,
       prof: data.prof,
-      jour: Number(data.jour),
+      jour: dateToJour(data.date),
+      semaineDu: mondayOf(data.date),
       heureDebut: data.heureDebut,
       heureFin: data.heureFin,
       type: data.type,
@@ -81,7 +86,9 @@ export default function ScheduleFormPage() {
       return;
     }
     setSubmitted(true);
-    setTimeout(() => setLocation("/admin/schedule"), 1500);
+    // Revenir sur la semaine où la séance vient d'être créée, pas systématiquement la semaine
+    // courante — sinon une séance ajoutée pour une autre semaine semble ne jamais s'afficher.
+    setTimeout(() => setLocation(`/admin/schedule?week=${mondayOf(data.date)}`), 1500);
   });
 
   const inputClass =
@@ -139,7 +146,7 @@ export default function ScheduleFormPage() {
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de séance *</label>
                 <select {...form.register("type")} className={inputClass}>
-                  {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {TYPES_SEANCE.map((t) => <option key={t.id} value={t.code}>{t.code} — {t.intitule}</option>)}
                 </select>
               </div>
             </div>
@@ -151,10 +158,8 @@ export default function ScheduleFormPage() {
             </h3>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Jour *</label>
-                <select {...form.register("jour", { valueAsNumber: true })} className={inputClass}>
-                  {JOURS.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
-                </select>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date (semaine du {mondayOf(values.date || prochainLundi())}) *</label>
+                <input type="date" {...form.register("date", { required: true })} className={inputClass} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Salle *</label>
@@ -221,10 +226,10 @@ export default function ScheduleFormPage() {
               <div className="space-y-3 text-sm">
                 <div
                   className="rounded-xl p-4 border-l-4"
-                  style={{ borderColor: TYPE_COLORS[values.type], background: `${TYPE_COLORS[values.type]}10` }}
+                  style={{ borderColor: typeColor, background: `${typeColor}10` }}
                 >
                   <p className="font-bold text-foreground">{ec?.libelle ?? "—"}</p>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block" style={{ background: `${TYPE_COLORS[values.type]}20`, color: TYPE_COLORS[values.type] }}>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block" style={{ background: `${typeColor}20`, color: typeColor }}>
                     {values.type}
                   </span>
                 </div>

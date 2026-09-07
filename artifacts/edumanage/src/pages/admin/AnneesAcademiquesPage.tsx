@@ -1,17 +1,36 @@
 import { useState } from "react";
-import { Plus, Archive, ArrowRight, Calendar, CheckCircle, X, Lock } from "lucide-react";
+import { Plus, Archive, DoorOpen, Calendar, CheckCircle, X, Lock } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import {
-  promoteAcademicYear,
+  ouvrirAnneeSuivante,
   setAnneeActuelle,
   addAnneeAcademique,
   archiveAnnee,
+  desarchiverAnnee,
   cloturerAnnee,
+  type EtudiantRecord,
+  type DecisionPassageAnnee,
 } from "@/data/studentStore";
+import { getDeliberationAnnuelleForClasse } from "@/data/deliberationAnnuelleStore";
 import { useAnneesAcademiques, useStudentStore } from "@/hooks/useStudentStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+/** Décide le sort d'un étudiant lors de l'ouverture d'année à partir de la délibération annuelle
+ * de sa classe : "admis"/"admis_avec_dette" (AJAC) montent au niveau suivant, "redouble" reste au
+ * même niveau, "exclu" ne reçoit aucune préinscription. Tant que la délibération de sa classe
+ * n'est pas clôturée (ou n'existe pas encore), on n'invente rien : l'étudiant attend. */
+function resoudreDecisionAnnuelle(etudiant: EtudiantRecord): DecisionPassageAnnee {
+  if (!etudiant.classeId) return "attendre";
+  const deliberation = getDeliberationAnnuelleForClasse(etudiant.classeId);
+  if (!deliberation || deliberation.statut !== "cloturee") return "attendre";
+  const ligne = deliberation.lignes.find((l) => l.etudiantId === etudiant.id);
+  if (!ligne) return "attendre";
+  if (ligne.decisionFinale === "exclu") return "exclure";
+  if (ligne.decisionFinale === "redouble") return "meme_niveau";
+  return "monter";
+}
 
 export default function AnneesAcademiquesPage() {
   const annees = useAnneesAcademiques();
@@ -28,13 +47,18 @@ export default function AnneesAcademiquesPage() {
     setShowModal(false);
   };
 
-  const handlePromote = (id: string) => {
+  const handleOuvrirAnnee = (id: string) => {
     setPromoting(id);
     setTimeout(() => {
-      const { count, nextLabel } = promoteAcademicYear(id);
+      const { count, nextLabel, classesCreated, enAttente, exclus } = ouvrirAnneeSuivante(id, resoudreDecisionAnnuelle);
       setPromoting(null);
-      setDoneMsg(`${count} préinscriptions créées pour ${nextLabel}`);
-      setTimeout(() => setDoneMsg(""), 4000);
+      const details: string[] = [];
+      if (classesCreated > 0) details.push(`${classesCreated} classe${classesCreated > 1 ? "s" : ""} créée${classesCreated > 1 ? "s" : ""}`);
+      if (enAttente > 0) details.push(`${enAttente} en attente de délibération (à traiter via Réinscription une fois le jury statué)`);
+      if (exclus > 0) details.push(`${exclus} exclu${exclus > 1 ? "s" : ""} (aucune préinscription créée)`);
+      const suffixe = details.length > 0 ? ` — ${details.join(", ")}` : "";
+      setDoneMsg(`Année ${nextLabel} ouverte : ${count} préinscription${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""}${suffixe}`);
+      setTimeout(() => setDoneMsg(""), 8000);
     }, 800);
   };
 
@@ -51,7 +75,7 @@ export default function AnneesAcademiquesPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Années Académiques" }]}
         title="Gestion des Années Académiques"
-        subtitle="Créer, clôturer, archiver et passer à l'année N+1"
+        subtitle="Créer, clôturer, archiver et ouvrir l'année N+1"
         actions={
           <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
             <Plus size={15} /> Nouvelle année
@@ -65,9 +89,13 @@ export default function AnneesAcademiquesPage() {
         </div>
       )}
 
+      <p className="text-xs text-muted-foreground mb-4">
+        Ces actions s&apos;appliquent à toute l&apos;année scolaire d&apos;un coup. « Ouvrir l&apos;année suivante » consulte la délibération annuelle clôturée de chaque classe : admis et admis avec dette (AJAC) montent au niveau suivant, les redoublants restent au même niveau, les exclus ne sont pas préinscrits, et les étudiants sans délibération clôturée attendent (à traiter ensuite via Réinscription, ou en relançant l&apos;action plus tard). Elle crée aussi automatiquement la classe d&apos;entrée (L1/BTS1/M1...) de chaque filière active pour les nouveaux inscrits. Pour clôturer ou faire basculer une classe en particulier, utilisez plutôt Classe &gt; Clôture année / Bascule année.
+      </p>
+
       <div className="space-y-4">
         {annees.map((a) => (
-          <div key={a.id} className={cn("bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4", a.actuelle ? "border-primary ring-1 ring-primary/20" : "border-border")} style={{ boxShadow: "var(--shadow-sm)" }}>
+          <div key={a.id} className={cn("bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4", a.actuelle ? "border-primary ring-1 ring-primary/20" : "border-border", a.archivee && "opacity-60")} style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center gap-3 flex-1">
               <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", a.actuelle ? "bg-primary/10" : "bg-muted")}>
                 <Calendar size={22} className={a.actuelle ? "text-primary" : "text-muted-foreground"} />
@@ -77,6 +105,7 @@ export default function AnneesAcademiquesPage() {
                   <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>{a.libelle}</h3>
                   {a.actuelle && <StatusBadge status="actif" />}
                   {a.cloturee && <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Clôturée</span>}
+                  {a.archivee && <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Archivée</span>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {etudiants.filter((e) => e.annee === a.libelle).length} étudiants inscrits
@@ -84,32 +113,41 @@ export default function AnneesAcademiquesPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!a.actuelle && !a.cloturee && (
-                <button onClick={() => setAnneeActuelle(a.id)} className="px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors">
-                  Définir comme courante
+              {a.archivee ? (
+                <button onClick={() => desarchiverAnnee(a.id)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors">
+                  <Archive size={12} /> Désarchiver
                 </button>
-              )}
-              {!a.cloturee && (
-                <button
-                  onClick={() => handlePromote(a.id)}
-                  disabled={promoting === a.id}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                >
-                  <ArrowRight size={12} /> {promoting === a.id ? "Reconduction..." : "Passer à N+1"}
-                </button>
-              )}
-              {!a.cloturee && (
-                <button
-                  onClick={() => handleCloture(a.id, a.libelle)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors"
-                >
-                  <Lock size={12} /> Clôturer
-                </button>
-              )}
-              {!a.actuelle && (
-                <button onClick={() => archiveAnnee(a.id)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
-                  <Archive size={12} /> Archiver
-                </button>
+              ) : (
+                <>
+                  {!a.actuelle && !a.cloturee && (
+                    <button onClick={() => setAnneeActuelle(a.id)} className="px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors">
+                      Définir comme courante
+                    </button>
+                  )}
+                  {!a.cloturee && (
+                    <button
+                      onClick={() => handleOuvrirAnnee(a.id)}
+                      disabled={promoting === a.id}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      title="Fait monter les cohortes existantes d'un niveau et crée la classe d'entrée de chaque filière pour les nouveaux inscrits"
+                    >
+                      <DoorOpen size={12} /> {promoting === a.id ? "Ouverture..." : "Ouvrir l'année suivante"}
+                    </button>
+                  )}
+                  {!a.cloturee && (
+                    <button
+                      onClick={() => handleCloture(a.id, a.libelle)}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-xl hover:bg-muted transition-colors"
+                    >
+                      <Lock size={12} /> Clôturer
+                    </button>
+                  )}
+                  {!a.actuelle && (
+                    <button onClick={() => archiveAnnee(a.id)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+                      <Archive size={12} /> Archiver
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

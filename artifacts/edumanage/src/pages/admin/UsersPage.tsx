@@ -1,286 +1,404 @@
 import { useState } from "react";
-import { Plus, Edit, Trash2, Shield, User, Eye, EyeOff, CheckCircle, X } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Plus, Image as ImageIcon, Eye, Download, Link2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { DataTable, type Column } from "@/components/admin/DataTable";
+import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
+import { useUserAccounts } from "@/hooks/useStudentStore";
+import { useRoles } from "@/hooks/useRoleStore";
+import { useTeachers } from "@/hooks/useTeacherStore";
+import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
+import { PORTAL_LABELS } from "@/data/portalAccessStore";
+import { useAuth } from "@/contexts/AuthContext";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { generateMotDePasse } from "@/lib/inscriptionConstants";
+import { exportUsersToExcel } from "@/lib/userExport";
 import { cn } from "@/lib/utils";
 
-type Role = "superadmin" | "admin" | "directeur" | "secretaire" | "comptable" | "enseignant";
-
-interface UserEntry {
-  id: string;
+interface CompteGenere {
   nom: string;
-  email: string;
-  role: Role;
-  statut: "actif" | "inactif" | "suspendu";
-  derniereConnexion: string;
-  creeLe: string;
+  identifiant: string;
+  motDePasse: string;
 }
 
-const USERS: UserEntry[] = [
-  { id: "u1", nom: "Ousmane DIALLO", email: "admin@edumanage.com", role: "superadmin", statut: "actif", derniereConnexion: "Aujourd'hui 09:42", creeLe: "2023-09-01" },
-  { id: "u2", nom: "Fatou NDIAYE", email: "directrice@edumanage.com", role: "directeur", statut: "actif", derniereConnexion: "Hier 16:30", creeLe: "2023-09-01" },
-  { id: "u3", nom: "Ibrahima DIOP", email: "secretariat@edumanage.com", role: "secretaire", statut: "actif", derniereConnexion: "Aujourd'hui 08:15", creeLe: "2024-01-15" },
-  { id: "u4", nom: "Mariama TOURE", email: "compta@edumanage.com", role: "comptable", statut: "actif", derniereConnexion: "Il y a 2j", creeLe: "2024-01-15" },
-  { id: "u5", nom: "Pr. Cheikh FALL", email: "prof@edumanage.com", role: "enseignant", statut: "actif", derniereConnexion: "Aujourd'hui 11:05", creeLe: "2024-09-01" },
-  { id: "u6", nom: "Dr. Aminata DIALLO", email: "aminata.diallo@edumanage.com", role: "enseignant", statut: "inactif", derniereConnexion: "Il y a 5j", creeLe: "2024-09-01" },
-  { id: "u7", nom: "Seydou MBAYE", email: "s.mbaye@edumanage.com", role: "admin", statut: "suspendu", derniereConnexion: "Il y a 30j", creeLe: "2024-03-10" },
-];
+const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
-const ROLE_META: Record<Role, { label: string; cls: string; desc: string; color: string; bg: string }> = {
-  superadmin: { label: "Super Admin", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300", desc: "Accès total au système", color: "#ef4444", bg: "#fef2f2" },
-  admin: { label: "Administrateur", cls: "bg-primary/10 text-primary", desc: "Gestion complète sauf paramètres critiques", color: "#4f46e5", bg: "#eef2ff" },
-  directeur: { label: "Directeur", cls: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300", desc: "Consultation + validation notes/délibérations", color: "#8b5cf6", bg: "#f5f3ff" },
-  secretaire: { label: "Secrétariat", cls: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300", desc: "Gestion étudiants, inscriptions, planning", color: "#3b82f6", bg: "#eff6ff" },
-  comptable: { label: "Comptable", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300", desc: "Finances, paiements, vacations", color: "#10b981", bg: "#ecfdf5" },
-  enseignant: { label: "Enseignant", cls: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300", desc: "Saisie notes, consultation planning", color: "#f59e0b", bg: "#fffbeb" },
+const EMPTY_FORM = {
+  role: "teacher" as "admin" | "teacher",
+  teacherId: "",
+  prenom: "",
+  nom: "",
+  identifier: "",
+  email: "",
+  telephone: "",
+  fonction: "",
+  roleId: "",
+  password: "",
+  photoDataUrl: "",
 };
-
-const STATUT_META = {
-  actif: { label: "Actif", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
-  inactif: { label: "Inactif", cls: "bg-muted text-muted-foreground" },
-  suspendu: { label: "Suspendu", cls: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
-};
-
-interface FormData {
-  nom: string;
-  email: string;
-  role: Role;
-  motdepasse: string;
-}
 
 export default function UsersPage() {
-  const [users, setUsers] = useState(USERS);
-  const [filterRole, setFilterRole] = useState<Role | "">("");
-  const [filterStatut, setFilterStatut] = useState<"" | "actif" | "inactif" | "suspendu">("");
-  const [showModal, setShowModal] = useState(false);
-  const [editUser, setEditUser] = useState<UserEntry | null>(null);
-  const [showPwd, setShowPwd] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [form, setForm] = useState<FormData>({ nom: "", email: "", role: "enseignant", motdepasse: "" });
+  const { currentUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const comptes = useUserAccounts().filter((c) => c.role !== "student");
+  const roles = useRoles();
+  const teachers = useTeachers();
+  const [roleFilter, setRoleFilter] = useState<"" | "admin" | "teacher">("");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [error, setError] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkResults, setBulkResults] = useState<CompteGenere[] | null>(null);
 
-  const filtered = users.filter((u) =>
-    (!filterRole || u.role === filterRole) &&
-    (!filterStatut || u.statut === filterStatut)
-  );
+  const filtered = roleFilter ? comptes.filter((c) => c.role === roleFilter) : comptes;
 
-  const openNew = () => {
-    setEditUser(null);
-    setForm({ nom: "", email: "", role: "enseignant", motdepasse: "" });
-    setShowModal(true);
+  /** Fiches enseignant pas encore reliées à un compte de connexion — une fiche ne peut être
+   * choisie que par un seul compte, jamais deux, sans quoi deux comptes se disputeraient le même
+   * currentUser.linkedId. */
+  const teachersDejaLies = new Set(comptes.filter((c) => c.role === "teacher" && c.linkedId).map((c) => c.linkedId));
+  const teachersDisponibles = teachers.filter((t) => !teachersDejaLies.has(t.id));
+
+  const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+  const handlePhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
+      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, photoDataUrl: String(reader.result) }));
+    reader.readAsDataURL(file);
   };
 
-  const openEdit = (u: UserEntry) => {
-    setEditUser(u);
-    setForm({ nom: u.nom, email: u.email, role: u.role, motdepasse: "" });
-    setShowModal(true);
-  };
+  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password) && (form.role !== "teacher" || form.teacherId);
 
   const handleSave = () => {
-    if (!form.nom || !form.email) return;
-    setSaved(true);
-    setTimeout(() => { setSaved(false); setShowModal(false); }, 1500);
+    if (!currentUser || !peutSauvegarder) return;
+    setError("");
+    try {
+      creerCompteStaff(
+        {
+          role: form.role,
+          prenom: form.prenom,
+          nom: form.nom,
+          identifier: form.identifier,
+          email: form.email,
+          password: form.password,
+          telephone: form.telephone || undefined,
+          fonction: form.fonction || undefined,
+          roleId: form.roleId || undefined,
+          photoDataUrl: form.photoDataUrl || undefined,
+          linkedId: form.role === "teacher" ? form.teacherId : undefined,
+        },
+        currentUser.id,
+      );
+      toast.success("Utilisateur créé.");
+      setForm(EMPTY_FORM);
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Création impossible");
+    }
   };
 
-  const handleDelete = () => {
-    if (deleteTarget) { setUsers((prev) => prev.filter((u) => u.id !== deleteTarget)); setDeleteTarget(null); }
+  const handleBulkLink = () => {
+    if (!currentUser) return;
+    const crees: CompteGenere[] = [];
+    const echecs: string[] = [];
+    for (const t of teachersDisponibles) {
+      const motDePasse = generateMotDePasse();
+      try {
+        creerCompteStaff(
+          {
+            role: "teacher",
+            prenom: t.prenom,
+            nom: t.nom,
+            identifier: t.matricule,
+            email: t.email?.trim() || `${t.matricule.toLowerCase()}@edumanage.local`,
+            password: motDePasse,
+            telephone: t.telephone,
+            photoDataUrl: t.photoDataUrl,
+            linkedId: t.id,
+          },
+          currentUser.id,
+        );
+        crees.push({ nom: `${t.prenom} ${t.nom}`, identifiant: t.matricule, motDePasse });
+      } catch (err) {
+        echecs.push(`${t.prenom} ${t.nom} (${err instanceof Error ? err.message : "erreur inconnue"})`);
+      }
+    }
+    setBulkResults(crees);
+    if (echecs.length) toast.error(`${echecs.length} fiche(s) non reliée(s) : ${echecs.join(", ")}`);
+    if (crees.length) toast.success(`${crees.length} compte(s) créé(s).`);
   };
 
-  const roleStats = Object.entries(ROLE_META).map(([key, meta]) => ({
-    role: key as Role,
-    ...meta,
-    count: users.filter((u) => u.role === key).length,
-  }));
+  const columns: Column<Record<string, unknown>>[] = [
+    {
+      key: "displayName",
+      header: "Utilisateur",
+      sortable: true,
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        return (
+          <div className="flex items-center gap-2.5">
+            {c.photoDataUrl ? (
+              <img src={c.photoDataUrl} alt={c.displayName} className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <UserAvatar name={c.displayName} size="sm" />
+            )}
+            <span className="font-medium text-foreground">{c.displayName}</span>
+          </div>
+        );
+      },
+    },
+    { key: "identifier", header: "Identifiant", sortable: true, render: (row) => <span className="font-mono text-xs">{(row as unknown as UserAccountRecord).identifier}</span> },
+    {
+      key: "profil",
+      header: "Profil",
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        const role = c.roleId ? roles.find((r) => r.id === c.roleId) : undefined;
+        return (
+          <div>
+            <div className="text-sm">{PORTAL_LABELS[c.role]}</div>
+            {c.fonction && <div className="text-[11px] text-muted-foreground">{c.fonction}</div>}
+            {role && <div className="text-[11px] text-primary font-mono">{role.code}</div>}
+          </div>
+        );
+      },
+    },
+    { key: "email", header: "Email", sortable: true },
+    { key: "telephone", header: "Téléphone", render: (row) => (row as unknown as UserAccountRecord).telephone ?? "—" },
+    {
+      key: "actif",
+      header: "Statut",
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        const actif = c.actif !== false;
+        return (
+          <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", actif ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300")}>
+            {actif ? "Actif" : "Désactivé"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right",
+      render: (row) => {
+        const c = row as unknown as UserAccountRecord;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setLocation(`/admin/users/${c.id}`); }}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary"
+            title="Voir la fiche"
+            data-testid={`user-voir-${c.id}`}
+          >
+            <Eye size={14} />
+          </button>
+        );
+      },
+    },
+  ];
 
   return (
     <div>
       <PageHeader
-        breadcrumb={[{ label: "Admin" }, { label: "Paramètres" }, { label: "Comptes & Rôles" }]}
-        title="Comptes & Rôles"
-        subtitle="Gestion des accès utilisateurs — permissions par rôle, création et suspension de comptes"
+        breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Les utilisateurs" }]}
+        title="Les utilisateurs"
+        subtitle="Comptes réels d'administration et de professeurs — les étudiants sont gérés via l'inscription"
         actions={
-          <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus size={14} /> Nouveau compte
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => exportUsersToExcel(filtered)} className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste" data-testid="user-export">
+              <Download size={13} /> Exporter
+            </button>
+            {teachersDisponibles.length > 0 && (
+              <button
+                onClick={() => { setBulkResults(null); setBulkOpen(true); }}
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors text-muted-foreground"
+                title="Créer un compte pour chaque fiche enseignant sans compte"
+                data-testid="user-bulk-link"
+              >
+                <Link2 size={13} /> Relier {teachersDisponibles.length} enseignant(s) sans compte
+              </button>
+            )}
+            <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="user-ajouter">
+              <Plus size={14} /> Ajouter
+            </button>
+          </div>
         }
       />
 
-      {/* Role stats */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-        {roleStats.map((r) => (
-          <button
-            key={r.role}
-            onClick={() => setFilterRole(filterRole === r.role ? "" : r.role)}
-            className={cn(
-              "bg-card border rounded-xl p-3 text-center transition-all hover:shadow-md",
-              filterRole === r.role ? "border-primary ring-1 ring-primary/20" : "border-border hover:border-primary/30"
-            )}
-            style={{ boxShadow: "var(--shadow-sm)" }}
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: r.bg }}>
-              <Shield size={14} style={{ color: r.color }} />
-            </div>
-            <div className="text-xl font-bold text-foreground">{r.count}</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">{r.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
-        <select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value as typeof filterStatut)} className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-          <option value="">Tous les statuts</option>
-          <option value="actif">Actif</option>
-          <option value="inactif">Inactif</option>
-          <option value="suspendu">Suspendu</option>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="user-filtre-profil">
+          <option value="">Tous les profils</option>
+          <option value="admin">{PORTAL_LABELS.admin}</option>
+          <option value="teacher">{PORTAL_LABELS.teacher}</option>
         </select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} compte(s)</span>
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              {["Utilisateur", "Email", "Rôle", "Statut", "Dernière connexion", "Actions"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u) => {
-              const role = ROLE_META[u.role];
-              const statut = STATUT_META[u.statut];
-              return (
-                <tr key={u.id} className="border-b border-border/60 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <UserAvatar name={u.nom} size="sm" />
-                      <span className="font-medium text-foreground">{u.nom}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", role.cls)}>{role.label}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", statut.cls)}>{statut.label}</span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{u.derniereConnexion}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(u)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" title="Modifier">
-                        <Edit size={13} />
-                      </button>
-                      {u.role !== "superadmin" && (
-                        <button onClick={() => setDeleteTarget(u.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer">
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filtered as unknown as Record<string, unknown>[]}
+        searchable
+        searchPlaceholder="Nom, identifiant, email..."
+        onRowClick={(row) => setLocation(`/admin/users/${(row as unknown as UserAccountRecord).id}`)}
+        emptyMessage="Aucun utilisateur."
+      />
 
-      {/* Permissions matrix */}
-      <div className="bg-card border border-border rounded-xl p-5 mt-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <h3 className="font-bold text-foreground mb-4">Matrice des Permissions</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 font-semibold text-muted-foreground">Module</th>
-                {Object.entries(ROLE_META).map(([r, m]) => (
-                  <th key={r} className="text-center py-2 px-2 font-semibold text-muted-foreground">{m.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { module: "Dashboard", perms: [true, true, true, true, false, false] },
-                { module: "Gestion étudiants", perms: [true, true, true, true, false, false] },
-                { module: "Gestion enseignants", perms: [true, true, true, false, false, false] },
-                { module: "Saisie des notes", perms: [true, true, false, false, false, true] },
-                { module: "Délibérations", perms: [true, true, true, false, false, false] },
-                { module: "Finances", perms: [true, true, false, false, true, false] },
-                { module: "Planning", perms: [true, true, false, true, false, true] },
-                { module: "Paramètres", perms: [true, false, false, false, false, false] },
-              ].map((row) => (
-                <tr key={row.module} className="border-b border-border/60 hover:bg-muted/20">
-                  <td className="py-2.5 pr-4 font-medium text-foreground">{row.module}</td>
-                  {row.perms.map((has, i) => (
-                    <td key={i} className="text-center py-2.5 px-2">
-                      {has ? (
-                        <CheckCircle size={14} className="mx-auto text-emerald-500" />
-                      ) : (
-                        <X size={14} className="mx-auto text-muted-foreground/30" />
-                      )}
-                    </td>
+      <FormModal open={open} onClose={() => setOpen(false)} title="Nouvel utilisateur" size="md">
+        <div className="space-y-3">
+          <div>
+            <label className="inline-flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
+              <ImageIcon size={13} />
+              Choisir une photo
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="user-photo-input" />
+            </label>
+            {form.photoDataUrl && (
+              <img src={form.photoDataUrl} alt="Aperçu" className="mt-2 w-16 h-16 rounded-full object-cover border border-border" data-testid="user-photo-apercu" />
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Profil *</label>
+            <select
+              value={form.role}
+              onChange={(e) => {
+                const role = e.target.value as "admin" | "teacher";
+                setForm((f) => (role === "teacher" ? { ...f, role, teacherId: "", prenom: "", nom: "" } : { ...f, role, teacherId: "" }));
+              }}
+              className={inputClass}
+              data-testid="user-role"
+            >
+              <option value="teacher">{PORTAL_LABELS.teacher}</option>
+              <option value="admin">{PORTAL_LABELS.admin}</option>
+            </select>
+          </div>
+
+          {form.role === "teacher" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fiche enseignant *</label>
+              {teachersDisponibles.length === 0 ? (
+                <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                  Aucune fiche enseignant disponible — toutes sont déjà reliées à un compte, ou aucune n'existe encore.{" "}
+                  <Link href="/admin/teachers/new" className="text-primary hover:underline font-medium">Créer une fiche enseignant</Link>.
+                </p>
+              ) : (
+                <select
+                  value={form.teacherId}
+                  onChange={(e) => {
+                    const t = teachersDisponibles.find((x) => x.id === e.target.value);
+                    setForm((f) => ({ ...f, teacherId: e.target.value, prenom: t?.prenom ?? "", nom: t?.nom ?? "" }));
+                  }}
+                  className={inputClass}
+                  data-testid="user-teacher-select"
+                >
+                  <option value="">Sélectionner une fiche...</option>
+                  {teachersDisponibles.map((t) => (
+                    <option key={t.id} value={t.id}>{t.prenom} {t.nom} — {t.matricule}</option>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Create/Edit modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground mb-5">{editUser ? "Modifier le compte" : "Créer un nouveau compte"}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
-                <input value={form.nom} onChange={(e) => setForm(p => ({ ...p, nom: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Prénom NOM" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
-                <input type="email" value={form.email} onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="email@edumanage.com" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle *</label>
-                <select value={form.role} onChange={(e) => setForm(p => ({ ...p, role: e.target.value as Role }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  {Object.entries(ROLE_META).filter(([r]) => r !== "superadmin").map(([r, m]) => <option key={r} value={r}>{m.label} — {m.desc}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{editUser ? "Nouveau mot de passe (laisser vide = inchangé)" : "Mot de passe *"}</label>
-                <div className="relative">
-                  <input type={showPwd ? "text" : "password"} value={form.motdepasse} onChange={(e) => setForm(p => ({ ...p, motdepasse: e.target.value }))} className="w-full px-3 py-2.5 pr-10 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="••••••••" />
-                  <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
-              <button onClick={handleSave} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
-                {saved ? <><CheckCircle size={14} /> Enregistré</> : <>{editUser ? "Enregistrer" : "Créer le compte"}</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Delete confirm */}
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-foreground mb-2">Supprimer ce compte ?</h3>
-            <p className="text-sm text-muted-foreground mb-5">Cette action est irréversible. L'utilisateur perdra immédiatement son accès.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
-              <button onClick={handleDelete} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors">Supprimer</button>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
+              <input value={form.prenom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-prenom" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+              <input value={form.nom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-nom" />
             </div>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Identifiant *</label>
+            <input value={form.identifier} onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))} placeholder="ex: ENS-0042" className={inputClass} data-testid="user-identifiant" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
+            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="nom@edumanage.com" className={inputClass} data-testid="user-email" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} className={inputClass} data-testid="user-telephone" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
+            <input value={form.fonction} onChange={(e) => setForm((f) => ({ ...f, fonction: e.target.value }))} placeholder="ex: Secrétariat, Gestion des professeurs..." className={inputClass} data-testid="user-fonction" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
+            <select value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))} className={inputClass} data-testid="user-role-select">
+              <option value="">Aucun — accès complet</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>
+            <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Communicable via Envoi identifiant" className={inputClass} data-testid="user-password" />
+            <p className={cn("text-[11px] mt-1", form.password && !isPasswordValid(form.password) ? "text-red-600" : "text-muted-foreground")}>{PASSWORD_HINT}</p>
+          </div>
+
+          {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}
+
+          <button
+            onClick={handleSave}
+            disabled={!peutSauvegarder}
+            className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
+            data-testid="user-sauvegarder"
+          >
+            Sauvegarder
+          </button>
         </div>
-      )}
+      </FormModal>
+
+      <FormModal open={bulkOpen} onClose={() => setBulkOpen(false)} title="Relier les enseignants sans compte" size="md">
+        {!bulkResults ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {teachersDisponibles.length} fiche(s) enseignant n'ont pas encore de compte de connexion. Un compte sera créé pour chacune (identifiant = matricule, mot de passe généré) :
+            </p>
+            <div className="max-h-60 overflow-y-auto border border-border rounded-xl divide-y divide-border">
+              {teachersDisponibles.map((t) => (
+                <div key={t.id} className="px-3 py-2 flex items-center justify-between text-sm">
+                  <span>{t.prenom} {t.nom}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{t.matricule}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleBulkLink}
+              className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+              data-testid="user-bulk-confirm"
+            >
+              Créer {teachersDisponibles.length} compte(s)
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Comptes créés — communiquez ces mots de passe aux professeurs concernés (ils pourront ensuite le changer depuis leur profil) :
+            </p>
+            <div className="max-h-72 overflow-y-auto border border-border rounded-xl divide-y divide-border">
+              {bulkResults.map((r) => (
+                <div key={r.identifiant} className="px-3 py-2 flex items-center justify-between text-sm gap-2" data-testid="user-bulk-result-row">
+                  <span className="truncate">{r.nom}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{r.identifiant}</span>
+                  <span className="font-mono text-xs font-semibold">{r.motDePasse}</span>
+                </div>
+              ))}
+              {bulkResults.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground">Aucun compte créé.</p>}
+            </div>
+            <button onClick={() => setBulkOpen(false)} className="w-full px-4 py-2.5 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+              Fermer
+            </button>
+          </div>
+        )}
+      </FormModal>
     </div>
   );
 }

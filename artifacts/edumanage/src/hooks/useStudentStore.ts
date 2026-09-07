@@ -5,6 +5,7 @@ import {
   getEtudiantById,
   getEtudiantByMatricule,
   getInscriptionsByEtudiant,
+  getInscriptions,
   getAnneesAcademiques,
   getAnneeActuelle,
   getPaiements,
@@ -13,6 +14,7 @@ import {
   getSeances,
   getReleves,
   getUserAccounts,
+  getUserAccountById,
   getStudentRequests,
   getMessages,
   getNotifications,
@@ -41,6 +43,10 @@ export function useInscriptions(etudiantId: string) {
     () => getInscriptionsByEtudiant(etudiantId),
   );
   return getInscriptionsByEtudiant(etudiantId);
+}
+
+export function useAllInscriptions() {
+  return useSyncExternalStore(subscribe, getInscriptions, getInscriptions);
 }
 
 export function useAnneesAcademiques() {
@@ -85,6 +91,11 @@ export function useReleves() {
 export function useUserAccounts() {
   useSyncExternalStore(subscribe, getUserAccounts, getUserAccounts);
   return getUserAccounts();
+}
+
+export function useUserAccount(id: string) {
+  useSyncExternalStore(subscribe, () => getUserAccountById(id), () => getUserAccountById(id));
+  return getUserAccountById(id);
 }
 
 export function useStudentRequests() {

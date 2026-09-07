@@ -1,14 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, Eye, Pencil, Download, Users, AlertTriangle, UserX, X, RefreshCw } from "lucide-react";
+import { Plus, Eye, Pencil, Download, Upload, FileSpreadsheet, Users, AlertTriangle, UserX, X, RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES } from "@/data/mockData";
-import { useStudentStore, useAnneeActuelle } from "@/hooks/useStudentStore";
-import type { EtudiantRecord } from "@/data/studentStore";
+import { useStudentStore, useAnneeActuelle, useAnneesAcademiques, useAllInscriptions } from "@/hooks/useStudentStore";
+import { useClasses } from "@/hooks/useStructureStore";
+import { setEtudiantsAccess, type EtudiantRecord } from "@/data/studentStore";
+import { downloadStudentTemplate, parseStudentExcel, importStudentRows, exportStudentsToExcel } from "@/lib/studentImportExport";
 import { formatCFA } from "@/lib/utils";
 
 type Etudiant = EtudiantRecord;
@@ -20,13 +23,13 @@ const STATUT_OPTIONS = [
   { value: "en_attente", label: "En attente" },
   { value: "inscrit", label: "Inscrit" },
   { value: "suspendu", label: "Suspendu" },
+  { value: "abandon", label: "Abandon" },
 ];
 
-const ANNEE_OPTIONS = [
-  { value: "", label: "Toutes les années" },
-  { value: "2025-2026", label: "2025-2026" },
-  { value: "2024-2025", label: "2024-2025" },
-];
+function isYearMonth(iso: string, year: number, month: number): boolean {
+  const d = new Date(iso);
+  return d.getFullYear() === year && d.getMonth() === month;
+}
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -43,6 +46,33 @@ export default function StudentsPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const anneeActuelle = useAnneeActuelle();
+  const inscriptions = useAllInscriptions();
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const rows = await parseStudentExcel(file);
+      if (rows.length === 0) {
+        toast.error("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const { created, echecs } = importStudentRows(rows);
+      toast.success(`${created.length} étudiant(s) préinscrit(s)${echecs > 0 ? ` — ${echecs} ligne(s) en échec` : ""}.`);
+    } catch {
+      toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeOptions = useMemo(
+    () => [
+      { value: "", label: "Toutes les années" },
+      ...[...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => ({ value: a.libelle, label: a.libelle })),
+    ],
+    [anneesAcademiques],
+  );
 
   // Filters
   const [filiereFilter, setFiliereFilter] = useState("");
@@ -50,6 +80,17 @@ export default function StudentsPage() {
   const [anneeFilter, setAnneeFilter] = useState("");
   const [impayesOnly, setImpayesOnly] = useState(false);
   const [sexeFilter, setSexeFilter] = useState("");
+  const [classeFilter, setClasseFilter] = useState("");
+  const [niveauFilter, setNiveauFilter] = useState("");
+
+  const classes = useClasses();
+  const classeOptions = useMemo(
+    () => classes.filter((c) => !filiereFilter || c.filiereId === filiereFilter).sort((a, b) => a.nom.localeCompare(b.nom)),
+    [classes, filiereFilter],
+  );
+  const niveauOptions = useMemo(() => [...new Set(etudiants.map((e) => e.niveau))].sort(), [etudiants]);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredData = useMemo(() => {
     return etudiants.filter((e) => {
@@ -58,14 +99,23 @@ export default function StudentsPage() {
       if (anneeFilter && e.annee !== anneeFilter) return false;
       if (impayesOnly && e.soldeDu === 0) return false;
       if (sexeFilter && e.sexe !== sexeFilter) return false;
+      if (classeFilter && e.classeId !== classeFilter) return false;
+      if (niveauFilter && e.niveau !== niveauFilter) return false;
       return true;
     });
-  }, [etudiants, filiereFilter, statutFilter, anneeFilter, impayesOnly, sexeFilter]);
+  }, [etudiants, filiereFilter, statutFilter, anneeFilter, impayesOnly, sexeFilter, classeFilter, niveauFilter]);
 
   const impayés = etudiants.filter((e) => e.soldeDu > 0).length;
+
+  const now = new Date();
+  const moisPrecedent = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const premieresInscriptions = inscriptions.filter((i) => i.type === "premiere");
+  const nouveauxCeMois = premieresInscriptions.filter((i) => isYearMonth(i.dateInscription, now.getFullYear(), now.getMonth())).length;
+  const nouveauxMoisPrecedent = premieresInscriptions.filter((i) => isYearMonth(i.dateInscription, moisPrecedent.getFullYear(), moisPrecedent.getMonth())).length;
+  const ecartNouveaux = nouveauxCeMois - nouveauxMoisPrecedent;
   const suspendus = etudiants.filter((e) => e.statut === "suspendu").length;
 
-  const activeFiltersCount = [filiereFilter, statutFilter, anneeFilter, sexeFilter, impayesOnly].filter(Boolean).length;
+  const activeFiltersCount = [filiereFilter, statutFilter, anneeFilter, sexeFilter, classeFilter, niveauFilter, impayesOnly].filter(Boolean).length;
 
   const clearFilters = () => {
     setFiliereFilter("");
@@ -73,6 +123,19 @@ export default function StudentsPage() {
     setAnneeFilter("");
     setImpayesOnly(false);
     setSexeFilter("");
+    setClasseFilter("");
+    setNiveauFilter("");
+  };
+
+  const applyAccessToSelection = (access: "autorise" | "interdit", ids: string[], clearSelection: () => void) => {
+    const count = setEtudiantsAccess(ids, access);
+    clearSelection();
+    setSelectedIds(new Set());
+    if (count === 0) {
+      toast.message(access === "autorise" ? "Déjà autorisés" : "Déjà suspendus", { description: "Aucun statut n'a nécessité de changement." });
+      return;
+    }
+    toast.success(access === "autorise" ? `${count} étudiant(s) réactivé(s)` : `${count} étudiant(s) suspendu(s)`);
   };
 
   const activeFiliereLabel = FILIERES.find((f) => f.id === filiereFilter)?.code;
@@ -94,7 +157,7 @@ export default function StudentsPage() {
             title={`Ouvrir le dossier de ${r.prenom} ${r.nom}`}
             aria-label={`Dossier ${r.prenom} ${r.nom}`}
           >
-            <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" />
+            <UserAvatar name={`${r.prenom} ${r.nom}`} size="sm" src={r.photoDataUrl} />
           </button>
           <div>
             <div className="font-medium text-foreground text-sm">{r.prenom} {r.nom}</div>
@@ -162,7 +225,7 @@ export default function StudentsPage() {
           <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Filière</label>
           <select
             value={filiereFilter}
-            onChange={(e) => setFiliereFilter(e.target.value)}
+            onChange={(e) => { setFiliereFilter(e.target.value); setClasseFilter(""); }}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             data-testid="filter-filiere"
           >
@@ -208,7 +271,35 @@ export default function StudentsPage() {
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             data-testid="filter-annee"
           >
-            {ANNEE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {anneeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        {/* Niveau */}
+        <div>
+          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Niveau</label>
+          <select
+            value={niveauFilter}
+            onChange={(e) => setNiveauFilter(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="filter-niveau"
+          >
+            <option value="">Tous</option>
+            {niveauOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+
+        {/* Classe */}
+        <div>
+          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Classe</label>
+          <select
+            value={classeFilter}
+            onChange={(e) => setClasseFilter(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="filter-classe"
+          >
+            <option value="">Toutes</option>
+            {classeOptions.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
 
@@ -239,6 +330,8 @@ export default function StudentsPage() {
           {statutFilter && <FilterChip label={`Statut : ${statutFilter}`} onRemove={() => setStatutFilter("")} />}
           {sexeFilter && <FilterChip label={`Sexe : ${sexeFilter === "M" ? "Masculin" : "Féminin"}`} onRemove={() => setSexeFilter("")} />}
           {anneeFilter && <FilterChip label={`Année : ${anneeFilter}`} onRemove={() => setAnneeFilter("")} />}
+          {niveauFilter && <FilterChip label={`Niveau : ${niveauFilter}`} onRemove={() => setNiveauFilter("")} />}
+          {classeFilter && <FilterChip label={`Classe : ${classeOptions.find((c) => c.id === classeFilter)?.nom ?? classeFilter}`} onRemove={() => setClasseFilter("")} />}
           {impayesOnly && <FilterChip label="Impayés uniquement" onRemove={() => setImpayesOnly(false)} />}
         </div>
       )}
@@ -253,8 +346,15 @@ export default function StudentsPage() {
         subtitle={`${etudiants.length} étudiants — année ${anneeActuelle}`}
         actions={
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground">
-              <Download size={13} /> CSV
+            <button onClick={downloadStudentTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
+              <FileSpreadsheet size={13} /> Modèle
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground cursor-pointer" title="Importer via Excel">
+              <Upload size={13} /> Importer
+              <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} data-testid="student-import-input" />
+            </label>
+            <button onClick={() => exportStudentsToExcel(filteredData)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste affichée">
+              <Download size={13} /> Exporter
             </button>
             <button
               onClick={() => setLocation("/admin/students/reinscription")}
@@ -275,7 +375,14 @@ export default function StudentsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard icon={Users} label="Total inscrits" value={etudiants.length} accentColor="#4f46e5" />
-        <KPICard icon={Users} label="Nouveaux ce mois" value="12" trend="+4 vs mois préc." trendDirection="up" accentColor="#10b981" />
+        <KPICard
+          icon={Users}
+          label="Nouveaux ce mois"
+          value={nouveauxCeMois}
+          trend={ecartNouveaux === 0 ? undefined : `${ecartNouveaux > 0 ? "+" : ""}${ecartNouveaux} vs mois préc.`}
+          trendDirection={ecartNouveaux >= 0 ? "up" : "down"}
+          accentColor="#10b981"
+        />
         <KPICard
           icon={AlertTriangle}
           label="Avec impayés"
@@ -283,7 +390,13 @@ export default function StudentsPage() {
           accentColor="#ef4444"
           onClick={() => { setImpayesOnly(true); }}
         />
-        <KPICard icon={UserX} label="Suspendus" value={suspendus} accentColor="#64748b" />
+        <KPICard
+          icon={UserX}
+          label="Suspendus"
+          value={suspendus}
+          accentColor="#64748b"
+          onClick={() => { setStatutFilter("suspendu"); }}
+        />
       </div>
 
       <DataTable
@@ -297,6 +410,35 @@ export default function StudentsPage() {
         onClearFilters={clearFilters}
         emptyMessage="Aucun étudiant ne correspond aux filtres sélectionnés"
         pageSize={10}
+        selectable
+        getRowId={(r) => (r as unknown as Etudiant).id}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        renderBulkActions={(ids, clearSelection) => (
+          <>
+            <button
+              onClick={() => exportStudentsToExcel(etudiants.filter((e) => ids.includes(e.id)))}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
+              data-testid="bulk-export-students"
+            >
+              <Download size={12} /> Exporter la sélection
+            </button>
+            <button
+              onClick={() => applyAccessToSelection("autorise", ids, clearSelection)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 text-xs font-medium hover:bg-emerald-50 transition-colors"
+              data-testid="bulk-authorize-students"
+            >
+              <ShieldCheck size={12} /> Autoriser la sélection
+            </button>
+            <button
+              onClick={() => applyAccessToSelection("interdit", ids, clearSelection)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-medium hover:bg-red-50 transition-colors"
+              data-testid="bulk-suspend-students"
+            >
+              <ShieldOff size={12} /> Suspendre la sélection
+            </button>
+          </>
+        )}
       />
     </div>
   );

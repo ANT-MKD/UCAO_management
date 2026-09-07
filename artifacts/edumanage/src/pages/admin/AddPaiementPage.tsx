@@ -1,46 +1,54 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, ArrowRight, Check, Search, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Search, ClipboardCheck, ReceiptText } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useStudentStore } from "@/hooks/useStudentStore";
-import { registerPaiement } from "@/data/studentStore";
-import type { EtudiantRecord, PaiementLigne } from "@/data/studentStore";
-import { FRAIS_CONFIG } from "@/data/mockData";
-import { MODES_PAIEMENT, STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
+import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
+import { registerPaiement, payerQuittance, debiterAvoir } from "@/data/studentStore";
+import type { EtudiantRecord, PaiementLigne, PaiementRecord } from "@/data/studentStore";
+import { enregistrerEncaissement } from "@/data/encaissementStore";
+import { getGrilleFrais, getModelesFraisDisponibles, calculerEcheances, nbEcheancesEffectif } from "@/data/grilleFraisStore";
+import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { STATUTS_PAIEMENT } from "@/lib/inscriptionConstants";
+import { useModesPaiementFinance, useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { formatCFA, cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { montantQuittance } from "@/pages/admin/PaiementsPage";
+import { formatCFA, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 
-const MOYEN_COLORS: Record<string, { color: string; bg: string }> = {
-  Wave: { color: "#2563eb", bg: "#eff6ff" },
-  OrangeMoney: { color: "#ea580c", bg: "#fff7ed" },
-  Virement: { color: "#4f46e5", bg: "#eef2ff" },
-  Especes: { color: "#16a34a", bg: "#f0fdf4" },
-  Cheque: { color: "#64748b", bg: "#f8fafc" },
-};
+/** Une ligne facturable de la facture unique : soit une ligne "avant inscription" entière de la
+ * grille tarifaire, soit une échéance individuelle d'une ligne "échéances" (calculée par
+ * calculerEcheances, qui respecte les échéances personnalisées si elles existent). */
+interface PayableItem {
+  id: string;
+  label: string;
+  montant: number;
+}
 
-type RubriqueOpt = { value: string; label: string; montant: number };
-
-function getRubriquesForStudent(student: EtudiantRecord): RubriqueOpt[] {
-  const frais = FRAIS_CONFIG.find((f) => f.filiereId === student.filiereId && f.niveau === student.niveau);
-  if (!frais) {
-    return [
-      { value: "inscription", label: "Inscription unique", montant: 150000 },
-      { value: "scolarite_mensuelle", label: "Scolarité (mensualité)", montant: 70000 },
-      { value: "scolarite_annuelle", label: "Scolarité (annuelle)", montant: 700000 },
-      { value: "mutuelle", label: "Mutuelle santé", montant: 15000 },
-      { value: "tenue", label: "Tenue / frais divers", montant: 50000 },
-      { value: "pack_complet", label: "Pack complet (inscription + tenue)", montant: 200000 },
-    ];
+function getPayableItems(
+  filiereId: string,
+  niveau: string,
+  annee: string,
+  modeleFraisId: string,
+): PayableItem[] {
+  const grille = getGrilleFrais(filiereId, niveau, annee, modeleFraisId);
+  if (!grille) return [];
+  const items: PayableItem[] = [];
+  for (const l of grille.lignes) {
+    if (l.modalite === "avant_inscription") {
+      items.push({ id: l.id, label: l.intitule, montant: l.montant });
+      continue;
+    }
+    for (const ech of calculerEcheances(l, annee)) {
+      items.push({
+        id: `${l.id}#${ech.index}`,
+        label: `${l.intitule} — Échéance ${ech.index}/${nbEcheancesEffectif(l)}`,
+        montant: ech.montant,
+      });
+    }
   }
-  return [
-    { value: "inscription", label: "Inscription unique", montant: frais.inscription },
-    { value: "scolarite_mensuelle", label: "Scolarité (mensualité)", montant: Math.round(frais.scolariteAnnuelle / 10) },
-    { value: "scolarite_annuelle", label: "Scolarité (annuelle)", montant: frais.scolariteAnnuelle },
-    { value: "mutuelle", label: "Mutuelle santé", montant: 15000 },
-    { value: "tenue", label: "Tenue / frais divers", montant: frais.fraisDivers + 25000 },
-    { value: "pack_complet", label: "Pack complet (inscription + tenue)", montant: frais.inscription + frais.fraisDivers + 25000 },
-  ];
+  return items;
 }
 
 const STEP_LABELS = ["Sélectionner l'étudiant", "Facture unique", "Confirmation"];
@@ -49,26 +57,74 @@ export default function AddPaiementPage() {
   const [, setLocation] = useLocation();
   const etudiants = useStudentStore();
   const classes = useClasses();
+  const paiements = usePaiements();
+  const modesPaiement = useModesPaiementFinance();
+  const modelesFrais = useModelesFrais();
+  useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
+  const { currentUser } = useAuth();
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<EtudiantRecord | null>(null);
+  const [payMode, setPayMode] = useState<"nouvelle" | "existante">("nouvelle");
+  const [selectedQuittance, setSelectedQuittance] = useState<PaiementRecord | null>(null);
   const [selectedMoyen, setSelectedMoyen] = useState("Wave");
-  const [selectedRubriques, setSelectedRubriques] = useState<string[]>(["inscription"]);
+  const [modeleFraisId, setModeleFraisId] = useState("");
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [montantVerse, setMontantVerse] = useState("");
   const [dateOperation, setDateOperation] = useState(new Date().toISOString().split("T")[0]);
+  const [dateLimite, setDateLimite] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split("T")[0];
+  });
   const [statutPaiement, setStatutPaiement] = useState("paye");
   const [reference, setReference] = useState("");
   const [classeId, setClasseId] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const rubriques = selectedStudent ? getRubriquesForStudent(selectedStudent) : [];
+  const modelesDisponibles = useMemo(() => {
+    if (!selectedStudent) return [];
+    const ids = new Set(getModelesFraisDisponibles(selectedStudent.filiereId, selectedStudent.niveau, selectedStudent.annee));
+    return modelesFrais.filter((m) => ids.has(m.id));
+  }, [selectedStudent, modelesFrais]);
+
+  const grille = selectedStudent && modeleFraisId
+    ? getGrilleFrais(selectedStudent.filiereId, selectedStudent.niveau, selectedStudent.annee, modeleFraisId)
+    : undefined;
+
+  const payableItems: PayableItem[] = useMemo(
+    () => (selectedStudent && modeleFraisId ? getPayableItems(selectedStudent.filiereId, selectedStudent.niveau, selectedStudent.annee, modeleFraisId) : []),
+    [selectedStudent, modeleFraisId],
+  );
+
+  useEffect(() => {
+    setModeleFraisId(selectedStudent?.modeleFraisId ?? "");
+    setSelectedItemIds([]);
+  }, [selectedStudent]);
+
+  const pendingQuittances = useMemo(() => {
+    if (!selectedStudent) return [];
+    return paiements
+      .filter((p) => p.etudiantId === selectedStudent.id && p.statut !== "annule" && p.montant < montantQuittance(p))
+      .sort((a, b) => (a.dateLimite ?? a.date).localeCompare(b.dateLimite ?? b.date));
+  }, [paiements, selectedStudent]);
+
+  const pickQuittance = (q: PaiementRecord) => {
+    setSelectedQuittance(q);
+    setPayMode("existante");
+    const reste = montantQuittance(q) - q.montant;
+    setMontantVerse(String(reste));
+    setDateOperation(new Date().toISOString().split("T")[0]);
+    setReference("");
+    setStep(2);
+  };
 
   const lignes: PaiementLigne[] = useMemo(
     () =>
-      rubriques
-        .filter((r) => selectedRubriques.includes(r.value))
-        .map((r) => ({ label: r.label, montant: r.montant })),
-    [rubriques, selectedRubriques],
+      payableItems
+        .filter((it) => selectedItemIds.includes(it.id))
+        .map((it) => ({ label: it.label, montant: it.montant })),
+    [payableItems, selectedItemIds],
   );
 
   const totalFacture = useMemo(() => lignes.reduce((s, l) => s + l.montant, 0), [lignes]);
@@ -82,10 +138,59 @@ export default function AddPaiementPage() {
       ).slice(0, 5)
     : [];
 
+  const isAvoir = selectedMoyen.toUpperCase() === "AVOIR";
+  const soldeAvoirDisponible = selectedStudent?.soldeAvoir ?? 0;
+  const avoirInsuffisant = isAvoir && Number(montantVerse) > soldeAvoirDisponible;
+
   const handleSubmit = () => {
-    if (!selectedStudent || lignes.length === 0) return;
+    if (!selectedStudent) return;
+    const encaissePar = currentUser?.name ?? "Administration";
+    try {
+    if (payMode === "existante") {
+      if (!selectedQuittance) return;
+      const montantEvent = Number(montantVerse) || 0;
+      const quittanceLignes =
+        selectedQuittance.lignes && selectedQuittance.lignes.length > 0
+          ? selectedQuittance.lignes
+          : [{ label: selectedQuittance.rubrique, montant: selectedQuittance.montant || montantQuittance(selectedQuittance) }];
+      payerQuittance({
+        id: selectedQuittance.id,
+        montant: montantEvent,
+        moyen: selectedMoyen,
+        reference,
+        date: dateOperation,
+      });
+      if (montantEvent > 0) {
+        enregistrerEncaissement({
+          quittanceId: selectedQuittance.id,
+          quittanceReference: selectedQuittance.numeroRecu,
+          quittanceDateEmission: selectedQuittance.date,
+          quittanceDateLimite: selectedQuittance.dateLimite,
+          montantQuittanceTotal: montantQuittance(selectedQuittance),
+          quittanceLignes,
+          dejaPayeAvant: selectedQuittance.montant,
+          etudiantId: selectedStudent.id,
+          payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
+          filiere: selectedStudent.filiere,
+          annee: selectedStudent.annee,
+          montant: montantEvent,
+          moyen: selectedMoyen,
+          referenceBancaire: reference || undefined,
+          date: dateOperation,
+          encaissePar,
+        });
+      }
+      if (isAvoir && montantEvent > 0) {
+        const ok = debiterAvoir(selectedStudent.id, montantEvent);
+        if (!ok) toast.error("Solde avoir insuffisant au moment de la validation — le règlement a tout de même été enregistré.");
+      }
+      setSubmitted(true);
+      setTimeout(() => setLocation(`/admin/paiements/${selectedQuittance.id}`), 1500);
+      return;
+    }
+    if (lignes.length === 0) return;
     const verse = Number(montantVerse) || totalFacture;
-    registerPaiement({
+    const created = registerPaiement({
       etudiantId: selectedStudent.id,
       rubrique: "Facture unique",
       montant: verse,
@@ -95,12 +200,43 @@ export default function AddPaiementPage() {
       statut: statutPaiement,
       lignes,
       classeId: classeId || undefined,
+      dateLimite: dateLimite || undefined,
     });
+    if (verse > 0) {
+      enregistrerEncaissement({
+        quittanceId: created.id,
+        quittanceReference: created.numeroRecu,
+        quittanceDateEmission: created.date,
+        quittanceDateLimite: created.dateLimite,
+        montantQuittanceTotal: totalFacture,
+        quittanceLignes: lignes,
+        dejaPayeAvant: 0,
+        etudiantId: selectedStudent.id,
+        payeur: `${selectedStudent.matricule} - ${selectedStudent.prenom} ${selectedStudent.nom}`,
+        filiere: selectedStudent.filiere,
+        annee: selectedStudent.annee,
+        montant: verse,
+        moyen: selectedMoyen,
+        referenceBancaire: reference || undefined,
+        date: dateOperation,
+        encaissePar,
+      });
+    }
+    if (isAvoir && verse > 0) {
+      const ok = debiterAvoir(selectedStudent.id, verse);
+      if (!ok) toast.error("Solde avoir insuffisant au moment de la validation — le règlement a tout de même été enregistré.");
+    }
     setSubmitted(true);
     setTimeout(() => setLocation(`/admin/students/${selectedStudent.id}`), 1500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Paiement impossible");
+    }
   };
 
-  const canConfirmStep2 = lignes.length > 0 && (!needsClasse || !!classeId);
+  const restantQuittance = selectedQuittance ? montantQuittance(selectedQuittance) - selectedQuittance.montant : 0;
+  const canConfirmStep2Existante = !!selectedQuittance && Number(montantVerse) > 0 && !avoirInsuffisant;
+  const canConfirmStep2 =
+    (payMode === "existante" ? canConfirmStep2Existante : lignes.length > 0 && (!needsClasse || !!classeId)) && !avoirInsuffisant;
 
   return (
     <div>
@@ -177,12 +313,42 @@ export default function AddPaiementPage() {
             {searchQuery.length > 1 && filteredStudents.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">Aucun étudiant trouvé</p>
             )}
+
+            {selectedStudent && pendingQuittances.length > 0 && (
+              <div className="mt-4 border border-amber-200 bg-amber-50/60 rounded-xl p-4">
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <ReceiptText size={13} /> Quittances en attente de règlement
+                </p>
+                <div className="space-y-2">
+                  {pendingQuittances.map((q) => (
+                    <div key={q.id} className="flex items-center justify-between gap-3 bg-card border border-border rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium">{q.numeroRecu}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Reste {formatCFA(montantQuittance(q) - q.montant)}
+                          {q.dateLimite && ` — limite ${formatShortDate(q.dateLimite)}`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => pickQuittance(q)}
+                        className="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                        data-testid={`btn-payer-quittance-${q.id}`}
+                      >
+                        Régler
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={() => {
                 if (selectedStudent) {
-                  const rubs = getRubriquesForStudent(selectedStudent);
-                  setSelectedRubriques([rubs[0]?.value ?? "inscription"]);
-                  setMontantVerse(String(rubs[0]?.montant ?? ""));
+                  setPayMode("nouvelle");
+                  setSelectedQuittance(null);
+                  setMontantVerse("");
                   setClasseId(selectedStudent.classeId && !selectedStudent.classe.includes("attente") ? "" : "");
                   setStep(2);
                 }
@@ -191,61 +357,38 @@ export default function AddPaiementPage() {
               className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors mt-4 flex items-center justify-center gap-2"
               data-testid="btn-next-step1"
             >
-              Suivant <ArrowRight size={16} />
+              Nouvelle facture <ArrowRight size={16} />
             </button>
           </div>
         )}
 
-        {step === 2 && selectedStudent && (
+        {step === 2 && selectedStudent && payMode === "existante" && selectedQuittance && (
           <div className="bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border">
               <UserAvatar name={`${selectedStudent.prenom} ${selectedStudent.nom}`} size="sm" />
               <div>
                 <div className="font-semibold text-foreground text-sm">{selectedStudent.prenom} {selectedStudent.nom}</div>
-                <div className="text-xs text-muted-foreground">{selectedStudent.classe} · Solde dû : <span className="text-red-500 font-medium">{formatCFA(selectedStudent.soldeDu)}</span></div>
+                <div className="text-xs text-muted-foreground">Règlement de la quittance {selectedQuittance.numeroRecu}</div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-2">Rubriques de la facture *</label>
-              <div className="space-y-2">
-                {rubriques.map((r) => {
-                  const checked = selectedRubriques.includes(r.value);
-                  return (
-                    <label
-                      key={r.value}
-                      className={cn(
-                        "flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
-                        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = checked
-                              ? selectedRubriques.filter((v) => v !== r.value)
-                              : [...selectedRubriques, r.value];
-                            if (next.length === 0) return;
-                            setSelectedRubriques(next);
-                            const total = rubriques
-                              .filter((x) => next.includes(x.value))
-                              .reduce((s, x) => s + x.montant, 0);
-                            setMontantVerse(String(total));
-                          }}
-                          className="w-4 h-4 rounded border-border text-primary"
-                        />
-                        <span className="text-sm font-medium text-foreground">{r.label}</span>
-                      </div>
-                      <span className="text-sm font-semibold text-foreground">{formatCFA(r.montant)}</span>
-                    </label>
-                  );
-                })}
+            <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-2">
+              {(selectedQuittance.lignes && selectedQuittance.lignes.length > 0
+                ? selectedQuittance.lignes
+                : [{ label: selectedQuittance.rubrique, montant: selectedQuittance.montant }]
+              ).map((l, i) => (
+                <div key={i} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{l.label}</span>
+                  <span>{formatCFA(l.montant)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm border-t border-border pt-2 font-semibold">
+                <span>Déjà payé</span>
+                <span>{formatCFA(selectedQuittance.montant)}</span>
               </div>
-              <div className="flex justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
-                <span>Total facture</span>
-                <span className="text-primary">{formatCFA(totalFacture)}</span>
+              <div className="flex justify-between text-sm font-bold text-primary">
+                <span>Reste à payer</span>
+                <span>{formatCFA(restantQuittance)}</span>
               </div>
             </div>
 
@@ -256,14 +399,167 @@ export default function AddPaiementPage() {
                   type="number"
                   value={montantVerse}
                   onChange={(e) => setMontantVerse(e.target.value)}
-                  placeholder={String(totalFacture)}
+                  max={restantQuittance}
                   className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
                   data-testid="input-montant"
                 />
+                {Number(montantVerse) > 0 && Number(montantVerse) < restantQuittance && (
+                  <p className="text-[11px] text-amber-600 mt-1">Versement partiel — la quittance restera en statut Acompte.</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
                 <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-3">Mode de paiement *</label>
+              <div className="grid grid-cols-3 gap-2">
+                {modesPaiement.map((m) => {
+                  const colors = moyenPaiementColor(m.intitule);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedMoyen(m.intitule)}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-xs font-semibold",
+                        selectedMoyen === m.intitule ? "border-current" : "border-border hover:border-muted-foreground",
+                      )}
+                      style={selectedMoyen === m.intitule ? { background: colors.bg, color: colors.color, borderColor: colors.color } : {}}
+                      data-testid={`moyen-${m.code}`}
+                    >
+                      <div className="w-5 h-5 rounded-full" style={{ background: colors.color }} />
+                      {m.intitule}
+                    </button>
+                  );
+                })}
+              </div>
+              {isAvoir && (
+                <p className={cn("text-[11px] mt-2", avoirInsuffisant ? "text-red-600 font-medium" : "text-muted-foreground")}>
+                  Solde avoir disponible : {formatCFA(soldeAvoirDisponible)}
+                  {avoirInsuffisant && " — insuffisant pour ce montant"}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° reçu / Référence</label>
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Auto si vide"
+                className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(1)} className="flex items-center gap-2 flex-1 justify-center py-3 border border-border rounded-xl font-medium hover:bg-muted transition-colors">
+                <ArrowLeft size={16} /> Retour
+              </button>
+              <button
+                onClick={() => canConfirmStep2 && setStep(3)}
+                disabled={!canConfirmStep2}
+                className="flex items-center gap-2 flex-1 justify-center py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Confirmer <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && selectedStudent && payMode === "nouvelle" && (
+          <div className="bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+            <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border">
+              <UserAvatar name={`${selectedStudent.prenom} ${selectedStudent.nom}`} size="sm" />
+              <div>
+                <div className="font-semibold text-foreground text-sm">{selectedStudent.prenom} {selectedStudent.nom}</div>
+                <div className="text-xs text-muted-foreground">{selectedStudent.classe} · Solde dû : <span className="text-red-500 font-medium">{formatCFA(selectedStudent.soldeDu)}</span></div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais *</label>
+              <select
+                value={modeleFraisId}
+                onChange={(e) => { setModeleFraisId(e.target.value); setSelectedItemIds([]); }}
+                className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                data-testid="addpaiement-modele-frais"
+              >
+                <option value="">Sélectionner…</option>
+                {modelesDisponibles.map((m) => (
+                  <option key={m.id} value={m.id}>{m.intitule}</option>
+                ))}
+              </select>
+              {modeleFraisId && !grille && (
+                <p className="text-xs text-amber-600 mt-1.5">Aucune grille tarifaire configurée pour ce modèle sur cette filière/niveau/année.</p>
+              )}
+            </div>
+
+            {grille && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Rubriques de la facture *</label>
+                <div className="space-y-2">
+                  {payableItems.map((it) => {
+                    const checked = selectedItemIds.includes(it.id);
+                    return (
+                      <label
+                        key={it.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                          checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = checked ? selectedItemIds.filter((v) => v !== it.id) : [...selectedItemIds, it.id];
+                              setSelectedItemIds(next);
+                              const total = payableItems.filter((x) => next.includes(x.id)).reduce((s, x) => s + x.montant, 0);
+                              setMontantVerse(String(total));
+                            }}
+                            className="w-4 h-4 rounded border-border text-primary"
+                          />
+                          <span className="text-sm font-medium text-foreground">{it.label}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground">{formatCFA(it.montant)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
+                  <span>Total facture</span>
+                  <span className="text-primary">{formatCFA(totalFacture)}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
+                <input
+                  type="number"
+                  value={montantVerse}
+                  onChange={(e) => setMontantVerse(e.target.value)}
+                  placeholder={String(totalFacture)}
+                  className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                  data-testid="input-montant"
+                />
+                {Number(montantVerse) > 0 && Number(montantVerse) < totalFacture && (
+                  <p className="text-[11px] text-amber-600 mt-1">Versement partiel — la quittance restera en statut Acompte.</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
+                <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date limite</label>
+                <input type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
             </div>
 
@@ -277,25 +573,31 @@ export default function AddPaiementPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-3">Mode de paiement *</label>
               <div className="grid grid-cols-3 gap-2">
-                {MODES_PAIEMENT.map((m) => {
-                  const colors = MOYEN_COLORS[m.key] ?? { color: "#64748b", bg: "#f8fafc" };
+                {modesPaiement.map((m) => {
+                  const colors = moyenPaiementColor(m.intitule);
                   return (
                   <button
-                    key={m.key}
+                    key={m.id}
                     type="button"
-                    onClick={() => setSelectedMoyen(m.key)}
+                    onClick={() => setSelectedMoyen(m.intitule)}
                     className={cn(
                       "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-xs font-semibold",
-                      selectedMoyen === m.key ? "border-current" : "border-border hover:border-muted-foreground"
+                      selectedMoyen === m.intitule ? "border-current" : "border-border hover:border-muted-foreground"
                     )}
-                    style={selectedMoyen === m.key ? { background: colors.bg, color: colors.color, borderColor: colors.color } : {}}
-                    data-testid={`moyen-${m.key}`}
+                    style={selectedMoyen === m.intitule ? { background: colors.bg, color: colors.color, borderColor: colors.color } : {}}
+                    data-testid={`moyen-${m.code}`}
                   >
                     <div className="w-5 h-5 rounded-full" style={{ background: colors.color }} />
-                    {m.label}
+                    {m.intitule}
                   </button>
                 );})}
               </div>
+              {isAvoir && (
+                <p className={cn("text-[11px] mt-2", avoirInsuffisant ? "text-red-600 font-medium" : "text-muted-foreground")}>
+                  Solde avoir disponible : {formatCFA(soldeAvoirDisponible)}
+                  {avoirInsuffisant && " — insuffisant pour ce montant"}
+                </p>
+              )}
             </div>
 
             <div>
@@ -351,7 +653,59 @@ export default function AddPaiementPage() {
           </div>
         )}
 
-        {step === 3 && selectedStudent && (
+        {step === 3 && selectedStudent && payMode === "existante" && selectedQuittance && (
+          <div className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
+            {submitted ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Check size={28} className="text-emerald-600" />
+                </div>
+                <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Règlement enregistré</h3>
+                <p className="text-sm text-muted-foreground mt-1">Quittance mise à jour — redirection...</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-6">
+                  <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <ClipboardCheck size={24} className="text-primary" />
+                  </div>
+                  <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Confirmation — règlement de quittance</h3>
+                </div>
+                <div className="bg-muted/30 rounded-xl border border-border p-4 space-y-3 mb-6">
+                  {[
+                    { label: "Étudiant", value: `${selectedStudent.prenom} ${selectedStudent.nom}` },
+                    { label: "Quittance", value: selectedQuittance.numeroRecu, mono: true },
+                    { label: "Montant versé", value: formatCFA(parseInt(montantVerse || "0", 10)), primary: true },
+                    {
+                      label: "Reste après ce règlement",
+                      value: formatCFA(Math.max(0, restantQuittance - (parseInt(montantVerse || "0", 10)))),
+                    },
+                    { label: "Date", value: dateOperation },
+                    { label: "Moyen", value: selectedMoyen },
+                    ...(reference ? [{ label: "Référence", value: reference, mono: true }] : []),
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between text-sm border-b border-border last:border-0 pb-2 last:pb-0">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className={cn("font-medium text-foreground", "mono" in row && row.mono && "font-mono text-xs", "primary" in row && row.primary && "text-primary font-bold text-base")}>
+                        {row.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setStep(2)} className="flex items-center gap-2 flex-1 justify-center py-3 border border-border rounded-xl font-medium hover:bg-muted transition-colors">
+                    <ArrowLeft size={16} /> Retour
+                  </button>
+                  <button onClick={handleSubmit} className="flex items-center gap-2 flex-1 justify-center py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors">
+                    <Check size={16} /> Valider le règlement
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {step === 3 && selectedStudent && payMode === "nouvelle" && (
           <div className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
             {submitted ? (
               <div className="text-center py-8">
@@ -387,7 +741,7 @@ export default function AddPaiementPage() {
                     { label: "Montant versé", value: formatCFA(parseInt(montantVerse || "0", 10)), primary: true },
                     { label: "Date", value: dateOperation },
                     { label: "Statut", value: STATUTS_PAIEMENT.find((s) => s.value === statutPaiement)?.label },
-                    { label: "Moyen", value: MODES_PAIEMENT.find((m) => m.key === selectedMoyen)?.label },
+                    { label: "Moyen", value: selectedMoyen },
                     ...(classeId
                       ? [{ label: "Classe", value: classes.find((c) => c.id === classeId)?.nom }]
                       : []),

@@ -46,6 +46,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Académiques",
     icon: Library,
     children: [
+      { id: "acad-parametrage", label: "Paramétrage académique", href: "/admin/parametrage-academique" },
+      { id: "acad-annees", label: "Années académiques", href: "/admin/annees" },
       { id: "acad-filieres", label: "Filières", href: "/admin/filieres" },
       { id: "acad-niveaux", label: "Niveaux", href: "/admin/niveaux" },
       { id: "acad-semestres", label: "Semestres", href: "/admin/semestres" },
@@ -53,6 +55,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "acad-salles", label: "Salles", href: "/admin/salles" },
       { id: "acad-ues", label: "Unités d'Ens. (UE)", href: "/admin/ues" },
       { id: "acad-ecs", label: "Éléments Const. (EC)", href: "/admin/ecs" },
+      { id: "acad-ressources", label: "Ressources pédagogiques", href: "/admin/ressources-pedagogiques" },
     ],
   },
   {
@@ -75,16 +78,18 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { id: "prof-liste", label: "Liste professeurs", href: "/admin/teachers" },
       { id: "prof-ajouter", label: "Ajouter professeurs", href: "/admin/teachers/new" },
       { id: "prof-cours", label: "Cours programmés", href: "/admin/teachers/courses" },
-      { id: "prof-planning", label: "Planning professeurs", href: "/admin/teachers/planning" },
+      { id: "prof-planning", label: "Planning professeurs", href: "/admin/schedule?mode=prof" },
       { id: "prof-taux", label: "Taux horaire / Forfait", href: "/admin/teachers/rates" },
       { id: "prof-vh", label: "Mise à jour V.H", href: "/admin/teachers/volumes" },
+      { id: "prof-vacations", label: "Vacations enseignants", href: "/admin/vacations" },
       { id: "prof-statut-cours", label: "Mise à jour statut cours", href: "/admin/teachers/course-status" },
       { id: "prof-pointage-nouveau", label: "Nouveau pointage", href: "/admin/teachers/pointage/new" },
       { id: "prof-pointage-traitement", label: "Traitement pointage", href: "/admin/teachers/pointage" },
-      { id: "prof-rallonge", label: "Demande de rallonge volume horaire", href: wipHref("prof-rallonge") },
-      { id: "prof-absence", label: "Absence", href: wipHref("prof-absence") },
-      { id: "prof-retard", label: "Retard", href: wipHref("prof-retard") },
-      { id: "prof-contrat", label: "Contrat professeur", href: wipHref("prof-contrat") },
+      { id: "prof-rallonge-nouvelle", label: "Nouvelle demande de rallonge", href: "/admin/teachers/rallonge/new" },
+      { id: "prof-rallonge-traitement", label: "Traitement rallonge", href: "/admin/teachers/rallonge" },
+      { id: "prof-absence-nouveau", label: "Nouveau constat absence/retard", href: "/admin/teachers/absence/new" },
+      { id: "prof-absence-retard", label: "Absence / Retard", href: "/admin/teachers/absence" },
+      { id: "prof-contrat", label: "Contrat professeur", href: "/admin/teachers/contracts" },
     ],
   },
   {
@@ -92,14 +97,15 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Finances",
     icon: DollarSign,
     children: [
-      { id: "fin-param", label: "Paramétrage finances", href: "/admin/frais" },
+      { id: "fin-param", label: "Paramétrage finances", href: "/admin/finance-parametrage" },
+      { id: "fin-grille-frais", label: "Configuration des frais (grille tarifaire)", href: "/admin/grille-frais" },
       {
         id: "fin-quittance",
         label: "Quittance",
         children: [
           { id: "fin-quittance-nouvelle", label: "Nouvelle quittance", href: "/admin/paiements/new" },
           { id: "fin-quittance-liste", label: "Les quittances", href: "/admin/paiements" },
-          { id: "fin-quittance-masse", label: "Émission en masse", href: wipHref("fin-quittance-masse") },
+          { id: "fin-quittance-masse", label: "Émission en masse", href: "/admin/emissions-masse" },
         ],
       },
       {
@@ -107,85 +113,91 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Encaissement",
         children: [
           { id: "fin-enc-nouveau", label: "Nouvel encaissement", href: "/admin/paiements/new" },
-          { id: "fin-enc-pec", label: "Nouvel encaissement de PEC", href: wipHref("fin-enc-pec") },
-          { id: "fin-enc-pec-masse", label: "Nouvel encaissement de PEC en masse", href: wipHref("fin-enc-pec-masse") },
-          { id: "fin-enc-pec-liste", label: "Liste encaissement PEC", href: wipHref("fin-enc-pec-liste") },
-          { id: "fin-enc-pec-masse2", label: "PEC en masse", href: wipHref("fin-enc-pec-masse2") },
-          { id: "fin-enc-liste", label: "Les encaissements", href: "/admin/transactions" },
-          { id: "fin-enc-facture", label: "Facture autres services", href: wipHref("fin-enc-facture") },
-          { id: "fin-enc-candidature", label: "Candidature", href: wipHref("fin-enc-candidature") },
-          { id: "fin-enc-autorisation", label: "Autorisation paiement", href: wipHref("fin-enc-autorisation") },
-          { id: "fin-enc-avoir", label: "Avoir", href: wipHref("fin-enc-avoir") },
+          { id: "fin-enc-pec", label: "Nouvel encaissement de PEC", href: "/admin/encaissements-pec/new" },
+          { id: "fin-enc-pec-masse", label: "Nouvel encaissement de PEC en masse", href: "/admin/encaissements-pec-masse" },
+          { id: "fin-enc-pec-liste", label: "Liste encaissement PEC", href: "/admin/encaissements-pec" },
+          { id: "fin-enc-pec-masse2", label: "PEC en masse", href: "/admin/pec-masse" },
+          { id: "fin-enc-liste", label: "Les encaissements", href: "/admin/encaissements" },
+          { id: "fin-enc-facture", label: "Facture autres services", href: "/admin/factures-autres-services" },
         ],
       },
       {
         id: "fin-avoir",
         label: "Avoir",
         children: [
-          { id: "fin-avoir-enc", label: "Les encaissements", href: "/admin/transactions" },
-          { id: "fin-avoir-depot", label: "Dépôt avoir", href: wipHref("fin-avoir-depot") },
-          { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: wipHref("fin-avoir-remboursement") },
-          { id: "fin-avoir-remboursements", label: "Les remboursements", href: wipHref("fin-avoir-remboursements") },
-          { id: "fin-avoir-consentement", label: "Consentement avoir", href: wipHref("fin-avoir-consentement") },
+          { id: "fin-avoir-enc", label: "Les encaissements", href: "/admin/encaissements" },
+          { id: "fin-avoir-depot", label: "Dépôt avoir", href: "/admin/avoir/depots/new" },
+          { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: "/admin/avoir/remboursements/new" },
+          { id: "fin-avoir-remboursements", label: "Les remboursements", href: "/admin/avoir/remboursements" },
+          { id: "fin-avoir-consentement", label: "Consentement avoir", href: "/admin/avoir/consentement" },
         ],
       },
       {
         id: "fin-decompte",
         label: "Décompte",
         children: [
-          { id: "fin-decompte-taux", label: "Taux horaire", href: "/admin/vacations" },
-          { id: "fin-decompte-forfait", label: "Forfait", href: "/admin/vacations" },
-          { id: "fin-decompte-terme", label: "À terme", href: wipHref("fin-decompte-terme") },
-          { id: "fin-decompte-liste", label: "Les décomptes", href: "/admin/vacations" },
+          { id: "fin-decompte-taux", label: "Taux horaire", href: "/admin/decomptes/taux-horaire/new" },
+          { id: "fin-decompte-forfait", label: "Forfait", href: "/admin/decomptes/forfait/new" },
+          { id: "fin-decompte-terme", label: "À terme", href: "/admin/decomptes/a-terme/new" },
+          { id: "fin-decompte-liste", label: "Les décomptes", href: "/admin/decomptes" },
         ],
       },
       {
         id: "fin-paiement-prof",
         label: "Paiement professeur",
         children: [
-          { id: "fin-paiement-prof-nouveau", label: "Nouveau paiement professeur", href: "/admin/vacations/new" },
-          { id: "fin-paiement-prof-liste", label: "Les paiements professeurs", href: "/admin/vacations" },
+          { id: "fin-paiement-prof-nouveau", label: "Nouveau paiement professeur", href: "/admin/decomptes-professeurs/new" },
+          { id: "fin-paiement-prof-liste", label: "Les paiements professeurs", href: "/admin/decomptes-professeurs" },
         ],
       },
-      { id: "fin-devis", label: "Devis", href: wipHref("fin-devis") },
+      {
+        id: "fin-devis",
+        label: "Devis",
+        children: [
+          { id: "fin-devis-nouveau", label: "Nouveau devis", href: "/admin/devis/new" },
+          { id: "fin-devis-liste", label: "Les devis", href: "/admin/devis" },
+          { id: "fin-devis-grille", label: "Grille tarifaire", href: "/admin/grille-frais" },
+        ],
+      },
       {
         id: "fin-reduction",
         label: "Réduction",
         children: [
-          { id: "fin-reduction-autorisee", label: "Réduction autorisée", href: wipHref("fin-reduction-autorisee") },
-          { id: "fin-reduction-frais", label: "Réduction frais", href: wipHref("fin-reduction-frais") },
+          { id: "fin-reduction-autorisee", label: "Réduction autorisée", href: "/admin/reduction-autorisee" },
+          { id: "fin-reduction-frais", label: "Réduction frais", href: "/admin/reductions-frais" },
         ],
       },
       {
         id: "fin-maj-frais",
         label: "Mise à jour frais étudiant",
         children: [
-          { id: "fin-maj-ajouter", label: "Ajouter frais étudiant", href: "/admin/frais/new" },
-          { id: "fin-maj-supprimer", label: "Supprimer frais étudiant", href: wipHref("fin-maj-supprimer") },
-          { id: "fin-maj-ajouter-masse", label: "Ajout frais en masse", href: wipHref("fin-maj-ajouter-masse") },
-          { id: "fin-maj-suppression", label: "Suppression frais", href: wipHref("fin-maj-suppression") },
+          { id: "fin-maj-ajouter", label: "Ajouter frais étudiant", href: "/admin/frais-etudiant" },
+          { id: "fin-maj-supprimer", label: "Supprimer frais étudiant", href: "/admin/frais-etudiant/supprimer" },
+          { id: "fin-maj-ajouter-masse", label: "Ajout frais en masse", href: "/admin/frais-etudiant/masse/ajouter" },
+          { id: "fin-maj-suppression", label: "Suppression frais", href: "/admin/frais-etudiant/masse/supprimer" },
+          { id: "fin-maj-liste", label: "Les frais étudiant", href: "/admin/frais-etudiant/liste" },
         ],
       },
       {
         id: "fin-reprise",
         label: "Reprise frais",
         children: [
-          { id: "fin-reprise-nouvelle", label: "Nouvelle reprise frais étudiant", href: wipHref("fin-reprise-nouvelle") },
-          { id: "fin-reprise-liste", label: "Reprise frais étudiant", href: wipHref("fin-reprise-liste") },
+          { id: "fin-reprise-nouvelle", label: "Nouvelle reprise frais étudiant", href: "/admin/reprise-frais/new" },
+          { id: "fin-reprise-liste", label: "Reprise frais étudiant", href: "/admin/reprise-frais" },
         ],
       },
-      { id: "fin-rappel", label: "Rappel des paiements", href: wipHref("fin-rappel") },
+      { id: "fin-rappel", label: "Rappel des paiements", href: "/admin/rappel-paiement" },
       {
         id: "fin-pec",
         label: "Prise en charge",
         children: [
-          { id: "fin-pec-organisme", label: "Organisme de PEC", href: wipHref("fin-pec-organisme") },
-          { id: "fin-pec-liste", label: "Les prises en charge", href: wipHref("fin-pec-liste") },
-          { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: wipHref("fin-pec-regularisation") },
-          { id: "fin-pec-export", label: "Export comptable", href: wipHref("fin-pec-export") },
-          { id: "fin-pec-derogation", label: "Dérogation des paiements", href: wipHref("fin-pec-derogation") },
+          { id: "fin-pec-organisme", label: "Organisme de PEC", href: "/admin/organismes-pec" },
+          { id: "fin-pec-liste", label: "Les prises en charge", href: "/admin/prises-en-charge" },
+          { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: "/admin/prises-en-charge" },
         ],
       },
+      { id: "fin-export", label: "Export comptable", href: "/admin/export-comptable" },
+      { id: "fin-derogation", label: "Dérogation des paiements", href: "/admin/derogation-paiement" },
     ],
   },
   {
@@ -193,14 +205,14 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Scolarité",
     icon: BookOpen,
     children: [
-      { id: "scol-param", label: "Paramétrage scolarité", href: wipHref("scol-param") },
+      { id: "scol-param", label: "Paramétrage scolarité", href: "/admin/scolarite/parametrage" },
       {
         id: "scol-inscription",
         label: "Inscription",
         children: [
-          { id: "scol-insc-fiche", label: "Fiche d'inscription", href: "/admin/students/new" },
-          { id: "scol-insc-correction", label: "Correction d'inscription", href: "/admin/students" },
-          { id: "scol-insc-definitive", label: "Inscription définitive", href: wipHref("scol-insc-definitive") },
+          { id: "scol-insc-fiche", label: "Fiche d'inscription", href: "/admin/inscription/fiche" },
+          { id: "scol-insc-correction", label: "Correction d'inscription", href: "/admin/inscription/correction" },
+          { id: "scol-insc-definitive", label: "Inscription définitive", href: "/admin/inscription/definitive" },
         ],
       },
       {
@@ -208,18 +220,18 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Classes",
         children: [
           { id: "scol-classes-liste", label: "Les classes", href: "/admin/classes" },
-          { id: "scol-classes-cloture", label: "Clôture année", href: "/admin/annees" },
-          { id: "scol-classes-bascule", label: "Bascule année", href: "/admin/annees" },
+          { id: "scol-classes-cloture", label: "Clôture année", href: "/admin/classe/cloture-annee" },
+          { id: "scol-classes-bascule", label: "Bascule année", href: "/admin/classe/bascule-annee" },
         ],
       },
       {
         id: "scol-evaluation",
         label: "Évaluation",
         children: [
-          { id: "scol-eval-nouvelle", label: "Nouvelle évaluation", href: wipHref("scol-eval-nouvelle") },
-          { id: "scol-eval-devoir", label: "Devoir", href: wipHref("scol-eval-devoir") },
-          { id: "scol-eval-poids", label: "Mise à jour poids évaluation", href: wipHref("scol-eval-poids") },
-          { id: "scol-eval-poids-masse", label: "Mise à jour poids évaluation en masse", href: wipHref("scol-eval-poids-masse") },
+          { id: "scol-eval-nouvelle", label: "Nouvelle évaluation", href: "/admin/evaluation/nouvelle" },
+          { id: "scol-eval-devoir", label: "Devoir", href: "/admin/evaluation/devoir" },
+          { id: "scol-eval-poids", label: "Mise à jour poids évaluation", href: "/admin/evaluation/poids" },
+          { id: "scol-eval-poids-masse", label: "Mise à jour poids évaluation en masse", href: "/admin/evaluation/poids-masse" },
         ],
       },
       {
@@ -227,29 +239,24 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Notes",
         children: [
           { id: "scol-notes-saisie", label: "Saisie notes", href: "/admin/notes" },
-          { id: "scol-notes-etudiants", label: "Notes étudiants", href: "/admin/moyennes" },
-          { id: "scol-notes-rattrapage", label: "Rattrapage", href: wipHref("scol-notes-rattrapage") },
+          { id: "scol-notes-etudiants", label: "Notes étudiants", href: "/admin/notes/etudiant" },
+          { id: "scol-notes-moyennes", label: "Moyennes par promotion", href: "/admin/moyennes" },
+          { id: "scol-notes-bulletin", label: "Bulletin étudiants", href: "/admin/notes/bulletin" },
+          { id: "scol-notes-rattrapage", label: "Rattrapage", href: "/admin/notes/rattrapage" },
         ],
       },
-      {
-        id: "scol-maj-cours",
-        label: "Mise à jour cours",
-        children: [
-          { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/ecs" },
-          { id: "scol-maj-cours-force", label: "Ajout cours forcé", href: wipHref("scol-maj-cours-force") },
-        ],
-      },
-      { id: "scol-abandon", label: "Abandon", href: wipHref("scol-abandon") },
+      { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/cours-etudiant" },
+      { id: "scol-abandon", label: "Abandon", href: "/admin/abandons" },
       { id: "scol-absence", label: "Absence", href: wipHref("scol-absence") },
       { id: "scol-retard", label: "Retard", href: wipHref("scol-retard") },
       {
         id: "scol-assiduite",
         label: "Assiduité",
         children: [
-          { id: "scol-ass-nouvelle", label: "Nouvelle assiduité", href: wipHref("scol-ass-nouvelle") },
-          { id: "scol-ass-liste", label: "Les assiduités", href: wipHref("scol-ass-liste") },
-          { id: "scol-ass-periode", label: "Absence par période", href: wipHref("scol-ass-periode") },
-          { id: "scol-ass-periode-liste", label: "Liste absence par période", href: wipHref("scol-ass-periode-liste") },
+          { id: "scol-ass-nouvelle", label: "Nouvelle assiduité", href: "/admin/assiduites/nouvelle" },
+          { id: "scol-ass-liste", label: "Les assiduités", href: "/admin/assiduites" },
+          { id: "scol-ass-periode", label: "Absence par période", href: "/admin/assiduites/periode/nouvelle" },
+          { id: "scol-ass-periode-liste", label: "Liste absence par période", href: "/admin/assiduites/periode" },
           { id: "scol-ass-cahier", label: "Cahier de textes", href: "/admin/cahiers" },
         ],
       },
@@ -260,7 +267,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Emploi du temps",
     icon: CalendarDays,
     children: [
-      { id: "edt-param", label: "Paramétrage de l'emploi du temps", href: "/admin/schedule/new" },
+      { id: "edt-param", label: "Paramétrage de l'emploi du temps", href: "/admin/schedule/parametrage" },
       { id: "edt-grille", label: "Emploi du temps", href: "/admin/schedule" },
     ],
   },
@@ -269,11 +276,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Communication",
     icon: MessageSquare,
     children: [
-      { id: "com-param", label: "Paramétrage de la communication", href: wipHref("com-param") },
+      { id: "com-param", label: "Paramétrage de la communication", href: "/admin/communication/parametrage" },
       { id: "com-envoi", label: "Envoi message", href: "/admin/messages" },
-      { id: "com-mails", label: "Liste mails envoyés", href: wipHref("com-mails") },
-      { id: "com-validation", label: "Validation mails", href: wipHref("com-validation") },
-      { id: "com-publicite", label: "Publicité et actualité", href: wipHref("com-publicite") },
+      { id: "com-mails", label: "Liste mails envoyés", href: "/admin/communication/mails" },
+      { id: "com-validation", label: "Validation mails", href: "/admin/communication/validation" },
+      { id: "com-publicite", label: "Publicité et actualité", href: "/admin/communication/publicite" },
       { id: "com-demandes", label: "Demandes", href: "/admin/requests" },
     ],
   },
@@ -282,10 +289,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     label: "Bulletins",
     icon: FileText,
     children: [
-      { id: "bul-param", label: "Paramétrage bulletins", href: wipHref("bul-param") },
+      { id: "bul-param", label: "Paramétrage bulletins", href: "/admin/bulletins/parametrage" },
       { id: "bul-generation", label: "Génération bulletins", href: "/admin/releves" },
       { id: "bul-deliberation", label: "Délibération", href: "/admin/deliberations" },
-      { id: "bul-declassement", label: "Déclassement élèves", href: wipHref("bul-declassement") },
+      { id: "bul-deliberation-annuelle", label: "Délibération annuelle", href: "/admin/deliberations-annuelles" },
+      { id: "bul-declassement", label: "Déclassement élèves", href: "/admin/bulletins/declassement" },
       { id: "bul-attestations", label: "Attestations", href: "/admin/attestations" },
     ],
   },
@@ -295,10 +303,16 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     icon: Shield,
     children: [
       { id: "sec-users", label: "Liste des utilisateurs", href: "/admin/users" },
-      { id: "sec-user-add", label: "Ajouter nouvel utilisateur", href: wipHref("sec-user-add") },
-      { id: "sec-roles", label: "Gestion des rôles", href: "/admin/users" },
-      { id: "sec-droits", label: "Droit accès", href: wipHref("sec-droits") },
+      { id: "sec-user-add", label: "Ajouter nouvel utilisateur", href: "/admin/users" },
+      { id: "sec-roles", label: "Gestion des rôles", href: "/admin/roles" },
+      { id: "sec-droits", label: "Droit accès", href: "/admin/security/droits-acces" },
+      { id: "sec-envoi-identifiant", label: "Envoi identifiant", href: "/admin/security/envoi-identifiant" },
+      { id: "sec-portails", label: "Portails", href: "/admin/security/portails" },
+      { id: "sec-pin-activation", label: "Code pin activation", href: "/admin/security/pin-activation" },
       { id: "sec-audit", label: "Journal d'audit", href: "/admin/audit" },
+      { id: "sec-reset-donnees", label: "Réinitialisation des données", href: "/admin/security/reinitialisation-donnees" },
+      { id: "sec-donnees-demo", label: "Données de démonstration", href: "/admin/security/donnees-demo" },
+      { id: "sec-settings", label: "Paramètres généraux", href: "/admin/settings" },
     ],
   },
 ];
@@ -347,4 +361,65 @@ export function resolveNavFromLocation(location: string): {
 
 export function hasChildren(node: AdminNavNode): boolean {
   return !!(node.children && node.children.length > 0);
+}
+
+export interface NavLeaf {
+  id: string;
+  label: string;
+  href: string;
+  sectionId: string;
+  sectionLabel: string;
+  groupLabel?: string;
+}
+
+function collectLeavesRecursive(node: AdminNavNode, section: AdminNavSection, out: NavLeaf[], groupLabel?: string) {
+  if (node.href) {
+    out.push({ id: node.id, label: node.label, href: node.href, sectionId: section.id, sectionLabel: section.label, groupLabel });
+    return;
+  }
+  node.children?.forEach((c) => collectLeavesRecursive(c, section, out, node.label));
+}
+
+/** Toutes les pages réellement navigables (celles qui ont un href), avec leur module et — pour les
+ * sections à 3 niveaux (Finances, Scolarité...) — leur sous-groupe. C'est la seule source de vérité
+ * pour construire un catalogue de permissions : jamais une liste dupliquée qui pourrait diverger du
+ * vrai menu. */
+export function collectAllLeaves(): NavLeaf[] {
+  const out: NavLeaf[] = [];
+  for (const section of ADMIN_NAV_SECTIONS) {
+    if (section.href) {
+      out.push({ id: section.id, label: section.label, href: section.href, sectionId: section.id, sectionLabel: section.label });
+    }
+    section.children?.forEach((node) => collectLeavesRecursive(node, section, out));
+  }
+  return out;
+}
+
+export function getLeafIdsForSection(sectionId: string): string[] {
+  return collectAllLeaves().filter((l) => l.sectionId === sectionId).map((l) => l.id);
+}
+
+function filterNode(node: AdminNavNode, isAllowed: (id: string) => boolean): AdminNavNode | null {
+  if (!node.children || node.children.length === 0) {
+    return node.href && isAllowed(node.id) ? node : null;
+  }
+  const children = node.children.map((c) => filterNode(c, isAllowed)).filter((c): c is AdminNavNode => c !== null);
+  if (children.length === 0) return null;
+  return { ...node, children };
+}
+
+/** Filtre récursivement l'arbre de navigation admin selon un prédicat d'accès — un groupe ne
+ * disparaît que si aucun de ses descendants n'est autorisé, jamais sur son seul intitulé. Utilisé
+ * pour le sidebar réellement filtré par rôle (AdminLayout) et pour vérifier l'accès direct par URL. */
+export function filterSectionsByAccess(sections: AdminNavSection[], isAllowed: (id: string) => boolean): AdminNavSection[] {
+  const out: AdminNavSection[] = [];
+  for (const section of sections) {
+    if (!section.children || section.children.length === 0) {
+      if (section.href && isAllowed(section.id)) out.push(section);
+      continue;
+    }
+    const children = section.children.map((c) => filterNode(c, isAllowed)).filter((c): c is AdminNavNode => c !== null);
+    if (children.length > 0) out.push({ ...section, children });
+  }
+  return out;
 }

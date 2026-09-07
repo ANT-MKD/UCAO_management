@@ -2,13 +2,14 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { ArrowLeft, Save } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { NIVEAUX, FILIERES } from "@/data/mockData";
+import { FILIERES } from "@/data/mockData";
+import { useNiveaux } from "@/hooks/useNiveauStore";
+import { addSemestre, updateSemestre, getSemestreById } from "@/data/semestreStore";
 
 interface FormData {
   nom: string;
   alias: string;
   niveauId: string;
-  periode: string;
   statut: "actif" | "futur" | "clos";
 }
 
@@ -17,13 +18,30 @@ interface Props { id?: string; }
 export default function SemestreFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!id;
+  const existing = id ? getSemestreById(id) : undefined;
+  const niveaux = useNiveaux();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    defaultValues: { nom: "", alias: "", niveauId: "", periode: "", statut: "futur" },
+    defaultValues: existing
+      ? { nom: existing.nom, alias: existing.alias, niveauId: existing.niveauId, statut: existing.statut }
+      : { nom: "", alias: "", niveauId: "", statut: "futur" },
   });
 
   const onSubmit = (data: FormData) => {
-    console.log("Semestre saved:", data);
+    const niveau = niveaux.find((n) => n.id === data.niveauId);
+    const payload = {
+      nom: data.nom.trim(),
+      alias: data.alias.trim().toUpperCase(),
+      niveauId: data.niveauId,
+      niveau: niveau?.alias ?? "",
+      filiere: niveau?.filiere ?? "",
+      statut: data.statut,
+    };
+    if (isEdit && existing) {
+      updateSemestre(existing.id, payload);
+    } else {
+      addSemestre(payload);
+    }
     setLocation("/admin/semestres");
   };
 
@@ -58,17 +76,12 @@ export default function SemestreFormPage({ id }: Props) {
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
               <select {...register("niveauId", { required: "Niveau requis" })} className={inputClass}>
                 <option value="">Sélectionner un niveau</option>
-                {NIVEAUX.map((n) => {
+                {niveaux.map((n) => {
                   const f = FILIERES.find((f) => f.id === n.filiereId);
                   return <option key={n.id} value={n.id}>{n.nom} ({n.alias}) — {f?.code}</option>;
                 })}
               </select>
               {errors.niveauId && <p className="text-xs text-red-500 mt-1">{errors.niveauId.message}</p>}
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Période *</label>
-              <input {...register("periode", { required: "Période requise", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Septembre 2025 – Janvier 2026" className={inputClass} />
-              {errors.periode && <p className="text-xs text-red-500 mt-1">{errors.periode.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>

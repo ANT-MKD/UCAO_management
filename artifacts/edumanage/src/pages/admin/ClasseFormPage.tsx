@@ -94,7 +94,7 @@ export default function ClasseFormPage({ id }: Props) {
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom de la classe *</label>
-              <input {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: LPIG-L1-A / L1-INFO-A" className={`${inputClass} uppercase font-mono`} />
+              <input {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: LPIG1-25/26" className={`${inputClass} uppercase font-mono`} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>

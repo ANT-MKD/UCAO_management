@@ -10,6 +10,7 @@ import { useUes } from "@/hooks/useCurriculumStore";
 interface FormData {
   code: string;
   libelle: string;
+  abrege: string;
   ueId: string;
   coeff: number;
   volCm: number;
@@ -32,6 +33,7 @@ export default function ECFormPage({ id }: Props) {
       ? {
           code: existing.code,
           libelle: existing.libelle,
+          abrege: existing.abrege ?? "",
           ueId: existing.ueId,
           coeff: existing.coeff,
           volCm: existing.volCm,
@@ -43,6 +45,7 @@ export default function ECFormPage({ id }: Props) {
       : {
           code: "",
           libelle: "",
+          abrege: "",
           ueId: "",
           coeff: 1,
           volCm: 20,
@@ -65,6 +68,7 @@ export default function ECFormPage({ id }: Props) {
       {
         code: data.code.toUpperCase().trim(),
         libelle: data.libelle.trim(),
+        abrege: data.abrege.trim().toUpperCase() || undefined,
         ueId: data.ueId,
         coeff: data.coeff,
         credits: 0,
@@ -114,6 +118,10 @@ export default function ECFormPage({ id }: Props) {
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Élément constitutif *</label>
               <input {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Concepts et fondamentaux de la POO Java" className={inputClass} />
               {errors.libelle && <p className="text-xs text-red-500 mt-1">{errors.libelle.message}</p>}
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé abrégé</label>
+              <input {...register("abrege")} placeholder="ex: ICPT" className={`${inputClass} uppercase font-mono`} />
             </div>
 
             <div className="col-span-2">

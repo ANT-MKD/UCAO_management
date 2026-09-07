@@ -8,18 +8,28 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { CLASSES, FRAIS_CONFIG, FILIERES, NIVEAUX, MOYENNES_PROMO } from "@/data/mockData";
+import { FILIERES, NIVEAUX } from "@/data/mockData";
+import { getGrilleFrais } from "@/data/grilleFraisStore";
+import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
+import { useClasses } from "@/hooks/useStructureStore";
+import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import {
-  STATUTS_INSCRIPTION, MODES_PAIEMENT, STATUTS_PAIEMENT, MODES_SCOLARITE,
+  STATUTS_INSCRIPTION, STATUTS_PAIEMENT, MODES_SCOLARITE,
 } from "@/lib/inscriptionConstants";
 import {
   getEtudiantByMatricule,
   registerReinscription,
-  checkReinscriptionEligibility,
+  registerPaiement,
+  emettreQuittanceBrute,
   type EtudiantRecord,
 } from "@/data/studentStore";
+import { checkReinscriptionEligibility, getDerniereLigneDeliberation } from "@/data/reinscriptionEligibility";
+import { DECISION_LABELS } from "@/data/deliberationStore";
 import { useAnneeActuelle } from "@/hooks/useStudentStore";
-import { cn, formatCFA } from "@/lib/utils";
+import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
+import { derogationActivePour } from "@/data/derogationPaiementStore";
+import { cn, formatCFA, formatShortDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 const STEPS = [
   { id: 1, label: "Recherche", icon: Search },
@@ -47,6 +57,9 @@ interface Step4Data {
 export default function ReinscriptionPage() {
   const [, setLocation] = useLocation();
   const anneeActuelle = useAnneeActuelle();
+  useGrillesFrais(); // s'abonne pour recalculer si la grille tarifaire change
+  const classes = useClasses();
+  const modesPaiement = useModesPaiementFinance();
   const [currentStep, setCurrentStep] = useState(1);
   const [searchMatricule, setSearchMatricule] = useState("");
   const [student, setStudent] = useState<EtudiantRecord | null>(null);
@@ -93,19 +106,19 @@ export default function ReinscriptionPage() {
   const classesDispo = useMemo(() => {
     const niveau = NIVEAUX.find((n) => n.id === selectedNiveau);
     if (!niveau) return [];
-    return CLASSES.filter(
+    return classes.filter(
       (c) => c.filiereId === selectedFiliere && c.niveau === niveau.alias && c.annee === anneeActuelle,
     );
-  }, [selectedFiliere, selectedNiveau, anneeActuelle]);
+  }, [classes, selectedFiliere, selectedNiveau, anneeActuelle]);
 
   const fraisRef = useMemo(() => {
     const niveau = NIVEAUX.find((n) => n.id === selectedNiveau);
-    const filiere = FILIERES.find((f) => f.id === selectedFiliere);
-    if (!niveau || !filiere) return null;
-    return FRAIS_CONFIG.find(
-      (f) => f.filiereId === selectedFiliere && f.niveau === niveau.alias && f.annee === anneeActuelle,
-    );
-  }, [selectedFiliere, selectedNiveau, anneeActuelle]);
+    if (!niveau || !student?.modeleFraisId) return null;
+    const grille = getGrilleFrais(selectedFiliere, niveau.alias, anneeActuelle, student.modeleFraisId);
+    if (!grille) return null;
+    const scolariteAnnuelle = grille.lignes.filter((l) => l.modalite === "echeances").reduce((s, l) => s + l.montant, 0);
+    return scolariteAnnuelle > 0 ? { scolariteAnnuelle } : null;
+  }, [selectedFiliere, selectedNiveau, anneeActuelle, student]);
 
   const montantSuggere = useMemo(() => {
     if (!fraisRef) return 0;
@@ -114,10 +127,11 @@ export default function ReinscriptionPage() {
       : Math.round(fraisRef.scolariteAnnuelle / 10);
   }, [fraisRef, form4.watch("modeScolarite")]);
 
-  const deliberation = student
-    ? MOYENNES_PROMO.find((m) => m.etudiantId === student.id)
-    : undefined;
-  const eligibility = student ? checkReinscriptionEligibility(student.id) : null;
+  const ligneDeliberation = student ? getDerniereLigneDeliberation(student.id) : undefined;
+  const niveauCible = NIVEAUX.find((n) => n.id === selectedNiveau);
+  const eligibility = student ? checkReinscriptionEligibility(student.id, niveauCible) : null;
+  const derogations = useDerogationsPaiement();
+  const derogationActive = student ? derogationActivePour(derogations, student.id, "reinscription") : undefined;
 
   const handleSearch = () => {
     setSearchError("");
@@ -150,23 +164,55 @@ export default function ReinscriptionPage() {
   const handleConfirm = () => {
     if (!student || !step3Data || !step4Data) return;
     const niveau = NIVEAUX.find((n) => n.id === step3Data.niveauId);
-    const soldeDu =
-      step4Data.statutPaiement === "paye"
-        ? 0
-        : step4Data.statutPaiement === "partiel"
-          ? Math.max(0, montantSuggere - step4Data.montant)
-          : montantSuggere;
+    // montantSuggere n'est qu'une suggestion (dérivée de la grille tarifaire si le modèle de
+    // frais de l'étudiant est connu) — le montant réellement encaissé est celui saisi par
+    // l'admin, sans le plafonner à 0 quand aucune grille n'est trouvée (étudiant historique sans
+    // modeleFraisId, par exemple).
+    const montantPaye = step4Data.statutPaiement === "impaye" ? 0 : Math.max(0, step4Data.montant);
+    const resteDu = montantSuggere > 0 ? Math.max(0, montantSuggere - montantPaye) : 0;
+    const today = new Date().toISOString().split("T")[0];
+    const modeLabel = MODES_SCOLARITE.find((m) => m.value === step4Data.modeScolarite)?.label ?? "Scolarité";
 
-    registerReinscription({
-      etudiantId: student.id,
-      annee: anneeActuelle,
-      filiereId: step3Data.filiereId,
-      classeId: step3Data.classeId,
-      niveau: niveau?.alias ?? student.niveau,
-      statut: step3Data.statut,
-      soldeDu,
-    });
-    setLocation(`/admin/students/${student.id}`);
+    try {
+      // Solde remis à 0 puis reconstruit par les mêmes primitives que l'inscription initiale
+      // (registerPaiement/emettreQuittanceBrute) — pour qu'un vrai reçu/quittance existe au lieu
+      // de se contenter d'écraser soldeDu.
+      registerReinscription({
+        etudiantId: student.id,
+        annee: anneeActuelle,
+        filiereId: step3Data.filiereId,
+        classeId: step3Data.classeId,
+        niveau: niveau?.alias ?? student.niveau,
+        statut: step3Data.statut,
+        soldeDu: 0,
+      });
+
+      if (montantPaye > 0) {
+        registerPaiement({
+          etudiantId: student.id,
+          rubrique: `Réinscription — ${modeLabel}`,
+          montant: montantPaye,
+          moyen: step4Data.moyenPaiement,
+          reference: step4Data.reference || "",
+          date: today,
+          statut: "paye",
+          lignes: [{ label: `Réinscription — ${modeLabel}`, montant: montantPaye }],
+          recordOnly: true,
+        });
+      }
+      if (resteDu > 0) {
+        emettreQuittanceBrute({
+          etudiantId: student.id,
+          date: today,
+          lignes: [{ label: `Réinscription — ${modeLabel} (solde)`, montant: resteDu }],
+          reference: `Réinscription ${student.matricule} — solde`,
+        });
+      }
+
+      setLocation(`/admin/students/${student.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Réinscription impossible");
+    }
   };
 
   const inputClass =
@@ -256,9 +302,16 @@ export default function ReinscriptionPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className={cn("rounded-xl border p-4", student.soldeDu > 0 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50")}>
+            <div className={cn(
+              "rounded-xl border p-4",
+              student.soldeDu > 0 && derogationActive ? "border-blue-300 bg-blue-50" : student.soldeDu > 0 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50",
+            )}>
               <p className="text-xs font-medium text-muted-foreground mb-1">Situation financière</p>
-              {student.soldeDu > 0 ? (
+              {student.soldeDu > 0 && derogationActive ? (
+                <p className="text-sm text-blue-800 flex items-center gap-1">
+                  <AlertTriangle size={14} /> Impayés : {formatCFA(student.soldeDu)} — dérogation {derogationActive.reference} active jusqu'au {formatShortDate(derogationActive.dateFin)}
+                </p>
+              ) : student.soldeDu > 0 ? (
                 <p className="text-sm text-amber-800 flex items-center gap-1">
                   <AlertTriangle size={14} /> Impayés : {formatCFA(student.soldeDu)}
                 </p>
@@ -267,11 +320,11 @@ export default function ReinscriptionPage() {
               )}
             </div>
             <div className="rounded-xl border border-border p-4 bg-card">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Délibération (mock)</p>
-              {deliberation ? (
+              <p className="text-xs font-medium text-muted-foreground mb-1">Dernière délibération</p>
+              {ligneDeliberation ? (
                 <p className="text-sm">
-                  Statut : <StatusBadge status={deliberation.statut === "Admis" ? "actif" : "suspendu"} />
-                  {" · "}Moyenne : {deliberation.moyenneGenerale.toFixed(2)}
+                  Statut : <StatusBadge status={ligneDeliberation.decisionFinale === "admis" ? "actif" : "suspendu"} />
+                  {" · "}{DECISION_LABELS[ligneDeliberation.decisionFinale]} · Moyenne : {ligneDeliberation.moyenne.toFixed(2)}
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Pas encore de délibération enregistrée</p>
@@ -397,8 +450,8 @@ export default function ReinscriptionPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen</label>
               <select {...form4.register("moyenPaiement")} className={inputClass}>
-                {MODES_PAIEMENT.map((m) => (
-                  <option key={m.key} value={m.key}>{m.label}</option>
+                {modesPaiement.map((m) => (
+                  <option key={m.id} value={m.intitule}>{m.intitule}</option>
                 ))}
               </select>
             </div>
@@ -428,7 +481,7 @@ export default function ReinscriptionPage() {
           <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
             <Check size={28} />
           </div>
-          <h3 className="font-bold text-xl mb-2">Réinscription validée (mock)</h3>
+          <h3 className="font-bold text-xl mb-2">Confirmer la réinscription</h3>
           <p className="text-sm text-muted-foreground mb-4">
             {student.prenom} {student.nom} — {student.matricule}
             <br />

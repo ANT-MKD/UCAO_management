@@ -13,6 +13,10 @@ export interface ClassePedagogiqueRecord {
   delegue: string;
   annee: string;
   salleParDefautId?: string;
+  cloturee?: boolean;
+  dateCloture?: string;
+  clotureePar?: string;
+  observationCloture?: string;
 }
 
 /** Classe physique = local / salle (ex. RDC 1A) — nom stable */
@@ -120,6 +124,10 @@ function load(): StructureStore {
 let store = load();
 
 function persist() {
+  // Recrée les références des tableaux à chaque écriture : useSyncExternalStore
+  // compare par égalité de référence, une mutation en place (push/unshift/Object.assign)
+  // sur le même tableau ne déclenche donc aucun re-rendu sans ce clonage.
+  store = { classes: store.classes.slice(), salles: store.salles.slice() };
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
@@ -189,7 +197,7 @@ export function upsertClasse(payload: ClassePayload, id?: string): ClassePedagog
   }
 
   const row: ClassePedagogiqueRecord = {
-    id: `cl-${Date.now()}`,
+    id: `cl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     inscrits: 0,
     ...base,
   };
@@ -200,6 +208,19 @@ export function upsertClasse(payload: ClassePayload, id?: string): ClassePedagog
 
 export function deleteClasse(id: string) {
   store.classes = store.classes.filter((c) => c.id !== id);
+  persist();
+}
+
+export function cloturerClasses(classeIds: string[], observations: Record<string, string>, clotureePar: string): void {
+  const dateCloture = new Date().toISOString().slice(0, 10);
+  for (const id of classeIds) {
+    const c = store.classes.find((x) => x.id === id);
+    if (!c) continue;
+    c.cloturee = true;
+    c.dateCloture = dateCloture;
+    c.clotureePar = clotureePar;
+    c.observationCloture = observations[id]?.trim() || undefined;
+  }
   persist();
 }
 
@@ -240,7 +261,7 @@ export function upsertSalle(payload: SallePayload, id?: string): SallePhysiqueRe
     }
   }
 
-  const row: SallePhysiqueRecord = { id: `sa-${Date.now()}`, ...base };
+  const row: SallePhysiqueRecord = { id: `sa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...base };
   store.salles.unshift(row);
   persist();
   return row;
@@ -248,13 +269,5 @@ export function upsertSalle(payload: SallePayload, id?: string): SallePhysiqueRe
 
 export function deleteSalle(id: string) {
   store.salles = store.salles.filter((s) => s.id !== id);
-  persist();
-}
-
-/** Affecte une salle physique par défaut à une classe pédagogique */
-export function assignSalleToClasse(classeId: string, salleId: string | undefined) {
-  const c = store.classes.find((x) => x.id === classeId);
-  if (!c) return;
-  c.salleParDefautId = salleId;
   persist();
 }

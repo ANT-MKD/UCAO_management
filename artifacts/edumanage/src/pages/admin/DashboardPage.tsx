@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Users, TrendingUp, AlertTriangle, BarChart3, ArrowRight, Clock,
-  Bell, CreditCard, DollarSign, ChevronRight,
+  Bell, CreditCard, DollarSign, ChevronRight, Wallet, GraduationCap,
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,20 +10,21 @@ import {
 } from "recharts";
 import { KPICard } from "@/components/admin/KPICard";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { formatCFA, formatDate } from "@/lib/utils";
+import { formatCFA, formatDate, moyenPaiementColor } from "@/lib/utils";
+import { FILIERES } from "@/data/mockData";
+import { useAuth } from "@/contexts/AuthContext";
+import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle, useCahiers, useAllInscriptions } from "@/hooks/useStudentStore";
+import { useDecomptes } from "@/hooks/useDecompteStore";
+import { useAdminAlerts } from "@/hooks/useAdminAlerts";
+import { useDeliberations } from "@/hooks/useDeliberationStore";
+import { getAssiduiteRows } from "@/data/assiduiteEngine";
 import {
-  REVENUE_DATA, SUCCESS_RATE_DATA, SUCCESS_BY_SEMESTRE, ABSENCES_STATS,
-  NOTIFICATIONS, FILIERES,
-} from "@/data/mockData";
-import { useStudentStore, usePaiements, useSeances } from "@/hooks/useStudentStore";
+  calculerEvolutionFinanciere, calculerTauxReussiteParFiliere, calculerReussiteParSemestre,
+  calculerAbsencesParMois, libelleFenetreAcademique, PALETTE,
+} from "@/lib/dashboardStats";
+import { mondayOf } from "@/lib/teacherUtils";
 import { cn } from "@/lib/utils";
-
-const MOYEN_COLORS: Record<string, string> = {
-  Wave: "#2563eb", OrangeMoney: "#ea580c", Virement: "#4f46e5", Especes: "#10b981",
-};
-const MOYEN_LABELS: Record<string, string> = {
-  Wave: "Wave", OrangeMoney: "Orange Money", Virement: "Virement", Especes: "Espèces",
-};
+import { PubliciteBanner } from "@/components/PubliciteBanner";
 
 const ALERT_STYLES: Record<string, { dot: string; border: string; bg: string }> = {
   danger: { dot: "#ef4444", border: "#fecaca", bg: "#fef2f2" },
@@ -69,39 +70,111 @@ const StatsTooltip = ({ active, payload, label }: { active?: boolean; payload?: 
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const etudiants = useStudentStore();
+  const inscriptions = useAllInscriptions();
   const paiements = usePaiements();
   const seances = useSeances();
+  const decomptes = useDecomptes();
+  const deliberations = useDeliberations();
+  const cahiers = useCahiers(); // les cahiers de textes déterminent les absences affichées
+  const adminAlerts = useAdminAlerts();
+  const anneesAcademiques = useAnneesAcademiques();
+  const anneeActuelle = useAnneeActuelle();
+  const anneeOptions = useMemo(
+    () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
+    [anneesAcademiques],
+  );
   const [chartType, setChartType] = useState<"bar" | "line">("bar");
   const [pieType, setPieType] = useState<"donut" | "pie">("donut");
-  const [anneeFilter, setAnneeFilter] = useState("2025-2026");
+  const [anneeFilter, setAnneeFilter] = useState(anneeActuelle);
   const [filiereFilter, setFiliereFilter] = useState("");
 
   const today = new Date();
   const dayName = today.toLocaleDateString("fr-FR", { weekday: "long" });
   const dayNum = today.getDate();
   const todayDayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-  const todaySeances = seances.filter((s) => s.jour === todayDayOfWeek).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+  const todayIso = today.toISOString().slice(0, 10);
+  const todayMonday = mondayOf(todayIso);
+  const todaySeances = seances
+    .filter((s) => s.jour === todayDayOfWeek && s.semaineDu === todayMonday)
+    .sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
+  const alertesAffichees = adminAlerts.slice(0, 3);
   const totalRecettes = paiements.reduce((s, p) => s + p.montant, 0);
-  const tauxReussiteMoy = Math.round(SUCCESS_RATE_DATA.reduce((s, d) => s + d.value, 0) / SUCCESS_RATE_DATA.length);
 
-  const filteredSuccess = filiereFilter
-    ? SUCCESS_BY_SEMESTRE.map((row) => ({ semestre: row.semestre, value: row[filiereFilter as keyof typeof row] as number }))
-    : SUCCESS_BY_SEMESTRE.map((row) => ({
-        semestre: row.semestre,
-        value: Math.round((row.LPIG + row.GESTION + row.DROIT + row.COMPTA) / 4),
-      }));
+  const moisPrecedent = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const nouveauxEtudiantsCeMois = inscriptions.filter(
+    (i) => i.type === "premiere" && new Date(i.dateInscription).getFullYear() === today.getFullYear() && new Date(i.dateInscription).getMonth() === today.getMonth(),
+  ).length;
+  const recettesCeMois = paiements
+    .filter((p) => p.statut !== "annule" && new Date(p.date).getFullYear() === today.getFullYear() && new Date(p.date).getMonth() === today.getMonth())
+    .reduce((s, p) => s + p.montant, 0);
+  const recettesMoisPrecedent = paiements
+    .filter((p) => p.statut !== "annule" && new Date(p.date).getFullYear() === moisPrecedent.getFullYear() && new Date(p.date).getMonth() === moisPrecedent.getMonth())
+    .reduce((s, p) => s + p.montant, 0);
+  const evolutionRecettes = recettesMoisPrecedent > 0
+    ? Math.round(((recettesCeMois - recettesMoisPrecedent) / recettesMoisPrecedent) * 100)
+    : null;
+  const totalAvoirCirculation = etudiants.reduce((s, e) => s + e.soldeAvoir, 0);
+  const totalDecompteRestant = decomptes
+    .filter((d) => d.statut !== "annule")
+    .reduce((s, d) => s + Math.max(0, d.netAPayer - d.montantPaye), 0);
+
+  const filieresActives = useMemo(
+    () => FILIERES.filter((f) => f.statut === "actif").map((f) => ({ id: f.id, code: f.code })),
+    [],
+  );
+  const revenueDataTop = useMemo(
+    () => calculerEvolutionFinanciere(paiements, decomptes, anneeActuelle),
+    [paiements, decomptes, anneeActuelle],
+  );
+  const revenueDataReporting = useMemo(
+    () => calculerEvolutionFinanciere(paiements, decomptes, anneeFilter),
+    [paiements, decomptes, anneeFilter],
+  );
+  const successRateData = useMemo(
+    () => calculerTauxReussiteParFiliere(deliberations, filieresActives),
+    [deliberations, filieresActives],
+  );
+  const successBySemestreData = useMemo(
+    () => calculerReussiteParSemestre(deliberations, filieresActives),
+    [deliberations, filieresActives],
+  );
+  const absencesData = useMemo(
+    () => calculerAbsencesParMois(getAssiduiteRows(), anneeFilter),
+    [anneeFilter, cahiers],
+  );
+  const repartitionFiliereData = useMemo(
+    () => filieresActives
+      .map((f, i) => ({ name: f.code, value: etudiants.filter((e) => e.filiereId === f.id).length, color: PALETTE[i % PALETTE.length] }))
+      .filter((d) => d.value > 0),
+    [filieresActives, etudiants],
+  );
+  const tauxReussiteMoy = successRateData.length > 0
+    ? Math.round(successRateData.reduce((s, d) => s + d.value, 0) / successRateData.length)
+    : null;
+
+  const filteredSuccess = successBySemestreData.map((row) => ({
+    semestre: row.semestre as string,
+    value: filiereFilter
+      ? ((row[filiereFilter] as number | undefined) ?? 0)
+      : Math.round(
+          filieresActives.reduce((s, f) => s + ((row[f.code] as number | undefined) ?? 0), 0) /
+            Math.max(1, filieresActives.filter((f) => row[f.code] !== undefined).length),
+        ),
+  }));
 
   const inputClass = "px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
   return (
     <div>
+      <div className="mb-6"><PubliciteBanner profil="admin" /></div>
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
-            Bonjour, Ousmane
+            Bonjour, {currentUser?.name?.split(" ")[0] || "Administrateur"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {dayName.charAt(0).toUpperCase() + dayName.slice(1)} {dayNum} — {formatDate(today)}
@@ -111,17 +184,35 @@ export default function DashboardPage() {
           <button onClick={() => setLocation("/admin/students/new")} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
             + Inscrire Étudiant
           </button>
-          <button onClick={() => setLocation("/admin/transactions/new")} className="flex items-center gap-1.5 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
-            Nouvelle transaction
+          <button onClick={() => setLocation("/admin/paiements/new")} className="flex items-center gap-1.5 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+            Nouvel encaissement
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KPICard icon={Users} label="Étudiants inscrits" value={etudiants.length} trend="+12 ce mois" trendDirection="up" accentColor="#4f46e5" onClick={() => setLocation("/admin/students")} />
-        <KPICard icon={TrendingUp} label="Recettes encaissées" value={formatCFA(totalRecettes)} trend="+8% vs mois préc." trendDirection="up" accentColor="#10b981" onClick={() => setLocation("/admin/transactions")} />
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        <KPICard
+          icon={Users}
+          label="Étudiants inscrits"
+          value={etudiants.length}
+          trend={nouveauxEtudiantsCeMois > 0 ? `+${nouveauxEtudiantsCeMois} ce mois` : undefined}
+          trendDirection="up"
+          accentColor="#4f46e5"
+          onClick={() => setLocation("/admin/students")}
+        />
+        <KPICard
+          icon={TrendingUp}
+          label="Recettes encaissées"
+          value={formatCFA(totalRecettes)}
+          trend={evolutionRecettes === null ? undefined : `${evolutionRecettes > 0 ? "+" : ""}${evolutionRecettes}% vs mois préc.`}
+          trendDirection={evolutionRecettes !== null && evolutionRecettes < 0 ? "down" : "up"}
+          accentColor="#10b981"
+          onClick={() => setLocation("/admin/encaissements")}
+        />
         <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiants`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
-        <KPICard icon={BarChart3} label="Taux de réussite" value={`${tauxReussiteMoy}%`} trend="+2% vs S1" trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
+        <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend="Crédits dus aux étudiants" trendDirection="down" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
+        <KPICard icon={GraduationCap} label="Reste à payer aux profs" value={formatCFA(totalDecompteRestant)} trend="Décomptes non soldés" trendDirection="down" accentColor="#8b5cf6" onClick={() => setLocation("/admin/decomptes")} />
+        <KPICard icon={BarChart3} label="Taux de réussite" value={tauxReussiteMoy === null ? "—" : `${tauxReussiteMoy}%`} trend={tauxReussiteMoy === null ? "Aucune délibération enregistrée" : "Voir le détail"} trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
       </div>
 
       {/* Charts row */}
@@ -130,7 +221,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Évolution des Revenus</h3>
-              <p className="text-xs text-muted-foreground">Sept 2025 – Juin 2026</p>
+              <p className="text-xs text-muted-foreground">{libelleFenetreAcademique(anneeActuelle)}</p>
             </div>
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               {(["bar", "line"] as const).map((t) => (
@@ -142,7 +233,7 @@ export default function DashboardPage() {
           </div>
           <ResponsiveContainer width="100%" height={220}>
             {chartType === "bar" ? (
-              <BarChart data={REVENUE_DATA} barGap={4}>
+              <BarChart data={revenueDataTop} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
@@ -151,7 +242,7 @@ export default function DashboardPage() {
                 <Bar dataKey="depenses" fill="#e0e7ff" radius={[4, 4, 0, 0]} />
               </BarChart>
             ) : (
-              <LineChart data={REVENUE_DATA}>
+              <LineChart data={revenueDataTop}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
@@ -177,23 +268,31 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={SUCCESS_RATE_DATA} cx="50%" cy="50%" outerRadius={65} innerRadius={pieType === "donut" ? 35 : 0} dataKey="value">
-                {SUCCESS_RATE_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={(v) => [`${v}%`, "Taux"]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="grid grid-cols-2 gap-1.5 mt-2">
-            {SUCCESS_RATE_DATA.map((d) => (
-              <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                <span className="text-muted-foreground">{d.name}</span>
-                <span className="font-semibold text-foreground ml-auto">{d.value}%</span>
+          {successRateData.length === 0 ? (
+            <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground text-center px-4">
+              Aucune délibération enregistrée pour l'instant
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={successRateData} cx="50%" cy="50%" outerRadius={65} innerRadius={pieType === "donut" ? 35 : 0} dataKey="value">
+                    {successRateData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v}%`, "Taux"]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="grid grid-cols-2 gap-1.5 mt-2">
+                {successRateData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                    <span className="text-muted-foreground">{d.name}</span>
+                    <span className="font-semibold text-foreground ml-auto">{d.value}%</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -228,9 +327,9 @@ export default function DashboardPage() {
                   <div className="text-sm font-bold text-foreground tabular-nums">{formatCFA(p.montant)}</div>
                   <span
                     className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
-                    style={{ background: `${MOYEN_COLORS[p.moyen] ?? "#64748b"}18`, color: MOYEN_COLORS[p.moyen] ?? "#64748b" }}
+                    style={{ background: moyenPaiementColor(p.moyen).bg, color: moyenPaiementColor(p.moyen).color }}
                   >
-                    {MOYEN_LABELS[p.moyen] ?? p.moyen}
+                    {p.moyen}
                   </span>
                 </div>
                 <ChevronRight size={14} className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
@@ -250,13 +349,18 @@ export default function DashboardPage() {
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Alertes intelligentes</h3>
             </div>
             <div className="p-3 space-y-2">
-              {NOTIFICATIONS.filter((n) => !n.lue).slice(0, 3).map((n) => {
+              {alertesAffichees.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-4">Aucune alerte — tout est à jour.</p>
+              )}
+              {alertesAffichees.map((n) => {
                 const style = ALERT_STYLES[n.type] ?? ALERT_STYLES.info;
                 return (
                   <div
                     key={n.id}
+                    onClick={() => setLocation(n.href)}
                     className="flex items-start gap-3 p-3 rounded-xl border transition-colors hover:shadow-sm cursor-pointer"
                     style={{ background: style.bg, borderColor: style.border }}
+                    data-testid={n.id === "preinscription" ? "dashboard-alerte-inscription" : n.id === "com-validation" ? "dashboard-alerte-validation-mails" : undefined}
                   >
                     <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: style.dot }} />
                     <div className="flex-1 min-w-0">
@@ -321,8 +425,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <select value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
-              <option value="2025-2026">2025-2026</option>
-              <option value="2024-2025">2024-2025</option>
+              {anneeOptions.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
             <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>
               <option value="">Toutes les filières</option>
@@ -339,7 +442,7 @@ export default function DashboardPage() {
               <DollarSign size={16} className="text-primary" /> Évolution financière — {anneeFilter}
             </h3>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={REVENUE_DATA}>
+              <AreaChart data={revenueDataReporting}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mois" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
@@ -370,21 +473,25 @@ export default function DashboardPage() {
         <div className="grid lg:grid-cols-2 gap-5">
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4">Répartition par filière</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={SUCCESS_RATE_DATA} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {SUCCESS_RATE_DATA.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(v) => `${v}%`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {repartitionFiliereData.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Aucun étudiant inscrit</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={repartitionFiliereData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                    {repartitionFiliereData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v} étudiant(s)`, ""]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4">Absences par mois</h3>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={ABSENCES_STATS}>
+              <BarChart data={absencesData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mois" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
@@ -402,7 +509,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "+ Inscrire Étudiant", href: "/admin/students/new", color: "#4f46e5", icon: Users },
-          { label: "Nouvelle transaction", href: "/admin/transactions/new", color: "#10b981", icon: DollarSign },
+          { label: "Nouvel encaissement", href: "/admin/paiements/new", color: "#10b981", icon: DollarSign },
           { label: "Ajouter une séance", href: "/admin/schedule/new", color: "#8b5cf6", icon: Clock },
           { label: "Saisir des Notes", href: "/admin/notes", color: "#f59e0b", icon: BarChart3 },
         ].map((a) => (

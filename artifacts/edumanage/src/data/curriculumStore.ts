@@ -1,15 +1,21 @@
 import { UES as SEED_UES, ECS as SEED_ECS } from "./mockData";
+import { getFiliereByCode } from "./filiereStore";
 
 export interface UeRecord {
   id: string;
   code: string;
   libelle: string;
   credits: number;
+  /** Coefficient de pondération de l'UE, distinct du crédit — utilisé par les méthodes de calcul
+   * "coefficient" (Paramétrage bulletin). Optionnel : les méthodes qui en ont besoin retombent
+   * sur `credits` si non renseigné. */
+  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
   semestre: string;
-  type: "Obligatoire" | "Libre" | "Fondamentale" | "Spécialité" | "Transversale" | "Optionnelle";
+  /** Intitulé d'une catégorie configurée dans academicSettingsStore.ts (categorieCoursStore) */
+  type: string;
   obligatoire: boolean;
   description?: string;
   nbEc: number;
@@ -19,6 +25,8 @@ export interface EcRecord {
   id: string;
   code: string;
   libelle: string;
+  /** Intitulé abrégé, distinct du code (ex. code "1CPT1140", abrégé "ICPT") */
+  abrege?: string;
   ue: string;
   ueId: string;
   coeff: number;
@@ -52,7 +60,9 @@ export function subscribeCurriculum(fn: () => void) {
 function seedUes(): UeRecord[] {
   return SEED_UES.map((u) => ({
     ...u,
-    filiereId: u.filiere === "LPIG" ? "f1" : u.filiere === "DROIT" ? "f2" : u.filiere === "GESTION" ? "f3" : "f4",
+    // Rattachement réel à la filière par son code, plutôt qu'une correspondance codée en dur
+    // sur seulement 3 filières (les autres tombaient toutes par erreur sur "f4"/COMPTA).
+    filiereId: getFiliereByCode(u.filiere)?.id ?? "",
     type: (u.type as UeRecord["type"]) ?? "Obligatoire",
     obligatoire: u.type !== "Optionnelle",
     description: "",
@@ -100,6 +110,10 @@ function load(): CurriculumStore {
 let store = load();
 
 function persist() {
+  // Nouvelles références de tableau : useUes()/useEcs() (useSyncExternalStore) comparent par
+  // Object.is et ne re-rendent pas si getUes()/getEcs() renvoient la même référence — or
+  // upsertUe/upsertEc/deleteUe/deleteEc/importCurriculumRows mutent store.ues/store.ecs en place.
+  store = { ues: store.ues.slice(), ecs: store.ecs.slice() };
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
@@ -143,6 +157,7 @@ export interface UePayload {
   code: string;
   libelle: string;
   credits: number;
+  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
@@ -160,7 +175,7 @@ export function upsertUe(payload: UePayload, id?: string): UeRecord {
     return existing;
   }
   const ue: UeRecord = {
-    id: `ue-${Date.now()}`,
+    id: `ue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     nbEc: 0,
     ...payload,
   };
@@ -178,6 +193,7 @@ export function deleteUe(id: string) {
 export interface EcPayload {
   code: string;
   libelle: string;
+  abrege?: string;
   ueId: string;
   coeff: number;
   credits: number;
@@ -209,7 +225,7 @@ export function upsertEc(payload: EcPayload, id?: string): EcRecord {
   }
 
   const ec: EcRecord = {
-    id: `ec-${Date.now()}`,
+    id: `ec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ...base,
   };
   store.ecs.unshift(ec);
@@ -291,7 +307,7 @@ export function importCurriculumRows(
         libelle: row.libelleEc,
         ueId: ue.id,
         coeff: 1,
-        credits: 0,
+        credits: row.credits || 0,
         volCm: cm,
         volTd: td,
         volTp: tp,

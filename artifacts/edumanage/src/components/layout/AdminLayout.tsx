@@ -7,15 +7,17 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { NOTIFICATIONS } from "@/data/mockData";
+import { useAdminAlerts } from "@/hooks/useAdminAlerts";
 import { cn } from "@/lib/utils";
 import {
   ADMIN_NAV_SECTIONS,
   resolveNavFromLocation,
   hasChildren,
+  filterSectionsByAccess,
   type AdminNavNode,
   type AdminNavSection,
 } from "@/lib/adminNavConfig";
+import { useRoles } from "@/hooks/useRoleStore";
 
 const TOPBAR_H = "h-16";
 const SIDEBAR_W = "w-[88px]";
@@ -128,6 +130,7 @@ function SubNavPanel({
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const { currentUser, logout } = useAuth();
+  const roles = useRoles();
   const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -136,6 +139,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileView, setMobileView] = useState<"primary" | "secondary">("primary");
 
   const resolved = useMemo(() => resolveNavFromLocation(location), [location]);
+
+  const activeRole = currentUser?.roleId ? roles.find((r) => r.id === currentUser.roleId) : undefined;
+  const navSections = useMemo(() => {
+    if (!currentUser?.roleId) return ADMIN_NAV_SECTIONS;
+    if (!activeRole) return ADMIN_NAV_SECTIONS;
+    const allowed = new Set(activeRole.accessibleItemIds);
+    return filterSectionsByAccess(ADMIN_NAV_SECTIONS, (id) => allowed.has(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeRole dérivé de roles+currentUser.roleId
+  }, [currentUser?.roleId, activeRole]);
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     () => resolved.section?.id ?? "dashboard",
@@ -155,10 +167,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync on location change only
   }, [location]);
 
-  const activeSection = ADMIN_NAV_SECTIONS.find((s) => s.id === activeSectionId) ?? null;
+  const activeSection = navSections.find((s) => s.id === activeSectionId) ?? null;
   const showSubnav = !!(activeSection && activeSection.children && activeSection.children.length > 0);
 
-  const unreadCount = NOTIFICATIONS.filter((n) => !n.lue).length;
+  const adminAlerts = useAdminAlerts();
+  const unreadCount = adminAlerts.length;
 
   const handleLogout = () => {
     logout();
@@ -265,25 +278,27 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                   <span className="font-semibold text-sm">Notifications</span>
-                  <span className="text-xs text-primary font-medium">{unreadCount} non lues</span>
+                  <span className="text-xs text-primary font-medium">{unreadCount} alerte(s)</span>
                 </div>
-                {NOTIFICATIONS.map((n) => (
-                  <div
-                    key={n.id}
-                    className={cn(
-                      "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
-                      !n.lue && "bg-primary/[0.03]",
-                    )}
-                  >
-                    <div className="flex gap-2">
-                      {!n.lue && <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />}
-                      <div className={!n.lue ? "" : "pl-3.5"}>
-                        <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">{n.temps}</p>
+                {adminAlerts.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune alerte — tout est à jour.</p>
+                ) : (
+                  adminAlerts.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => { setLocation(n.href); setNotifOpen(false); }}
+                      className="px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors bg-primary/[0.03]"
+                    >
+                      <div className="flex gap-2">
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{n.temps}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -351,7 +366,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           )}
         >
           <nav className="flex-1 overflow-y-auto py-3 px-1.5 space-y-1">
-            {ADMIN_NAV_SECTIONS.map((section) => {
+            {navSections.map((section) => {
               const Icon = section.icon;
               const active = activeSectionId === section.id;
               return (
@@ -440,7 +455,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
             {mobileView === "primary" || !showSubnav ? (
               <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                {ADMIN_NAV_SECTIONS.map((section) => {
+                {navSections.map((section) => {
                   const Icon = section.icon;
                   const active = activeSectionId === section.id;
                   const hasSub = !!(section.children && section.children.length > 0);

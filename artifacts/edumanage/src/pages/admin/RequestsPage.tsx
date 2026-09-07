@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ClipboardList, Check, X, Clock } from "lucide-react";
+import { ClipboardList, Check, X, Clock, Search } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,12 +10,17 @@ import {
   type StudentRequestRecord,
 } from "@/data/studentStore";
 import { useStudentRequests } from "@/hooks/useStudentStore";
+import { PORTEE_LABELS } from "@/data/derogationPaiementStore";
+import { estAutorise } from "@/data/communicationRolesStore";
+import { useCommunicationRoles } from "@/hooks/useCommunicationRolesStore";
 import { cn, formatDate } from "@/lib/utils";
 
 const TYPE_LABELS: Record<StudentRequestRecord["type"], string> = {
   justificatif_absence: "Justificatif d'absence",
   attestation: "Attestation",
   reclamation_note: "Réclamation de note",
+  demande_rallonge: "Demande de rallonge",
+  autre: "Autre demande",
 };
 
 const STATUS_LABELS: Record<StudentRequestRecord["status"], string> = {
@@ -22,30 +28,40 @@ const STATUS_LABELS: Record<StudentRequestRecord["status"], string> = {
   en_cours: "En cours",
   valide: "Validé",
   rejete: "Rejeté",
+  annule: "Annulée",
 };
 
 const STATUS_COLORS: Record<StudentRequestRecord["status"], string> = {
-  nouveau: "bg-blue-50 text-blue-700",
-  en_cours: "bg-amber-50 text-amber-700",
-  valide: "bg-emerald-50 text-emerald-700",
-  rejete: "bg-red-50 text-red-700",
+  nouveau: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
+  en_cours: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  valide: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+  rejete: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
+  annule: "bg-muted text-muted-foreground",
 };
 
 export default function RequestsPage() {
   const { currentUser } = useAuth();
   const requests = useStudentRequests();
+  useCommunicationRoles(); // s'abonne pour refléter les validateurs désignés si la config change
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolution, setResolution] = useState("");
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return requests.filter((r) => {
       if (statusFilter && r.status !== statusFilter) return false;
       if (typeFilter && r.type !== typeFilter) return false;
+      if (q) {
+        const etu = getEtudiantById(r.studentId);
+        const haystack = `${etu ? `${etu.prenom} ${etu.nom}` : ""} ${r.subject}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [requests, statusFilter, typeFilter]);
+  }, [requests, statusFilter, typeFilter, search]);
 
   const selected = filtered.find((r) => r.id === selectedId) ?? filtered[0] ?? null;
 
@@ -58,9 +74,18 @@ export default function RequestsPage() {
 
   const handleStatus = (status: StudentRequestRecord["status"]) => {
     if (!selected || !currentUser) return;
-    updateStudentRequestStatus(selected.id, status, currentUser.id, resolution.trim() || undefined);
-    if (status === "valide" || status === "rejete") setResolution("");
+    try {
+      updateStudentRequestStatus(selected.id, status, currentUser.id, resolution.trim() || undefined);
+      if (status === "valide" && selected.type === "demande_rallonge") {
+        toast.success("Demande validée — dérogation de paiement créée dans Finance.");
+      }
+      if (status === "valide" || status === "rejete") setResolution("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action impossible");
+    }
   };
+
+  const peutValiderRallonge = !currentUser || !selected || selected.type !== "demande_rallonge" || estAutorise("validateur_rallonge", currentUser.id);
 
   const inputClass =
     "w-full px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -87,19 +112,37 @@ export default function RequestsPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-5">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[140px]")}>
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="relative w-64">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Étudiant, objet..."
+            className={cn(inputClass, "pl-9")}
+            data-testid="requete-recherche"
+          />
+        </div>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[140px]")} data-testid="requete-filtre-statut">
           <option value="">Tous statuts</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[180px]")}>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="requete-filtre-type">
           <option value="">Tous types</option>
           {Object.entries(TYPE_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        {(search || statusFilter || typeFilter) && (
+          <button
+            onClick={() => { setSearch(""); setStatusFilter(""); setTypeFilter(""); }}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            <X size={12} /> Effacer les filtres
+          </button>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
@@ -123,6 +166,7 @@ export default function RequestsPage() {
                       "w-full text-left px-4 py-3 hover:bg-muted transition-colors",
                       active && "bg-primary/5 border-l-2 border-l-primary",
                     )}
+                    data-testid={`requete-ligne-${req.id}`}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       {etu && <UserAvatar name={`${etu.prenom} ${etu.nom}`} size="xs" />}
@@ -171,40 +215,61 @@ export default function RequestsPage() {
                     <div className="rounded-xl bg-muted/30 border border-border p-4 mb-4">
                       <p className="text-xs font-medium text-muted-foreground mb-1">Message étudiant</p>
                       <p className="text-sm text-foreground whitespace-pre-wrap">{selected.message}</p>
+                      {selected.type === "demande_rallonge" && selected.porteeRallonge && selected.dateFinSouhaitee && (
+                        <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
+                          Portée souhaitée : <span className="font-medium text-foreground">{PORTEE_LABELS[selected.porteeRallonge]}</span> · Jusqu'au <span className="font-medium text-foreground">{formatDate(selected.dateFinSouhaitee)}</span>
+                        </p>
+                      )}
                     </div>
 
-                    <div className="mb-4">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                        Réponse / commentaire interne
-                      </label>
-                      <textarea
-                        value={resolution}
-                        onChange={(e) => setResolution(e.target.value)}
-                        placeholder="Motif de validation ou de rejet..."
-                        className={cn(inputClass, "min-h-[100px]")}
-                      />
-                    </div>
+                    {selected.type === "demande_rallonge" && !peutValiderRallonge && (
+                      <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 rounded-lg px-3 py-2 mb-4">
+                        Vous n'êtes pas désigné comme validateur des demandes de rallonge (Paramétrage communication) — vous pouvez la prendre en charge ou la rejeter, mais pas la valider.
+                      </p>
+                    )}
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => handleStatus("en_cours")}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
-                      >
-                        <Clock size={14} /> Prendre en charge
-                      </button>
-                      <button
-                        onClick={() => handleStatus("valide")}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700"
-                      >
-                        <Check size={14} /> Valider
-                      </button>
-                      <button
-                        onClick={() => handleStatus("rejete")}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 text-white text-sm hover:bg-red-700"
-                      >
-                        <X size={14} /> Rejeter
-                      </button>
-                    </div>
+                    {selected.status === "annule" ? (
+                      <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                        Cette demande a été annulée par l'étudiant avant sa prise en charge — aucune action possible.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mb-4">
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                            Réponse / commentaire interne
+                          </label>
+                          <textarea
+                            value={resolution}
+                            onChange={(e) => setResolution(e.target.value)}
+                            placeholder="Motif de validation ou de rejet..."
+                            className={cn(inputClass, "min-h-[100px]")}
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleStatus("en_cours")}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted"
+                          >
+                            <Clock size={14} /> Prendre en charge
+                          </button>
+                          <button
+                            onClick={() => handleStatus("valide")}
+                            disabled={!peutValiderRallonge}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                            data-testid="requete-valider"
+                          >
+                            <Check size={14} /> Valider
+                          </button>
+                          <button
+                            onClick={() => handleStatus("rejete")}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 text-white text-sm hover:bg-red-700"
+                          >
+                            <X size={14} /> Rejeter
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </>
                 );
               })()}

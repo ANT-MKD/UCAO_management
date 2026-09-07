@@ -29,6 +29,20 @@ export const hashColor = (str: string): string => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+/** Couleur associée à un moyen de paiement, par correspondance partielle sur son libellé — reste
+ * valide quelle que soit l'orthographe exacte utilisée dans financeSettingsStore.modePaiementFinanceStore
+ * ("Espèce", "Espèces", "Wave", "Orange Money"...), contrairement à une table figée par valeur exacte. */
+export const moyenPaiementColor = (label: string): { color: string; bg: string } => {
+  const l = label.toLowerCase();
+  if (l.includes("wave")) return { color: "#2563eb", bg: "#eff6ff" };
+  if (l.includes("orange")) return { color: "#ea580c", bg: "#fff7ed" };
+  if (l.includes("vir")) return { color: "#4f46e5", bg: "#eef2ff" };
+  if (l.includes("esp")) return { color: "#16a34a", bg: "#f0fdf4" };
+  if (l.includes("ch")) return { color: "#64748b", bg: "#f8fafc" };
+  if (l.includes("avoir")) return { color: "#8b5cf6", bg: "#f5f3ff" };
+  return { color: "#64748b", bg: "#f8fafc" };
+};
+
 export const getInitials = (name: string): string => {
   return name
     .split(" ")

@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Plus, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Upload, User, Key } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ENSEIGNANTS } from "@/data/mockData";
-import { NIVEAUX_ETUDE, generateMatriculeEnseignant } from "@/lib/inscriptionConstants";
+import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
+import { creerCompteStaff } from "@/data/studentStore";
+import { useAuth } from "@/contexts/AuthContext";
+import { NIVEAUX_ETUDE, generateMatriculeEnseignant, generateMotDePasse } from "@/lib/inscriptionConstants";
+
+const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
 interface FormData {
   prenom: string;
@@ -20,49 +25,62 @@ interface FormData {
   adresse?: string;
   niveauEtude: string;
   grade: "Permanent" | "Vacataire" | "Contractuel";
-  tauxHoraire: number;
-  rib?: string;
 }
 
 interface Props { id?: string; }
 
 export default function TeacherFormPage({ id }: Props) {
   const [, setLocation] = useLocation();
+  const { currentUser } = useAuth();
   const isEdit = !!id;
   const [matricule, setMatricule] = useState("");
   const [diplomes, setDiplomes] = useState<string[]>([""]);
   const [specialites, setSpecialites] = useState<string[]>([""]);
+  const [photoDataUrl, setPhotoDataUrl] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       prenom: "", nom: "", sexe: "M", dateNaissance: "", paysNaissance: "Sénégal",
       lieuNaissance: "", nationalite: "Sénégalaise", cni: "", email: "", telephone: "",
-      adresse: "", niveauEtude: "Master", grade: "Vacataire", tauxHoraire: 15000, rib: "",
+      adresse: "", niveauEtude: "Master", grade: "Vacataire",
     },
   });
 
+  const handlePhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
+      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhotoDataUrl(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
     if (isEdit && id) {
-      const teacher = ENSEIGNANTS.find((e) => e.id === id);
+      const teacher = getTeacherById(id);
       if (teacher) {
         reset({
           prenom: teacher.prenom.replace(/^(Pr\.|Dr\.|Me\.|M\.)\s*/, ""),
           nom: teacher.nom,
-          sexe: "M",
-          dateNaissance: "",
-          paysNaissance: "Sénégal",
-          lieuNaissance: "Dakar",
-          nationalite: "Sénégalaise",
-          cni: "",
-          email: `${teacher.nom.toLowerCase()}@univ.sn`,
-          telephone: "77 000 00 00",
-          niveauEtude: "Master",
-          grade: teacher.grade as FormData["grade"],
-          tauxHoraire: teacher.tauxHoraire,
+          sexe: teacher.sexe ?? "M",
+          dateNaissance: teacher.dateNaissance ?? "",
+          paysNaissance: teacher.paysNaissance ?? "Sénégal",
+          lieuNaissance: teacher.lieuNaissance ?? "Dakar",
+          nationalite: teacher.nationalite ?? "Sénégalaise",
+          cni: teacher.cni ?? "",
+          email: teacher.email ?? `${teacher.nom.toLowerCase()}@univ.sn`,
+          telephone: teacher.telephone,
+          adresse: teacher.adresse ?? "",
+          niveauEtude: teacher.niveauEtude ?? "Master",
+          grade: teacher.grade,
         });
         setMatricule(teacher.matricule);
-        setSpecialites([teacher.specialite]);
-        setDiplomes(["Master en " + teacher.specialite]);
+        setSpecialites(teacher.specialites?.length ? teacher.specialites : [teacher.specialite]);
+        setDiplomes(teacher.diplomes?.length ? teacher.diplomes : ["Master en " + teacher.specialite]);
+        setPhotoDataUrl(teacher.photoDataUrl ?? "");
       }
     } else {
       setMatricule(generateMatriculeEnseignant());
@@ -70,7 +88,56 @@ export default function TeacherFormPage({ id }: Props) {
   }, [id, isEdit, reset]);
 
   const onSubmit = (data: FormData) => {
-    console.log("Enseignant saved:", { ...data, matricule, diplomes: diplomes.filter(Boolean), specialites: specialites.filter(Boolean) });
+    if (!currentUser) return;
+    const specialitesRemplies = specialites.filter(Boolean);
+    const payload = {
+      prenom: data.prenom.trim(),
+      nom: data.nom.trim().toUpperCase(),
+      matricule,
+      telephone: data.telephone,
+      specialite: specialitesRemplies[0] ?? "",
+      specialites: specialitesRemplies,
+      grade: data.grade,
+      email: data.email,
+      sexe: data.sexe,
+      dateNaissance: data.dateNaissance,
+      paysNaissance: data.paysNaissance,
+      lieuNaissance: data.lieuNaissance,
+      nationalite: data.nationalite,
+      cni: data.cni,
+      adresse: data.adresse,
+      niveauEtude: data.niveauEtude,
+      diplomes: diplomes.filter(Boolean),
+      photoDataUrl: photoDataUrl || undefined,
+    };
+    if (isEdit && id) {
+      // Taux horaire et RIB ne sont plus saisis ici — gérés depuis la fiche enseignant
+      // (Taux) ; on ne les touche donc pas pour ne pas écraser une valeur déjà réglée.
+      updateTeacher(id, payload, currentUser.id);
+    } else {
+      const teacher = addTeacher({ ...payload, tauxHoraire: 0 }, currentUser.id);
+      try {
+        creerCompteStaff(
+          {
+            role: "teacher",
+            prenom: payload.prenom,
+            nom: payload.nom,
+            identifier: matricule,
+            email: payload.email,
+            password: motDePasse || "demo123",
+            telephone: payload.telephone,
+            photoDataUrl: payload.photoDataUrl,
+            linkedId: teacher.id,
+          },
+          currentUser.id,
+        );
+        toast.success("Enseignant ajouté et compte de connexion créé.");
+      } catch (err) {
+        toast.error(
+          `Enseignant ajouté, mais compte de connexion non créé (${err instanceof Error ? err.message : "erreur inconnue"}). Vous pourrez le relier depuis Sécurité > Utilisateurs.`,
+        );
+      }
+    }
     setLocation("/admin/teachers");
   };
 
@@ -104,6 +171,19 @@ export default function TeacherFormPage({ id }: Props) {
         <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-6" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Identité</p>
+            <div className="flex items-center gap-4 mb-4">
+              {photoDataUrl ? (
+                <img src={photoDataUrl} alt="Photo" className="w-16 h-16 rounded-full object-cover border border-border flex-shrink-0" data-testid="teacher-photo-apercu" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <User size={22} className="text-muted-foreground" />
+                </div>
+              )}
+              <label className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors cursor-pointer">
+                <Upload size={14} /> Photo de profil
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="teacher-photo-input" />
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
@@ -193,22 +273,19 @@ export default function TeacherFormPage({ id }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Grade *</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
                 <select {...register("grade")} className={inputClass}>
                   <option value="Permanent">Permanent</option>
                   <option value="Vacataire">Vacataire</option>
                   <option value="Contractuel">Contractuel</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
-                <input {...register("tauxHoraire", { required: true, valueAsNumber: true, min: 0 })} type="number" className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">RIB bancaire</label>
-                <input {...register("rib")} placeholder="SN123456789012345678" className={inputClass} />
-              </div>
             </div>
+            {!isEdit && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Le taux horaire se règle depuis la fiche de l'enseignant une fois créé (onglet Taux).
+              </p>
+            )}
 
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
@@ -258,6 +335,25 @@ export default function TeacherFormPage({ id }: Props) {
               </div>
             </div>
           </div>
+
+          {!isEdit && (
+            <div className="border-t border-border pt-4">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-2">Accès portail professeur</p>
+              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule ({matricule}) + mot de passe généré (modifiable par le professeur depuis son profil)</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-xl font-mono text-sm" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                  {motDePasse || "—"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMotDePasse(generateMotDePasse())}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
+                >
+                  <Key size={14} /> Générer mot de passe
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2 border-t border-border">
             <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">

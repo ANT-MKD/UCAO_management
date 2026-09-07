@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsLeft, ChevronsRight, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export interface Column<T> {
   key: string;
@@ -23,6 +24,14 @@ interface DataTableProps<T extends Record<string, unknown>> {
   activeFiltersCount?: number;
   onClearFilters?: () => void;
   emptyMessage?: string;
+  /** Active la colonne de cases à cocher (sélection multi-lignes) — nécessite getRowId,
+   * selectedIds et onSelectionChange, sinon aucune coche n'est rendue. */
+  selectable?: boolean;
+  getRowId?: (row: T) => string;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
+  /** Barre d'actions groupées affichée dès qu'au moins une ligne est cochée. */
+  renderBulkActions?: (selectedIds: string[], clearSelection: () => void) => React.ReactNode;
 }
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -40,7 +49,13 @@ export function DataTable<T extends Record<string, unknown>>({
   activeFiltersCount = 0,
   onClearFilters,
   emptyMessage = "Aucun résultat trouvé",
+  selectable = false,
+  getRowId,
+  selectedIds,
+  onSelectionChange,
+  renderBulkActions,
 }: DataTableProps<T>) {
+  const selectionEnabled = selectable && !!getRowId && !!selectedIds && !!onSelectionChange;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
@@ -101,6 +116,30 @@ export function DataTable<T extends Record<string, unknown>>({
   };
 
   const totalFilters = activeFiltersCount + (search ? 1 : 0);
+
+  const pageIds = selectionEnabled ? paged.map((row) => getRowId!(row)) : [];
+  const allPageSelected = selectionEnabled && pageIds.length > 0 && pageIds.every((id) => selectedIds!.has(id));
+  const somePageSelected = selectionEnabled && pageIds.some((id) => selectedIds!.has(id));
+
+  const toggleAllPage = (checked: boolean) => {
+    if (!selectionEnabled) return;
+    const next = new Set(selectedIds);
+    for (const id of pageIds) {
+      if (checked) next.add(id);
+      else next.delete(id);
+    }
+    onSelectionChange!(next);
+  };
+
+  const toggleOne = (id: string, checked: boolean) => {
+    if (!selectionEnabled) return;
+    const next = new Set(selectedIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    onSelectionChange!(next);
+  };
+
+  const clearSelection = () => onSelectionChange?.(new Set());
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -182,6 +221,23 @@ export function DataTable<T extends Record<string, unknown>>({
         </div>
       )}
 
+      {/* Bulk selection action bar */}
+      {selectionEnabled && selectedIds!.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-border" data-testid="bulk-actions-bar">
+          <span className="text-xs font-semibold text-primary">{selectedIds!.size} sélectionné(s)</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {renderBulkActions?.([...selectedIds!], clearSelection)}
+          </div>
+          <button
+            onClick={clearSelection}
+            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors"
+            data-testid="bulk-clear-selection"
+          >
+            <X size={12} /> Désélectionner tout
+          </button>
+        </div>
+      )}
+
       {/* Filter panel (collapsible) */}
       {filterPanel && showFilters && (
         <div className="border-b border-border">
@@ -221,6 +277,16 @@ export function DataTable<T extends Record<string, unknown>>({
         <table className="w-full text-sm" data-testid="data-table">
           <thead>
             <tr className="bg-muted/50 border-b border-border">
+              {selectionEnabled && (
+                <th className="px-4 py-3 w-10">
+                  <Checkbox
+                    checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
+                    onCheckedChange={(v) => toggleAllPage(v === true)}
+                    aria-label="Tout sélectionner sur cette page"
+                    data-testid="select-all-page"
+                  />
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -247,6 +313,7 @@ export function DataTable<T extends Record<string, unknown>>({
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-border">
+                  {selectionEnabled && <td className="px-4 py-3" />}
                   {columns.map((col) => (
                     <td key={col.key} className="px-4 py-3">
                       <div className="h-4 bg-muted rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
@@ -256,7 +323,7 @@ export function DataTable<T extends Record<string, unknown>>({
               ))
             ) : paged.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-14 text-muted-foreground">
+                <td colSpan={columns.length + (selectionEnabled ? 1 : 0)} className="text-center py-14 text-muted-foreground">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
                       <Search size={20} className="opacity-40" />
@@ -275,23 +342,37 @@ export function DataTable<T extends Record<string, unknown>>({
                 </td>
               </tr>
             ) : (
-              paged.map((row, i) => (
+              paged.map((row, i) => {
+                const rowId = selectionEnabled ? getRowId!(row) : undefined;
+                return (
                 <tr
                   key={i}
                   className={cn(
                     "border-b border-border last:border-0 transition-colors",
-                    onRowClick && "cursor-pointer hover:bg-primary/[0.03]"
+                    onRowClick && "cursor-pointer hover:bg-primary/[0.03]",
+                    rowId && selectedIds!.has(rowId) && "bg-primary/[0.03]"
                   )}
                   onClick={() => onRowClick?.(row)}
                   data-testid={`table-row-${i}`}
                 >
+                  {selectionEnabled && (
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds!.has(rowId!)}
+                        onCheckedChange={(v) => toggleOne(rowId!, v === true)}
+                        aria-label={`Sélectionner la ligne ${i + 1}`}
+                        data-testid={`select-row-${rowId}`}
+                      />
+                    </td>
+                  )}
                   {columns.map((col) => (
                     <td key={col.key} className={cn("px-4 py-3", col.className)}>
                       {col.render ? col.render(row) : String(row[col.key] ?? "")}
                     </td>
                   ))}
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

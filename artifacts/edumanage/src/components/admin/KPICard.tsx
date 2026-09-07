@@ -72,7 +72,7 @@ export function KPICard({
 
         {/* Value */}
         <div
-          className="text-3xl font-extrabold text-foreground tracking-tight leading-none"
+          className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-none truncate"
           style={{ fontFamily: "Outfit, sans-serif" }}
         >
           {value}

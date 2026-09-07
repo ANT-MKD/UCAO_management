@@ -1,19 +1,47 @@
+import { useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, Pencil, Trash2, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, Download, Upload, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { FILIERES } from "@/data/mockData";
-
-type Filiere = typeof FILIERES[0];
+import { useFilieres } from "@/hooks/useFiliereStore";
+import { deleteFiliere, type FiliereRecord } from "@/data/filiereStore";
+import { useClasses } from "@/hooks/useStructureStore";
+import { useStudentStore } from "@/hooks/useStudentStore";
+import { downloadFiliereTemplate, parseFiliereExcel, importFiliereRows, exportFilieresToExcel } from "@/lib/filiereImportExport";
 
 export default function FilieresPage() {
   const [, setLocation] = useLocation();
-  const actives = FILIERES.filter((f) => f.statut === "actif").length;
+  const filieres = useFilieres();
+  const classes = useClasses();
+  const etudiants = useStudentStore();
+  const actives = filieres.filter((f) => f.statut === "actif").length;
+  const importInputRef = useRef<HTMLInputElement>(null);
 
-  const columns: Column<Filiere>[] = [
+  const nbClassesDe = (filiereId: string) => classes.filter((c) => c.filiereId === filiereId).length;
+  const nbEtudiantsDe = (filiereId: string) => etudiants.filter((e) => e.filiereId === filiereId).length;
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const rows = await parseFiliereExcel(file);
+      if (rows.length === 0) {
+        toast.error("Aucune ligne valide trouvée dans le fichier.");
+        return;
+      }
+      const created = importFiliereRows(rows);
+      toast.success(`${created.length} filière(s) importée(s).`);
+    } catch {
+      toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+
+  const columns: Column<FiliereRecord>[] = [
     {
       key: "nom",
       header: "Filière",
@@ -43,8 +71,8 @@ export default function FilieresPage() {
         </div>
       ),
     },
-    { key: "nbClasses", header: "Classes", sortable: true, render: (r) => <span className="font-medium">{r.nbClasses}</span> },
-    { key: "nbEtudiants", header: "Étudiants", sortable: true, render: (r) => <span className="font-medium">{r.nbEtudiants}</span> },
+    { key: "nbClasses", header: "Classes", sortable: true, render: (r) => <span className="font-medium">{nbClassesDe(r.id)}</span> },
+    { key: "nbEtudiants", header: "Étudiants", sortable: true, render: (r) => <span className="font-medium">{nbEtudiantsDe(r.id)}</span> },
     {
       key: "statut",
       header: "Statut",
@@ -63,7 +91,10 @@ export default function FilieresPage() {
             <Pencil size={14} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Supprimer la filière ${r.nom} ?`)) deleteFiliere(r.id);
+            }}
             className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 transition-colors text-muted-foreground hover:text-red-500"
             data-testid={`btn-delete-${r.id}`}
           >
@@ -79,28 +110,40 @@ export default function FilieresPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Filières" }]}
         title="Filières"
-        subtitle={`${FILIERES.length} filières configurées pour l'année 2025-2026`}
+        subtitle={`${filieres.length} filières configurées pour l'année 2025-2026`}
         actions={
-          <button
-            onClick={() => setLocation("/admin/filieres/new")}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
-            data-testid="btn-new-filiere"
-          >
-            <Plus size={15} /> Nouvelle Filière
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={downloadFiliereTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
+              <FileSpreadsheet size={13} /> Modèle
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground cursor-pointer" title="Importer via Excel">
+              <Upload size={13} /> Importer
+              <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => handleImportFile(e.target.files?.[0])} data-testid="filiere-import-input" />
+            </label>
+            <button onClick={() => exportFilieresToExcel(filieres, nbClassesDe, nbEtudiantsDe)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste">
+              <Download size={13} /> Exporter
+            </button>
+            <button
+              onClick={() => setLocation("/admin/filieres/new")}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+              data-testid="btn-new-filiere"
+            >
+              <Plus size={15} /> Nouvelle Filière
+            </button>
+          </div>
         }
       />
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <KPICard icon={BookOpen} label="Total Filières" value={FILIERES.length} accentColor="#4f46e5" />
+        <KPICard icon={BookOpen} label="Total Filières" value={filieres.length} accentColor="#4f46e5" />
         <KPICard icon={BookOpen} label="Filières Actives" value={actives} accentColor="#10b981" />
-        <KPICard icon={BookOpen} label="Filières Inactives" value={FILIERES.length - actives} accentColor="#ef4444" />
+        <KPICard icon={BookOpen} label="Filières Inactives" value={filieres.length - actives} accentColor="#ef4444" />
       </div>
       <DataTable
-        columns={columns}
-        data={FILIERES as unknown as Record<string, unknown>[]}
+        columns={columns as unknown as Column<Record<string, unknown>>[]}
+        data={filieres as unknown as Record<string, unknown>[]}
         searchable
         searchPlaceholder="Rechercher une filière..."
-        onRowClick={(r) => setLocation(`/admin/filieres/${(r as unknown as Filiere).id}/edit`)}
+        onRowClick={(r) => setLocation(`/admin/filieres/${(r as unknown as FiliereRecord).id}`)}
       />
     </div>
   );

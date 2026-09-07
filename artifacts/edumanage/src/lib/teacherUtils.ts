@@ -58,6 +58,17 @@ export function dateToJour(dateStr: string): number {
   return dow === 0 ? 7 : dow;
 }
 
+/** Lundi (date ISO) de la semaine contenant cette date — l'emploi du temps est propre à
+ * chaque semaine (pas un modèle qui se répète à l'identique), donc toute comparaison de
+ * créneau doit se faire à la fois sur le jour ET la semaine. */
+export function mondayOf(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
 /** V.H pointé en heures — pointages soumis/validés, sinon cahiers, sinon séances planifiées. */
 export function computeVhPointe(
   teacher: EnseignantRecord,
