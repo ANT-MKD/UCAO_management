@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { CalendarX, CheckCircle2, AlertCircle, Clock, Search, CalendarClock } from "lucide-react";
+import { CalendarX, CheckCircle2, AlertCircle, Clock, Search, CalendarClock, SlidersHorizontal, X } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
@@ -35,6 +35,11 @@ export default function TeacherAbsencesPage() {
   const [ecFiltre, setEcFiltre] = useState("");
   const [typeFiltre, setTypeFiltre] = useState("");
   const [periodeFiltre, setPeriodeFiltre] = useState("");
+  const [classeFiltre, setClasseFiltre] = useState("");
+  const [justifieFiltre, setJustifieFiltre] = useState("");
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [filtresAvancesOuverts, setFiltresAvancesOuverts] = useState(false);
 
   const retards = mine.filter((a) => a.type === "retard").length;
   const justifiees = mine.filter((a) => a.justifie).length;
@@ -52,15 +57,34 @@ export default function TeacherAbsencesPage() {
   }, [mine, retards]);
 
   const mesEcsIds = useMemo(() => Array.from(new Set(mine.map((a) => a.ecId))), [mine]);
+  const mesClasseIds = useMemo(() => Array.from(new Set(mine.map((a) => a.classeId))), [mine]);
+
+  const filtresActifs = [query, ecFiltre, typeFiltre, periodeFiltre, classeFiltre, justifieFiltre, dateDebut, dateFin].some(Boolean);
+
+  function reinitialiserFiltres() {
+    setQuery("");
+    setEcFiltre("");
+    setTypeFiltre("");
+    setPeriodeFiltre("");
+    setClasseFiltre("");
+    setJustifieFiltre("");
+    setDateDebut("");
+    setDateFin("");
+  }
 
   const filtrees = useMemo(() => {
     const q = query.trim().toLowerCase();
     const moisCourant = new Date().toISOString().slice(0, 7);
     return mine.filter((a) => {
       if (ecFiltre && a.ecId !== ecFiltre) return false;
+      if (classeFiltre && a.classeId !== classeFiltre) return false;
       if (typeFiltre && a.type !== typeFiltre) return false;
+      if (justifieFiltre === "oui" && !a.justifie) return false;
+      if (justifieFiltre === "non" && a.justifie) return false;
       if (periodeFiltre === "mois" && !a.date.startsWith(moisCourant)) return false;
       if (periodeFiltre === "annee" && a.annee !== anneeActuelle) return false;
+      if (dateDebut && a.date < dateDebut) return false;
+      if (dateFin && a.date > dateFin) return false;
       if (q) {
         const ec = ecs.find((e) => e.id === a.ecId);
         const classe = classes.find((c) => c.id === a.classeId);
@@ -69,7 +93,7 @@ export default function TeacherAbsencesPage() {
       }
       return true;
     });
-  }, [mine, query, ecFiltre, typeFiltre, periodeFiltre, ecs, classes, anneeActuelle]);
+  }, [mine, query, ecFiltre, classeFiltre, typeFiltre, justifieFiltre, periodeFiltre, dateDebut, dateFin, ecs, classes, anneeActuelle]);
 
   return (
     <div className="space-y-4">
@@ -102,49 +126,119 @@ export default function TeacherAbsencesPage() {
       ) : (
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
-            <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Rechercher un cours, un motif…"
-                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  data-testid="teacher-absences-recherche"
-                />
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+              <div className="flex flex-wrap gap-3">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Rechercher un cours, un motif…"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid="teacher-absences-recherche"
+                  />
+                </div>
+                <select
+                  value={typeFiltre}
+                  onChange={(e) => setTypeFiltre(e.target.value)}
+                  className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  data-testid="teacher-absences-filtre-type"
+                >
+                  <option value="">Tous les types</option>
+                  <option value="absence">Absence</option>
+                  <option value="retard">Retard</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setFiltresAvancesOuverts((o) => !o)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2.5 text-sm rounded-xl border font-medium",
+                    filtresAvancesOuverts ? "border-primary bg-primary/5 text-primary" : "border-border hover:bg-muted",
+                  )}
+                  data-testid="teacher-absences-toggle-filtres-avances"
+                >
+                  <SlidersHorizontal size={14} /> Filtres avancés
+                </button>
+                {filtresActifs && (
+                  <button
+                    type="button"
+                    onClick={reinitialiserFiltres}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950"
+                    data-testid="teacher-absences-reinitialiser-filtres"
+                  >
+                    <X size={12} /> Réinitialiser les filtres
+                  </button>
+                )}
               </div>
-              <select
-                value={ecFiltre}
-                onChange={(e) => setEcFiltre(e.target.value)}
-                className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-testid="teacher-absences-filtre-cours"
-              >
-                <option value="">Tous les cours</option>
-                {mesEcsIds.map((id) => {
-                  const ec = ecs.find((e) => e.id === id);
-                  return <option key={id} value={id}>{ec ? `${ec.code} — ${ec.libelle}` : id}</option>;
-                })}
-              </select>
-              <select
-                value={typeFiltre}
-                onChange={(e) => setTypeFiltre(e.target.value)}
-                className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-testid="teacher-absences-filtre-type"
-              >
-                <option value="">Tous les types</option>
-                <option value="absence">Absence</option>
-                <option value="retard">Retard</option>
-              </select>
-              <select
-                value={periodeFiltre}
-                onChange={(e) => setPeriodeFiltre(e.target.value)}
-                className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-testid="teacher-absences-filtre-periode"
-              >
-                <option value="">Toutes les périodes</option>
-                <option value="mois">Ce mois-ci</option>
-                <option value="annee">Cette année académique</option>
-              </select>
+
+              {filtresAvancesOuverts && (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-border">
+                  <select
+                    value={ecFiltre}
+                    onChange={(e) => setEcFiltre(e.target.value)}
+                    className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid="teacher-absences-filtre-cours"
+                  >
+                    <option value="">Tous les cours</option>
+                    {mesEcsIds.map((id) => {
+                      const ec = ecs.find((e) => e.id === id);
+                      return <option key={id} value={id}>{ec ? `${ec.code} — ${ec.libelle}` : id}</option>;
+                    })}
+                  </select>
+                  <select
+                    value={classeFiltre}
+                    onChange={(e) => setClasseFiltre(e.target.value)}
+                    className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid="teacher-absences-filtre-classe"
+                  >
+                    <option value="">Toutes les classes</option>
+                    {mesClasseIds.map((id) => {
+                      const classe = classes.find((c) => c.id === id);
+                      return <option key={id} value={id}>{classe?.nom ?? id}</option>;
+                    })}
+                  </select>
+                  <select
+                    value={justifieFiltre}
+                    onChange={(e) => setJustifieFiltre(e.target.value)}
+                    className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid="teacher-absences-filtre-justifie"
+                  >
+                    <option value="">Justifiées et en attente</option>
+                    <option value="oui">Justifiées uniquement</option>
+                    <option value="non">En attente uniquement</option>
+                  </select>
+                  <select
+                    value={periodeFiltre}
+                    onChange={(e) => setPeriodeFiltre(e.target.value)}
+                    className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid="teacher-absences-filtre-periode"
+                  >
+                    <option value="">Toutes les périodes</option>
+                    <option value="mois">Ce mois-ci</option>
+                    <option value="annee">Cette année académique</option>
+                  </select>
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Du</label>
+                    <input
+                      type="date"
+                      value={dateDebut}
+                      onChange={(e) => setDateDebut(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      data-testid="teacher-absences-date-debut"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Au</label>
+                    <input
+                      type="date"
+                      value={dateFin}
+                      onChange={(e) => setDateFin(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      data-testid="teacher-absences-date-fin"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {filtrees.length === 0 ? (
