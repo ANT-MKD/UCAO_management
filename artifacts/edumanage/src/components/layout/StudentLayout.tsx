@@ -40,6 +40,7 @@ interface StudentNavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  group?: string;
 }
 
 const ICONS_BY_ID: Record<string, React.ElementType> = {
@@ -65,7 +66,20 @@ const STUDENT_NAV_ITEMS: StudentNavItem[] = STUDENT_PORTAL_FEATURES.map((f) => (
   label: f.label,
   href: f.href,
   icon: ICONS_BY_ID[f.id],
+  group: f.group,
 }));
+
+/** Regroupe une liste de nav déjà ordonnée en sections consécutives par item.group — sans
+ * réordonner : STUDENT_PORTAL_FEATURES liste déjà chaque section à la suite de la précédente. */
+function groupNavItems<T extends { group?: string }>(items: T[]): { group?: string; items: T[] }[] {
+  const sections: { group?: string; items: T[] }[] = [];
+  for (const item of items) {
+    const last = sections[sections.length - 1];
+    if (last && last.group === item.group) last.items.push(item);
+    else sections.push({ group: item.group, items: [item] });
+  }
+  return sections;
+}
 
 /** Horodatage de dernière visite de "Mes demandes", posé par StudentRequestsPage.tsx à son
  * montage — sert uniquement à calculer le badge "non lu" du sidebar, jamais une donnée métier. */
@@ -180,8 +194,15 @@ export function StudentLayout({ children }: StudentLayoutProps) {
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-            <NavList items={mainNavItems} />
+          <nav className="flex-1 overflow-y-auto p-3">
+            {groupNavItems(mainNavItems).map((section, i) => (
+              <div key={i} className={cn("space-y-1", i > 0 && "mt-3 pt-3 border-t border-border")}>
+                {section.group && !collapsed && (
+                  <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{section.group}</p>
+                )}
+                <NavList items={section.items} />
+              </div>
+            ))}
           </nav>
 
           {profileNavItem && (
@@ -234,8 +255,15 @@ export function StudentLayout({ children }: StudentLayoutProps) {
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-              <NavList items={mainNavItems} onNavigate={() => setMobileOpen(false)} />
+            <nav className="flex-1 overflow-y-auto p-3">
+              {groupNavItems(mainNavItems).map((section, i) => (
+                <div key={i} className={cn("space-y-1", i > 0 && "mt-3 pt-3 border-t border-border")}>
+                  {section.group && (
+                    <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{section.group}</p>
+                  )}
+                  <NavList items={section.items} onNavigate={() => setMobileOpen(false)} />
+                </div>
+              ))}
             </nav>
 
             {profileNavItem && (
