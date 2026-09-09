@@ -110,7 +110,6 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-encaissement",
         label: "Encaissement",
         children: [
-          { id: "fin-enc-nouveau", label: "Nouvel encaissement", href: "/admin/paiements/new" },
           { id: "fin-enc-pec", label: "Nouvel encaissement de PEC", href: "/admin/encaissements-pec/new" },
           { id: "fin-enc-pec-masse", label: "Nouvel encaissement de PEC en masse", href: "/admin/encaissements-pec-masse" },
           { id: "fin-enc-pec-liste", label: "Liste encaissement PEC", href: "/admin/encaissements-pec" },
@@ -123,7 +122,6 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "fin-avoir",
         label: "Avoir",
         children: [
-          { id: "fin-avoir-enc", label: "Les encaissements", href: "/admin/encaissements" },
           { id: "fin-avoir-depot", label: "Dépôt avoir", href: "/admin/avoir/depots/new" },
           { id: "fin-avoir-remboursement", label: "Remboursement avoir", href: "/admin/avoir/remboursements/new" },
           { id: "fin-avoir-remboursements", label: "Les remboursements", href: "/admin/avoir/remboursements" },
@@ -154,7 +152,6 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-devis-nouveau", label: "Nouveau devis", href: "/admin/devis/new" },
           { id: "fin-devis-liste", label: "Les devis", href: "/admin/devis" },
-          { id: "fin-devis-grille", label: "Grille tarifaire", href: "/admin/grille-frais" },
         ],
       },
       {
@@ -191,7 +188,6 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         children: [
           { id: "fin-pec-organisme", label: "Organisme de PEC", href: "/admin/organismes-pec" },
           { id: "fin-pec-liste", label: "Les prises en charge", href: "/admin/prises-en-charge" },
-          { id: "fin-pec-regularisation", label: "Régularisation prise en charge", href: "/admin/prises-en-charge" },
         ],
       },
       { id: "fin-export", label: "Export comptable", href: "/admin/export-comptable" },
@@ -217,7 +213,6 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "scol-classes",
         label: "Classes",
         children: [
-          { id: "scol-classes-liste", label: "Les classes", href: "/admin/classes" },
           { id: "scol-classes-cloture", label: "Clôture année", href: "/admin/classe/cloture-annee" },
           { id: "scol-classes-bascule", label: "Bascule année", href: "/admin/classe/bascule-annee" },
         ],

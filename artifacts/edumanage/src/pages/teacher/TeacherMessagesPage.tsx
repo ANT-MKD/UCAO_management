@@ -3,7 +3,11 @@ import { Search, Send, Plus, ArrowLeft, Check, CheckCheck, Phone, Mail, MessageS
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendMessage, markMessageAsRead, type MessageRecord, type UserAccountRecord } from "@/data/studentStore";
-import { useMessages, useUserAccounts } from "@/hooks/useStudentStore";
+import { useMessages, useUserAccounts, useStudentStore, useSeances, useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { useTeachers } from "@/hooks/useTeacherStore";
+import { useEcs, useUes } from "@/hooks/useCurriculumStore";
+import { useClasses } from "@/hooks/useStructureStore";
+import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FormModal } from "@/components/admin/FormModal";
 import { cn, formatDate } from "@/lib/utils";
@@ -52,11 +56,20 @@ function listTimeLabel(dateStr: string): string {
 /** Même modèle générique que la messagerie étudiante (MessageRecord/sendMessage ne connaissent
  * pas de rôle particulier) — un enseignant peut déjà recevoir un message d'un étudiant ou de
  * l'administration ; seule cette page manquait pour le consulter et y répondre. Démarrer une
- * nouvelle conversation reste réservé à l'administration (pas de messagerie prof→étudiant ici). */
+ * nouvelle conversation est possible vers l'administration ou vers un étudiant de ses propres
+ * classes (via buildTeacherCourses, la même source que "Mes cours"/"Mes modules") — jamais vers
+ * un étudiant qu'il n'encadre pas. */
 export default function TeacherMessagesPage() {
   const { currentUser } = useAuth();
   const messages = useMessages(currentUser?.id);
   const accounts = useUserAccounts();
+  const teachers = useTeachers();
+  const seances = useSeances();
+  const ecs = useEcs();
+  const ues = useUes();
+  const classes = useClasses();
+  const anneesAcademiques = useAnneesAcademiques();
+  const etudiants = useStudentStore();
 
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [tab, setTab] = useState<"toutes" | "non_lues">("toutes");
@@ -68,10 +81,24 @@ export default function TeacherMessagesPage() {
   const [newContent, setNewContent] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
 
-  const contacts = useMemo(
+  const contactsAdmin = useMemo(
     () => accounts.filter((a) => a.id !== currentUser?.id && a.actif && a.role === "admin"),
     [accounts, currentUser?.id],
   );
+
+  const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
+  const anneeActuelle = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "";
+  const mesClasseIds = useMemo(() => {
+    if (!myTeacher) return new Set<string>();
+    const courses = buildTeacherCourses(myTeacher, seances, ecs, ues, classes, anneeActuelle);
+    return new Set(courses.map((c) => c.classeId));
+  }, [myTeacher, seances, ecs, ues, classes, anneeActuelle]);
+  const contactsEtudiants = useMemo(() => {
+    const mesEtudiantIds = new Set(etudiants.filter((e) => mesClasseIds.has(e.classeId) && e.statut === "actif").map((e) => e.id));
+    return accounts.filter((a) => a.actif && a.role === "student" && a.linkedId && mesEtudiantIds.has(a.linkedId));
+  }, [etudiants, mesClasseIds, accounts]);
+
+  const contacts = useMemo(() => [...contactsAdmin, ...contactsEtudiants], [contactsAdmin, contactsEtudiants]);
 
   const conversations = useMemo(() => {
     if (!currentUser) return [];
@@ -345,7 +372,7 @@ export default function TeacherMessagesPage() {
         </div>
       </div>
 
-      <FormModal open={showNewMessage} onClose={() => setShowNewMessage(false)} title="Nouveau message" subtitle="Contactez un membre de l'administration">
+      <FormModal open={showNewMessage} onClose={() => setShowNewMessage(false)} title="Nouveau message" subtitle="Contactez l'administration ou un étudiant de vos classes">
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataire <span className="text-red-500">*</span></label>
@@ -356,9 +383,20 @@ export default function TeacherMessagesPage() {
               data-testid="nouveau-message-destinataire"
             >
               <option value="">— Sélectionner —</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>
-              ))}
+              {contactsAdmin.length > 0 && (
+                <optgroup label="Administration">
+                  {contactsAdmin.map((c) => (
+                    <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>
+                  ))}
+                </optgroup>
+              )}
+              {contactsEtudiants.length > 0 && (
+                <optgroup label="Mes étudiants">
+                  {contactsEtudiants.map((c) => (
+                    <option key={c.id} value={c.id}>{c.displayName}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div>
