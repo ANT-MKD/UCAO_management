@@ -218,8 +218,7 @@ const TeacherRessourcesPage = lazy(() => import("@/pages/teacher/TeacherRessourc
 const TeacherAbsencesPage = lazy(() => import("@/pages/teacher/TeacherAbsencesPage"));
 const TeacherPointagePage = lazy(() => import("@/pages/teacher/TeacherPointagePage"));
 const TeacherVolumeHorairePage = lazy(() => import("@/pages/teacher/TeacherVolumeHorairePage"));
-const TeacherVacationsPage = lazy(() => import("@/pages/teacher/TeacherVacationsPage"));
-const TeacherDecomptesPage = lazy(() => import("@/pages/teacher/TeacherDecomptesPage"));
+const TeacherRemunerationPage = lazy(() => import("@/pages/teacher/TeacherRemunerationPage"));
 const TeacherMessagesPage = lazy(() => import("@/pages/teacher/TeacherMessagesPage"));
 const TeacherProfilePage = lazy(() => import("@/pages/teacher/TeacherProfilePage"));
 const TeacherNotificationsPage = lazy(() => import("@/pages/teacher/TeacherNotificationsPage"));
@@ -947,11 +946,14 @@ function AppRouter() {
       <Route path="/teacher/volume">
         <Teacher><TeacherVolumeHorairePage /></Teacher>
       </Route>
+      <Route path="/teacher/remuneration">
+        <Teacher><TeacherRemunerationPage /></Teacher>
+      </Route>
       <Route path="/teacher/vacations">
-        <Teacher><TeacherVacationsPage /></Teacher>
+        <Redirect to="/teacher/remuneration" />
       </Route>
       <Route path="/teacher/decomptes">
-        <Teacher><TeacherDecomptesPage /></Teacher>
+        <Redirect to="/teacher/remuneration" />
       </Route>
       <Route path="/teacher/messages">
         <Teacher><TeacherMessagesPage /></Teacher>

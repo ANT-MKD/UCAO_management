@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Search, FileCheck2 } from "lucide-react";
+import { Search, FileCheck2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS } from "@/data/mockData";
@@ -11,9 +11,11 @@ import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import { useTeacherCourseStatuses } from "@/hooks/useTeacherCourseStatusStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
+import { useVacations } from "@/hooks/useVacationStore";
 import { makeTeacherRateId } from "@/data/teacherRateStore";
 import { makeTeacherCourseStatusId } from "@/data/teacherCourseStatusStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
+import { findVacationChevauchantDecompte } from "@/lib/remunerationOverlap";
 import { buildTeacherCourses, niveauLabel } from "@/lib/teacherCourseUtils";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,6 +52,7 @@ export default function DecompteTauxHoraireFormPage() {
   const teacherCourseStatuses = useTeacherCourseStatuses();
   const pointages = usePointages();
   const decomptes = useDecomptes();
+  const vacations = useVacations();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(
@@ -136,6 +139,11 @@ export default function DecompteTauxHoraireFormPage() {
     if (checked.size === eligibleLines.length) setChecked(new Set());
     else setChecked(new Set(eligibleLines.map((l) => l.pointageId)));
   };
+
+  const vacationChevauchante = useMemo(
+    () => (selected ? findVacationChevauchantDecompte(selected.id, eligibleLines.map((l) => l.date), vacations) : undefined),
+    [selected, eligibleLines, vacations],
+  );
 
   const selectedLines = eligibleLines.filter((l) => checked.has(l.pointageId));
   const totalBrut = selectedLines.reduce((s, l) => s + l.montantBrut, 0);
@@ -238,6 +246,15 @@ export default function DecompteTauxHoraireFormPage() {
           </div>
         </div>
       </div>
+
+      {selected && vacationChevauchante && (
+        <div className="flex items-start gap-2 p-3 mb-5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl">
+          <AlertTriangle size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-800 dark:text-amber-400">
+            {selected.prenom} {selected.nom} a déjà une vacation enregistrée pour {vacationChevauchante.mois}, qui chevauche des séances proposées ici — vérifiez qu&apos;il ne s&apos;agit pas d&apos;un double paiement avant de générer ce décompte.
+          </p>
+        </div>
+      )}
 
       {!selected ? (
         <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">

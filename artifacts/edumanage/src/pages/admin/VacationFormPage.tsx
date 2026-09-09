@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Calculator } from "lucide-react";
+import { ArrowLeft, Save, Calculator, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { getVacationById, addVacation, updateVacation } from "@/data/vacationStore";
+import { useDecomptes } from "@/hooks/useDecompteStore";
+import { findDecompteChevauchantVacation } from "@/lib/remunerationOverlap";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA } from "@/lib/utils";
 
@@ -60,6 +62,12 @@ export default function VacationFormPage({ id }: Props) {
 
   const enseignantId = watch("enseignantId");
   const enseignant = enseignants.find((e) => e.id === enseignantId);
+  const moisChoisi = watch("mois");
+  const decomptes = useDecomptes();
+  const decompteChevauchant = useMemo(
+    () => (enseignantId && moisChoisi ? findDecompteChevauchantVacation(enseignantId, moisChoisi, decomptes) : undefined),
+    [enseignantId, moisChoisi, decomptes],
+  );
 
   const onSubmit = (data: FormData) => {
     if (!currentUser || !enseignant) return;
@@ -129,6 +137,14 @@ export default function VacationFormPage({ id }: Props) {
                 </select>
                 {errors.mois && <p className="text-xs text-red-500 mt-1">{errors.mois.message}</p>}
               </div>
+              {decompteChevauchant && (
+                <div className="col-span-2 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl">
+                  <AlertTriangle size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-800 dark:text-amber-400">
+                    {enseignant?.prenom} {enseignant?.nom} a déjà un décompte (réf. <strong>{decompteChevauchant.reference}</strong>) incluant des séances de {moisChoisi} — vérifiez qu&apos;il ne s&apos;agit pas d&apos;un double paiement avant de créer cette vacation.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de CM</label>
                 <input {...register("heuresCm", { valueAsNumber: true, min: 0 })} type="number" min={0} step={0.5} className={inputClass} />

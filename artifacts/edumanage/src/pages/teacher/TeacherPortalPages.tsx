@@ -105,7 +105,7 @@ export function TeacherDashboardPage() {
           label="Solde décompte à percevoir"
           value={formatCFA(soldeDecompte)}
           accentColor={soldeDecompte > 0 ? "#ef4444" : "#10b981"}
-          onClick={() => setLocation("/teacher/decomptes")}
+          onClick={() => setLocation("/teacher/remuneration")}
         />
       </section>
 
@@ -242,7 +242,7 @@ export function TeacherDashboardPage() {
               </div>
               <h3 className="font-bold text-foreground truncate" style={{ fontFamily: "Outfit, sans-serif" }}>Mes décomptes</h3>
             </div>
-            <button onClick={() => setLocation("/teacher/decomptes")} className="text-xs text-primary hover:underline flex items-center gap-1 font-medium flex-shrink-0">
+            <button onClick={() => setLocation("/teacher/remuneration")} className="text-xs text-primary hover:underline flex items-center gap-1 font-medium flex-shrink-0">
               Voir tout <ArrowRight size={11} />
             </button>
           </div>
@@ -253,7 +253,7 @@ export function TeacherDashboardPage() {
               {mineDecomptes.slice(0, 6).map((d) => {
                 const reste = d.netAPayer - d.montantPaye;
                 return (
-                  <div key={d.id} onClick={() => setLocation("/teacher/decomptes")} className="flex items-center gap-3 mx-2 my-1 px-3 py-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer group">
+                  <div key={d.id} onClick={() => setLocation("/teacher/remuneration")} className="flex items-center gap-3 mx-2 my-1 px-3 py-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer group">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-foreground truncate">{d.reference}</div>
                       <div className="text-xs text-muted-foreground truncate">{formatDate(d.date)}</div>
