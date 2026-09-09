@@ -58,6 +58,7 @@ const ICONS_BY_ID: Record<string, React.ElementType> = {
   "student-messages": MessageCircle,
   "student-requests": ClipboardList,
   "student-documents": FileStack,
+  "student-notifications": Bell,
   "student-profile": User,
 };
 
@@ -114,6 +115,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   const NAV_BADGES: Record<string, number> = {
     "student-messages": unreadMessages,
     "student-requests": unreadRequests,
+    "student-notifications": unreadCount,
   };
 
   const handleLogout = () => {

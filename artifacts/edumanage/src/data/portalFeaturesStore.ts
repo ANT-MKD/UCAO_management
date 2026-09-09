@@ -26,6 +26,7 @@ export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "student-messages", label: "Messagerie", href: "/student/messages", group: "Communication" },
   { id: "student-requests", label: "Mes demandes", href: "/student/requests", group: "Communication" },
   { id: "student-documents", label: "Mes documents", href: "/student/documents", group: "Communication" },
+  { id: "student-notifications", label: "Notifications", href: "/student/notifications", group: "Communication" },
   { id: "student-profile", label: "Profil", href: "/student/profile" },
 ];
 
