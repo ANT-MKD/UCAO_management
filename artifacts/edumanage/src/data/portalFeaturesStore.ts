@@ -41,6 +41,7 @@ export const TEACHER_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "teacher-remuneration", label: "Ma rémunération", href: "/teacher/remuneration" },
   { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract" },
   { id: "teacher-messages", label: "Messagerie", href: "/teacher/messages" },
+  { id: "teacher-notifications", label: "Notifications", href: "/teacher/notifications" },
   { id: "teacher-profile", label: "Profil", href: "/teacher/profile" },
 ];
 

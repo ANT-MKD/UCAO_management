@@ -43,6 +43,7 @@ const ICONS_BY_ID: Record<string, React.ElementType> = {
   "teacher-remuneration": Wallet,
   "teacher-contract": FileText,
   "teacher-messages": MessageCircle,
+  "teacher-notifications": Bell,
   "teacher-profile": User,
 };
 
@@ -68,7 +69,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const mainNav = visibleNav.filter((item) => item.id !== "teacher-profile");
   const profileNavItem = visibleNav.find((item) => item.id === "teacher-profile");
 
-  const NAV_BADGES: Record<string, number> = { "teacher-messages": unreadMessages };
+  const NAV_BADGES: Record<string, number> = { "teacher-messages": unreadMessages, "teacher-notifications": unreadCount };
 
   const renderNavItem = (item: (typeof NAV)[number], opts?: { forceExpanded?: boolean; onNavigate?: () => void }) => {
     const active = location === item.to;
