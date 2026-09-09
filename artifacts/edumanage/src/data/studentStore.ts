@@ -15,6 +15,7 @@ import { estAutorise } from "./communicationRolesStore";
 import { findClassePedagogique, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
+import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 
 export interface EtudiantRecord {
   id: string;
@@ -478,13 +479,20 @@ function seedNotes(): NoteRecord[] {
  * la toute première fois. Les comptes professeur et étudiant ne sont plus préchargés — ils sont
  * créés réellement (Sécurité → Ajouter un utilisateur, ou automatiquement à l'inscription d'un
  * étudiant) une fois que l'établissement a de vraies personnes à y rattacher. */
+/** Haché une seule fois au chargement du module — seedUsers() est appelée à chaque tentative de
+ * connexion (voir authenticateUser) pour détecter de nouveaux étudiants, donc rehacher "demo123" à
+ * chaque appel (potentiellement pour des centaines d'étudiants) coûterait cher pour rien : tous les
+ * comptes de démo partagent de toute façon le même mot de passe en clair, partager le même hash
+ * n'expose donc rien de plus. */
+const DEMO_PASSWORD_HASH = hashPassword("demo123");
+
 function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
   const users: UserAccountRecord[] = [
     {
       id: "u-admin-1",
       role: "admin",
       email: "admin@edumanage.com",
-      password: "demo123",
+      password: DEMO_PASSWORD_HASH,
       identifier: "ADM-0001",
       displayName: "Administrateur",
       fonction: "Direction",
@@ -497,7 +505,7 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       id: `u-student-${e.id}`,
       role: "student",
       email: e.email,
-      password: "demo123",
+      password: DEMO_PASSWORD_HASH,
       identifier: e.matricule,
       displayName: `${e.prenom} ${e.nom}`,
       linkedId: e.id,
@@ -816,7 +824,13 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
       u.identifier.toLowerCase() === q ||
       u.identifier.toUpperCase() === qMatricule,
   );
-  if (!user || user.password !== password) return null;
+  if (!user || !verifyPassword(password, user.password)) return null;
+  if (!isPasswordHashed(user.password)) {
+    // Migration transparente : un compte encore en clair (créé avant l'introduction du hachage)
+    // est rehaché dès qu'il s'authentifie avec succès, sans jamais invalider le compte existant.
+    user.password = hashPassword(password);
+    writeStoreToLocalStorage(store);
+  }
   return user;
 }
 
@@ -838,7 +852,7 @@ export function findUserAccountByIdentifier(identifierOrEmail: string): UserAcco
 export function updateUserPassword(userId: string, newPassword: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
-  user.password = newPassword;
+  user.password = hashPassword(newPassword);
   persist();
 }
 
@@ -847,8 +861,8 @@ export function updateUserPassword(userId: string, newPassword: string): void {
  * autrement). Retourne false sans rien modifier si l'ancien mot de passe est incorrect. */
 export function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): boolean {
   const user = store.users.find((u) => u.id === userId);
-  if (!user || user.password !== currentPassword) return false;
-  user.password = newPassword;
+  if (!user || !verifyPassword(currentPassword, user.password)) return false;
+  user.password = hashPassword(newPassword);
   user.passwordUpdatedAt = new Date().toISOString();
   logAudit(userId, "update_password", "user_account", userId);
   persist();
@@ -896,7 +910,7 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
     id: `u-staff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role: payload.role,
     email: payload.email.trim(),
-    password: payload.password,
+    password: hashPassword(payload.password),
     identifier: payload.identifier.trim(),
     displayName: `${payload.prenom.trim()} ${payload.nom.trim()}`,
     telephone: payload.telephone?.trim() || undefined,
@@ -1131,7 +1145,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
       id: `u-student-${etudiant.id}`,
       role: "student",
       email: etudiant.email,
-      password: payload.motDePasse || "demo123",
+      password: hashPassword(payload.motDePasse || "demo123"),
       identifier: etudiant.matricule,
       displayName: `${etudiant.prenom} ${etudiant.nom}`,
       linkedId: etudiant.id,

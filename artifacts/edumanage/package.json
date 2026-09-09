@@ -76,6 +76,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "mammoth": "^1.12.2",
     "pdfjs-dist": "^6.3.289",
     "react-qr-code": "^2.2.0",
