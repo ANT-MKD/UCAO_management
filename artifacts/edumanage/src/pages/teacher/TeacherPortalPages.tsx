@@ -14,6 +14,7 @@ import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore
 import { useEvenements } from "@/hooks/useEvenementStore";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
+import { useVacations } from "@/hooks/useVacationStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useTeacherVolumes } from "@/hooks/useTeacherVolumeStore";
 import { getTeacherVolume, makeTeacherVolumeId } from "@/data/teacherVolumeStore";
@@ -48,6 +49,7 @@ export function TeacherDashboardPage() {
   const absences = useTeacherAbsences();
   const rallonges = useRallonges();
   const decomptes = useDecomptes();
+  const vacations = useVacations();
   const teachers = useTeachers();
 
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
@@ -74,7 +76,12 @@ export function TeacherDashboardPage() {
     () => decomptes.filter((d) => d.teacherId === myTeacher?.id && d.statut !== "annule").sort((a, b) => b.date.localeCompare(a.date)),
     [decomptes, myTeacher?.id],
   );
-  const soldeDecompte = mineDecomptes.reduce((sum, d) => sum + (d.netAPayer - d.montantPaye), 0);
+  const mineVacations = useMemo(() => vacations.filter((v) => v.enseignantId === myTeacher?.id), [vacations, myTeacher?.id]);
+  /** Reste à percevoir unifié vacations + décomptes — même logique que "Ma rémunération" (une
+   * vacation non "payée" reste due en totalité, il n'y a pas de paiement partiel côté vacation). */
+  const soldeDecompte =
+    mineDecomptes.reduce((sum, d) => sum + (d.netAPayer - d.montantPaye), 0) +
+    mineVacations.reduce((sum, v) => sum + (v.statut === "paye" ? 0 : v.montantTotal), 0);
 
   return (
     <div className="space-y-6">
@@ -108,7 +115,7 @@ export function TeacherDashboardPage() {
         />
         <KPICard
           icon={Wallet}
-          label="Solde décompte à percevoir"
+          label="Solde à percevoir"
           value={formatCFA(soldeDecompte)}
           accentColor={soldeDecompte > 0 ? "#ef4444" : "#10b981"}
           onClick={() => setLocation("/teacher/remuneration")}
