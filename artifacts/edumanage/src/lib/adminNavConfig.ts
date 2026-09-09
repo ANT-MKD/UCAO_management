@@ -11,8 +11,6 @@ import {
   FileText,
   Shield,
 } from "lucide-react";
-import { wipHref } from "@/lib/adminWipPages";
-
 /**
  * Configuration de navigation admin.
  * Les pages métier existantes pointent vers leurs routes.
@@ -247,8 +245,6 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       },
       { id: "scol-maj-cours-etu", label: "Mise à jour cours étudiants", href: "/admin/cours-etudiant" },
       { id: "scol-abandon", label: "Abandon", href: "/admin/abandons" },
-      { id: "scol-absence", label: "Absence", href: wipHref("scol-absence") },
-      { id: "scol-retard", label: "Retard", href: wipHref("scol-retard") },
       {
         id: "scol-assiduite",
         label: "Assiduité",

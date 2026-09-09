@@ -5,13 +5,11 @@ export interface AdminWipPage {
   section: string;
 }
 
-/** Seules "scol-absence" et "scol-retard" sont encore routées via wipHref() dans
- * adminNavConfig.ts — toutes les autres entrées historiques ont depuis reçu une vraie
- * page et un vrai href, donc retirées d'ici pour ne pas laisser de métadonnées mortes. */
-export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {
-  "scol-absence": { title: "Absence", section: "Scolarité" },
-  "scol-retard": { title: "Retard", section: "Scolarité" },
-};
+/** "scol-absence" et "scol-retard" (Scolarité) étaient les deux dernières entrées encore routées
+ * via wipHref() dans adminNavConfig.ts — supprimées du menu car redondantes avec "Assiduité", qui
+ * couvre déjà le même besoin avec de vraies données. Aucune entrée active pour l'instant ; le
+ * mécanisme reste en place pour un futur placeholder plutôt que d'être retiré entièrement. */
+export const ADMIN_WIP_PAGES: Record<string, AdminWipPage> = {};
 
 export function wipHref(pageId: string): string {
   return `/admin/wip/${pageId}`;
