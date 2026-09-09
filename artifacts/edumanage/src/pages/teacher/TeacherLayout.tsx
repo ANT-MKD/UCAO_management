@@ -52,7 +52,20 @@ const NAV = TEACHER_PORTAL_FEATURES.map((f) => ({
   to: f.href,
   icon: ICONS_BY_ID[f.id],
   label: f.label,
+  group: f.group,
 }));
+
+/** Regroupe une liste de nav déjà ordonnée en sections consécutives par f.group — sans réordonner :
+ * TEACHER_PORTAL_FEATURES liste déjà chaque section à la suite de la précédente. */
+function groupNavItems<T extends { group?: string }>(items: T[]): { group?: string; items: T[] }[] {
+  const sections: { group?: string; items: T[] }[] = [];
+  for (const item of items) {
+    const last = sections[sections.length - 1];
+    if (last && last.group === item.group) last.items.push(item);
+    else sections.push({ group: item.group, items: [item] });
+  }
+  return sections;
+}
 
 export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, logout } = useAuth();
@@ -109,8 +122,15 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
             {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
         </div>
-        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {mainNav.map((item) => renderNavItem(item))}
+        <nav className="flex-1 p-2 overflow-y-auto">
+          {groupNavItems(mainNav).map((section, i) => (
+            <div key={i} className={cn("space-y-1", i > 0 && "mt-3 pt-3 border-t border-border")}>
+              {section.group && !collapsed && (
+                <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{section.group}</p>
+              )}
+              {section.items.map((item) => renderNavItem(item))}
+            </div>
+          ))}
         </nav>
         {profileNavItem && (
           <div className="px-2 pt-2 border-t border-border">
@@ -150,8 +170,15 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-              {mainNav.map((item) => renderNavItem(item, { forceExpanded: true, onNavigate: () => setMobileOpen(false) }))}
+            <nav className="flex-1 p-2 overflow-y-auto">
+              {groupNavItems(mainNav).map((section, i) => (
+                <div key={i} className={cn("space-y-1", i > 0 && "mt-3 pt-3 border-t border-border")}>
+                  {section.group && (
+                    <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{section.group}</p>
+                  )}
+                  {section.items.map((item) => renderNavItem(item, { forceExpanded: true, onNavigate: () => setMobileOpen(false) }))}
+                </div>
+              ))}
             </nav>
             {profileNavItem && (
               <div className="px-2 pt-2 border-t border-border">

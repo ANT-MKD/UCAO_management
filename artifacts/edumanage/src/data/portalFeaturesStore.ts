@@ -4,6 +4,9 @@ export interface PortalFeatureItem {
   id: string;
   label: string;
   href: string;
+  /** Section sous laquelle regrouper l'item dans la sidebar — absent pour les items toujours hors
+   * groupe (tableau de bord, profil). */
+  group?: string;
 }
 
 /** Reflète exactement STUDENT_NAV_ITEMS de StudentLayout.tsx — jamais une liste de fonctionnalités
@@ -29,19 +32,19 @@ export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
 /** Reflète exactement NAV de TeacherLayout.tsx. */
 export const TEACHER_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "teacher-dashboard", label: "Tableau de bord", href: "/teacher/dashboard" },
-  { id: "teacher-schedule", label: "Mon EDT", href: "/teacher/schedule" },
-  { id: "teacher-modules", label: "Mes cours", href: "/teacher/modules" },
-  { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades" },
-  { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier" },
-  { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources" },
-  { id: "teacher-absences", label: "Mes absences", href: "/teacher/absences" },
-  { id: "teacher-pointage", label: "Mon pointage", href: "/teacher/pointage" },
-  { id: "teacher-volume", label: "Mon volume horaire", href: "/teacher/volume" },
-  { id: "teacher-rallonge", label: "Demande de rallonge", href: "/teacher/rallonge" },
-  { id: "teacher-remuneration", label: "Ma rémunération", href: "/teacher/remuneration" },
-  { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract" },
-  { id: "teacher-messages", label: "Messagerie", href: "/teacher/messages" },
-  { id: "teacher-notifications", label: "Notifications", href: "/teacher/notifications" },
+  { id: "teacher-schedule", label: "Mon EDT", href: "/teacher/schedule", group: "Enseignement" },
+  { id: "teacher-modules", label: "Mes cours", href: "/teacher/modules", group: "Enseignement" },
+  { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades", group: "Enseignement" },
+  { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier", group: "Enseignement" },
+  { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources", group: "Enseignement" },
+  { id: "teacher-absences", label: "Mes absences", href: "/teacher/absences", group: "Enseignement" },
+  { id: "teacher-pointage", label: "Mon pointage", href: "/teacher/pointage", group: "Finances" },
+  { id: "teacher-volume", label: "Mon volume horaire", href: "/teacher/volume", group: "Finances" },
+  { id: "teacher-rallonge", label: "Demande de rallonge", href: "/teacher/rallonge", group: "Finances" },
+  { id: "teacher-remuneration", label: "Ma rémunération", href: "/teacher/remuneration", group: "Finances" },
+  { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract", group: "Finances" },
+  { id: "teacher-messages", label: "Messagerie", href: "/teacher/messages", group: "Communication" },
+  { id: "teacher-notifications", label: "Notifications", href: "/teacher/notifications", group: "Communication" },
   { id: "teacher-profile", label: "Profil", href: "/teacher/profile" },
 ];
 
