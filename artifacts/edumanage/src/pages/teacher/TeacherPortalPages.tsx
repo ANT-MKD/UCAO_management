@@ -3,7 +3,8 @@ import { useLocation, Link } from "wouter";
 import {
   ChevronLeft, ChevronRight, CalendarDays, BookOpen, AlertTriangle, Wallet,
   User, ArrowRight, ChevronRight as ChevronRightIcon, Clock, CalendarX, Repeat, Receipt,
-  Search, CheckCircle2, XCircle, MessageCircle, History,
+  Search, CheckCircle2, XCircle, MessageCircle, History, FileEdit, Ban, ChevronDown, ChevronUp,
+  Gauge, CircleDollarSign, Building2, FileText,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSeances } from "@/hooks/useStudentStore";
@@ -19,13 +20,14 @@ import { getTeacherVolume, makeTeacherVolumeId } from "@/data/teacherVolumeStore
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
-import { mondayOf, matchesProf, dateToJour } from "@/lib/teacherUtils";
+import { mondayOf, matchesProf, dateToJour, type EnseignantRecord } from "@/lib/teacherUtils";
 import { addRallonge, type RallongeStatut } from "@/data/rallongeStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
-import { montantTotal, contractStatut, type ContractLigne } from "@/data/teacherContractStore";
+import { montantTotal, contractStatut, type ContractLigne, type TeacherContractRecord } from "@/data/teacherContractStore";
 import { useTeacherContracts } from "@/hooks/useTeacherContractStore";
 import { printContract } from "@/lib/contractPrint";
+import { getEtablissement } from "@/data/etablissementStore";
 import { KPICard } from "@/components/admin/KPICard";
 import { WeeklyScheduleGrid, type ScheduleBlock } from "@/components/shared/WeeklyScheduleGrid";
 import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
@@ -811,6 +813,15 @@ const CONTRACT_MODE_LABEL: Record<ContractLigne["modePaiement"], string> = {
   forfait: "Forfait",
 };
 
+/** Le KPICard tronque les valeurs trop longues (`truncate`) — un montant à 7 chiffres ne rentre
+ * pas en entier, donc on l'abrège au-delà d'1 000 000 FCFA plutôt que de laisser l'affichage coupé. */
+function formatMontantKpi(montant: number): string {
+  if (montant >= 1_000_000) {
+    return `${(montant / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} M FCFA`;
+  }
+  return `${montant.toLocaleString("fr-FR")} F CFA`;
+}
+
 const CONTRACT_STATUT_LABEL: Record<"actif" | "expire" | "resilie", string> = {
   actif: "Actif",
   expire: "Expiré",
@@ -823,6 +834,197 @@ const CONTRACT_STATUT_CLS: Record<"actif" | "expire" | "resilie", string> = {
   resilie: "bg-red-50 text-red-700",
 };
 
+interface ContractTimelineEvent {
+  date: string;
+  label: string;
+  detail?: string;
+  kind: "creation" | "avenant" | "resiliation";
+}
+
+function ContractCard({
+  contract,
+  myTeacher,
+  ecs,
+  classes,
+  defaultOpen,
+}: {
+  contract: TeacherContractRecord;
+  myTeacher: EnseignantRecord | null;
+  ecs: ReturnType<typeof useEcs>;
+  classes: ReturnType<typeof useClasses>;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const statut = contractStatut(contract);
+  const rows = contract.lignes.map((l) => {
+    const ec = ecs.find((e) => e.id === l.ecId);
+    const classe = classes.find((cl) => cl.id === l.classeId);
+    return {
+      coursLabel: ec ? `${ec.code} — ${ec.libelle}` : l.ecId,
+      classeLabel: classe?.nom ?? l.classeId,
+      modeLabel: CONTRACT_MODE_LABEL[l.modePaiement],
+      montant: l.montant,
+    };
+  });
+
+  const timeline: ContractTimelineEvent[] = useMemo(() => {
+    const events: ContractTimelineEvent[] = [
+      { date: contract.createdAt, label: "Contrat créé", kind: "creation" },
+    ];
+    for (const a of contract.avenants) {
+      events.push({
+        date: a.date,
+        label: `Avenant n°${a.numero} — ${a.motif}`,
+        detail: `Échéance : ${formatDate(a.dateFinAvant)} → ${formatDate(a.dateFinApres)}`,
+        kind: "avenant",
+      });
+    }
+    if (contract.resilie && contract.dateResiliation) {
+      events.push({ date: contract.dateResiliation, label: "Contrat résilié", detail: contract.motifResiliation, kind: "resiliation" });
+    }
+    return events.sort((a, b) => b.date.localeCompare(a.date));
+  }, [contract]);
+
+  const etablissement = getEtablissement();
+
+  return (
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full p-5 flex flex-wrap items-center justify-between gap-3 border-b border-border text-left hover:bg-muted/40 transition-colors"
+        data-testid={`teacher-contract-toggle-${contract.id}`}
+      >
+        <div>
+          <p className="font-bold text-sm">{contract.id}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {contract.annee} · {formatDate(contract.dateDebut)} → {formatDate(contract.dateFin)}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", CONTRACT_STATUT_CLS[statut])}>
+            {CONTRACT_STATUT_LABEL[statut]}
+          </span>
+          {open ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="p-5 space-y-4">
+          {contract.resilie && contract.motifResiliation && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl">
+              <Ban size={15} className="text-red-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-red-700 dark:text-red-400">
+                Résilié le {contract.dateResiliation && formatDate(contract.dateResiliation)} — {contract.motifResiliation}
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <KPICard icon={Wallet} label="Montant total" value={formatMontantKpi(montantTotal(contract))} accentColor="#4f46e5" />
+            <KPICard icon={BookOpen} label="Cours couverts" value={contract.lignes.length} accentColor="#2563eb" />
+            <KPICard icon={FileEdit} label="Avenants" value={contract.avenants.length} accentColor="#f59e0b" />
+            <KPICard icon={CalendarDays} label="Échéance" value={formatShortDate(contract.dateFin)} accentColor={statut === "actif" ? "#10b981" : "#6b7280"} />
+          </div>
+
+          <div className="rounded-xl border border-border p-4">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Résumé du contrat</h4>
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <User size={14} className="text-muted-foreground" />
+                <span className="text-muted-foreground">Statut de l&apos;enseignant :</span>
+                <span className="font-medium">{myTeacher?.grade ?? "—"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building2 size={14} className="text-muted-foreground" />
+                <span className="text-muted-foreground">Spécialité :</span>
+                <span className="font-medium">{myTeacher?.specialite ?? "—"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <FileText size={14} className="text-muted-foreground" />
+                <span className="text-muted-foreground">Référence :</span>
+                <span className="font-medium">{contract.id}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building2 size={14} className="text-muted-foreground" />
+                <span className="text-muted-foreground">Établissement :</span>
+                <span className="font-medium">{etablissement.nom}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">Enseignements couverts</h4>
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-2.5">Cours</th>
+                    <th className="px-4 py-2.5">Classe</th>
+                    <th className="px-4 py-2.5">Mode de paiement</th>
+                    <th className="px-4 py-2.5">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="border-t border-border">
+                      <td className="px-4 py-2.5">{r.coursLabel}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{r.classeLabel}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{r.modeLabel}</td>
+                      <td className="px-4 py-2.5 font-medium">{r.montant.toLocaleString("fr-FR")} F CFA</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {timeline.length > 1 && (
+            <div>
+              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <History size={13} /> Historique
+              </h4>
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                {timeline.map((ev, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className={cn(
+                      "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
+                      ev.kind === "resiliation" ? "bg-red-500" : ev.kind === "avenant" ? "bg-amber-500" : "bg-emerald-500",
+                    )} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">{formatDate(ev.date)} — {ev.label}</p>
+                      {ev.detail && <p className="text-[11px] text-muted-foreground">{ev.detail}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <div className="flex flex-wrap gap-4">
+              <Link href="/teacher/volume" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                <Gauge size={12} /> Voir mon volume horaire <ArrowRight size={11} />
+              </Link>
+              <Link href="/teacher/remuneration" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                <CircleDollarSign size={12} /> Voir ma rémunération <ArrowRight size={11} />
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() => printContract(contract, myTeacher ?? undefined, rows, statut)}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted"
+              data-testid={`teacher-contract-imprimer-${contract.id}`}
+            >
+              <Printer size={12} /> Imprimer / PDF
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TeacherContractPage() {
   const { currentUser } = useAuth();
   const contracts = useTeacherContracts();
@@ -830,9 +1032,11 @@ export function TeacherContractPage() {
   const classes = useClasses();
 
   const myTeacher = ENSEIGNANTS.find((t) => t.id === currentUser?.linkedId) ?? null;
+  // Trié par date de début réelle du contrat, pas par date de création de la fiche — sinon un
+  // contrat plus ancien édité récemment par l'admin passerait devant le contrat de l'année en cours.
   const mine = contracts
     .filter((c) => c.teacherId === currentUser?.linkedId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .sort((a, b) => b.dateDebut.localeCompare(a.dateDebut));
 
   return (
     <div className="space-y-4">
@@ -840,7 +1044,7 @@ export function TeacherContractPage() {
         <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>
           Mon contrat
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">Historique de vos contrats d&apos;enseignement</p>
+        <p className="text-sm text-muted-foreground mt-1">Consultez toutes les informations relatives à vos contrats d&apos;enseignement.</p>
       </div>
 
       {mine.length === 0 ? (
@@ -848,65 +1052,24 @@ export function TeacherContractPage() {
           Aucun contrat n&apos;a encore été enregistré pour vous.
         </div>
       ) : (
-        mine.map((c) => {
-          const statut = contractStatut(c);
-          const rows = c.lignes.map((l) => {
-            const ec = ecs.find((e) => e.id === l.ecId);
-            const classe = classes.find((cl) => cl.id === l.classeId);
-            return {
-              coursLabel: ec ? `${ec.code} — ${ec.libelle}` : l.ecId,
-              classeLabel: classe?.nom ?? l.classeId,
-              modeLabel: CONTRACT_MODE_LABEL[l.modePaiement],
-              montant: l.montant,
-            };
-          });
-          return (
-            <div key={c.id} className="rounded-2xl border border-border bg-card overflow-hidden">
-              <div className="p-5 flex flex-wrap items-center justify-between gap-3 border-b border-border">
-                <div>
-                  <p className="font-bold text-sm">{c.id}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {c.annee} · {c.dateDebut} → {c.dateFin}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", CONTRACT_STATUT_CLS[statut])}>
-                    {CONTRACT_STATUT_LABEL[statut]}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => printContract(c, myTeacher ?? undefined, rows, statut)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted"
-                  >
-                    <Printer size={12} /> Imprimer / PDF
-                  </button>
-                </div>
-              </div>
-              <div className="p-5">
-                {c.lignes.map((l, i) => {
-                  const ec = ecs.find((e) => e.id === l.ecId);
-                  const classe = classes.find((cl) => cl.id === l.classeId);
-                  return (
-                    <div key={i} className="flex justify-between items-center text-sm border-b border-border py-2 last:border-0">
-                      <span>
-                        {ec ? `${ec.code} — ${ec.libelle}` : l.ecId}
-                        <span className="text-xs text-muted-foreground"> · {classe?.nom ?? l.classeId}</span>
-                      </span>
-                      <span className="font-medium">{l.montant.toLocaleString("fr-FR")} F CFA</span>
-                    </div>
-                  );
-                })}
-                <div className="flex justify-between items-center text-sm pt-3 font-semibold">
-                  <span>Montant total</span>
-                  <span>{montantTotal(c).toLocaleString("fr-FR")} F CFA</span>
-                </div>
-                {c.avenants.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-2">{c.avenants.length} avenant{c.avenants.length > 1 ? "s" : ""}</p>
-                )}
-              </div>
-            </div>
-          );
-        })
+        <div className="grid lg:grid-cols-3 gap-4 items-start">
+          <div className="lg:col-span-2 space-y-4">
+            {mine.map((c, i) => (
+              <ContractCard key={c.id} contract={c} myTeacher={myTeacher} ecs={ecs} classes={classes} defaultOpen={i === 0} />
+            ))}
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <h3 className="font-bold text-sm text-foreground mb-2" style={{ fontFamily: "Outfit, sans-serif" }}>Besoin d&apos;une information ?</h3>
+            <p className="text-xs text-muted-foreground mb-3">Une question sur votre contrat ou un avenant ? Contactez directement l&apos;administration.</p>
+            <Link
+              href="/teacher/messages"
+              className="flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+              data-testid="teacher-contract-contacter-admin"
+            >
+              <MessageCircle size={14} /> Contacter l&apos;administration
+            </Link>
+          </div>
+        </div>
       )}
     </div>
   );
