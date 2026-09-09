@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Clock3, CheckCircle2, Clock, XCircle, Search, CalendarClock, Download, MapPin, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +37,8 @@ const STATUT_ICON: Record<PointageStatut, React.ElementType> = {
  * l'enseignant vient ici uniquement suivre le statut réel de chaque séance pointée. */
 export default function TeacherPointagePage() {
   const [, setLocation] = useLocation();
+  const searchStr = useSearch();
+  const initialEcFiltre = useMemo(() => new URLSearchParams(searchStr).get("ec") ?? "", []); // eslint-disable-line react-hooks/exhaustive-deps
   const { currentUser } = useAuth();
   const pointages = usePointages();
   const ecs = useEcs();
@@ -49,14 +51,14 @@ export default function TeacherPointagePage() {
   );
 
   const [query, setQuery] = useState("");
-  const [ecFiltre, setEcFiltre] = useState("");
+  const [ecFiltre, setEcFiltre] = useState(initialEcFiltre);
   const [statutFiltre, setStatutFiltre] = useState("");
   const [classeFiltre, setClasseFiltre] = useState("");
   const [typeSeanceFiltre, setTypeSeanceFiltre] = useState("");
   const [salleFiltre, setSalleFiltre] = useState("");
   const [dateDebut, setDateDebut] = useState("");
   const [dateFin, setDateFin] = useState("");
-  const [filtresAvancesOuverts, setFiltresAvancesOuverts] = useState(false);
+  const [filtresAvancesOuverts, setFiltresAvancesOuverts] = useState(!!initialEcFiltre);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const valides = mine.filter((p) => p.statut === "valide").length;

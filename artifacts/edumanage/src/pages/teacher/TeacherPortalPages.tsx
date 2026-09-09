@@ -1,8 +1,9 @@
 ﻿import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import {
   ChevronLeft, ChevronRight, CalendarDays, BookOpen, AlertTriangle, Wallet,
   User, ArrowRight, ChevronRight as ChevronRightIcon, Clock, CalendarX, Repeat, Receipt,
+  Search, CheckCircle2, XCircle, MessageCircle, History,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSeances } from "@/hooks/useStudentStore";
@@ -12,6 +13,9 @@ import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore
 import { useEvenements } from "@/hooks/useEvenementStore";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
+import { usePointages } from "@/hooks/usePointageStore";
+import { useTeacherVolumes } from "@/hooks/useTeacherVolumeStore";
+import { getTeacherVolume, makeTeacherVolumeId } from "@/data/teacherVolumeStore";
 import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
@@ -430,13 +434,24 @@ const RALLONGE_STATUT_CLS: Record<RallongeStatut, string> = {
   rejete: "bg-red-50 text-red-700",
 };
 
+const RALLONGE_MOTIF_OPTIONS = [
+  "Rattrapage de cours",
+  "Avancement du programme",
+  "Soutien aux étudiants",
+  "Séance supplémentaire",
+  "Absence imprévue",
+  "Autre",
+];
+
 export function TeacherRallongePage() {
   const { currentUser } = useAuth();
   const seances = useSeances();
   const ecs = useEcs();
   const ues = useUes();
   const classes = useClasses();
+  const pointages = usePointages();
   const rallonges = useRallonges();
+  useTeacherVolumes(); // s'abonne pour re-rendre si une rallonge validée ajuste le VH
 
   const myTeacher = useMemo(
     () => ENSEIGNANTS.find((t) => t.id === currentUser?.linkedId) ?? null,
@@ -449,9 +464,25 @@ export function TeacherRallongePage() {
     [myTeacher, seances, ecs, ues, classes, annee],
   );
 
+  const situation = useMemo(() => {
+    if (!myTeacher) return { prevu: 0, effectue: 0 };
+    let prevu = 0;
+    let effectue = 0;
+    for (const c of courses) {
+      const volumeId = makeTeacherVolumeId(myTeacher.id, c.ecId, c.classeId, annee);
+      prevu += getTeacherVolume(volumeId)?.nouveauVh ?? c.volumeHoraire;
+      effectue += pointages
+        .filter((p) => p.teacherId === myTeacher.id && p.ecId === c.ecId && p.classeId === c.classeId && p.annee === annee && (p.statut === "soumis" || p.statut === "valide"))
+        .reduce((s, p) => s + p.volumePointe, 0);
+    }
+    return { prevu, effectue };
+  }, [myTeacher, courses, annee, pointages]);
+  const heuresRestantes = Math.max(0, situation.prevu - situation.effectue);
+
   const [courseId, setCourseId] = useState("");
   const [heures, setHeures] = useState("2");
-  const [motif, setMotif] = useState("");
+  const [motifCategorie, setMotifCategorie] = useState("");
+  const [motifDetails, setMotifDetails] = useState("");
 
   const selectedCourse = courses.find((c) => c.id === courseId) ?? null;
 
@@ -463,6 +494,44 @@ export function TeacherRallongePage() {
     [rallonges, myTeacher?.id],
   );
 
+  const totalDemandes = mine.length;
+  const approuvees = mine.filter((r) => r.statut === "valide").length;
+  const enAttente = mine.filter((r) => r.statut === "soumis").length;
+  const refusees = mine.filter((r) => r.statut === "rejete").length;
+  const pct = (n: number) => (totalDemandes > 0 ? Math.round((n / totalDemandes) * 100) : 0);
+
+  const [query, setQuery] = useState("");
+  const [statutFiltre, setStatutFiltre] = useState<"" | RallongeStatut>("");
+
+  const filtrees = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return mine.filter((r) => {
+      if (statutFiltre && r.statut !== statutFiltre) return false;
+      if (q) {
+        const ec = ecs.find((e) => e.id === r.ecId);
+        const haystack = `${ec ? `${ec.code} ${ec.libelle}` : ""} ${r.motif}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [mine, query, statutFiltre, ecs]);
+
+  const timeline = useMemo(() => {
+    const events: { date: string; label: string; kind: RallongeStatut; requestId: string }[] = [];
+    for (const r of mine) {
+      events.push({ date: r.createdAt, label: "Demande envoyée", kind: "soumis", requestId: r.id });
+      if (r.statut !== "soumis" && r.dateTraitement) {
+        events.push({
+          date: r.dateTraitement,
+          label: r.statut === "valide" ? "Approuvée par l'administration" : "Refusée",
+          kind: r.statut,
+          requestId: r.id,
+        });
+      }
+    }
+    return events.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+  }, [mine]);
+
   function handleSubmit() {
     if (!myTeacher || !selectedCourse) {
       toast.error("Sélectionnez un cours");
@@ -473,10 +542,17 @@ export function TeacherRallongePage() {
       toast.error("Indiquez un nombre d'heures valide");
       return;
     }
-    if (!motif.trim()) {
-      toast.error("Indiquez un motif");
+    if (!motifCategorie) {
+      toast.error("Sélectionnez un motif");
       return;
     }
+    if (motifCategorie === "Autre" && !motifDetails.trim()) {
+      toast.error("Précisez le motif");
+      return;
+    }
+    const motif = motifDetails.trim()
+      ? (motifCategorie === "Autre" ? motifDetails.trim() : `${motifCategorie} — ${motifDetails.trim()}`)
+      : motifCategorie;
     addRallonge({
       teacherId: myTeacher.id,
       ecId: selectedCourse.ecId,
@@ -484,128 +560,247 @@ export function TeacherRallongePage() {
       annee,
       vhActuel: selectedCourse.volumeHoraire,
       vhSupplementaire: heuresNum,
-      motif: motif.trim(),
+      motif,
       origine: "prof",
     });
     toast.success("Demande de rallonge envoyée à l'administration");
     setCourseId("");
     setHeures("2");
-    setMotif("");
+    setMotifCategorie("");
+    setMotifDetails("");
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>
-          Demande de rallonge de volume horaire
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Demandez des heures supplémentaires sur un cours dont le volume prévu est dépassé.
-          L&apos;administration valide ou rejette votre demande.
-        </p>
-        {!myTeacher ? (
-          <p className="text-sm text-muted-foreground">Compte non rattaché à une fiche professeur.</p>
-        ) : (
-          <>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <select
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
-                value={courseId}
-                onChange={(e) => setCourseId(e.target.value)}
-              >
-                <option value="">Sélectionner un cours</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.coursLabel} — {c.detailsLabel}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={0.5}
-                step={0.5}
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-                value={heures}
-                onChange={(e) => setHeures(e.target.value)}
-                placeholder="Heures supplémentaires demandées"
-              />
-              {selectedCourse && (
-                <p className="text-xs text-muted-foreground self-center">
-                  Volume horaire prévu actuellement : <span className="font-semibold text-foreground">{selectedCourse.volumeHoraire} h</span>
-                </p>
-              )}
-            </div>
-            <textarea
-              rows={3}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
-              value={motif}
-              onChange={(e) => setMotif(e.target.value)}
-              placeholder="Motif de la demande…"
-            />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleSubmit}
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
-              >
-                Envoyer la demande
-              </button>
-            </div>
-          </>
-        )}
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Demande de rallonge</h2>
+        <p className="text-sm text-muted-foreground mt-1">Soumettez vos demandes d&apos;heures supplémentaires pour vos enseignements.</p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <div className="p-5 border-b border-border">
-          <h3 className="font-bold text-sm">Mes demandes</h3>
-        </div>
-        {mine.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-10">Aucune demande de rallonge envoyée.</p>
-        ) : (
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3">Cours</th>
-                <th className="px-4 py-3">Rallonge</th>
-                <th className="px-4 py-3">Motif</th>
-                <th className="px-4 py-3">Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mine.map((r) => {
-                const ec = ecs.find((e) => e.id === r.ecId);
-                const classe = classes.find((c) => c.id === r.classeId);
-                return (
-                  <tr key={r.id} className="border-t border-border align-top">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{ec ? `${ec.code} — ${ec.libelle}` : r.ecId}</p>
-                      <p className="text-xs text-muted-foreground">{classe?.nom}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      +{r.vhSupplementaire} h
-                      <span className="text-xs text-muted-foreground block">
-                        {r.vhActuel}h → {r.vhActuel + r.vhSupplementaire}h
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {r.motif}
-                      {r.statut === "rejete" && r.motifRejet && (
-                        <span className="block text-red-600 text-xs mt-1">{r.motifRejet}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", RALLONGE_STATUT_CLS[r.statut])}>
-                        {RALLONGE_STATUT_LABEL[r.statut]}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard icon={Clock} label="Total des demandes" value={totalDemandes} subtitle="Cette année académique" accentColor="#4f46e5" />
+        <KPICard icon={CheckCircle2} label="Demandes approuvées" value={approuvees} subtitle={`${pct(approuvees)} % du total`} accentColor="#10b981" />
+        <KPICard icon={Clock} label="En attente" value={enAttente} subtitle={`${pct(enAttente)} % du total`} accentColor="#f59e0b" />
+        <KPICard icon={XCircle} label="Refusées" value={refusees} subtitle={`${pct(refusees)} % du total`} accentColor={refusees > 0 ? "#ef4444" : "#10b981"} />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Repeat size={16} className="text-primary" />
+              <h3 className="font-bold text-sm text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Nouvelle demande de rallonge</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Demandez des heures supplémentaires sur un cours dont le volume prévu est dépassé.
+              L&apos;administration valide ou rejette votre demande.
+            </p>
+            {!myTeacher ? (
+              <p className="text-sm text-muted-foreground">Compte non rattaché à une fiche professeur.</p>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <select
+                    className="rounded-xl border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
+                    value={courseId}
+                    onChange={(e) => setCourseId(e.target.value)}
+                    data-testid="teacher-rallonge-select-cours"
+                  >
+                    <option value="">Sélectionner un cours</option>
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.coursLabel} — {c.detailsLabel}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                    value={motifCategorie}
+                    onChange={(e) => setMotifCategorie(e.target.value)}
+                    data-testid="teacher-rallonge-select-motif"
+                  >
+                    <option value="">Sélectionner un motif</option>
+                    {RALLONGE_MOTIF_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    min={0.5}
+                    step={0.5}
+                    className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                    value={heures}
+                    onChange={(e) => setHeures(e.target.value)}
+                    placeholder="Nombre d'heures demandées"
+                    data-testid="teacher-rallonge-input-heures"
+                  />
+                  {selectedCourse && (
+                    <p className="text-xs text-muted-foreground self-center sm:col-span-2">
+                      Volume horaire prévu actuellement : <span className="font-semibold text-foreground">{selectedCourse.volumeHoraire} h</span>
+                    </p>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                  value={motifDetails}
+                  onChange={(e) => setMotifDetails(e.target.value)}
+                  placeholder={motifCategorie === "Autre" ? "Précisez le motif…" : "Détails / justification (optionnel)…"}
+                  data-testid="teacher-rallonge-textarea-details"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                    data-testid="teacher-rallonge-soumettre"
+                  >
+                    Soumettre la demande
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
+
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-bold text-sm text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Mes demandes de rallonge</h3>
+              <div className="flex flex-wrap gap-2">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Rechercher un cours, un motif…"
+                    className="pl-8 pr-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid="teacher-rallonge-recherche"
+                  />
+                </div>
+                <select
+                  value={statutFiltre}
+                  onChange={(e) => setStatutFiltre(e.target.value as "" | RallongeStatut)}
+                  className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  data-testid="teacher-rallonge-filtre-statut"
+                >
+                  <option value="">Tous les statuts</option>
+                  {(Object.keys(RALLONGE_STATUT_LABEL) as RallongeStatut[]).map((s) => (
+                    <option key={s} value={s}>{RALLONGE_STATUT_LABEL[s]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {mine.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10">Aucune demande de rallonge envoyée.</p>
+            ) : filtrees.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10">Aucune demande ne correspond aux filtres.</p>
+            ) : (
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-3">Cours</th>
+                    <th className="px-4 py-3">Rallonge</th>
+                    <th className="px-4 py-3">Motif</th>
+                    <th className="px-4 py-3">Date de demande</th>
+                    <th className="px-4 py-3">Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtrees.map((r) => {
+                    const ec = ecs.find((e) => e.id === r.ecId);
+                    const classe = classes.find((c) => c.id === r.classeId);
+                    return (
+                      <tr key={r.id} className="border-t border-border align-top" data-testid={`teacher-rallonge-${r.id}`}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{ec ? `${ec.code} — ${ec.libelle}` : r.ecId}</p>
+                          <p className="text-xs text-muted-foreground">{classe?.nom}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          +{r.vhSupplementaire} h
+                          <span className="text-xs text-muted-foreground block">
+                            {r.vhActuel}h → {r.vhActuel + r.vhSupplementaire}h
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {r.motif}
+                          {r.statut === "rejete" && r.motifRejet && (
+                            <span className="block text-red-600 text-xs mt-1">{r.motifRejet}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(r.createdAt)}</td>
+                        <td className="px-4 py-3">
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", RALLONGE_STATUT_CLS[r.statut])}>
+                            {RALLONGE_STATUT_LABEL[r.statut]}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <User size={16} className="text-primary" />
+              <h3 className="font-bold text-sm text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Ma situation</h3>
+            </div>
+            <div className="space-y-2.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Heures prévues (volume horaire)</span>
+                <span className="font-semibold">{situation.prevu} h</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Heures déjà effectuées</span>
+                <span className="font-semibold">{situation.effectue} h</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Heures restantes</span>
+                <span className={cn("font-semibold", heuresRestantes > 0 ? "text-amber-600" : "text-emerald-600")}>{heuresRestantes} h</span>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="text-xs text-muted-foreground">Les demandes de rallonge doivent être justifiées et validées par l&apos;administration.</p>
+            </div>
+          </div>
+
+          {timeline.length > 0 && (
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <History size={16} className="text-primary" />
+                <h3 className="font-bold text-sm text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Historique des statuts</h3>
+              </div>
+              <div className="space-y-3">
+                {timeline.map((ev, i) => (
+                  <div key={`${ev.requestId}-${ev.label}-${i}`} className="flex items-start gap-2.5">
+                    <span className={cn(
+                      "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
+                      ev.kind === "valide" ? "bg-emerald-500" : ev.kind === "rejete" ? "bg-red-500" : "bg-blue-500",
+                    )} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">{formatDate(ev.date)}</p>
+                      <p className="text-[11px] text-muted-foreground">{ev.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <h3 className="font-bold text-sm text-foreground mb-2" style={{ fontFamily: "Outfit, sans-serif" }}>Besoin d&apos;aide ?</h3>
+            <p className="text-xs text-muted-foreground mb-3">Une question sur une demande de rallonge ? Contactez directement l&apos;administration.</p>
+            <Link
+              href="/teacher/messages"
+              className="flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+              data-testid="teacher-rallonge-contacter-admin"
+            >
+              <MessageCircle size={14} /> Contacter l&apos;administration
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

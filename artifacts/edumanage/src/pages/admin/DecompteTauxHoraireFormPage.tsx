@@ -12,31 +12,12 @@ import { useTeacherCourseStatuses } from "@/hooks/useTeacherCourseStatusStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { useVacations } from "@/hooks/useVacationStore";
-import { makeTeacherRateId } from "@/data/teacherRateStore";
-import { makeTeacherCourseStatusId } from "@/data/teacherCourseStatusStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
 import { findVacationChevauchantDecompte } from "@/lib/remunerationOverlap";
-import { buildTeacherCourses, niveauLabel } from "@/lib/teacherCourseUtils";
+import { computeEligibleDecompteLines, type EligibleDecompteLine } from "@/lib/decompteEligibility";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
-
-interface EligibleLine {
-  pointageId: string;
-  ecId: string;
-  classeId: string;
-  coursLabel: string;
-  duree: number;
-  date: string;
-  niveauLabel: string;
-  classeLabel: string;
-  anneeLabel: string;
-  semestreLabel: string;
-  montantBrut: number;
-  abattementPct: number;
-  abattementMontant: number;
-  montantNet: number;
-}
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -72,51 +53,9 @@ export default function DecompteTauxHoraireFormPage() {
 
   const pointageIdsDejaDecomptes = useMemo(() => getPointageIdsDejaDecomptes(), [decomptes]);
 
-  const eligibleLines: EligibleLine[] = useMemo(() => {
+  const eligibleLines: EligibleDecompteLine[] = useMemo(() => {
     if (!selected) return [];
-    const courseItems = buildTeacherCourses(selected, seances, ecs, ues, classes, anneeScolaire);
-    const lines: EligibleLine[] = [];
-    for (const course of courseItems) {
-      const rateId = makeTeacherRateId(selected.id, course.ecId, course.classeId, anneeScolaire);
-      const rate = teacherRates.find((r) => r.id === rateId);
-      if (!rate || rate.modePaiement !== "taux_horaire" || rate.montant == null) continue;
-      const statusId = makeTeacherCourseStatusId(selected.id, course.ecId, course.classeId, anneeScolaire);
-      const status = teacherCourseStatuses.find((s) => s.id === statusId);
-      if (status?.typeComptabilisation === "a_terme") continue; // ces cours passent par le décompte "À terme"
-      const classe = classes.find((c) => c.id === course.classeId);
-      const ec = ecs.find((e) => e.id === course.ecId);
-      const ue = ec ? ues.find((u) => u.id === ec.ueId) : undefined;
-      const coursPointages = pointages.filter(
-        (p) =>
-          p.teacherId === selected.id &&
-          p.ecId === course.ecId &&
-          p.classeId === course.classeId &&
-          p.annee === anneeScolaire &&
-          p.statut === "valide" &&
-          !pointageIdsDejaDecomptes.has(p.id),
-      );
-      for (const p of coursPointages) {
-        const montantBrut = p.volumePointe * (rate.montant ?? 0);
-        const abattementMontant = (montantBrut * rate.tauxAbatt) / 100;
-        lines.push({
-          pointageId: p.id,
-          ecId: course.ecId,
-          classeId: course.classeId,
-          coursLabel: course.coursLabel,
-          duree: p.volumePointe,
-          date: p.date,
-          niveauLabel: classe ? niveauLabel(classe.niveau) : "",
-          classeLabel: classe?.nom ?? "",
-          anneeLabel: anneeScolaire,
-          semestreLabel: ue?.semestre ?? "",
-          montantBrut,
-          abattementPct: rate.tauxAbatt,
-          abattementMontant,
-          montantNet: montantBrut - abattementMontant,
-        });
-      }
-    }
-    return lines.sort((a, b) => a.date.localeCompare(b.date));
+    return computeEligibleDecompteLines(selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes);
   }, [selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes]);
 
   const pickTeacher = (t: EnseignantRecord) => {

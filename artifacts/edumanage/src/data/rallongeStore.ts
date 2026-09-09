@@ -19,6 +19,7 @@ export interface RallongeRecord {
   motifRejet?: string;
   origine: RallongeOrigine;
   createdAt: string;
+  dateTraitement?: string;
 }
 
 const listeners = new Set<() => void>();
@@ -95,6 +96,7 @@ export function updateRallongeStatut(
     ...store[idx],
     statut,
     motifRejet: statut === "rejete" ? motifRejet?.trim() || store[idx].motifRejet : undefined,
+    dateTraitement: new Date().toISOString(),
   };
   store[idx] = record;
 
