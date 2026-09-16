@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Send, Upload } from "lucide-react";
+import { ArrowLeft, Search, Send, Upload, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useStudentStore, usePaiements } from "@/hooks/useStudentStore";
@@ -48,6 +48,12 @@ export default function PriseEnChargeFormPage() {
         e.telephone.includes(searchQuery)
       ).slice(0, 6)
     : [];
+
+  /** Règle de l'établissement : les frais d'inscription obligatoires doivent être réglés par
+   * l'étudiant lui-même avant qu'une prise en charge puisse s'activer — jamais l'inverse. Le champ
+   * inscriptionUniquePayee est déjà mis à jour automatiquement dès que ce paiement est validé
+   * (studentStore.ts), donc rien à recalculer ici. */
+  const inscriptionNonPayee = !!selectedStudent && !selectedStudent.inscriptionUniquePayee;
 
   const fraisImpayes = useMemo(() => {
     if (!selectedStudent) return [];
@@ -109,6 +115,10 @@ export default function PriseEnChargeFormPage() {
     }
     if (!selectedStudent) {
       toast.error("Sélectionnez un étudiant");
+      return;
+    }
+    if (!selectedStudent.inscriptionUniquePayee) {
+      toast.error("Cet étudiant doit d'abord régler ses frais d'inscription obligatoires avant qu'une prise en charge puisse être activée.");
       return;
     }
     if (!debut || !fin || !dateLimite) {
@@ -316,7 +326,7 @@ export default function PriseEnChargeFormPage() {
         <div className="border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-foreground">Les frais concernés par la prise en charge</h3>
-            {fraisImpayes.length > 0 && (
+            {!inscriptionNonPayee && fraisImpayes.length > 0 && (
               <button onClick={toggleTousFraisFiltres} className="text-xs text-primary hover:underline">
                 Tout {fraisImpayesFiltres.every((f) => checkedIds.includes(f.id)) && fraisImpayesFiltres.length > 0 ? "décocher" : "cocher"}
               </button>
@@ -327,6 +337,16 @@ export default function PriseEnChargeFormPage() {
           {!selectedStudent ? (
             <div className="py-8 text-center text-sm text-muted-foreground border border-dashed border-border rounded-xl">
               Sélectionnez un étudiant pour voir ses frais impayés.
+            </div>
+          ) : inscriptionNonPayee ? (
+            <div className="py-6 px-5 flex items-start gap-3 border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl" data-testid="pec-blocage-inscription">
+              <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Inscription non réglée</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedStudent.prenom} {selectedStudent.nom} n&apos;a pas encore réglé ses frais d&apos;inscription obligatoires. Une prise en charge ne peut être activée qu&apos;après ce règlement — c&apos;est à l&apos;étudiant de s&apos;en acquitter, jamais à un organisme.
+                </p>
+              </div>
             </div>
           ) : fraisImpayes.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground border border-dashed border-border rounded-xl">
@@ -399,7 +419,8 @@ export default function PriseEnChargeFormPage() {
           <button
             type="button"
             onClick={handleSubmit}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+            disabled={inscriptionNonPayee}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             data-testid="pec-submit"
           >
             <Send size={15} /> Sauvegarder
