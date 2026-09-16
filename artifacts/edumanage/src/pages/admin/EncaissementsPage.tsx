@@ -21,6 +21,8 @@ import { useEncaissements } from "@/hooks/useEncaissementStore";
 import type { EncaissementRecord } from "@/data/encaissementStore";
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { getEtudiantById } from "@/data/studentStore";
 import { formatCFA, cn } from "@/lib/utils";
 
 export function statutEncaissement(r: EncaissementRecord): "Validée" | "Annulée" {
@@ -42,7 +44,20 @@ interface OperationRow {
   moyen?: string;
   annulee: boolean;
   href: string;
+  /** Année académique de l'étudiant concerné — directe sur les encaissements, résolue via la
+   * fiche étudiant pour les dépôts d'avoir (AvoirDepotRecord n'a pas ce champ). */
+  annee: string;
 }
+
+type PeriodePreset = "toutes" | "jour" | "semaine" | "mois" | "annee";
+
+const PERIODE_LABELS: Record<PeriodePreset, string> = {
+  toutes: "Toutes les périodes",
+  jour: "Aujourd'hui",
+  semaine: "Cette semaine",
+  mois: "Ce mois-ci",
+  annee: "Année académique",
+};
 
 interface ColFilters {
   reference: string;
@@ -69,6 +84,7 @@ export default function EncaissementsPage() {
   const encaissements = useEncaissements();
   const depots = useAvoirDepots();
   const modesPaiement = useModesPaiementFinance();
+  const anneesAcademiques = useAnneesAcademiques();
 
   const [filters, setFilters] = useState<ColFilters>(EMPTY_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -77,8 +93,48 @@ export default function EncaissementsPage() {
   const [montantMin, setMontantMin] = useState("");
   const [montantMax, setMontantMax] = useState("");
   const [moyenFilter, setMoyenFilter] = useState("");
+  const [periodePreset, setPeriodePreset] = useState<PeriodePreset>("toutes");
+  const [anneeFilter, setAnneeFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  /** Bascule le raccourci de période — réutilise dateDebut/dateFin (donc reste visible et
+   * modifiable dans "Recherche avancée") pour jour/semaine/mois ; "annee" filtre directement sur
+   * l'année académique de l'opération, une date calendaire ne conviendrait pas (une année
+   * académique ne correspond pas à une année civile). */
+  const applyPeriodePreset = (preset: PeriodePreset) => {
+    setPeriodePreset(preset);
+    setPage(1);
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+    if (preset === "jour") {
+      setDateDebut(todayIso);
+      setDateFin(todayIso);
+      setAnneeFilter("");
+    } else if (preset === "semaine") {
+      const jour = today.getDay();
+      const diffLundi = jour === 0 ? -6 : 1 - jour;
+      const lundi = new Date(today);
+      lundi.setDate(today.getDate() + diffLundi);
+      setDateDebut(lundi.toISOString().slice(0, 10));
+      setDateFin(todayIso);
+      setAnneeFilter("");
+    } else if (preset === "mois") {
+      const premierJour = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateDebut(premierJour.toISOString().slice(0, 10));
+      setDateFin(todayIso);
+      setAnneeFilter("");
+    } else if (preset === "annee") {
+      setDateDebut("");
+      setDateFin("");
+      const actuelle = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "";
+      setAnneeFilter((prev) => prev || actuelle);
+    } else {
+      setDateDebut("");
+      setDateFin("");
+      setAnneeFilter("");
+    }
+  };
 
   const patchFilter = (patch: Partial<ColFilters>) => {
     setFilters((f) => ({ ...f, ...patch }));
@@ -96,6 +152,7 @@ export default function EncaissementsPage() {
       moyen: r.moyen,
       annulee: r.annulee,
       href: `/admin/encaissements/${r.id}`,
+      annee: r.annee || getEtudiantById(r.etudiantId)?.annee || "",
     }));
     const depotRows: OperationRow[] = depots.map((d) => ({
       id: d.id,
@@ -107,6 +164,7 @@ export default function EncaissementsPage() {
       moyen: d.moyenOrigine,
       annulee: d.annulee,
       href: `/admin/avoir/depots/${d.id}`,
+      annee: getEtudiantById(d.etudiantId)?.annee || "",
     }));
     return [...encRows, ...depotRows];
   }, [encaissements, depots]);
@@ -123,10 +181,11 @@ export default function EncaissementsPage() {
         if (montantMin && r.montant < Number(montantMin)) return false;
         if (montantMax && r.montant > Number(montantMax)) return false;
         if (moyenFilter && r.moyen !== moyenFilter) return false;
+        if (anneeFilter && r.annee !== anneeFilter) return false;
         return true;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [rows, filters, dateDebut, dateFin, montantMin, montantMax, moyenFilter]);
+  }, [rows, filters, dateDebut, dateFin, montantMin, montantMax, moyenFilter, anneeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -194,6 +253,42 @@ export default function EncaissementsPage() {
         }
       />
 
+      <div className="bg-card border border-border rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Période</span>
+        {(["toutes", "jour", "semaine", "mois", "annee"] as PeriodePreset[]).map((preset) => (
+          <button
+            key={preset}
+            onClick={() => applyPeriodePreset(preset)}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              periodePreset === preset ? "bg-primary text-white" : "border border-border hover:bg-muted",
+            )}
+            data-testid={`periode-${preset}`}
+          >
+            {PERIODE_LABELS[preset]}
+          </button>
+        ))}
+        {periodePreset === "annee" && (
+          <select
+            value={anneeFilter}
+            onChange={(e) => { setAnneeFilter(e.target.value); setPage(1); }}
+            className="ml-1 px-2.5 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            data-testid="periode-annee-select"
+          >
+            {anneesAcademiques.map((a) => (
+              <option key={a.id} value={a.libelle}>{a.libelle}</option>
+            ))}
+          </select>
+        )}
+        {periodePreset !== "toutes" && (
+          <span className="text-[11px] text-muted-foreground">
+            {periodePreset === "annee"
+              ? `Année académique ${anneeFilter}`
+              : `Du ${dateDebut} au ${dateFin}`}
+          </span>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <KPICard icon={TrendingUp} label="Total encaissé" value={formatCFA(totalEncaisse)} accentColor="#10b981" />
         <KPICard icon={Receipt} label="Nb opérations" value={filtered.length} accentColor="#4f46e5" />
@@ -205,11 +300,23 @@ export default function EncaissementsPage() {
         <div className="bg-card border border-border rounded-xl p-4 mb-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
             <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de début</label>
-            <input type="date" value={dateDebut} onChange={(e) => { setDateDebut(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-date-debut" />
+            <input
+              type="date"
+              value={dateDebut}
+              onChange={(e) => { setDateDebut(e.target.value); setPeriodePreset("toutes"); setPage(1); }}
+              className={filterInputClass}
+              data-testid="filter-date-debut"
+            />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de fin</label>
-            <input type="date" value={dateFin} onChange={(e) => { setDateFin(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-date-fin" />
+            <input
+              type="date"
+              value={dateFin}
+              onChange={(e) => { setDateFin(e.target.value); setPeriodePreset("toutes"); setPage(1); }}
+              className={filterInputClass}
+              data-testid="filter-date-fin"
+            />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant min</label>
@@ -231,7 +338,7 @@ export default function EncaissementsPage() {
           {advancedActiveCount > 0 && (
             <div className="sm:col-span-2 lg:col-span-5">
               <button
-                onClick={() => { setDateDebut(""); setDateFin(""); setMontantMin(""); setMontantMax(""); setMoyenFilter(""); setPage(1); }}
+                onClick={() => { setDateDebut(""); setDateFin(""); setMontantMin(""); setMontantMax(""); setMoyenFilter(""); setPeriodePreset("toutes"); setAnneeFilter(""); setPage(1); }}
                 className="text-[11px] text-muted-foreground hover:text-foreground underline"
               >
                 Réinitialiser la recherche avancée
