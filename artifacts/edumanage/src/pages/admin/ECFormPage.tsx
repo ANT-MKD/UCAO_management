@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS } from "@/data/mockData";
 import { computeVht, getEcById, upsertEc } from "@/data/curriculumStore";
 import { useUes } from "@/hooks/useCurriculumStore";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   code: string;
@@ -85,6 +86,18 @@ export default function ECFormPage({ id }: Props) {
   };
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "EC", href: "/admin/ecs" }, { label: "Modifier" }]}
+        title="Élément constitutif introuvable"
+        message="Cet EC n'existe pas ou a été supprimé."
+        backHref="/admin/ecs"
+        backLabel="Retour aux EC"
+      />
+    );
+  }
 
   return (
     <div>

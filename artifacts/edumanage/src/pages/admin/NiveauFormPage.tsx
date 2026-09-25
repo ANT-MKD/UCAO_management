@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES } from "@/data/mockData";
 import { addNiveau, updateNiveau, getNiveauById } from "@/data/niveauStore";
 import { useCycles } from "@/hooks/useAcademicSettingsStore";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   nom: string;
@@ -62,6 +63,18 @@ export default function NiveauFormPage({ id }: Props) {
   };
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Niveaux", href: "/admin/niveaux" }, { label: "Modifier" }]}
+        title="Niveau introuvable"
+        message="Ce niveau n'existe pas ou a été supprimé."
+        backHref="/admin/niveaux"
+        backLabel="Retour aux niveaux"
+      />
+    );
+  }
 
   return (
     <div>

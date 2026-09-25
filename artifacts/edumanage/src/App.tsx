@@ -244,6 +244,23 @@ function PageLoader() {
   );
 }
 
+function NotFound() {
+  const { currentUser } = useAuth();
+  const homeHref = currentUser ? homeForRole(currentUser.role) : "/login";
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-center gap-3 px-4 bg-background">
+      <p className="text-5xl font-semibold text-muted-foreground">404</p>
+      <h1 className="text-lg font-semibold text-foreground">Page introuvable</h1>
+      <p className="text-sm text-muted-foreground max-w-md">
+        Cette adresse ne correspond à aucune page. Vérifiez le lien ou revenez à l&apos;accueil.
+      </p>
+      <Link href={homeHref} className="mt-2 text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted">
+        {currentUser ? "Retour au tableau de bord" : "Aller à la connexion"}
+      </Link>
+    </div>
+  );
+}
+
 function AccessDenied({ homeHref = "/admin/dashboard", message }: { homeHref?: string; message?: string }) {
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
@@ -286,10 +303,20 @@ function useRoleGuard(): boolean {
   return role.accessibleItemIds.includes(leafId);
 }
 
+/** Accueil du portail propre à chaque rôle — cible des redirections quand un compte tente d'ouvrir
+ * le portail d'un autre rôle ou une adresse inconnue. */
+function homeForRole(role: string): string {
+  if (role === "admin") return "/admin/dashboard";
+  if (role === "teacher") return "/teacher/dashboard";
+  return "/student/dashboard";
+}
+
 function Admin({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = useRoleGuard();
   if (!currentUser) return <Redirect to="/login" />;
+  // Un compte étudiant ou professeur n'a jamais accès au portail Admin, quelle que soit l'URL tapée.
+  if (currentUser.role !== "admin") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <AdminLayout>
       <Suspense fallback={<PageLoader />}>{allowed ? children : <AccessDenied />}</Suspense>
@@ -311,6 +338,7 @@ function Student({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("student");
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.role !== "student") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <StudentLayout>
       <Suspense fallback={<PageLoader />}>
@@ -326,6 +354,7 @@ function Teacher({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("teacher");
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.role !== "teacher") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <Suspense fallback={<PageLoader />}>
       <TeacherLayoutMod>
@@ -1019,9 +1048,9 @@ function AppRouter() {
         <Suspense fallback={<PageLoader />}><LandingPage /></Suspense>
       </Route>
 
-      {/* Catch-all */}
+      {/* Catch-all : adresse inconnue → page 404 (et non plus le tableau de bord Admin pour tout le monde) */}
       <Route>
-        <Redirect to="/admin/dashboard" />
+        <NotFound />
       </Route>
     </Switch>
   );

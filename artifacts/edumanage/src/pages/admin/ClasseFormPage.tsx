@@ -7,6 +7,7 @@ import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { getClasseById, upsertClasse, getSalles } from "@/data/structureStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useSalles } from "@/hooks/useStructureStore";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   nom: string;
@@ -73,6 +74,18 @@ export default function ClasseFormPage({ id }: Props) {
   };
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Classes pédagogiques", href: "/admin/classes" }, { label: "Modifier" }]}
+        title="Classe introuvable"
+        message="Cette classe pédagogique n'existe pas ou a été supprimée."
+        backHref="/admin/classes"
+        backLabel="Retour aux classes"
+      />
+    );
+  }
 
   return (
     <div>

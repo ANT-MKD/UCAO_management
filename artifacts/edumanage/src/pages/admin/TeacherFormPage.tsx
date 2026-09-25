@@ -8,6 +8,7 @@ import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
 import { creerCompteStaff } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { NIVEAUX_ETUDE, generateMatriculeEnseignant, generateMotDePasse } from "@/lib/inscriptionConstants";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
@@ -154,6 +155,19 @@ export default function TeacherFormPage({ id }: Props) {
   const removeListItem = (setter: React.Dispatch<React.SetStateAction<string[]>>, index: number) => {
     setter((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const existingTeacher = id ? getTeacherById(id) : undefined;
+  if (isEdit && !existingTeacher) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Utilisateurs" }, { label: "Enseignants", href: "/admin/teachers" }, { label: "Modifier" }]}
+        title="Enseignant introuvable"
+        message="Cette fiche enseignant n'existe pas ou a été supprimée."
+        backHref="/admin/teachers"
+        backLabel="Retour aux enseignants"
+      />
+    );
+  }
 
   return (
     <div>

@@ -7,6 +7,7 @@ import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { addFiliere, updateFiliere, getFiliereById } from "@/data/filiereStore";
 import { useCycles, useEntites } from "@/hooks/useAcademicSettingsStore";
 import { cn } from "@/lib/utils";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   nom: string;
@@ -74,6 +75,18 @@ export default function FilieresFormPage({ id }: FilieresFormPageProps) {
   };
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Filières", href: "/admin/filieres" }, { label: "Modifier" }]}
+        title="Filière introuvable"
+        message="Cette filière n'existe pas ou a été supprimée."
+        backHref="/admin/filieres"
+        backLabel="Retour aux filières"
+      />
+    );
+  }
 
   return (
     <div>

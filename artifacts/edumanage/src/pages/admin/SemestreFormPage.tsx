@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES } from "@/data/mockData";
 import { useNiveaux } from "@/hooks/useNiveauStore";
 import { addSemestre, updateSemestre, getSemestreById } from "@/data/semestreStore";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   nom: string;
@@ -46,6 +47,18 @@ export default function SemestreFormPage({ id }: Props) {
   };
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Semestres", href: "/admin/semestres" }, { label: "Modifier" }]}
+        title="Semestre introuvable"
+        message="Ce semestre n'existe pas ou a été supprimé."
+        backHref="/admin/semestres"
+        backLabel="Retour aux semestres"
+      />
+    );
+  }
 
   return (
     <div>

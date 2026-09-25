@@ -8,13 +8,25 @@ import { getVacationById, addVacation, updateVacation } from "@/data/vacationSto
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { findDecompteChevauchantVacation } from "@/lib/remunerationOverlap";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { formatCFA } from "@/lib/utils";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
-const MOIS_OPTIONS = [
-  "Octobre 2025", "Novembre 2025", "Décembre 2025",
-  "Janvier 2026", "Février 2026", "Mars 2026",
-  "Avril 2026", "Mai 2026", "Juin 2026",
+const MOIS_NOMS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
+
+/** Mois d'une année académique "2026-2027" : septembre 2026 → août 2027, au format "Octobre 2026"
+ * attendu par moisLabelToYearMonth (croisement vacations/décomptes). */
+function moisDeLAnnee(libelle: string): string[] {
+  const debut = Number(libelle.slice(0, 4));
+  if (!Number.isFinite(debut)) return [];
+  return Array.from({ length: 12 }, (_, i) => {
+    const m = (8 + i) % 12;
+    return `${MOIS_NOMS[m]} ${m >= 8 ? debut : debut + 1}`;
+  });
+}
 
 interface FormData {
   enseignantId: string;
@@ -33,6 +45,7 @@ export default function VacationFormPage({ id }: Props) {
   const { currentUser } = useAuth();
   const isEdit = !!id;
   const enseignants = useTeachers();
+  const anneesAcademiques = useAnneesAcademiques();
 
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormData>({
     defaultValues: { enseignantId: "", mois: "", heuresCm: 0, heuresTd: 0, tauxHoraire: 15000, statut: "brouillon", observations: "" },
@@ -63,6 +76,17 @@ export default function VacationFormPage({ id }: Props) {
   const enseignantId = watch("enseignantId");
   const enseignant = enseignants.find((e) => e.id === enseignantId);
   const moisChoisi = watch("mois");
+  // Liste construite à partir des années académiques réelles (plus récente en premier) au lieu d'une
+  // liste figée sur 2025-2026 ; un mois déjà enregistré hors de ces années reste proposé.
+  const moisParAnnee = useMemo(
+    () =>
+      [...anneesAcademiques]
+        .filter((a) => !a.archivee)
+        .sort((a, b) => b.libelle.localeCompare(a.libelle))
+        .map((a) => ({ annee: a.libelle, mois: moisDeLAnnee(a.libelle) })),
+    [anneesAcademiques],
+  );
+  const moisHorsListe = moisChoisi && !moisParAnnee.some((g) => g.mois.includes(moisChoisi)) ? moisChoisi : "";
   const decomptes = useDecomptes();
   const decompteChevauchant = useMemo(
     () => (enseignantId && moisChoisi ? findDecompteChevauchantVacation(enseignantId, moisChoisi, decomptes) : undefined),
@@ -92,6 +116,19 @@ export default function VacationFormPage({ id }: Props) {
   };
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  const existingVacation = id ? getVacationById(id) : undefined;
+  if (isEdit && !existingVacation) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Vacations", href: "/admin/vacations" }, { label: "Modifier" }]}
+        title="Vacation introuvable"
+        message="Cette vacation n'existe pas ou a été supprimée."
+        backHref="/admin/vacations"
+        backLabel="Retour aux vacations"
+      />
+    );
+  }
 
   return (
     <div>
@@ -133,7 +170,12 @@ export default function VacationFormPage({ id }: Props) {
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mois de la vacation *</label>
                 <select {...register("mois", { required: "Mois requis" })} className={inputClass}>
                   <option value="">Sélectionner le mois</option>
-                  {MOIS_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  {moisHorsListe && <option value={moisHorsListe}>{moisHorsListe}</option>}
+                  {moisParAnnee.map((g) => (
+                    <optgroup key={g.annee} label={`Année ${g.annee}`}>
+                      {g.mois.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
                 {errors.mois && <p className="text-xs text-red-500 mt-1">{errors.mois.message}</p>}
               </div>
