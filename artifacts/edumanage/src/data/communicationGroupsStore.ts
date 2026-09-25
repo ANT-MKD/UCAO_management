@@ -107,7 +107,7 @@ export function upsertGroupeExterne(payload: GroupeExternePayload, id?: string):
     persist();
     return existing;
   }
-  const record: GroupeExterneRecord = { id: `grp-ext-${Date.now()}`, ...payload };
+  const record: GroupeExterneRecord = { id: `grp-ext-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.externes.unshift(record);
   persist();
   return record;
@@ -206,7 +206,7 @@ export function upsertGroupePersonnalise(payload: GroupePersonnalisePayload, id?
     persist();
     return existing;
   }
-  const record: GroupePersonnaliseRecord = { id: `grp-perso-${Date.now()}`, ...payload };
+  const record: GroupePersonnaliseRecord = { id: `grp-perso-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.personnalises.unshift(record);
   persist();
   return record;

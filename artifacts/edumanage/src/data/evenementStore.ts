@@ -76,7 +76,7 @@ export interface NewEvenementPayload {
 export function ajouterEvenement(payload: NewEvenementPayload): { evenement?: EvenementRecord; conflicts: ScheduleConflict[] } {
   const jour = dateToJour(payload.date);
   const semaineDu = mondayOf(payload.date);
-  const candidate = { id: `ev-${Date.now()}`, date: payload.date, heureDebut: payload.heureDebut, heureFin: payload.heureFin, salleId: payload.salleId };
+  const candidate = { id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, date: payload.date, heureDebut: payload.heureDebut, heureFin: payload.heureFin, salleId: payload.salleId };
   const conflicts = detectEvenementConflicts(getSeances(), evenements, candidate, jour, semaineDu);
   if (conflicts.length > 0) return { conflicts };
 

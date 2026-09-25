@@ -107,7 +107,7 @@ export function upsertRole(payload: RolePayload, auteurId: string, id?: string):
     return existing;
   }
   const role: RoleRecord = {
-    id: `role-${Date.now()}`,
+    id: `role-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     code: payload.code.trim(),
     description: payload.description.trim(),
     accessibleItemIds: [],

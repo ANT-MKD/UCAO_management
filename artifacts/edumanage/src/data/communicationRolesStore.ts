@@ -69,7 +69,7 @@ export interface CommunicationRolePayload {
 }
 
 export function ajouterCommunicationRole(payload: CommunicationRolePayload): CommunicationRoleRecord {
-  const record: CommunicationRoleRecord = { id: `com-role-${Date.now()}`, ...payload };
+  const record: CommunicationRoleRecord = { id: `com-role-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

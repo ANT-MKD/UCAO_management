@@ -59,7 +59,7 @@ export function getDocumentsPourEntite(entiteType: DocumentEntiteType, entiteId:
 export type DocumentInput = Omit<DocumentRecord, "id" | "ajouteLe">;
 
 export function addDocument(payload: DocumentInput, actorId: string): DocumentRecord {
-  const record: DocumentRecord = { id: `doc-${Date.now()}`, ajouteLe: new Date().toISOString(), ...payload };
+  const record: DocumentRecord = { id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ajouteLe: new Date().toISOString(), ...payload };
   store.unshift(record);
   logAudit(actorId, "add_document", payload.entiteType, payload.entiteId, payload.nom);
   persist();

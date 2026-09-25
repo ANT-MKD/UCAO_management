@@ -1,13 +1,4 @@
-import {
-  ETUDIANTS as SEED_ETUDIANTS,
-  FILIERES,
-  NIVEAUX,
-  ANNEES_ACADEMIQUES,
-  PAIEMENTS as SEED_PAIEMENTS,
-  NOTES as SEED_NOTES,
-  SEANCES as SEED_SEANCES,
-  SEMESTRES,
-} from "./mockData";
+import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
 import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
@@ -391,95 +382,6 @@ function parseMatriculeYear(matricule: string): number {
   return m ? Number(m[1]) : new Date().getFullYear();
 }
 
-function buildSeedInscriptions(etudiants: EtudiantRecord[]): InscriptionRecord[] {
-  const rows: InscriptionRecord[] = [];
-  for (const e of etudiants) {
-    rows.push({
-      id: `ins-${e.id}-2025`,
-      etudiantId: e.id,
-      annee: e.annee,
-      filiere: e.filiere,
-      filiereId: e.filiereId,
-      niveau: e.niveau,
-      classe: e.classe,
-      classeId: e.classeId,
-      statut: e.statut,
-      type: "premiere",
-      dateInscription: "2025-09-01",
-      soldeDu: e.soldeDu,
-    });
-    if (e.id === "et15") {
-      rows.push({
-        id: `ins-${e.id}-2024`,
-        etudiantId: e.id,
-        annee: "2024-2025",
-        filiere: e.filiere,
-        filiereId: e.filiereId,
-        niveau: "L2",
-        classe: "L2-INFO-A",
-        classeId: "cl3",
-        statut: "inscrit",
-        type: "premiere",
-        dateInscription: "2024-09-01",
-        soldeDu: 0,
-      });
-    }
-    if (e.id === "et7" || e.id === "et11") {
-      rows.push({
-        id: `ins-${e.id}-2024`,
-        etudiantId: e.id,
-        annee: "2024-2025",
-        filiere: e.filiere,
-        filiereId: e.filiereId,
-        niveau: "L1",
-        classe: e.id === "et7" ? "L1-INFO-A" : "L1-INFO-B",
-        classeId: e.id === "et7" ? "cl1" : "cl2",
-        statut: "inscrit",
-        type: "premiere",
-        dateInscription: "2024-09-01",
-        soldeDu: 0,
-      });
-    }
-  }
-  return rows;
-}
-
-function buildMatriculeCounters(etudiants: EtudiantRecord[]): Record<string, number> {
-  const counters: Record<string, number> = {};
-  for (const e of etudiants) {
-    const parts = e.matricule.match(/^(\d{4})-([A-Z]+)-(\d+)$/);
-    if (!parts) continue;
-    const key = `${parts[1]}-${parts[2]}`;
-    const seq = Number(parts[3]);
-    counters[key] = Math.max(counters[key] ?? 0, seq);
-  }
-  return counters;
-}
-
-function seedEtudiants(): EtudiantRecord[] {
-  return SEED_ETUDIANTS.map((e) => ({
-    ...e,
-    sexe: e.sexe as "M" | "F",
-    anneePremiereInscription: parseMatriculeYear(e.matricule),
-    inscriptionUniquePayee: e.soldeDu === 0 || !["et2", "et3", "et5", "et7", "et8", "et11", "et12"].includes(e.id),
-    soldeAvoir: 0,
-  }));
-}
-
-function seedSeances(): SeanceRecord[] {
-  return SEED_SEANCES.map((s) => ({ ...s, annee: "2025-2026", semaineDu: "2026-08-24" }));
-}
-
-function seedNotes(): NoteRecord[] {
-  return SEED_NOTES.map((n) => ({
-    ...n,
-    statut: n.statut === "publie" ? "publie" : "brouillon_prof",
-    classeId: SEED_ETUDIANTS.find((e) => e.id === n.etudiantId)?.classeId ?? "",
-    annee: "2025-2026",
-    dateCreation: new Date().toISOString(),
-  }));
-}
-
 /** Seul compte préexistant : celui de l'administrateur, indispensable pour pouvoir se connecter
  * la toute première fois. Les comptes professeur et étudiant ne sont plus préchargés — ils sont
  * créés réellement (Sécurité → Ajouter un utilisateur, ou automatiquement à l'inscription d'un
@@ -543,46 +445,24 @@ function seedNotifications(): NotificationRecord[] {
   ];
 }
 
-function seedPaiements(): PaiementRecord[] {
-  return SEED_PAIEMENTS.map((p, i) => ({
-    ...p,
-    numeroRecu: `RECU-2025-${String(i + 1).padStart(3, "0")}`,
-  }));
-}
-
-function seedReleves(etudiants: EtudiantRecord[]): ReleveRecord[] {
-  return etudiants.slice(0, 8).map((e, i) => ({
-    id: `rel-${e.id}`,
-    etudiantId: e.id,
-    etudiant: `${e.prenom} ${e.nom}`,
-    matricule: e.matricule,
-    classe: e.classe,
-    filiere: e.filiere,
-    semestre: "S1 2025-2026",
-    statut: i < 3 ? "envoye" : i < 6 ? "genere" : "en_attente",
-    dateGeneration: i < 6 ? "2026-01-20" : "",
-    ecId: "ec3",
-  }));
-}
-
 function buildFreshStore(): StoreData {
-  const etudiants = seedEtudiants();
+  // Aucune donnée d'établissement préchargée : tout part de zéro et se remplit par la saisie réelle.
   return {
-    etudiants,
-    inscriptions: buildSeedInscriptions(etudiants),
-    matriculeCounters: buildMatriculeCounters(etudiants),
+    etudiants: [],
+    inscriptions: [],
+    matriculeCounters: {},
     annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: !a.actuelle && a.libelle < "2025-2026", archivee: false })),
-    paiements: seedPaiements(),
-    notes: seedNotes(),
-    seances: seedSeances(),
-    releves: seedReleves(etudiants),
-    users: seedUsers(etudiants),
+    paiements: [],
+    notes: [],
+    seances: [],
+    releves: [],
+    users: seedUsers([]),
     requests: [],
     messages: [],
     notifications: seedNotifications(),
     auditLogs: [],
     cahiers: [],
-    receiptCounter: SEED_PAIEMENTS.length,
+    receiptCounter: 0,
   };
 }
 
@@ -1242,7 +1122,7 @@ function creerInscriptionEtMettreAJourEtudiant(
   const classe = getClasseById(payload.classeId);
 
   const inscription: InscriptionRecord = {
-    id: `ins-${payload.etudiantId}-${payload.annee}-${Date.now()}`,
+    id: `ins-${payload.etudiantId}-${payload.annee}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     etudiantId: payload.etudiantId,
     annee: payload.annee,
     filiere: filiere?.code ?? etudiant.filiere,
@@ -1310,7 +1190,7 @@ export function promoteAcademicYear(
     store.annees = [
       ...store.annees,
       {
-        id: `aa-${Date.now()}`,
+        id: `aa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         libelle: nextLabel,
         actuelle: false,
         dateDebut: source.dateDebut ? decalerDUnAn(source.dateDebut) : undefined,
@@ -1436,7 +1316,7 @@ export function setAnneeActuelle(id: string) {
 }
 
 export function addAnneeAcademique(libelle: string, dates?: { dateDebut: string; dateFin: string }) {
-  store.annees = [...store.annees, { id: `aa-${Date.now()}`, libelle, actuelle: false, ...dates }];
+  store.annees = [...store.annees, { id: `aa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, libelle, actuelle: false, ...dates }];
   persist();
 }
 
@@ -1529,7 +1409,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
       : etudiant.soldeDu;
 
   const paiement: PaiementRecord = {
-    id: `pa-${Date.now()}`,
+    id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     date: payload.date,
     etudiant: `${etudiant.prenom} ${etudiant.nom}`,
     etudiantId: etudiant.id,
@@ -1981,7 +1861,7 @@ export function saveNotesGrid(
         existing.dateModification = new Date().toISOString();
       } else {
         store.notes.push({
-          id: `no-${input.etudiantId}-${ecId}-${type}-${session ?? "normale"}-${Date.now()}`,
+          id: `no-${input.etudiantId}-${ecId}-${type}-${session ?? "normale"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           etudiant: `${etudiant.prenom} ${etudiant.nom}`,
           etudiantId: etudiant.id,
           matricule: etudiant.matricule,
@@ -2049,7 +1929,7 @@ export function saveNoteEvaluationGrid(
       existing.dateModification = new Date().toISOString();
     } else {
       store.notes.push({
-        id: `no-${input.etudiantId}-${evaluationId}-${Date.now()}`,
+        id: `no-${input.etudiantId}-${evaluationId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         etudiant: `${etudiant.prenom} ${etudiant.nom}`,
         etudiantId: etudiant.id,
         matricule: etudiant.matricule,
@@ -2351,7 +2231,7 @@ export function getStudentRequests(): StudentRequestRecord[] {
 export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "updatedAt" | "status">): StudentRequestRecord {
   const now = new Date().toISOString();
   const req: StudentRequestRecord = {
-    id: `req-${Date.now()}`,
+    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     createdAt: now,
     updatedAt: now,
     status: "nouveau",
@@ -2617,7 +2497,7 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   const retards = payload.presences.filter((p) => p.statut === "retard").map((p) => p.etudiantId);
 
   const base: CahierSeanceRecord = {
-    id: payload.cahierId || `cah-${Date.now()}`,
+    id: payload.cahierId || `cah-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     seanceId: payload.seanceId,
     annee: seance.annee || getAnneeActuelle(),
     semestre: ue?.semestre || "",

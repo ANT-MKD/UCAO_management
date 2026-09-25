@@ -65,7 +65,7 @@ export function getContactsPourEtudiant(etudiantId: string): ContactRecord[] {
 export type ContactInput = Omit<ContactRecord, "id">;
 
 export function addContact(payload: ContactInput, actorId: string): ContactRecord {
-  const record: ContactRecord = { id: `ct-${Date.now()}`, ...payload };
+  const record: ContactRecord = { id: `ct-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.push(record);
   logAudit(actorId, "add_contact", "etudiant", payload.etudiantId, `${CONTACT_ROLE_LABELS[payload.role]} — ${payload.nomComplet}`);
   persist();

@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 /**
  * Configuration de navigation admin.
- * Les pages métier existantes pointent vers leurs routes.
- * Les pages pas encore développées pointent vers `/admin/wip/:id` (placeholder).
+ * Chaque entrée pointe vers une page métier réelle.
  */
 
 export interface AdminNavNode {

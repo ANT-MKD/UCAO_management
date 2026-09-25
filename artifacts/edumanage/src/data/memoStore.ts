@@ -58,7 +58,7 @@ export function getMemosPourEntite(entiteType: MemoEntiteType, entiteId: string)
 export type MemoInput = Omit<MemoRecord, "id">;
 
 export function addMemo(payload: MemoInput, actorId: string): MemoRecord {
-  const record: MemoRecord = { id: `memo-${Date.now()}`, ...payload };
+  const record: MemoRecord = { id: `memo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   logAudit(actorId, "create_memo", payload.entiteType, payload.entiteId, payload.objet);
   persist();

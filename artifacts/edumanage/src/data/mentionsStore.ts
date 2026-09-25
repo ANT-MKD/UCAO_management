@@ -109,7 +109,7 @@ export function upsertMention(payload: MentionPayload, id?: string): MentionReco
     persist();
     return existing;
   }
-  const record: MentionRecord = { id: `mention-${Date.now()}`, ...payload };
+  const record: MentionRecord = { id: `mention-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

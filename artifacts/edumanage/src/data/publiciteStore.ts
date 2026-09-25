@@ -110,7 +110,7 @@ export function upsertPublicite(payload: PublicitePayload, id?: string): Publici
     persist();
     return existing;
   }
-  const record: PubliciteRecord = { id: `pub-${Date.now()}`, createdAt: new Date().toISOString(), ...payload };
+  const record: PubliciteRecord = { id: `pub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString(), ...payload };
   store = [record, ...store];
   persist();
   return record;

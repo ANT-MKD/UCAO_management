@@ -72,7 +72,7 @@ export function upsertTypeEvaluation(payload: TypeEvaluationPayload, id?: string
     persist();
     return existing;
   }
-  const record: TypeEvaluationRecord = { id: `type-eval-${Date.now()}`, ...payload };
+  const record: TypeEvaluationRecord = { id: `type-eval-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

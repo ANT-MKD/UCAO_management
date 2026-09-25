@@ -103,7 +103,7 @@ export function upsertRegleValidation(payload: RegleValidationPayload, id: strin
     persist();
     return existing;
   }
-  const record: RegleValidationRecord = { id: `regle-val-${Date.now()}`, filiere, modifiePar, modifieLe, ...payload };
+  const record: RegleValidationRecord = { id: `regle-val-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, filiere, modifiePar, modifieLe, ...payload };
   store.unshift(record);
   persist();
   return record;

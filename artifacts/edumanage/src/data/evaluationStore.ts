@@ -147,7 +147,7 @@ export function createEvaluation(payload: EvaluationPayload): EvaluationRecord {
   const code = `${prefixe}${Date.now().toString().slice(-8)}`;
 
   const evaluation: EvaluationRecord = {
-    id: `eval-${Date.now()}`,
+    id: `eval-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     code,
     filiereId: payload.filiereId,
     filiere: filiere?.code ?? "",

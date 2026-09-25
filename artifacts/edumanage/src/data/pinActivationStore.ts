@@ -78,7 +78,7 @@ function genererCode4Chiffres(): string {
 export function genererPin(userId: string, compteLabel: string, compteIdentifier: string, auteurId: string, auteurLabel: string): PinActivationRecord {
   const now = new Date();
   const record: PinActivationRecord = {
-    id: `pin-${Date.now()}`,
+    id: `pin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     userId,
     compteLabel,
     compteIdentifier,

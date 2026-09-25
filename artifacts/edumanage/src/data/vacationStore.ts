@@ -75,7 +75,7 @@ export type VacationInput = Omit<VacationRecord, "id" | "montantTotal" | "enseig
 
 export function addVacation(payload: VacationInput, enseignantNom: string, actorId: string): VacationRecord {
   const montantTotal = (payload.heuresCm + payload.heuresTd) * payload.tauxHoraire;
-  const record: VacationRecord = { id: `va-${Date.now()}`, enseignant: enseignantNom, montantTotal, ...payload };
+  const record: VacationRecord = { id: `va-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, enseignant: enseignantNom, montantTotal, ...payload };
   vacations.push(record);
   logAudit(actorId, "create_vacation", "vacation", record.id, `${enseignantNom} — ${payload.mois}`);
   persist();

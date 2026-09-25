@@ -97,7 +97,6 @@ function SubNavPanel({
           }
 
           if (item.href) {
-            const isWip = item.href.startsWith("/admin/wip/");
             return (
               <Link
                 key={item.id}
@@ -111,11 +110,6 @@ function SubNavPanel({
                 )}
               >
                 <span className="truncate">{item.label}</span>
-                {isWip && (
-                  <span className="text-[9px] uppercase tracking-wide flex-shrink-0 text-amber-600 dark:text-amber-400 opacity-80">
-                    WIP
-                  </span>
-                )}
               </Link>
             );
           }

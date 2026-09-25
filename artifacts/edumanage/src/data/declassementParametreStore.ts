@@ -70,7 +70,7 @@ export function upsertDeclassementParametre(payload: DeclassementParametrePayloa
     persist();
     return existing;
   }
-  const record: DeclassementParametreRecord = { id: `declass-param-${Date.now()}`, ...payload };
+  const record: DeclassementParametreRecord = { id: `declass-param-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

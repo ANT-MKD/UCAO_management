@@ -2,9 +2,9 @@ import { useState, useMemo, Fragment } from "react";
 import { ChevronDown, ChevronRight, BarChart3, X } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
-import { FILIERES, SEMESTRES, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, SEMESTRES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
+import { useStudentStore, useNotes, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { computeBulletin } from "@/data/bulletinEngine";
 import { resoudreMention } from "@/data/mentionsStore";
@@ -28,7 +28,11 @@ export default function MoyennesPage() {
   useEvaluations(); // souscription pour re-rendre quand les poids/évaluations changent
   useMentions(); // souscription pour re-rendre quand les mentions/appréciations changent
 
-  const [selectedAnnee, setSelectedAnnee] = useState("2025-2026");
+  const anneesAcademiques = useAnneesAcademiques();
+  // S'ouvre sur l'année académique courante (Années académiques → « Définir comme courante »).
+  const [selectedAnnee, setSelectedAnnee] = useState(
+    () => anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "",
+  );
   const [selectedFiliere, setSelectedFiliere] = useState("");
   const [selectedClasse, setSelectedClasse] = useState("");
   const [selectedSemestreId, setSelectedSemestreId] = useState("");
@@ -102,7 +106,7 @@ export default function MoyennesPage() {
       <div className="bg-card border border-border rounded-xl p-4 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap gap-3">
           <select value={selectedAnnee} onChange={(e) => { setSelectedAnnee(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
-            {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+            {anneesAcademiques.filter((a) => !a.archivee || a.libelle === selectedAnnee).map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
           </select>
           <select value={selectedFiliere} onChange={(e) => { setSelectedFiliere(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
             <option value="">Toutes les filières</option>

@@ -114,7 +114,8 @@ export default function EncaissementDetailPage({ id }: { id: string }) {
           { label: "Les encaissements", href: "/admin/encaissements" },
           { label: record.reference },
         ]}
-        title={`Encaissé par : ${record.encaissePar}`}
+        title={`Encaissement ${record.reference}`}
+        subtitle={`Encaissé par ${record.encaissePar} le ${formatDate(record.date)}`}
         actions={
           <div className="flex gap-2">
             <button

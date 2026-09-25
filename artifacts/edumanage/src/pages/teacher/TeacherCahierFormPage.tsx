@@ -161,7 +161,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
       setPieces((prev) => [
         ...prev,
         {
-          id: `pj-${Date.now()}`,
+          id: `pj-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           nom: file.name,
           type: file.type || "application/octet-stream",
           tailleKo: Math.round(file.size / 1024),

@@ -78,7 +78,7 @@ export function upsertRegroupementDevoir(payload: RegroupementDevoirPayload, id?
     persist();
     return existing;
   }
-  const record: RegroupementDevoirRecord = { id: `regroupement-devoir-${Date.now()}`, ...payload };
+  const record: RegroupementDevoirRecord = { id: `regroupement-devoir-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

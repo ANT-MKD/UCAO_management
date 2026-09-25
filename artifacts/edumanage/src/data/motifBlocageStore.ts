@@ -85,7 +85,7 @@ export function upsertMotifBlocage(payload: MotifBlocagePayload, actorId: string
     return existing;
   }
   const motif: MotifBlocageRecord = {
-    id: `motif-${Date.now()}`,
+    id: `motif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     code: payload.code.trim(),
     intitule: payload.intitule.trim(),
     actionsInterdites: payload.actionsInterdites,

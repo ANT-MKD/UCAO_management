@@ -89,7 +89,7 @@ export function upsertNotificationEvenementielle(payload: NotificationEvenementi
     persist();
     return existing;
   }
-  const record: NotificationEvenementielleRecord = { id: `notif-evt-${Date.now()}`, brancheReellement: false, ...payload };
+  const record: NotificationEvenementielleRecord = { id: `notif-evt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, brancheReellement: false, ...payload };
   store.unshift(record);
   persist();
   return record;
