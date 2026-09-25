@@ -10,23 +10,8 @@ import { findDecompteChevauchantVacation } from "@/lib/remunerationOverlap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { formatCFA } from "@/lib/utils";
+import { moisDeLAnneeAcademique } from "@/lib/anneeAcademique";
 import { RecordNotFound } from "@/components/admin/RecordNotFound";
-
-const MOIS_NOMS = [
-  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
-];
-
-/** Mois d'une année académique "2026-2027" : septembre 2026 → août 2027, au format "Octobre 2026"
- * attendu par moisLabelToYearMonth (croisement vacations/décomptes). */
-function moisDeLAnnee(libelle: string): string[] {
-  const debut = Number(libelle.slice(0, 4));
-  if (!Number.isFinite(debut)) return [];
-  return Array.from({ length: 12 }, (_, i) => {
-    const m = (8 + i) % 12;
-    return `${MOIS_NOMS[m]} ${m >= 8 ? debut : debut + 1}`;
-  });
-}
 
 interface FormData {
   enseignantId: string;
@@ -76,14 +61,14 @@ export default function VacationFormPage({ id }: Props) {
   const enseignantId = watch("enseignantId");
   const enseignant = enseignants.find((e) => e.id === enseignantId);
   const moisChoisi = watch("mois");
-  // Liste construite à partir des années académiques réelles (plus récente en premier) au lieu d'une
-  // liste figée sur 2025-2026 ; un mois déjà enregistré hors de ces années reste proposé.
+  // Mois de chaque année académique non archivée (plus récente en premier), de sa rentrée à sa fin
+  // réelles ; un mois déjà enregistré hors de ces années reste proposé.
   const moisParAnnee = useMemo(
     () =>
       [...anneesAcademiques]
         .filter((a) => !a.archivee)
         .sort((a, b) => b.libelle.localeCompare(a.libelle))
-        .map((a) => ({ annee: a.libelle, mois: moisDeLAnnee(a.libelle) })),
+        .map((a) => ({ annee: a.libelle, mois: moisDeLAnneeAcademique(a) })),
     [anneesAcademiques],
   );
   const moisHorsListe = moisChoisi && !moisParAnnee.some((g) => g.mois.includes(moisChoisi)) ? moisChoisi : "";

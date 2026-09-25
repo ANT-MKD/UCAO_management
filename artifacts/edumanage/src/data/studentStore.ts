@@ -16,6 +16,7 @@ import { findClassePedagogique, getClasseById, getClasses, getSalleById, increme
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
+import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
 
 export interface EtudiantRecord {
   id: string;
@@ -114,6 +115,10 @@ export interface AnneeAcademiqueRecord {
   cloturee?: boolean;
   /** Archivée : conservée pour consultation de l'historique, mais plus modifiable ni sélectionnable comme courante. */
   archivee?: boolean;
+  /** Date de rentrée et date de fin réelles (ISO) — même dates pour toute l'université. Absentes sur
+   * les années créées avant leur ajout : on retombe alors sur septembre → août. */
+  dateDebut?: string;
+  dateFin?: string;
 }
 
 export interface CahierPresenceEntry {
@@ -1300,9 +1305,17 @@ export function promoteAcademicYear(
   const nextLabel = nextAnneeLabel(source.libelle);
   const exists = store.annees.some((a) => a.libelle === nextLabel);
   if (!exists) {
+    // Reprend les dates de l'année source décalées d'un an (rentrée le même jour l'an prochain) —
+    // modifiables ensuite depuis Années académiques si le calendrier change.
     store.annees = [
       ...store.annees,
-      { id: `aa-${Date.now()}`, libelle: nextLabel, actuelle: false },
+      {
+        id: `aa-${Date.now()}`,
+        libelle: nextLabel,
+        actuelle: false,
+        dateDebut: source.dateDebut ? decalerDUnAn(source.dateDebut) : undefined,
+        dateFin: source.dateFin ? decalerDUnAn(source.dateFin) : undefined,
+      },
     ];
   }
 
@@ -1422,9 +1435,20 @@ export function setAnneeActuelle(id: string) {
   persist();
 }
 
-export function addAnneeAcademique(libelle: string) {
-  store.annees = [...store.annees, { id: `aa-${Date.now()}`, libelle, actuelle: false }];
+export function addAnneeAcademique(libelle: string, dates?: { dateDebut: string; dateFin: string }) {
+  store.annees = [...store.annees, { id: `aa-${Date.now()}`, libelle, actuelle: false, ...dates }];
   persist();
+}
+
+/** Renseigne ou corrige la rentrée et la fin d'une année ; refuse des dates incohérentes. */
+export function setDatesAnnee(id: string, dateDebut: string, dateFin: string): { ok: boolean; reason?: string } {
+  const annee = store.annees.find((a) => a.id === id);
+  if (!annee) return { ok: false, reason: "Année académique introuvable." };
+  const erreur = validerDatesAnnee(annee.libelle, dateDebut, dateFin);
+  if (erreur) return { ok: false, reason: erreur };
+  store.annees = store.annees.map((a) => (a.id === id ? { ...a, dateDebut, dateFin } : a));
+  persist();
+  return { ok: true };
 }
 
 export function archiveAnnee(id: string) {
