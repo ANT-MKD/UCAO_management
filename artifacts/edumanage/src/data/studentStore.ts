@@ -775,8 +775,14 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
   );
   if (!user || !verifyPassword(password, user.password)) return null;
   // Ancien mot de passe de démonstration : un compte resté dessus ne s'ouvre plus, son titulaire
-  // obtient un code auprès de l'administration.
-  if (password === "demo123") return null;
+  // obtient un code auprès de l'administration. Exception : un administrateur d'avant l'installation
+  // (navigateur qui garde les anciennes données) — personne d'autre ne pourrait lui remettre un code,
+  // il entre donc une dernière fois uniquement pour choisir aussitôt son propre mot de passe.
+  if (password === "demo123") {
+    if (user.role !== "admin" || user.actif === false) return null;
+    user.doitChangerMotDePasse = true;
+    writeStoreToLocalStorage(store);
+  }
   if (!isPasswordHashed(user.password)) {
     // Migration transparente : un compte encore en clair (créé avant l'introduction du hachage)
     // est rehaché dès qu'il s'authentifie avec succès, sans jamais invalider le compte existant.

@@ -11,6 +11,23 @@ describe("installation et connexion", () => {
     expect(e.S.authenticateUser("ADM-TEST", "mauvais")).toBeNull();
   });
 
+  it("ancien administrateur resté sur demo123 : une seule entrée, pour changer son mot de passe", async () => {
+    const { hashPassword } = await import("@/lib/passwordHash");
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [
+      { id: "u-admin-1", role: "admin", email: "admin@edumanage.com", password: hashPassword("demo123"), identifier: "ADM-0001", displayName: "Administrateur", actif: true, doitChangerMotDePasse: false },
+      { id: "u-etu", role: "student", email: "etu@test.sn", password: hashPassword("demo123"), identifier: "ETU-1", displayName: "Étudiant", actif: true },
+    ] }));
+    const S = await import("@/data/studentStore");
+    expect(S.installationRequise()).toBe(false);
+    const admin = S.authenticateUser("ADM-0001", "demo123");
+    expect(admin?.doitChangerMotDePasse).toBe(true);
+    expect(S.authenticateUser("ETU-1", "demo123")).toBeNull();
+    expect(S.definirMotDePasseDefinitif("u-admin-1", "demo123").ok).toBe(false);
+    expect(S.definirMotDePasseDefinitif("u-admin-1", "Direction2026").ok).toBe(true);
+    expect(S.authenticateUser("ADM-0001", "demo123")).toBeNull();
+    expect(S.authenticateUser("ADM-0001", "Direction2026")?.role).toBe("admin");
+  });
+
   it("les mots de passe provisoires sont aléatoires et sans caractère ambigu", async () => {
     const { generateMotDePasse } = await import("@/lib/inscriptionConstants");
     const tirages = new Set(Array.from({ length: 50 }, () => generateMotDePasse()));
