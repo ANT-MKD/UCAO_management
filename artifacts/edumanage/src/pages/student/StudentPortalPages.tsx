@@ -25,6 +25,7 @@ import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { declarerPaiement } from "@/data/paiementDeclareStore";
 import { usePaiementsDeclares } from "@/hooks/usePaiementDeclareStore";
+import { reglesDeCalcul } from "@/data/scolariteConfigStore";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant, getPresenceHebdoPourEtudiant, getPresenceParEcPourEtudiant, getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
 import { relanceEstExpiree } from "@/data/relancePaiementStore";
 import { getEtablissement } from "@/data/etablissementStore";
@@ -1960,6 +1961,8 @@ export function StudentAbsencesPage() {
   const hebdo = useMemo(() => (student ? getPresenceHebdoPourEtudiant(student.id, semestreActif || undefined) : []), [student, semestreActif]);
   const parMatiere = useMemo(() => (student ? getPresenceParEcPourEtudiant(student.id, semestreActif || undefined) : []), [student, semestreActif]);
   const heuresNonJustifiees = student && student.classeId ? getHeuresAbsenceNonJustifieePourEtudiant(student.id, student.classeId, semestreActif) : 0;
+  // Seuil d'exclusion réellement configuré pour la filière (Paramétrage scolarité → Règles de calcul).
+  const seuilExclusion = reglesDeCalcul(student?.filiereId).heuresAbsenceExclusion;
 
   const absencesCount = rowsSemestre.filter((r) => r.type === "absence").length;
   const retardsCount = rowsSemestre.filter((r) => r.type === "retard").length;
@@ -2207,7 +2210,7 @@ export function StudentAbsencesPage() {
               <h3 className="text-sm font-bold text-foreground">Conséquence</h3>
             </div>
             <p className="text-xs text-muted-foreground">
-              Vous cumulez actuellement <strong className="text-foreground">{heuresNonJustifiees} h</strong> d'absence non justifiée ce semestre. Au-delà de 10h, une exclusion disciplinaire peut être prononcée par le jury de délibération.
+              Vous cumulez actuellement <strong className="text-foreground">{heuresNonJustifiees} h</strong> d'absence non justifiée ce semestre.{seuilExclusion > 0 ? ` Au-delà de ${seuilExclusion} h, une exclusion peut être prononcée par le jury de délibération.` : ""}
             </p>
           </div>
         </div>

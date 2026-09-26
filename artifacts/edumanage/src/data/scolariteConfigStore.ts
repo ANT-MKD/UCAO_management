@@ -14,6 +14,45 @@ const METHODE_DEFAUT: Record<"moyenneUe" | "moyenneSession" | "moyenneAnnee" | "
   moyenneProgramme: "calculMoyenneDefault",
 };
 
+export type RegleRattrapage = "remplace" | "meilleure" | "plafonnee";
+
+/** Règles de calcul que chaque établissement fixe selon son règlement des études. */
+export interface ReglesCalcul {
+  /** Moyenne minimale pour valider un EC (et obtenir ses crédits). */
+  seuilValidationEc: number;
+  /** Moyenne minimale pour valider une UE. */
+  seuilValidationUe: number;
+  /** Note plancher d'un EC : en dessous, l'UE n'est pas validée même si sa moyenne l'est
+   * (pas de compensation). 0 = aucune note plancher. */
+  noteEliminatoireEc: number;
+  /** Semestre validé par compensation (moyenne ≥ moyenne de passage, aucune note sous le plancher) :
+   * tous les crédits du semestre sont acquis, y compris ceux des UE non validées. */
+  creditsParCompensation: boolean;
+  /** Poids du contrôle continu (devoirs) quand aucune évaluation n'a fixé de poids — l'examen prend le reste. */
+  poidsDevoirDefaut: number;
+  /** Note de rattrapage : remplace l'examen, garde la meilleure des deux, ou remplace mais plafonnée. */
+  regleRattrapage: RegleRattrapage;
+  /** Plafond de la note de rattrapage retenue (règle « plafonnée »). */
+  plafondRattrapage: number;
+  /** Heures d'absence non justifiées au-delà desquelles le jury prononce l'exclusion. 0 = jamais. */
+  heuresAbsenceExclusion: number;
+  /** Écart sous la moyenne de passage qui ouvre le droit au rattrapage (ex. 2 points : de 8 à 9,99). */
+  margeRattrapage: number;
+}
+
+/** Valeurs d'origine d'EduManage : les appliquer ne change rien aux résultats existants. */
+export const REGLES_CALCUL_DEFAUT: ReglesCalcul = {
+  seuilValidationEc: 10,
+  seuilValidationUe: 10,
+  noteEliminatoireEc: 0,
+  creditsParCompensation: false,
+  poidsDevoirDefaut: 30,
+  regleRattrapage: "remplace",
+  plafondRattrapage: 10,
+  heuresAbsenceExclusion: 10,
+  margeRattrapage: 2,
+};
+
 export interface ScolariteConfigRecord {
   id: string;
   filiereId: string;
@@ -37,6 +76,9 @@ export interface ScolariteConfigRecord {
   /** Calcule et affiche un grade lettré (A/B/C...) en plus de la moyenne numérique sur les bulletins.
    * Optionnel : les configurations persistées avant l'ajout de ce champ retombent sur `false`. */
   calculGrade?: boolean;
+  /** Règles de calcul propres à la filière (seuils, rattrapage, compensation…). Chaque règle absente
+   * prend sa valeur par défaut (REGLES_CALCUL_DEFAUT), qui reproduit le comportement d'origine. */
+  reglesCalcul?: Partial<ReglesCalcul>;
   modifiePar?: string;
   modifieLe?: string;
 }
@@ -141,6 +183,35 @@ export function getValeursParDefaut(): ValeursParDefaut {
 
 export function getConfigForFiliere(filiereId: string): ScolariteConfigRecord | undefined {
   return store.configs.find((c) => c.filiereId === filiereId);
+}
+
+/** Règles de calcul effectives d'une filière (valeurs configurées, sinon valeurs par défaut). */
+export function reglesDeCalcul(filiereId: string | undefined): ReglesCalcul {
+  const config = filiereId ? store.configs.find((c) => c.filiereId === filiereId) : undefined;
+  return { ...REGLES_CALCUL_DEFAUT, ...(config?.reglesCalcul ?? {}) };
+}
+
+/** Motif du refus si des règles de calcul sont incohérentes, sinon null. */
+export function validerReglesCalcul(r: ReglesCalcul, bareme = 20): string | null {
+  const dansBareme = (v: number) => Number.isFinite(v) && v >= 0 && v <= bareme;
+  if (!dansBareme(r.seuilValidationEc) || !dansBareme(r.seuilValidationUe)) return `Les seuils de validation doivent être compris entre 0 et ${bareme}.`;
+  if (!dansBareme(r.noteEliminatoireEc)) return `La note plancher doit être comprise entre 0 et ${bareme}.`;
+  if (r.noteEliminatoireEc > r.seuilValidationUe) return "La note plancher ne peut pas dépasser le seuil de validation de l'UE.";
+  if (!(r.poidsDevoirDefaut >= 0 && r.poidsDevoirDefaut <= 100)) return "Le poids du contrôle continu doit être compris entre 0 et 100 %.";
+  if (!dansBareme(r.plafondRattrapage)) return `Le plafond du rattrapage doit être compris entre 0 et ${bareme}.`;
+  if (!(r.heuresAbsenceExclusion >= 0)) return "Le nombre d'heures d'absence doit être positif (0 = jamais d'exclusion).";
+  if (!(r.margeRattrapage >= 0 && r.margeRattrapage <= bareme)) return "La marge de rattrapage doit être positive.";
+  return null;
+}
+
+export function updateReglesCalcul(id: string, regles: ReglesCalcul, modifiePar: string): { ok: boolean; reason?: string } {
+  const config = store.configs.find((c) => c.id === id);
+  if (!config) return { ok: false, reason: "Filière introuvable." };
+  const motif = validerReglesCalcul(regles, config.noteBareme || 20);
+  if (motif) return { ok: false, reason: motif };
+  store.configs = store.configs.map((c) => (c.id === id ? { ...c, reglesCalcul: { ...regles }, modifiePar, modifieLe: new Date().toISOString() } : c));
+  persist();
+  return { ok: true };
 }
 
 export interface ScolariteConfigPatch {

@@ -1,3 +1,4 @@
+import { reglesDeCalcul } from "./scolariteConfigStore";
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 import { getScolariteConfigs } from "./scolariteConfigStore";
@@ -124,13 +125,15 @@ export function decideValidation(
   absencesHeures: number,
   regle: RegleValidationRecord,
 ): "admis" | "ajourne" | "rattrapage" | "exclu" {
-  if (absencesHeures > 10) return "exclu";
+  // Seuil d'absences et marge de rattrapage : règles de calcul de la filière (Paramétrage scolarité).
+  const { heuresAbsenceExclusion, margeRattrapage } = reglesDeCalcul(regle.filiereId);
+  if (heuresAbsenceExclusion > 0 && absencesHeures > heuresAbsenceExclusion) return "exclu";
   if (regle.moyenneEliminatoire > 0 && moyenne < regle.moyenneEliminatoire) return "exclu";
 
   const okMoyenne = !regle.validationParMoyenne || moyenne >= regle.moyennePassage;
   const okCredit = !regle.validationParCredit || creditsObtenus >= regle.creditPassage;
 
   if (okMoyenne && okCredit) return "admis";
-  if (regle.validationParMoyenne && !okMoyenne && okCredit && moyenne >= regle.moyennePassage - 2) return "rattrapage";
+  if (regle.validationParMoyenne && !okMoyenne && okCredit && moyenne >= regle.moyennePassage - margeRattrapage) return "rattrapage";
   return "ajourne";
 }

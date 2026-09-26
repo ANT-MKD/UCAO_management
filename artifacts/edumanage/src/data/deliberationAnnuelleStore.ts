@@ -1,3 +1,4 @@
+import { reglesDeCalcul } from "./scolariteConfigStore";
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { computeBulletin, computeMoyenneAnnuelle } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
@@ -118,7 +119,8 @@ function decideValidationAnnuelle(
   regle: RegleValidationRecord,
   niveau: NiveauRecord | undefined,
 ): DecisionAnnuelle {
-  if (absencesHeures > 10) return "exclu";
+  const { heuresAbsenceExclusion } = reglesDeCalcul(regle.filiereId);
+  if (heuresAbsenceExclusion > 0 && absencesHeures > heuresAbsenceExclusion) return "exclu";
   if (regle.moyenneEliminatoire > 0 && moyenne < regle.moyenneEliminatoire) return "exclu";
 
   const okMoyenne = !regle.validationParMoyenne || moyenne >= regle.moyennePassage;
