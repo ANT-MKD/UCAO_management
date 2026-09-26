@@ -7,6 +7,7 @@ import {
   logAudit,
   pushNotificationEtPersister,
   saveAuthSession,
+  MOT_DE_PASSE_INITIAL,
   type UserRole,
 } from "@/data/studentStore";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
@@ -27,6 +28,8 @@ interface User {
   linkedId?: string;
   avatar?: string;
   roleId?: string;
+  /** Connecté avec un mot de passe provisoire : accès aux portails bloqué jusqu'au changement. */
+  doitChangerMotDePasse?: boolean;
 }
 
 interface AuthContextType {
@@ -34,6 +37,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (identifierOrEmail: string, password: string) => User | null;
   logout: () => void;
+  /** À appeler après un changement de mot de passe obligatoire réussi. */
+  confirmerMotDePasseChange: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -41,6 +46,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   login: () => null,
   logout: () => {},
+  confirmerMotDePasseChange: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -55,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       identifier: saved.identifier,
       linkedId: saved.linkedId,
       roleId: saved.roleId,
+      doitChangerMotDePasse: saved.doitChangerMotDePasse,
     };
   });
 
@@ -126,10 +133,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       identifier: account.identifier,
       linkedId: account.linkedId,
       roleId: account.roleId,
+      // Mot de passe provisoire remis par l'administration, ou mot de passe initial du compte
+      // d'origine : il faut en choisir un autre avant d'entrer dans le portail.
+      doitChangerMotDePasse: account.doitChangerMotDePasse === true || password === MOT_DE_PASSE_INITIAL,
     };
     setCurrentUser(user);
     saveAuthSession(user);
     return user;
+  };
+
+  const confirmerMotDePasseChange = () => {
+    if (!currentUser) return;
+    const user = { ...currentUser, doitChangerMotDePasse: false };
+    setCurrentUser(user);
+    saveAuthSession(user);
   };
 
   const logout = () => {
@@ -138,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout, confirmerMotDePasseChange }}>
       {children}
     </AuthContext.Provider>
   );

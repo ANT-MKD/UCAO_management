@@ -23,8 +23,8 @@ import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
-import { payerQuittance } from "@/data/studentStore";
-import { enregistrerEncaissement } from "@/data/encaissementStore";
+import { declarerPaiement } from "@/data/paiementDeclareStore";
+import { usePaiementsDeclares } from "@/hooks/usePaiementDeclareStore";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant, getPresenceHebdoPourEtudiant, getPresenceParEcPourEtudiant, getHeuresAbsenceNonJustifieePourEtudiant } from "@/data/assiduiteEngine";
 import { relanceEstExpiree } from "@/data/relancePaiementStore";
 import { getEtablissement } from "@/data/etablissementStore";
@@ -1100,15 +1100,20 @@ export function StudentPayerFacturesPage() {
   const [montant, setMontant] = useState<number>(0);
   const [moyen, setMoyen] = useState<string>("");
   const [numero, setNumero] = useState("");
+  const [referenceTx, setReferenceTx] = useState("");
   const [paying, setPaying] = useState(false);
+  const declarations = usePaiementsDeclares();
+  const mesDeclarations = useMemo(() => declarations.filter((d) => d.etudiantId === student?.id), [declarations, student?.id]);
+  const enVerificationPour = (quittanceId: string) => mesDeclarations.filter((d) => d.quittanceId === quittanceId && d.statut === "a_verifier").reduce((s, d) => s + d.montant, 0);
 
   const selected = impayes.find((p) => p.id === selectedId);
-  const resteSelected = selected ? montantQuittance(selected) - selected.montant : 0;
+  // Ce qui est déjà déclaré et en cours de vérification ne peut pas être redéclaré.
+  const resteSelected = selected ? montantQuittance(selected) - selected.montant - enVerificationPour(selected.id) : 0;
 
   const selectQuittance = (id: string) => {
     setSelectedId(id);
     const p = impayes.find((x) => x.id === id);
-    setMontant(p ? montantQuittance(p) - p.montant : 0);
+    setMontant(p ? Math.max(0, montantQuittance(p) - p.montant - enVerificationPour(p.id)) : 0);
   };
 
   const goPayerFacture = (id: string) => {
@@ -1116,46 +1121,36 @@ export function StudentPayerFacturesPage() {
     setTab("payer");
   };
 
+  /** Déclare le paiement : rien n'est encaissé ici. La caisse vérifie la transaction sur son relevé
+   * Wave / Orange Money, puis la confirme (la facture est alors réglée) ou la rejette. */
   const handlePayer = () => {
     if (!student || !selected || !moyen || montant <= 0) return;
     if (montant > resteSelected) {
-      toast.error("Le montant dépasse le reste dû sur cette facture.");
+      toast.error("Le montant dépasse ce qui reste à déclarer sur cette facture.");
       return;
     }
     if (!numero.trim()) {
-      toast.error("Indiquez le numéro utilisé pour la transaction (téléphone Wave/Orange Money).");
+      toast.error("Indiquez le numéro de téléphone utilisé pour la transaction.");
+      return;
+    }
+    if (!referenceTx.trim()) {
+      toast.error("Indiquez la référence de la transaction reçue par SMS.");
       return;
     }
     setPaying(true);
-    const date = new Date().toISOString().slice(0, 10);
-    const reference = `${moyen.toUpperCase().replace(/\s+/g, "-")}-${numero.trim()}`;
-    const quittanceLignes = selected.lignes && selected.lignes.length > 0 ? selected.lignes : [{ label: selected.rubrique, montant: montantQuittance(selected) }];
-    const dejaPayeAvant = selected.montant;
-    payerQuittance({ id: selected.id, montant, moyen, reference, date });
-    enregistrerEncaissement({
-      quittanceId: selected.id,
-      quittanceReference: selected.numeroRecu,
-      quittanceDateEmission: selected.date,
-      quittanceDateLimite: selected.dateLimite,
-      montantQuittanceTotal: montantQuittance(selected),
-      quittanceLignes,
-      dejaPayeAvant,
-      etudiantId: student.id,
-      payeur: `${student.matricule} - ${student.prenom} ${student.nom}`,
-      filiere: student.filiere,
-      annee: student.annee,
-      montant,
-      moyen,
-      referenceBancaire: reference,
-      date,
-      encaissePar: `${student.prenom} ${student.nom} (paiement en ligne)`,
-    });
-    toast.success("Paiement enregistré — merci !");
-    setSelectedId("");
-    setMontant(0);
-    setMoyen("");
-    setNumero("");
-    setPaying(false);
+    try {
+      declarerPaiement({ quittanceId: selected.id, etudiantId: student.id, montant, moyen, telephone: numero, referenceTransaction: referenceTx });
+      toast.success("Paiement déclaré — la caisse va le vérifier. Votre facture sera mise à jour après confirmation.");
+      setSelectedId("");
+      setMontant(0);
+      setMoyen("");
+      setNumero("");
+      setReferenceTx("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Déclaration impossible.");
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -1217,6 +1212,11 @@ export function StudentPayerFacturesPage() {
                           {enRetard && (
                             <span className="text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">En retard</span>
                           )}
+                          {enVerificationPour(p.id) > 0 && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" data-testid={`ma-facture-verif-${p.id}`}>
+                              {formatCFA(enVerificationPour(p.id))} en vérification
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Émise le {formatDate(p.date)}
@@ -1251,9 +1251,37 @@ export function StudentPayerFacturesPage() {
               <div className="flex items-start gap-2.5 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
                 <ShieldAlert size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Simulation de paiement en ligne — aucune passerelle Wave/Orange Money réelle n'est branchée (mode démo). Le règlement saisi ici est cependant enregistré comme un vrai paiement dans votre dossier, exactement comme s'il avait été encaissé par l'administration.
+                  Effectuez d&apos;abord votre paiement avec Wave ou Orange Money, puis déclarez-le ici avec la référence reçue par SMS. La caisse vérifie chaque paiement sur son relevé avant de l&apos;enregistrer : votre facture est mise à jour après cette vérification.
                 </p>
               </div>
+
+              {mesDeclarations.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-2" data-testid="mes-declarations">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mes paiements déclarés</p>
+                  {mesDeclarations.map((d) => (
+                    <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 text-sm border-t border-border pt-2 first:border-0 first:pt-0">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">{d.rubrique} — {formatCFA(d.montant)}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {d.moyen} · réf. {d.referenceTransaction} · déclaré le {formatDate(d.declareLe.slice(0, 10))}
+                          {d.statut === "rejete" && d.motifRejet ? ` · motif : ${d.motifRejet}` : ""}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap",
+                          d.statut === "a_verifier" && "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+                          d.statut === "confirme" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+                          d.statut === "rejete" && "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+                        )}
+                        data-testid={`declaration-statut-${d.id}`}
+                      >
+                        {d.statut === "a_verifier" ? "En vérification" : d.statut === "confirme" ? "Vérifié et enregistré" : "Rejeté"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {impayes.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-10 rounded-2xl border border-dashed border-border">Aucune facture à régler — vous êtes à jour.</p>
@@ -1305,14 +1333,28 @@ export function StudentPayerFacturesPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Numéro utilisé pour la transaction <span className="text-red-500">*</span></label>
-                        <input
-                          value={numero}
-                          onChange={(e) => setNumero(e.target.value)}
-                          placeholder="ex: 77 000 00 00"
-                          className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          data-testid="payer-facture-numero"
-                        />
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone utilisé <span className="text-red-500">*</span></label>
+                            <input
+                              value={numero}
+                              onChange={(e) => setNumero(e.target.value)}
+                              placeholder="ex: 77 000 00 00"
+                              className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              data-testid="payer-facture-numero"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence de la transaction <span className="text-red-500">*</span></label>
+                            <input
+                              value={referenceTx}
+                              onChange={(e) => setReferenceTx(e.target.value)}
+                              placeholder="ex: CI240917.1532.A12345"
+                              className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              data-testid="payer-facture-reference"
+                            />
+                          </div>
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -1321,7 +1363,7 @@ export function StudentPayerFacturesPage() {
                         className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
                         data-testid="payer-facture-confirmer"
                       >
-                        <CreditCard size={15} /> {paying ? "Paiement en cours…" : `Payer ${formatCFA(montant)}`}
+                        <CreditCard size={15} /> {paying ? "Envoi…" : `Déclarer mon paiement de ${formatCFA(montant)}`}
                       </button>
                     </>
                   )}

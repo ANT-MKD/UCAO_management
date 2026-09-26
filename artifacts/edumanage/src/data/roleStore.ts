@@ -54,7 +54,14 @@ function load(): RoleRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RoleRecord[];
-    return Array.isArray(parsed) ? parsed : seed();
+    if (!Array.isArray(parsed)) return seed();
+    // Page ajoutée après la création des rôles : un rôle qui voit « Les encaissements » voit aussi
+    // les paiements en ligne à vérifier (sinon la caisse ne pourrait pas les traiter).
+    return parsed.map((r) =>
+      r.accessibleItemIds.includes("fin-enc-liste") && !r.accessibleItemIds.includes("fin-enc-declares")
+        ? { ...r, accessibleItemIds: [...r.accessibleItemIds, "fin-enc-declares"] }
+        : r,
+    );
   } catch {
     return seed();
   }

@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { KeyRound, Search, X, Ban } from "lucide-react";
+import { KeyRound, Search, X, Ban, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useUserAccounts } from "@/hooks/useStudentStore";
-import { usePinsActivation } from "@/hooks/usePinActivationStore";
+import { usePinsActivation, useDemandesReinitialisation } from "@/hooks/usePinActivationStore";
 import { genererPin, revoquerPin, statutPin, type PinActivationRecord, type StatutPin } from "@/data/pinActivationStore";
 import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
@@ -29,28 +29,38 @@ export default function PinActivationPage() {
   const { currentUser } = useAuth();
   const comptes = useUserAccounts();
   const pins = usePinsActivation();
+  const demandes = useDemandesReinitialisation();
+  const demandesEnAttente = demandes.filter((d) => !d.traiteeLe);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<UserAccountRecord | null>(null);
+  const [dernierCode, setDernierCode] = useState<PinActivationRecord | null>(null);
 
   const candidats = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (q.length < 1) return [];
-    return comptes.filter((c) => c.displayName.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)).slice(0, 8);
+    return comptes
+      .filter((c) => c.displayName.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.identifier.toLowerCase().includes(q))
+      .slice(0, 8);
   }, [comptes, search]);
 
-  const handleGenerer = () => {
-    if (!selected || !currentUser) return;
-    const record = genererPin(selected.id, selected.displayName, selected.identifier, currentUser.id, currentUser.name);
+  const genererPour = (compte: UserAccountRecord) => {
+    if (!currentUser) return;
+    const record = genererPin(compte.id, compte.displayName, compte.identifier, currentUser.id, currentUser.name);
     envoyerMailSysteme({
-      destinataireUserId: selected.id,
-      destinataireLabel: selected.displayName,
-      destinataireEmail: selected.email,
+      destinataireUserId: compte.id,
+      destinataireLabel: compte.displayName,
+      destinataireEmail: compte.email,
       objet: "Code de validation",
-      message: `Votre pin de réinitialisation de mot de passe: ${record.pin}`,
+      message: `Votre code de réinitialisation de mot de passe : ${record.pin} (valable 24 heures).`,
     });
-    toast.success(`PIN généré pour ${selected.displayName} — envoyé (voir Mails envoyés).`);
+    setDernierCode(record);
     setSelected(null);
     setSearch("");
+  };
+
+  const handleGenerer = () => {
+    if (!selected) return;
+    genererPour(selected);
   };
 
   const handleRevoquer = (record: PinActivationRecord) => {
@@ -120,8 +130,51 @@ export default function PinActivationPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Code pin activation" }]}
         title="Code pin activation"
-        subtitle="Génère un code réel utilisable sur la page de connexion pour activer un compte ou réinitialiser un mot de passe"
+        subtitle="Code à remettre en main propre, après vérification d'identité, pour activer un compte ou réinitialiser un mot de passe"
       />
+
+      {dernierCode && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-5 mb-6 flex flex-wrap items-center gap-4" data-testid="pin-dernier-code">
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-sm font-semibold text-foreground">Code à remettre à {dernierCode.compteLabel} ({dernierCode.compteIdentifier})</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Valable 24 heures, 5 essais au maximum. La personne le saisit sur la page de connexion : « Mot de passe oublié ? » → « J&apos;ai déjà un code ».
+            </p>
+          </div>
+          <span className="font-mono text-3xl font-bold tracking-[0.2em] text-foreground" data-testid="pin-dernier-code-valeur">{dernierCode.pin}</span>
+          <button onClick={() => setDernierCode(null)} className="p-1.5 rounded-lg hover:bg-muted" aria-label="Fermer"><X size={14} /></button>
+        </div>
+      )}
+
+      {demandesEnAttente.length > 0 && (
+        <div className="bg-card border border-amber-200 dark:border-amber-900 rounded-2xl p-5 mb-6" style={{ boxShadow: "var(--shadow-sm)" }} data-testid="pin-demandes-attente">
+          <h3 className="font-bold text-foreground mb-1 flex items-center gap-2"><Inbox size={16} className="text-amber-600" /> Demandes « mot de passe oublié » en attente ({demandesEnAttente.length})</h3>
+          <p className="text-xs text-muted-foreground mb-3">Vérifiez l&apos;identité de la personne (pièce d&apos;identité) avant de générer son code.</p>
+          <div className="divide-y divide-border">
+            {demandesEnAttente.map((d) => {
+              const compte = comptes.find((c) => c.id === d.userId);
+              return (
+                <div key={d.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                  <UserAvatar name={d.compteLabel} size="xs" />
+                  <div className="flex-1 min-w-[200px] text-sm">
+                    <span className="font-medium">{d.compteLabel}</span>
+                    <span className="font-mono text-xs text-muted-foreground"> · {d.compteIdentifier}</span>
+                    <div className="text-[11px] text-muted-foreground">Demandé le {formatDateTime(d.createdAt)}</div>
+                  </div>
+                  <button
+                    onClick={() => compte && genererPour(compte)}
+                    disabled={!compte}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-40"
+                    data-testid={`pin-demande-generer-${d.userId}`}
+                  >
+                    <KeyRound size={12} /> Générer le code
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-2xl p-5 mb-6" style={{ boxShadow: "var(--shadow-sm)" }}>
         <h3 className="font-bold text-foreground mb-3">Générer un PIN</h3>
@@ -131,7 +184,7 @@ export default function PinActivationPage() {
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setSelected(null); }}
-              placeholder="Nom ou email du compte..."
+              placeholder="Nom, matricule ou email du compte..."
               className={inputClass + " pl-9"}
               data-testid="pin-recherche-compte"
             />
@@ -171,7 +224,7 @@ export default function PinActivationPage() {
           className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
           data-testid="pin-generer"
         >
-          <KeyRound size={14} /> Générer et envoyer
+          <KeyRound size={14} /> Générer le code
         </button>
       </div>
 

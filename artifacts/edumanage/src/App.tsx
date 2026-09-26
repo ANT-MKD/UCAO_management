@@ -20,6 +20,7 @@ const queryClient = new QueryClient();
 // Lazy load pages
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const ChangerMotDePassePage = lazy(() => import("@/pages/ChangerMotDePassePage"));
 
 // Admin pages
 const DashboardPage = lazy(() => import("@/pages/admin/DashboardPage"));
@@ -139,6 +140,7 @@ const RemboursementAvoirFormPage = lazy(() => import("@/pages/admin/Remboursemen
 const RemboursementAvoirDetailPage = lazy(() => import("@/pages/admin/RemboursementAvoirDetailPage"));
 const FactureAutreServiceDetailPage = lazy(() => import("@/pages/admin/FactureAutreServiceDetailPage"));
 const EncaissementsPage = lazy(() => import("@/pages/admin/EncaissementsPage"));
+const PaiementsDeclaresPage = lazy(() => import("@/pages/admin/PaiementsDeclaresPage"));
 const DecomptesPage = lazy(() => import("@/pages/admin/DecomptesPage"));
 const DecompteTauxHoraireFormPage = lazy(() => import("@/pages/admin/DecompteTauxHoraireFormPage"));
 const DecompteForfaitFormPage = lazy(() => import("@/pages/admin/DecompteForfaitFormPage"));
@@ -314,6 +316,7 @@ function Admin({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = useRoleGuard();
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   // Un compte étudiant ou professeur n'a jamais accès au portail Admin, quelle que soit l'URL tapée.
   if (currentUser.role !== "admin") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
@@ -337,6 +340,7 @@ function Student({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("student");
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   if (currentUser.role !== "student") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <StudentLayout>
@@ -353,6 +357,7 @@ function Teacher({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("teacher");
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   if (currentUser.role !== "teacher") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <Suspense fallback={<PageLoader />}>
@@ -859,6 +864,9 @@ function AppRouter() {
       <Route path="/admin/prises-en-charge">
         <Admin><PriseEnChargePage /></Admin>
       </Route>
+      <Route path="/admin/paiements-declares">
+        <Admin><PaiementsDeclaresPage /></Admin>
+      </Route>
       <Route path="/admin/encaissements">
         <Admin><EncaissementsPage /></Admin>
       </Route>
@@ -931,6 +939,9 @@ function AppRouter() {
       {/* ===== NON-ADMIN ROUTES ===== */}
       <Route path="/login">
         <Suspense fallback={<PageLoader />}><LoginPage /></Suspense>
+      </Route>
+      <Route path="/changer-mot-de-passe">
+        <Suspense fallback={<PageLoader />}><ChangerMotDePassePage /></Suspense>
       </Route>
       <Route path="/teacher/dashboard">
         <Teacher><TeacherDashboardPage /></Teacher>

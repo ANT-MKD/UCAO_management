@@ -120,7 +120,8 @@ export default function AddStudentPage() {
   const [documents, setDocuments] = useState<Record<string, File | null>>({});
   const [modeleFraisId, setModeleFraisId] = useState("");
   const [selectedEcheanceIds, setSelectedEcheanceIds] = useState<Set<string>>(new Set());
-  const [motDePasse, setMotDePasse] = useState("");
+  // Toujours un mot de passe provisoire : l'étudiant devra le changer à sa première connexion.
+  const [motDePasse, setMotDePasse] = useState(() => generateMotDePasse());
   const [photoDataUrl, setPhotoDataUrl] = useState("");
 
   const handlePhoto = (file: File | undefined) => {
@@ -773,7 +774,7 @@ export default function AddStudentPage() {
 
             <div className="border-t border-border pt-4">
               <p className="text-xs font-semibold text-muted-foreground mb-2">Accès portail étudiant</p>
-              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule + mot de passe généré (modifiable par l'étudiant ultérieurement)</p>
+              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule + ce mot de passe provisoire, à remettre à l&apos;étudiant. Il devra en choisir un nouveau à sa première connexion.</p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-xl font-mono text-sm" style={{ fontFamily: "JetBrains Mono, monospace" }}>
                   {motDePasse || "—"}
@@ -783,7 +784,7 @@ export default function AddStudentPage() {
                   onClick={() => setMotDePasse(generateMotDePasse())}
                   className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
                 >
-                  <Key size={14} /> Générer mot de passe
+                  <Key size={14} /> Regénérer
                 </button>
               </div>
             </div>

@@ -250,6 +250,9 @@ export interface UserAccountRecord {
   /** Horodatage du dernier changement de mot de passe réel (changeOwnPassword) — absent tant que
    * le compte n'a jamais changé son mot de passe initial. */
   passwordUpdatedAt?: string;
+  /** Mot de passe provisoire (remis par l'administration, ou compte d'origine) : son titulaire doit
+   * en choisir un nouveau à la prochaine connexion avant d'accéder à son portail. */
+  doitChangerMotDePasse?: boolean;
 }
 
 export interface StudentRequestRecord {
@@ -387,11 +390,19 @@ function parseMatriculeYear(matricule: string): number {
  * créés réellement (Sécurité → Ajouter un utilisateur, ou automatiquement à l'inscription d'un
  * étudiant) une fois que l'établissement a de vraies personnes à y rattacher. */
 /** Haché une seule fois au chargement du module — seedUsers() est appelée à chaque tentative de
- * connexion (voir authenticateUser) pour détecter de nouveaux étudiants, donc rehacher "demo123" à
- * chaque appel (potentiellement pour des centaines d'étudiants) coûterait cher pour rien : tous les
- * comptes de démo partagent de toute façon le même mot de passe en clair, partager le même hash
- * n'expose donc rien de plus. */
+ * connexion (voir authenticateUser) : ne sert qu'au compte administrateur d'origine. */
 const DEMO_PASSWORD_HASH = hashPassword("demo123");
+
+/** Mot de passe initial du seul compte livré (ADM-0001) : utilisable une fois, puis changement
+ * obligatoire. Toute connexion réussie avec ce mot de passe impose d'en choisir un autre. */
+export const MOT_DE_PASSE_INITIAL = "demo123";
+
+/** Hash d'un mot de passe aléatoire que personne ne connaît : un compte créé sans mot de passe
+ * remis (import Excel, conversion de devis, compte recréé) existe mais reste inaccessible tant que
+ * l'administration ne lui a pas remis un code PIN. Jamais un mot de passe devinable partagé. */
+const COMPTE_SANS_MOT_DE_PASSE_HASH = hashPassword(
+  `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`,
+);
 
 function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
   const users: UserAccountRecord[] = [
@@ -404,6 +415,7 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       displayName: "Administrateur",
       fonction: "Direction",
       actif: true,
+      doitChangerMotDePasse: true,
     },
   ];
 
@@ -412,7 +424,8 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
       id: `u-student-${e.id}`,
       role: "student",
       email: e.email,
-      password: DEMO_PASSWORD_HASH,
+      password: COMPTE_SANS_MOT_DE_PASSE_HASH,
+      doitChangerMotDePasse: true,
       identifier: e.matricule,
       displayName: `${e.prenom} ${e.nom}`,
       linkedId: e.id,
@@ -631,6 +644,7 @@ export interface AuthSessionSnapshot {
   identifier: string;
   linkedId?: string;
   roleId?: string;
+  doitChangerMotDePasse?: boolean;
 }
 
 export function saveAuthSession(user: AuthSessionSnapshot) {
@@ -710,6 +724,10 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
       u.identifier.toUpperCase() === qMatricule,
   );
   if (!user || !verifyPassword(password, user.password)) return null;
+  // Seul le compte d'origine peut encore s'ouvrir avec le mot de passe initial (pour être configuré
+  // la première fois). Un autre compte resté sur ce mot de passe connu (créé avant les mots de passe
+  // provisoires) ne s'ouvre pas : son titulaire obtient un code auprès de l'administration.
+  if (password === MOT_DE_PASSE_INITIAL && user.id !== "u-admin-1") return null;
   if (!isPasswordHashed(user.password)) {
     // Migration transparente : un compte encore en clair (créé avant l'introduction du hachage)
     // est rehaché dès qu'il s'authentifie avec succès, sans jamais invalider le compte existant.
@@ -738,7 +756,26 @@ export function updateUserPassword(userId: string, newPassword: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
   user.password = hashPassword(newPassword);
+  // Mot de passe choisi par le titulaire lui-même (flux PIN) : plus rien de provisoire.
+  user.doitChangerMotDePasse = false;
+  user.passwordUpdatedAt = new Date().toISOString();
+  logAudit(userId, "reset_password_pin", "user_account", userId);
   persist();
+}
+
+/** Changement obligatoire après connexion avec un mot de passe provisoire : la session vient de
+ * prouver l'identité ; le nouveau mot de passe ne peut pas être le mot de passe initial. */
+export function definirMotDePasseDefinitif(userId: string, newPassword: string): { ok: boolean; reason?: string } {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) return { ok: false, reason: "Compte introuvable." };
+  if (newPassword === MOT_DE_PASSE_INITIAL) return { ok: false, reason: "Choisissez un mot de passe différent du mot de passe initial." };
+  if (verifyPassword(newPassword, user.password)) return { ok: false, reason: "Le nouveau mot de passe doit être différent de l'actuel." };
+  user.password = hashPassword(newPassword);
+  user.doitChangerMotDePasse = false;
+  user.passwordUpdatedAt = new Date().toISOString();
+  logAudit(userId, "update_password", "user_account", userId);
+  persist();
+  return { ok: true };
 }
 
 /** Changement de mot de passe par le titulaire du compte lui-même — exige l'ancien mot de passe
@@ -749,6 +786,7 @@ export function changeOwnPassword(userId: string, currentPassword: string, newPa
   if (!user || !verifyPassword(currentPassword, user.password)) return false;
   user.password = hashPassword(newPassword);
   user.passwordUpdatedAt = new Date().toISOString();
+  user.doitChangerMotDePasse = false;
   logAudit(userId, "update_password", "user_account", userId);
   persist();
   return true;
@@ -796,6 +834,7 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
     role: payload.role,
     email: payload.email.trim(),
     password: hashPassword(payload.password),
+    doitChangerMotDePasse: true,
     identifier: payload.identifier.trim(),
     displayName: `${payload.prenom.trim()} ${payload.nom.trim()}`,
     telephone: payload.telephone?.trim() || undefined,
@@ -979,8 +1018,8 @@ export interface NewEtudiantPayload {
   photoDataUrl?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
-  /** Mot de passe affiché à l'admin à l'inscription (bouton "Générer mot de passe"). Absent =
-   * "demo123" par défaut (compte de démonstration, jamais communiqué à un vrai étudiant). */
+  /** Mot de passe provisoire affiché à l'admin à l'inscription, à remettre à l'étudiant. Absent
+   * (import Excel, conversion de devis) = compte inaccessible jusqu'à la remise d'un code PIN. */
   motDePasse?: string;
 }
 
@@ -1030,7 +1069,10 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
       id: `u-student-${etudiant.id}`,
       role: "student",
       email: etudiant.email,
-      password: hashPassword(payload.motDePasse || "demo123"),
+      // Mot de passe remis par l'administration = provisoire (à changer à la 1re connexion) ; sans
+      // mot de passe remis, le compte attend un code PIN de l'administration.
+      password: payload.motDePasse ? hashPassword(payload.motDePasse) : COMPTE_SANS_MOT_DE_PASSE_HASH,
+      doitChangerMotDePasse: true,
       identifier: etudiant.matricule,
       displayName: `${etudiant.prenom} ${etudiant.nom}`,
       linkedId: etudiant.id,

@@ -46,7 +46,7 @@ export default function EnvoiIdentifiantPage() {
       destinataireLabel: compte.displayName,
       destinataireEmail: compte.email,
       objet: OBJET_IDENTIFIANT,
-      message: `Bonjour ${compte.displayName},\n\nVotre identifiant de connexion : ${compte.identifier}\nPortail : ${PORTAL_LABELS[compte.role]}\n\nSi vous avez oublié votre mot de passe, utilisez "Mot de passe oublié ?" sur la page de connexion.`,
+      message: `Bonjour ${compte.displayName},\n\nVotre identifiant de connexion : ${compte.identifier}\nPortail : ${PORTAL_LABELS[compte.role]}\n\nPour obtenir ou réinitialiser votre mot de passe, cliquez sur "Mot de passe oublié ?" sur la page de connexion, puis présentez-vous au secrétariat avec une pièce d'identité pour recevoir votre code.`,
     });
   };
 

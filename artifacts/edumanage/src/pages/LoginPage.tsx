@@ -6,9 +6,8 @@ import { z } from "zod";
 import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { findUserAccountByIdentifier, updateUserPassword } from "@/data/studentStore";
-import { genererPin, verifierEtConsommerPin } from "@/data/pinActivationStore";
-import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
+import { findUserAccountByIdentifier, updateUserPassword, getUserAccounts, pushNotificationEtPersister, logAudit } from "@/data/studentStore";
+import { signalerDemandeReinitialisation, verifierEtConsommerPin } from "@/data/pinActivationStore";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
 
 const loginSchema = z.object({
@@ -18,7 +17,7 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-type Mode = "login" | "forgot-request" | "forgot-reset";
+type Mode = "login" | "forgot-request" | "forgot-sent" | "forgot-reset";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -30,48 +29,44 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [forgotIdentifier, setForgotIdentifier] = useState("");
   const [forgotError, setForgotError] = useState("");
-  const [resetUserId, setResetUserId] = useState<string | null>(null);
-  const [resetLabel, setResetLabel] = useState("");
-  const [demoPin, setDemoPin] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  /** Aucun code n'est envoyé ni affiché ici : la demande prévient l'administration, qui vérifie
+   * l'identité et remet un code en main propre. La réponse est la même que le compte existe ou non,
+   * pour ne pas révéler quels identifiants sont valides. */
   const handleForgotRequest = () => {
     setForgotError("");
     const compte = findUserAccountByIdentifier(forgotIdentifier);
-    if (!compte) {
-      setForgotError("Aucun compte ne correspond à cet identifiant.");
-      return;
+    if (compte && compte.actif !== false) {
+      const nouvelle = signalerDemandeReinitialisation(compte.id, compte.displayName, compte.identifier);
+      if (nouvelle) {
+        logAudit(compte.id, "demande_reinitialisation_mdp", "user_account", compte.id);
+        for (const admin of getUserAccounts().filter((u) => u.role === "admin" && u.actif !== false)) {
+          pushNotificationEtPersister(admin.id, `Mot de passe oublié : ${compte.displayName} (${compte.identifier}) demande un code — Sécurité → Code pin activation.`);
+        }
+      }
     }
-    const record = genererPin(compte.id, compte.displayName, compte.identifier, compte.id, "Libre-service (mot de passe oublié)");
-    envoyerMailSysteme({
-      destinataireUserId: compte.id,
-      destinataireLabel: compte.displayName,
-      destinataireEmail: compte.email,
-      objet: "Code de validation",
-      message: `Votre pin de réinitialisation de mot de passe: ${record.pin}`,
-    });
-    setResetUserId(compte.id);
-    setResetLabel(compte.displayName);
-    setDemoPin(record.pin);
-    setMode("forgot-reset");
+    setMode("forgot-sent");
   };
 
   const handleResetPassword = () => {
     setForgotError("");
-    if (!resetUserId) return;
-    if (!pinInput.trim()) { setForgotError("Saisissez le code PIN reçu."); return; }
+    if (!forgotIdentifier.trim()) { setForgotError("Saisissez votre email ou matricule."); return; }
+    if (!pinInput.trim()) { setForgotError("Saisissez le code remis par l'administration."); return; }
     if (!isPasswordValid(newPassword)) { setForgotError(`Le mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()}.`); return; }
     if (newPassword !== confirmPassword) { setForgotError("Les deux mots de passe ne correspondent pas."); return; }
-    const valide = verifierEtConsommerPin(resetUserId, pinInput.trim());
-    if (!valide) { setForgotError("Code PIN invalide, déjà utilisé ou expiré."); return; }
-    updateUserPassword(resetUserId, newPassword);
+    const compte = findUserAccountByIdentifier(forgotIdentifier);
+    // Même message que le compte existe ou non, et que le code soit faux ou expiré.
+    if (!compte || !verifierEtConsommerPin(compte.id, pinInput.trim())) {
+      setForgotError("Identifiant ou code invalide, déjà utilisé ou expiré. Après 5 essais erronés, le code est annulé.");
+      return;
+    }
+    updateUserPassword(compte.id, newPassword);
     toast.success("Mot de passe réinitialisé — vous pouvez vous connecter.");
     setMode("login");
     setForgotIdentifier("");
-    setResetUserId(null);
-    setDemoPin("");
     setPinInput("");
     setNewPassword("");
     setConfirmPassword("");
@@ -93,7 +88,8 @@ export default function LoginPage() {
         setError("Identifiants incorrects.");
         return;
       }
-      if (user.role === "admin") setLocation("/admin/dashboard");
+      if (user.doitChangerMotDePasse) setLocation("/changer-mot-de-passe");
+      else if (user.role === "admin") setLocation("/admin/dashboard");
       else if (user.role === "teacher") setLocation("/teacher/dashboard");
       else setLocation("/student/dashboard");
     } catch (err) {
@@ -126,10 +122,10 @@ export default function LoginPage() {
               Gérez votre université<br />avec excellence.
             </h2>
             <p className="text-white/60 text-sm leading-relaxed max-w-xs">
-              La plateforme de référence pour les universités privées en Afrique francophone. Accédez à votre espace sécurisé.
+              Scolarité, finances et enseignement réunis dans un même espace. Connectez-vous à votre portail.
             </p>
           </div>
-          <p className="text-white/30 text-xs">© 2026 EduManage Inc.</p>
+          <p className="text-white/30 text-xs">© {new Date().getFullYear()} EduManage</p>
         </div>
       </div>
 
@@ -249,7 +245,7 @@ export default function LoginPage() {
               <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
                 Mot de passe oublié
               </h1>
-              <p className="text-sm text-[#64748b] mb-8">Saisissez votre email ou matricule — un code de validation sera envoyé</p>
+              <p className="text-sm text-[#64748b] mb-8">Saisissez votre email ou matricule : l'administration sera prévenue et vous remettra un code après vérification de votre identité.</p>
 
               <div className="space-y-4">
                 <div>
@@ -281,9 +277,47 @@ export default function LoginPage() {
                   className="w-full h-12 bg-[#4f46e5] hover:bg-[#4338ca] disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
                   data-testid="button-forgot-request"
                 >
-                  <KeyRound size={15} /> Recevoir un code
+                  <KeyRound size={15} /> Demander un code
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode("forgot-reset"); setForgotError(""); }}
+                  className="w-full text-xs text-[#4f46e5] hover:underline"
+                  data-testid="link-j-ai-un-code"
+                >
+                  J'ai déjà un code
                 </button>
               </div>
+            </>
+          )}
+
+          {mode === "forgot-sent" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className="flex items-center gap-1.5 text-xs text-[#64748b] hover:text-[#4f46e5] mb-6"
+              >
+                <ArrowLeft size={13} /> Retour à la connexion
+              </button>
+              <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>
+                Demande transmise
+              </h1>
+              <div className="space-y-3 text-sm text-[#64748b]" data-testid="forgot-sent-message">
+                <p>Si un compte correspond à cet identifiant, l&apos;administration a été prévenue.</p>
+                <p>
+                  Présentez-vous au secrétariat avec une pièce d&apos;identité : un code à 6 chiffres vous sera remis.
+                  Il est valable 24 heures.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setMode("forgot-reset"); setForgotError(""); }}
+                className="w-full h-12 mt-6 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                data-testid="button-saisir-code"
+              >
+                <KeyRound size={15} /> J&apos;ai reçu mon code
+              </button>
             </>
           )}
 
@@ -299,25 +333,31 @@ export default function LoginPage() {
               <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
                 Nouveau mot de passe
               </h1>
-              <p className="text-sm text-[#64748b] mb-4">Pour {resetLabel} — saisissez le code reçu et votre nouveau mot de passe</p>
-
-              <div className="flex items-start gap-2.5 p-3 mb-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
-                <AlertTriangle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Aucune passerelle email réelle n'est branchée (mode démo) — code envoyé : <span className="font-mono font-bold" data-testid="demo-pin-value">{demoPin}</span>. Il est aussi visible dans Mails envoyés.
-                </p>
-              </div>
+              <p className="text-sm text-[#64748b] mb-6">Saisissez votre identifiant, le code remis par l&apos;administration et votre nouveau mot de passe.</p>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Code PIN</label>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Email ou Matricule</label>
+                  <input
+                    value={forgotIdentifier}
+                    onChange={(e) => setForgotIdentifier(e.target.value)}
+                    type="text"
+                    placeholder="Email ou matricule"
+                    className="w-full px-4 py-3 text-sm border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
+                    data-testid="input-reset-identifier"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Code remis par l&apos;administration</label>
                   <div className="relative">
                     <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
                     <input
                       value={pinInput}
                       onChange={(e) => setPinInput(e.target.value)}
                       type="text"
-                      placeholder="0000"
+                      placeholder="000000"
+                      inputMode="numeric"
+                      maxLength={6}
                       className="w-full pl-10 pr-4 py-3 text-sm font-mono border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all"
                       data-testid="input-reset-pin"
                     />

@@ -1,6 +1,10 @@
 const STORAGE_KEY = "edumanage-pin-activation-v1";
+const DEMANDES_STORAGE_KEY = "edumanage-demandes-reinit-v1";
 
-const DUREE_VALIDITE_MINUTES = 15;
+/** Le code est remis en main propre par l'administration : il doit rester valable le temps de
+ * rentrer chez soi. La sécurité repose sur sa longueur (6 chiffres) et sur la limite d'essais. */
+const DUREE_VALIDITE_MINUTES = 24 * 60;
+const MAX_ESSAIS_PIN = 5;
 
 export interface PinActivationRecord {
   id: string;
@@ -17,6 +21,20 @@ export interface PinActivationRecord {
   revoque?: boolean;
   revoqueLe?: string;
   revoquePar?: string;
+  /** Essais erronés sur ce code — au-delà de MAX_ESSAIS_PIN il est révoqué automatiquement. */
+  essaisEchoues?: number;
+}
+
+/** Demande « mot de passe oublié » faite depuis la page de connexion : elle n'envoie jamais de code
+ * elle-même, elle prévient l'administration, qui remet un code PIN après vérification d'identité. */
+export interface DemandeReinitialisationRecord {
+  id: string;
+  userId: string;
+  compteLabel: string;
+  compteIdentifier: string;
+  createdAt: string;
+  traiteeLe?: string;
+  traitePar?: string;
 }
 
 export type StatutPin = "actif" | "utilise" | "expire" | "remplace" | "revoque";
@@ -34,6 +52,17 @@ export function statutPin(record: PinActivationRecord, allRecords: PinActivation
 }
 
 let store: PinActivationRecord[] = load();
+let demandes: DemandeReinitialisationRecord[] = loadDemandes();
+
+function loadDemandes(): DemandeReinitialisationRecord[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DEMANDES_STORAGE_KEY) ?? "[]") as DemandeReinitialisationRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function load(): PinActivationRecord[] {
   if (typeof window === "undefined") return [];
@@ -54,10 +83,28 @@ function notify() {
 
 function persist() {
   store = store.slice();
+  demandes = demandes.slice();
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    localStorage.setItem(DEMANDES_STORAGE_KEY, JSON.stringify(demandes));
   }
   notify();
+}
+
+export function getDemandesReinitialisation(): DemandeReinitialisationRecord[] {
+  return demandes;
+}
+
+/** Enregistre une demande en attente pour ce compte. Renvoie false si une demande est déjà en
+ * attente (pas de doublon ni de nouvelle alerte à chaque clic). */
+export function signalerDemandeReinitialisation(userId: string, compteLabel: string, compteIdentifier: string): boolean {
+  if (demandes.some((d) => d.userId === userId && !d.traiteeLe)) return false;
+  demandes = [
+    { id: `dreinit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, userId, compteLabel, compteIdentifier, createdAt: new Date().toISOString() },
+    ...demandes,
+  ];
+  persist();
+  return true;
 }
 
 export function subscribePinActivation(fn: () => void) {
@@ -69,8 +116,11 @@ export function getPinsActivation(): PinActivationRecord[] {
   return store;
 }
 
-function genererCode4Chiffres(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
+function genererCode6Chiffres(): string {
+  const tableau = new Uint32Array(1);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(tableau);
+  else tableau[0] = Math.floor(Math.random() * 2 ** 32);
+  return String(100000 + (tableau[0] % 900000));
 }
 
 /** Génère un nouveau PIN pour un compte, attribué à l'admin qui l'a créé — le rend actif tout de
@@ -82,7 +132,7 @@ export function genererPin(userId: string, compteLabel: string, compteIdentifier
     userId,
     compteLabel,
     compteIdentifier,
-    pin: genererCode4Chiffres(),
+    pin: genererCode6Chiffres(),
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + DUREE_VALIDITE_MINUTES * 60 * 1000).toISOString(),
     auteurId,
@@ -90,6 +140,9 @@ export function genererPin(userId: string, compteLabel: string, compteIdentifier
     utilise: false,
   };
   store = [record, ...store];
+  // Un code remis règle les demandes « mot de passe oublié » en attente pour ce compte.
+  const maintenant = now.toISOString();
+  demandes = demandes.map((d) => (d.userId === userId && !d.traiteeLe ? { ...d, traiteeLe: maintenant, traitePar: auteurLabel } : d));
   persist();
   return record;
 }
@@ -112,7 +165,18 @@ export function revoquerPin(id: string, actorLabel: string): void {
  * et le consomme immédiatement s'il correspond et est actif — usage unique. */
 export function verifierEtConsommerPin(userId: string, pin: string): boolean {
   const dernier = store.find((r) => r.userId === userId);
-  if (!dernier || dernier.pin !== pin.trim() || statutPin(dernier, store) !== "actif") return false;
+  if (!dernier || statutPin(dernier, store) !== "actif") return false;
+  if (dernier.pin !== pin.trim()) {
+    // Limite d'essais : un code deviné par essais successifs est révoqué avant d'être trouvé.
+    dernier.essaisEchoues = (dernier.essaisEchoues ?? 0) + 1;
+    if (dernier.essaisEchoues >= MAX_ESSAIS_PIN) {
+      dernier.revoque = true;
+      dernier.revoqueLe = new Date().toISOString();
+      dernier.revoquePar = `Système — ${MAX_ESSAIS_PIN} essais erronés`;
+    }
+    persist();
+    return false;
+  }
   dernier.utilise = true;
   dernier.utiliseLe = new Date().toISOString();
   persist();

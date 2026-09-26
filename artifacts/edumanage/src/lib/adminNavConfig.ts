@@ -114,6 +114,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
           { id: "fin-enc-pec-liste", label: "Liste encaissement PEC", href: "/admin/encaissements-pec" },
           { id: "fin-enc-pec-masse2", label: "PEC en masse", href: "/admin/pec-masse" },
           { id: "fin-enc-liste", label: "Les encaissements", href: "/admin/encaissements" },
+          { id: "fin-enc-declares", label: "Paiements en ligne à vérifier", href: "/admin/paiements-declares" },
           { id: "fin-enc-facture", label: "Facture autres services", href: "/admin/factures-autres-services" },
         ],
       },
