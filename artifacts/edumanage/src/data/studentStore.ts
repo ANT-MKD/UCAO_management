@@ -6,6 +6,7 @@ import { estAutorise } from "./communicationRolesStore";
 import { findClassePedagogique, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
+import { creerPointageDepuisCahier } from "./pointageStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
 
@@ -274,7 +275,23 @@ export interface StudentRequestRecord {
    * l'étudiant ; utilisées pour générer la vraie dérogation de paiement à la validation. */
   porteeRallonge?: PorteeDerogation;
   dateFinSouhaitee?: string;
+  /** Justificatif d'absence : l'absence visée (cahier de séance où elle a été constatée). Valider
+   * la demande justifie réellement cette absence. */
+  absenceCahierId?: string;
+  absenceLibelle?: string;
+  /** Réclamation de note : la note contestée. */
+  noteId?: string;
+  noteLibelle?: string;
+  /** Attestation : le document demandé, puis celui réellement généré. */
+  attestationType?: "scolarite" | "inscription";
+  attestationId?: string;
+  attestationNumero?: string;
+  /** Pièce jointe déposée par l'étudiant (certificat médical, convocation…). */
+  pieceJointe?: { nom: string; type: string; dataUrl: string };
 }
+
+/** Taille maximale d'une pièce jointe de demande : les données restent dans le navigateur. */
+export const TAILLE_MAX_PIECE_DEMANDE = 1_500_000;
 
 export interface MessageRecord {
   id: string;
@@ -2187,6 +2204,46 @@ function libelleCreneau(seance: Pick<SeanceRecord, "semaineDu" | "jour" | "heure
   return `${jour} à ${seance.heureDebut}`;
 }
 
+/** Compte du professeur d'une séance : celui relié à sa fiche enseignant ; à défaut d'identifiant
+ * (ancienne donnée), celui dont le nom complet est exactement celui de la séance — jamais le seul
+ * nom de famille. */
+function compteProfDeSeance(seance: Pick<SeanceRecord, "prof" | "profId">): UserAccountRecord | undefined {
+  return store.users.find(
+    (u) => u.role === "teacher" && (seance.profId ? u.linkedId === seance.profId : u.displayName.trim().toLowerCase() === seance.prof.trim().toLowerCase()),
+  );
+}
+
+/** Prévient les étudiants de la classe et le professeur d'un changement d'emploi du temps, selon
+ * le réglage NOTIFICATION_UPDATE_EDT. `autresProfs` : ancien professeur d'une séance réattribuée. */
+function notifierChangementEdt(
+  seance: SeanceRecord,
+  messageEtudiant: string,
+  messageProf: string,
+  autresProfs: Pick<SeanceRecord, "prof" | "profId">[] = [],
+) {
+  const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
+  if (!notifEdt?.actif) return;
+  if (notifEdt.envoyerEtudiant) {
+    const studentUsers = store.users.filter(
+      (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === seance.classeId),
+    );
+    for (const u of studentUsers) pushNotification(u.id, messageEtudiant);
+  }
+  if (notifEdt.envoyerProfesseur) {
+    const deja = new Set<string>();
+    for (const p of [seance, ...autresProfs]) {
+      const compte = compteProfDeSeance(p);
+      if (compte && !deja.has(compte.id)) { deja.add(compte.id); pushNotification(compte.id, messageProf); }
+    }
+  }
+}
+
+/** Un cahier de textes déjà soumis pour cette séance parle d'un jour, d'une heure et d'une salle
+ * précis : la modifier ou l'annuler casserait silencieusement ce lien. */
+function cahierSoumisPourSeance(id: string): boolean {
+  return store.cahiers.some((c) => c.seanceId === id && c.statut !== "brouillon");
+}
+
 export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; conflicts: ReturnType<typeof detectScheduleConflicts> } {
   const ec = getEcs().find((e) => e.id === payload.ecId);
   const classe = getClasseById(payload.classeId);
@@ -2220,26 +2277,11 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
   };
   store.seances.push(seance);
 
-  // Notifier étudiants de la classe + enseignant
-  const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
-  if (notifEdt?.actif && notifEdt.envoyerEtudiant) {
-    const studentUsers = store.users.filter(
-      (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === payload.classeId),
-    );
-    for (const u of studentUsers) {
-      pushNotification(u.id, `Emploi du temps : ${seance.ec} le ${libelleCreneau(seance)} — ${seance.salle}`);
-    }
-  }
-  if (notifEdt?.actif && notifEdt.envoyerProfesseur) {
-    // Le compte relié à la fiche enseignant de la séance ; à défaut d'identifiant (ancienne donnée),
-    // le compte dont le nom complet est exactement celui de la séance — jamais le seul nom de famille.
-    const teacherUser = store.users.find(
-      (u) => u.role === "teacher" && (payload.profId ? u.linkedId === payload.profId : u.displayName.trim().toLowerCase() === payload.prof.trim().toLowerCase()),
-    );
-    if (teacherUser) {
-      pushNotification(teacherUser.id, `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)} — ${seance.salle}`);
-    }
-  }
+  notifierChangementEdt(
+    seance,
+    `Emploi du temps : ${seance.ec} le ${libelleCreneau(seance)} — ${seance.salle}`,
+    `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)} — ${seance.salle}`,
+  );
 
   persist();
   return { seance, conflicts: [] };
@@ -2256,8 +2298,7 @@ export function updateSeancePosition(
 
   // Un cahier de textes déjà soumis pour cette séance parle d'un jour/heure précis — la
   // déplacer casserait silencieusement ce lien (le cahier resterait daté de l'ancien créneau).
-  const cahierExistant = store.cahiers.some((c) => c.seanceId === id && c.statut !== "brouillon");
-  if (cahierExistant) {
+  if (cahierSoumisPourSeance(id)) {
     return {
       ok: false,
       conflicts: [{
@@ -2272,11 +2313,95 @@ export function updateSeancePosition(
   const conflicts = detectScheduleConflicts(store.seances, candidate, id);
   if (conflicts.length > 0) return { ok: false, conflicts };
 
+  const avant = libelleCreneau(seance);
+  const finAvant = seance.heureFin;
   seance.jour = jour;
   seance.heureDebut = heureDebut;
   seance.heureFin = heureFin;
+  const apres = libelleCreneau(seance);
+  if (avant !== apres || finAvant !== heureFin) {
+    notifierChangementEdt(
+      seance,
+      `Cours déplacé : ${seance.ec} — ${avant} → ${apres} (${seance.heureDebut}–${seance.heureFin}) — ${seance.salle}`,
+      `Créneau déplacé : ${seance.ec} — ${seance.classe} — ${avant} → ${apres} — ${seance.salle}`,
+    );
+  }
   persist();
   return { ok: true, conflicts: [] };
+}
+
+export interface ModifierSeancePayload {
+  salleId: string;
+  prof: string;
+  profId?: string;
+  jour: number;
+  semaineDu: string;
+  heureDebut: string;
+  heureFin: string;
+  type: string;
+}
+
+/** Modifie une séance planifiée (date, horaire, salle, professeur, type) : mêmes contrôles de
+ * conflit qu'à la création, et étudiants + professeur(s) prévenus de ce qui change. */
+export function modifierSeance(
+  id: string,
+  patch: ModifierSeancePayload,
+  acteurId: string,
+): { ok: boolean; conflicts: ReturnType<typeof detectScheduleConflicts> } {
+  const seance = store.seances.find((s) => s.id === id);
+  if (!seance) return { ok: false, conflicts: [] };
+  if (cahierSoumisPourSeance(id)) {
+    return { ok: false, conflicts: [{ type: "cahier", seanceId: id, label: "Un cahier de textes a déjà été soumis pour cette séance — elle ne peut plus être modifiée" }] };
+  }
+  const salle = getSalleById(patch.salleId);
+  const candidate: SeanceSlot = { ...seance, ...patch, salle: salle?.nom };
+  const conflicts = detectScheduleConflicts(store.seances, candidate, id);
+  if (conflicts.length > 0) return { ok: false, conflicts };
+
+  const avant = { ...seance };
+  const changements: string[] = [];
+  const creneauAvant = `${libelleCreneau(avant)}–${avant.heureFin}`;
+  Object.assign(seance, { ...patch, salle: salle?.nom ?? seance.salle });
+  const creneauApres = `${libelleCreneau(seance)}–${seance.heureFin}`;
+  if (creneauAvant !== creneauApres) changements.push(`${creneauAvant} → ${creneauApres}`);
+  if (avant.salleId !== seance.salleId) changements.push(`salle ${avant.salle} → ${seance.salle}`);
+  const changeProf = (avant.profId ?? avant.prof) !== (seance.profId ?? seance.prof);
+  if (changeProf) changements.push(`professeur ${avant.prof} → ${seance.prof}`);
+  if (avant.type !== seance.type) changements.push(`type ${avant.type} → ${seance.type}`);
+  store.seances = [...store.seances];
+  logAudit(acteurId, "modifier_seance", "seance", id, changements.join(" ; "));
+  if (changements.length > 0) {
+    const detail = changements.join(" ; ");
+    notifierChangementEdt(
+      seance,
+      `Cours modifié : ${seance.ec} — ${detail}`,
+      `Séance modifiée : ${seance.ec} — ${seance.classe} — ${detail}`,
+      changeProf ? [avant] : [],
+    );
+  }
+  persist();
+  return { ok: true, conflicts: [] };
+}
+
+/** Annule une séance planifiée : elle disparaît de l'emploi du temps et les étudiants comme le
+ * professeur sont prévenus, avec le motif s'il est donné. Refusé si un cahier a déjà été soumis
+ * (la séance a eu lieu). */
+export function annulerSeance(id: string, motif: string, acteurId: string): { ok: boolean; reason?: string } {
+  const seance = store.seances.find((s) => s.id === id);
+  if (!seance) return { ok: false, reason: "Séance introuvable." };
+  if (cahierSoumisPourSeance(id)) return { ok: false, reason: "Un cahier de textes a déjà été soumis pour cette séance : elle a eu lieu et ne peut plus être annulée." };
+  // Brouillons de cahier de cette séance : ils n'ont plus d'objet.
+  store.cahiers = store.cahiers.filter((c) => c.seanceId !== id);
+  store.seances = store.seances.filter((s) => s.id !== id);
+  const suffixe = motif.trim() ? ` Motif : ${motif.trim()}.` : "";
+  notifierChangementEdt(
+    seance,
+    `Cours annulé : ${seance.ec} du ${libelleCreneau(seance)} — ${seance.salle}.${suffixe}`,
+    `Séance annulée : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)}.${suffixe}`,
+  );
+  logAudit(acteurId, "annuler_seance", "seance", id, `${seance.ec} ${seance.classe} ${libelleCreneau(seance)}${suffixe}`);
+  persist();
+  return { ok: true };
 }
 
 /** Duplique toutes les séances d'une semaine vers une autre — le point de départ du travail
@@ -2343,6 +2468,13 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
   req.handledBy = handledBy;
   req.resolution = resolution;
 
+  // Justificatif accepté : l'absence visée devient réellement justifiée (assiduité, heures non
+  // justifiées, portail de l'étudiant), sans ressaisie dans « Nouvelle assiduité ».
+  if (status === "valide" && req.type === "justificatif_absence" && req.absenceCahierId) {
+    const motif = [resolution?.trim(), req.pieceJointe ? `pièce : ${req.pieceJointe.nom}` : ""].filter(Boolean).join(" — ");
+    justifierPresenceCahier(req.absenceCahierId, req.studentId, motif || `Justifiée (demande « ${req.subject} »)`, true);
+  }
+
   if (status === "valide" && req.type === "demande_rallonge") {
     const etudiant = store.etudiants.find((e) => e.id === req.studentId);
     const personnel = store.users.find((u) => u.id === handledBy);
@@ -2362,8 +2494,18 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
   }
 
   const studentUser = store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
-  if (studentUser) pushNotification(studentUser.id, `Votre demande "${req.subject}" est ${status}.`);
+  const etat = status === "valide" ? "a été acceptée" : status === "rejete" ? "a été refusée" : status === "en_cours" ? "est en cours de traitement" : "a été mise à jour";
+  if (studentUser) pushNotification(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
   logAudit(handledBy, "update_request", "request", id, status);
+  persist();
+}
+
+/** Relie à la demande l'attestation générée pour y répondre (lien visible des deux côtés). */
+export function rattacherAttestationDemande(id: string, attestationId: string, numero: string): void {
+  const req = store.requests.find((r) => r.id === id);
+  if (!req) return;
+  req.attestationId = attestationId;
+  req.attestationNumero = numero;
   persist();
 }
 
@@ -2632,17 +2774,31 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   return normalizeCahier(base);
 }
 
-export function validateCahier(id: string, actorUserId: string, approve: boolean) {
+/** Renvoie le pointage créé automatiquement (séance réalisée validée), s'il y en a un. */
+export function validateCahier(id: string, actorUserId: string, approve: boolean): { volumePointe: number } | undefined {
   const row = store.cahiers.find((c) => c.id === id);
-  if (!row) return;
+  if (!row) return undefined;
   row.statut = approve ? "valide" : "rejete";
   row.validatedBy = actorUserId;
-  const teacher = store.users.find((u) => u.role === "teacher" && u.displayName.includes(row.prof.split(" ").slice(-1)[0] ?? ""));
+  const seance = store.seances.find((x) => x.id === row.seanceId);
+  const profId = row.profId ?? seance?.profId;
+  const teacher = compteProfDeSeance({ prof: row.prof, profId });
+  // Séance réalisée et validée : le pointage est préparé, il ne reste qu'à le confirmer.
+  const pointage = approve && row.etatSeance === "realisee"
+    ? creerPointageDepuisCahier(row, profId ?? teacher?.linkedId ?? "")
+    : undefined;
+  const dateFr = row.date.split("-").reverse().join("/");
   if (teacher) {
-    pushNotification(teacher.id, `Cahier ${row.ec} ${approve ? "validé" : "rejeté"} — transmission comptabilité ${approve ? "possible" : "bloquée"}`);
+    pushNotification(
+      teacher.id,
+      approve
+        ? `Cahier ${row.ec} du ${dateFr} validé${pointage ? ` — ${pointage.volumePointe} h transmises au pointage` : ""}`
+        : `Cahier ${row.ec} du ${dateFr} rejeté — à corriger avant transmission au pointage`,
+    );
   }
   logAudit(actorUserId, approve ? "validate_cahier" : "reject_cahier", "cahier", id);
   persist();
+  return pointage;
 }
 
 /** Marque une absence/retard déjà signalé par le prof dans son cahier comme justifié (ou non),

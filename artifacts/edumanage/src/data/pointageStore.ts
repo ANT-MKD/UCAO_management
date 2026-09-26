@@ -9,6 +9,8 @@ export interface PointageRecord {
   classeId: string;
   annee: string;
   seanceId?: string;
+  /** Cahier de séance validé dont ce pointage a été créé automatiquement. */
+  cahierId?: string;
   date: string;
   heureDebut: string;
   heureFin: string;
@@ -119,4 +121,54 @@ export function findPointageDuplicate(
 
 export function makePointageId(): string {
   return `ptg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+const TYPES_POINTAGE = ["CM", "TD", "TP", "EX"] as const;
+
+export interface CahierPourPointage {
+  id: string;
+  seanceId: string;
+  ecId: string;
+  classeId: string;
+  annee: string;
+  date: string;
+  heureDebut: string;
+  heureFin: string;
+  typeSeance: string;
+  salleId: string;
+  ec: string;
+}
+
+/** Cahier de séance validé → pointage « en attente » : le professeur a déjà déclaré la séance
+ * réalisée, l'administration n'a plus qu'à confirmer le pointage (qui alimente ensuite le
+ * décompte) au lieu de le ressaisir. Rien n'est créé si ce créneau est déjà pointé. */
+export function creerPointageDepuisCahier(cahier: CahierPourPointage, teacherId: string): PointageRecord | undefined {
+  const [h1, m1] = cahier.heureDebut.split(":").map(Number);
+  const [h2, m2] = cahier.heureFin.split(":").map(Number);
+  const minutes = h2 * 60 + m2 - (h1 * 60 + m1);
+  if (!teacherId || !(minutes > 0)) return undefined;
+  if (findPointageDuplicate(teacherId, cahier.ecId, cahier.classeId, cahier.date, cahier.heureDebut, cahier.heureFin)) return undefined;
+  if (store.some((p) => p.cahierId === cahier.id && p.statut !== "rejete")) return undefined;
+  const type = (TYPES_POINTAGE as readonly string[]).includes(cahier.typeSeance) ? (cahier.typeSeance as PointageRecord["type"]) : "CM";
+  const record: PointageRecord = {
+    id: makePointageId(),
+    teacherId,
+    ecId: cahier.ecId,
+    classeId: cahier.classeId,
+    annee: cahier.annee,
+    seanceId: cahier.seanceId,
+    cahierId: cahier.id,
+    date: cahier.date,
+    heureDebut: cahier.heureDebut,
+    heureFin: cahier.heureFin,
+    type,
+    salleId: cahier.salleId,
+    volumePointe: Math.round((minutes / 60) * 100) / 100,
+    remarque: `Créé depuis le cahier de séance validé — ${cahier.ec}`,
+    statut: "soumis",
+    createdAt: new Date().toISOString(),
+  };
+  store.push(record);
+  persist();
+  return record;
 }

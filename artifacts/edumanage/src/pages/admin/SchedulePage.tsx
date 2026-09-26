@@ -529,7 +529,9 @@ export default function SchedulePage() {
                           draggable
                           onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData("seanceId", s.id); setDraggingId(s.id); }}
                           onDragEnd={() => setDraggingId(null)}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setLocation(`/admin/schedule/seance/${s.id}`); }}
+                          title="Cliquer pour modifier ou annuler — glisser pour déplacer"
+                          data-testid={`edt-seance-${s.id}`}
                           className={cn("absolute left-1 right-1 rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing transition-all overflow-hidden group", isDragging && "opacity-50 scale-95")}
                           style={{
                             top: `${top}px`, height: `${Math.max(height, 40)}px`,

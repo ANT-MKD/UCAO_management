@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -37,7 +37,9 @@ export default function NotesEtudiantPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [etudiantId, setEtudiantId] = useState("");
+  // ?etudiant=<id> : ouverture directe depuis une réclamation de note (Demandes étudiants).
+  const searchStr = useSearch();
+  const [etudiantId, setEtudiantId] = useState(() => new URLSearchParams(searchStr).get("etudiant") ?? "");
 
   const etudiant = etudiants.find((e) => e.id === etudiantId);
 

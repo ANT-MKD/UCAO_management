@@ -272,7 +272,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                   <span className="font-semibold text-sm">Notifications</span>
-                  <span className="text-xs text-primary font-medium">{unreadCount} alerte(s)</span>
+                  <button onClick={() => { setLocation("/admin/a-traiter"); setNotifOpen(false); }} className="text-xs text-primary font-medium hover:underline" data-testid="cloche-a-traiter">
+                    Centre « À traiter » ({unreadCount})
+                  </button>
                 </div>
                 {adminAlerts.length === 0 ? (
                   <p className="px-4 py-6 text-xs text-muted-foreground text-center">Aucune alerte — tout est à jour.</p>

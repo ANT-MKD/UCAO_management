@@ -89,6 +89,7 @@ const TeacherFormPage = lazy(() => import("@/pages/admin/TeacherFormPage"));
 
 // Évaluations
 const NotesPage = lazy(() => import("@/pages/admin/NotesPage"));
+const ATraiterPage = lazy(() => import("@/pages/admin/ATraiterPage"));
 const NotesEtudiantPage = lazy(() => import("@/pages/admin/NotesEtudiantPage"));
 const BulletinEtudiantPage = lazy(() => import("@/pages/admin/BulletinEtudiantPage"));
 const RattrapagePage = lazy(() => import("@/pages/admin/RattrapagePage"));
@@ -443,6 +444,9 @@ function AppRouter() {
 
       {/* Planning */}
       <Route path="/admin/schedule/new">
+        <Admin><ScheduleFormPage /></Admin>
+      </Route>
+      <Route path="/admin/schedule/seance/:id">
         <Admin><ScheduleFormPage /></Admin>
       </Route>
       <Route path="/admin/schedule/parametrage/:section">
@@ -863,6 +867,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/prises-en-charge">
         <Admin><PriseEnChargePage /></Admin>
+      </Route>
+      <Route path="/admin/a-traiter">
+        <Admin><ATraiterPage /></Admin>
       </Route>
       <Route path="/admin/paiements-declares">
         <Admin><PaiementsDeclaresPage /></Admin>

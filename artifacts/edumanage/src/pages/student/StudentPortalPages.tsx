@@ -445,7 +445,10 @@ export function StudentNotesPage() {
                         : `Ajoutée le ${new Date(n.dateCreation).toLocaleDateString("fr-FR")}`}
                     </p>
                   </div>
-                  <span className={cn("font-bold text-sm flex-shrink-0", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{n.note}/20</span>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={cn("font-bold text-sm", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{n.note}/20</span>
+                    <Link href={`/student/requests?type=reclamation_note&note=${n.id}`} className="text-[11px] text-primary hover:underline" data-testid={`note-reclamer-${n.id}`}>Réclamer</Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1908,7 +1911,7 @@ function AbsenceLigne({ r, withMatiere = true }: { r: ReturnType<typeof getAssid
         ) : (
           <div>
             <p className="text-xs text-muted-foreground">Non justifiée</p>
-            <Link href="/student/requests" className="text-xs text-primary hover:underline whitespace-nowrap" data-testid={`absence-justifier-${r.id}`}>
+            <Link href={`/student/requests?type=justificatif_absence&absence=${r.cahierId}`} className="text-xs text-primary hover:underline whitespace-nowrap" data-testid={`absence-justifier-${r.id}`}>
               Demander une justification
             </Link>
           </div>

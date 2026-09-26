@@ -38,8 +38,8 @@ export default function CahierDetailPage({ id }: { id: string }) {
 
   function act(approve: boolean) {
     if (!currentUser || !c) return;
-    validateCahier(c.id, currentUser.id, approve);
-    toast.success(approve ? "Cahier validé — prêt pour vacations" : "Cahier rejeté");
+    const pointage = validateCahier(c.id, currentUser.id, approve);
+    toast.success(approve ? `Cahier validé${pointage ? ` — pointage de ${pointage.volumePointe} h en attente de confirmation` : ""}` : "Cahier rejeté");
   }
 
   return (

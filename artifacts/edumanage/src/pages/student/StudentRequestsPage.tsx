@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import {
   ClipboardList,
   Send,
@@ -17,9 +17,12 @@ import {
   HelpCircle,
   MessageSquare,
   PieChart as PieChartIcon,
+  Paperclip,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { addStudentRequest, cancelStudentRequest, type StudentRequestRecord } from "@/data/studentStore";
+import { addStudentRequest, cancelStudentRequest, TAILLE_MAX_PIECE_DEMANDE, type StudentRequestRecord } from "@/data/studentStore";
+import { useCahiers, useNotes } from "@/hooks/useStudentStore";
+import { getAssiduiteRowsPourEtudiant } from "@/data/assiduiteEngine";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentRequests } from "@/hooks/useStudentStore";
 import { PORTEE_LABELS, type PorteeDerogation } from "@/data/derogationPaiementStore";
@@ -100,6 +103,27 @@ export default function StudentRequestsPage() {
   const [porteeRallonge, setPorteeRallonge] = useState<PorteeDerogation>("reinscription");
   const [dateFinSouhaitee, setDateFinSouhaitee] = useState("");
   const [sent, setSent] = useState(false);
+  const [absenceCahierId, setAbsenceCahierId] = useState("");
+  const [noteId, setNoteId] = useState("");
+  const [attestationType, setAttestationType] = useState<"scolarite" | "inscription">("scolarite");
+  const [pieceJointe, setPieceJointe] = useState<StudentRequestRecord["pieceJointe"]>();
+  const [erreurPiece, setErreurPiece] = useState("");
+
+  // Ce que la demande vise réellement : une absence non justifiée, une note publiée.
+  const cahiers = useCahiers();
+  const notes = useNotes();
+  const absencesNonJustifiees = useMemo(
+    () => (currentUser?.linkedId ? getAssiduiteRowsPourEtudiant(currentUser.linkedId).filter((r) => !r.justifie) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentUser?.linkedId, cahiers],
+  );
+  const notesPubliees = useMemo(
+    () => notes.filter((n) => n.etudiantId === currentUser?.linkedId && n.statut === "publie"),
+    [notes, currentUser?.linkedId],
+  );
+  const libelleAbsence = (r: (typeof absencesNonJustifiees)[number]) =>
+    `${r.type === "retard" ? "Retard" : "Absence"} du ${formatDate(r.date)} ${r.heureDebut}–${r.heureFin} — ${r.ec}`;
+  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${n.type} : ${n.note.toFixed(2)}/20`;
 
   const total = myRequests.length;
   const enAttente = myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours").length;
@@ -132,19 +156,60 @@ export default function StudentRequestsPage() {
 
   const detail = myRequests.find((r) => r.id === detailId) ?? null;
 
-  const openNewRequest = (t: ReqType) => {
+  const openNewRequest = (t: ReqType, cible?: { absence?: string; note?: string }) => {
     setType(t);
     setSubject("");
     setMessage("");
     setDateFinSouhaitee("");
+    setAbsenceCahierId(cible?.absence ?? "");
+    setNoteId(cible?.note ?? "");
+    setAttestationType("scolarite");
+    setPieceJointe(undefined);
+    setErreurPiece("");
     setShowNewRequest(true);
   };
 
+  // Ouverture directe depuis « Absences » (Demander une justification) ou « Notes » (Réclamer).
+  const search = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const t = params.get("type") as ReqType | null;
+    if (t && REQUEST_TYPES.some((x) => x.value === t)) openNewRequest(t, { absence: params.get("absence") ?? undefined, note: params.get("note") ?? undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  // Objet proposé à partir de l'absence ou de la note choisie (modifiable).
+  useEffect(() => {
+    if (type === "justificatif_absence") {
+      const r = absencesNonJustifiees.find((x) => x.cahierId === absenceCahierId);
+      if (r) setSubject(`Justificatif — ${libelleAbsence(r)}`);
+    } else if (type === "reclamation_note") {
+      const n = notesPubliees.find((x) => x.id === noteId);
+      if (n) setSubject(`Réclamation — ${libelleNote(n)}`);
+    } else if (type === "attestation") {
+      setSubject(attestationType === "inscription" ? "Attestation d'inscription" : "Certificat de scolarité");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, absenceCahierId, noteId, attestationType, showNewRequest]);
+
+  const choisirPiece = (file: File | undefined) => {
+    setErreurPiece("");
+    if (!file) { setPieceJointe(undefined); return; }
+    if (file.size > TAILLE_MAX_PIECE_DEMANDE) { setErreurPiece("Fichier trop lourd (1,5 Mo maximum) — photographiez ou scannez en qualité réduite."); return; }
+    const reader = new FileReader();
+    reader.onload = () => setPieceJointe({ nom: file.name, type: file.type, dataUrl: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
   const estRallonge = type === "demande_rallonge";
+  const cibleManquante = (type === "justificatif_absence" && !absenceCahierId) || (type === "reclamation_note" && !noteId);
 
   const handleSubmit = () => {
     if (!currentUser?.linkedId || !subject.trim() || !message.trim()) return;
     if (estRallonge && !dateFinSouhaitee) return;
+    if (cibleManquante) return;
+    const absence = absencesNonJustifiees.find((x) => x.cahierId === absenceCahierId);
+    const note = notesPubliees.find((x) => x.id === noteId);
     addStudentRequest({
       studentId: currentUser.linkedId,
       type,
@@ -152,6 +217,12 @@ export default function StudentRequestsPage() {
       message: message.trim(),
       porteeRallonge: estRallonge ? porteeRallonge : undefined,
       dateFinSouhaitee: estRallonge ? dateFinSouhaitee : undefined,
+      absenceCahierId: type === "justificatif_absence" ? absence?.cahierId : undefined,
+      absenceLibelle: type === "justificatif_absence" && absence ? libelleAbsence(absence) : undefined,
+      noteId: type === "reclamation_note" ? note?.id : undefined,
+      noteLibelle: type === "reclamation_note" && note ? libelleNote(note) : undefined,
+      attestationType: type === "attestation" ? attestationType : undefined,
+      pieceJointe: type !== "attestation" && type !== "demande_rallonge" ? pieceJointe : undefined,
     });
     setShowNewRequest(false);
     setSent(true);
@@ -384,6 +455,41 @@ export default function StudentRequestsPage() {
               {REQUEST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
+          {type === "attestation" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Document souhaité</label>
+              <select value={attestationType} onChange={(e) => setAttestationType(e.target.value as "scolarite" | "inscription")} className={inputClass} data-testid="requete-attestation-type">
+                <option value="scolarite">Certificat de scolarité</option>
+                <option value="inscription">Attestation d&apos;inscription</option>
+              </select>
+            </div>
+          )}
+          {type === "justificatif_absence" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Absence à justifier *</label>
+              {absencesNonJustifiees.length === 0 ? (
+                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">Aucune absence non justifiée à votre dossier.</p>
+              ) : (
+                <select value={absenceCahierId} onChange={(e) => setAbsenceCahierId(e.target.value)} className={inputClass} data-testid="requete-absence">
+                  <option value="">Choisir l&apos;absence…</option>
+                  {absencesNonJustifiees.map((r) => <option key={r.id} value={r.cahierId}>{libelleAbsence(r)}</option>)}
+                </select>
+              )}
+            </div>
+          )}
+          {type === "reclamation_note" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note contestée *</label>
+              {notesPubliees.length === 0 ? (
+                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">Aucune note publiée à votre dossier.</p>
+              ) : (
+                <select value={noteId} onChange={(e) => setNoteId(e.target.value)} className={inputClass} data-testid="requete-note">
+                  <option value="">Choisir la note…</option>
+                  {notesPubliees.map((n) => <option key={n.id} value={n.id}>{libelleNote(n)}</option>)}
+                </select>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
             <input
@@ -404,6 +510,19 @@ export default function StudentRequestsPage() {
               data-testid="requete-message"
             />
           </div>
+          {type !== "attestation" && !estRallonge && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Pièce jointe {type === "justificatif_absence" ? "(certificat médical, convocation…)" : "(facultative)"}
+              </label>
+              <label className="flex items-center gap-2 px-3 py-2.5 text-sm border border-dashed border-border rounded-xl cursor-pointer hover:bg-muted">
+                <Paperclip size={14} className="text-muted-foreground" />
+                <span className="truncate">{pieceJointe ? pieceJointe.nom : "Joindre un PDF ou une photo (1,5 Mo max.)"}</span>
+                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => choisirPiece(e.target.files?.[0])} data-testid="requete-piece" />
+              </label>
+              {erreurPiece && <p className="text-xs text-red-600 mt-1">{erreurPiece}</p>}
+            </div>
+          )}
           {estRallonge && (
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
@@ -420,7 +539,7 @@ export default function StudentRequestsPage() {
           )}
           <button
             onClick={handleSubmit}
-            disabled={!subject.trim() || !message.trim() || (estRallonge && !dateFinSouhaitee)}
+            disabled={!subject.trim() || !message.trim() || (estRallonge && !dateFinSouhaitee) || cibleManquante}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
             data-testid="requete-envoyer"
           >
@@ -445,7 +564,20 @@ export default function StudentRequestsPage() {
                   {PORTEE_LABELS[detail.porteeRallonge]} · jusqu'au {formatDate(detail.dateFinSouhaitee)}
                 </p>
               )}
+              {(detail.absenceLibelle || detail.noteLibelle) && (
+                <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">Concerne : {detail.absenceLibelle ?? detail.noteLibelle}</p>
+              )}
+              {detail.pieceJointe && (
+                <a href={detail.pieceJointe.dataUrl} download={detail.pieceJointe.nom} className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline mt-2">
+                  <Paperclip size={12} /> {detail.pieceJointe.nom}
+                </a>
+              )}
             </div>
+            {detail.attestationNumero && (
+              <Link href="/student/documents" className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-900 p-3 text-sm text-emerald-700 dark:text-emerald-300 hover:underline">
+                <FileText size={14} /> Document {detail.attestationNumero} disponible dans « Mes documents »
+              </Link>
+            )}
             {detail.resolution && (
               <div className="rounded-xl border border-border p-4">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Réponse du secrétariat</p>

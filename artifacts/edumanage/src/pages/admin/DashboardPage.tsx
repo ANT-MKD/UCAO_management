@@ -347,6 +347,11 @@ export default function DashboardPage() {
                 <Bell size={16} className="text-amber-600" />
               </div>
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Alertes intelligentes</h3>
+              {adminAlerts.length > 0 && (
+                <button onClick={() => setLocation("/admin/a-traiter")} className="ml-auto text-xs font-semibold text-primary hover:underline" data-testid="dashboard-voir-a-traiter">
+                  Tout voir ({adminAlerts.length})
+                </button>
+              )}
             </div>
             <div className="p-3 space-y-2">
               {alertesAffichees.length === 0 && (

@@ -7,6 +7,7 @@ export interface SeanceSlot {
   classeId: string;
   salleId: string;
   prof: string;
+  profId?: string;
   classe?: string;
   salle?: string;
   ec?: string;
@@ -62,7 +63,10 @@ export function detectScheduleConflicts(
         label: `Salle occupée : ${s.ec ?? s.classe ?? s.salleId} (${s.heureDebut}–${s.heureFin})`,
       });
     }
-    if (s.prof === candidate.prof) {
+    // Même enseignant : par identifiant quand les deux séances l'ont (deux homonymes ne se
+    // bloquent pas l'un l'autre), sinon par nom complet comme avant.
+    const memeProf = s.profId && candidate.profId ? s.profId === candidate.profId : s.prof === candidate.prof;
+    if (memeProf) {
       conflicts.push({
         type: "prof",
         seanceId: s.id,

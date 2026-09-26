@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ClipboardList, Check, X, Clock, Search } from "lucide-react";
+import { ClipboardList, Check, X, Clock, Search, Paperclip, FileText, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
@@ -7,9 +8,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getEtudiantById,
   updateStudentRequestStatus,
+  rattacherAttestationDemande,
   type StudentRequestRecord,
 } from "@/data/studentStore";
-import { useStudentRequests } from "@/hooks/useStudentStore";
+import { useStudentRequests, useNotes } from "@/hooks/useStudentStore";
+import { genererAttestation, TYPE_LABELS as ATTESTATION_LABELS } from "@/data/attestationStore";
 import { PORTEE_LABELS } from "@/data/derogationPaiementStore";
 import { estAutorise } from "@/data/communicationRolesStore";
 import { useCommunicationRoles } from "@/hooks/useCommunicationRolesStore";
@@ -48,6 +51,8 @@ export default function RequestsPage() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolution, setResolution] = useState("");
+  const [typeAttestation, setTypeAttestation] = useState<"scolarite" | "inscription">("scolarite");
+  const notes = useNotes();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -78,12 +83,46 @@ export default function RequestsPage() {
       updateStudentRequestStatus(selected.id, status, currentUser.id, resolution.trim() || undefined);
       if (status === "valide" && selected.type === "demande_rallonge") {
         toast.success("Demande validée — dérogation de paiement créée dans Finance.");
+      } else if (status === "valide" && selected.type === "justificatif_absence" && selected.absenceCahierId) {
+        toast.success("Demande validée — l'absence est désormais justifiée.");
       }
       if (status === "valide" || status === "rejete") setResolution("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action impossible");
     }
   };
+
+  /** Demande d'attestation : le document est réellement généré (numéroté, visible dans « Mes
+   * documents » de l'étudiant) et la demande est validée avec sa référence. */
+  const genererEtValider = () => {
+    if (!selected || !currentUser) return;
+    const etu = getEtudiantById(selected.studentId);
+    if (!etu) { toast.error("Étudiant introuvable"); return; }
+    const type = selected.attestationType ?? typeAttestation;
+    try {
+      const att = genererAttestation({
+        etudiantId: etu.id,
+        etudiant: `${etu.prenom} ${etu.nom}`,
+        matricule: etu.matricule,
+        classeId: etu.classeId,
+        classe: etu.classe,
+        filiereId: etu.filiereId,
+        filiere: etu.filiere,
+        annee: etu.annee,
+        soldeDu: etu.soldeDu,
+        type,
+        effectuePar: currentUser.name ?? "Administration",
+      });
+      rattacherAttestationDemande(selected.id, att.id, att.numero);
+      updateStudentRequestStatus(selected.id, "valide", currentUser.id, resolution.trim() || `${att.typeLabel} n° ${att.numero} disponible dans « Mes documents ».`);
+      setResolution("");
+      toast.success(`${att.typeLabel} ${att.numero} générée — demande validée`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Génération impossible");
+    }
+  };
+
+  const noteReclamee = selected?.noteId ? notes.find((n) => n.id === selected.noteId) : undefined;
 
   const peutValiderRallonge = !currentUser || !selected || selected.type !== "demande_rallonge" || estAutorise("validateur_rallonge", currentUser.id);
 
@@ -220,7 +259,61 @@ export default function RequestsPage() {
                           Portée souhaitée : <span className="font-medium text-foreground">{PORTEE_LABELS[selected.porteeRallonge]}</span> · Jusqu'au <span className="font-medium text-foreground">{formatDate(selected.dateFinSouhaitee)}</span>
                         </p>
                       )}
+                      {selected.pieceJointe && (
+                        <a href={selected.pieceJointe.dataUrl} download={selected.pieceJointe.nom} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline mt-2 pt-2 border-t border-border w-full" data-testid="requete-piece-jointe">
+                          <Paperclip size={12} /> Pièce jointe : {selected.pieceJointe.nom}
+                        </a>
+                      )}
                     </div>
+
+                    {selected.type === "justificatif_absence" && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-3 mb-4 text-sm" data-testid="requete-absence-liee">
+                        {selected.absenceLibelle ? (
+                          <>
+                            <p className="font-medium text-foreground">{selected.absenceLibelle}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Valider justifie réellement cette absence (assiduité et portail de l&apos;étudiant).</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Demande sans absence désignée (ancienne demande) : à justifier dans Nouvelle assiduité.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {selected.type === "reclamation_note" && (
+                      <div className="rounded-xl border border-violet-200 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-900 p-3 mb-4 text-sm" data-testid="requete-note-liee">
+                        {selected.noteLibelle ? (
+                          <>
+                            <p className="font-medium text-foreground">{selected.noteLibelle}</p>
+                            {noteReclamee && noteReclamee.note.toFixed(2) !== selected.noteLibelle.match(/(\d+\.\d{2})\/20$/)?.[1] && (
+                              <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Note actuelle : {noteReclamee.note.toFixed(2)}/20 (modifiée depuis la réclamation)</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Demande sans note désignée (ancienne demande).</p>
+                        )}
+                        <Link href={`/admin/notes/etudiant?etudiant=${selected.studentId}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1.5" data-testid="requete-ouvrir-notes">
+                          <ExternalLink size={12} /> Ouvrir les notes de l&apos;étudiant
+                        </Link>
+                      </div>
+                    )}
+
+                    {selected.type === "attestation" && (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-900 p-3 mb-4 text-sm">
+                        {selected.attestationNumero ? (
+                          <p className="flex items-center gap-1.5 text-foreground"><FileText size={14} /> Document {selected.attestationNumero} généré — visible dans « Mes documents » de l&apos;étudiant.</p>
+                        ) : selected.attestationType ? (
+                          <p className="text-foreground">Document demandé : <strong>{ATTESTATION_LABELS[selected.attestationType]}</strong></p>
+                        ) : (
+                          <label className="flex flex-wrap items-center gap-2 text-foreground">
+                            Document à produire :
+                            <select value={typeAttestation} onChange={(e) => setTypeAttestation(e.target.value as "scolarite" | "inscription")} className="px-2 py-1 text-sm border border-border rounded-lg bg-background">
+                              <option value="scolarite">{ATTESTATION_LABELS.scolarite}</option>
+                              <option value="inscription">{ATTESTATION_LABELS.inscription}</option>
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                    )}
 
                     {selected.type === "demande_rallonge" && !peutValiderRallonge && (
                       <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 rounded-lg px-3 py-2 mb-4">
@@ -253,14 +346,24 @@ export default function RequestsPage() {
                           >
                             <Clock size={14} /> Prendre en charge
                           </button>
-                          <button
-                            onClick={() => handleStatus("valide")}
-                            disabled={!peutValiderRallonge}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                            data-testid="requete-valider"
-                          >
-                            <Check size={14} /> Valider
-                          </button>
+                          {selected.type === "attestation" && !selected.attestationNumero ? (
+                            <button
+                              onClick={genererEtValider}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+                              data-testid="requete-generer-attestation"
+                            >
+                              <FileText size={14} /> Générer l&apos;attestation et valider
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleStatus("valide")}
+                              disabled={!peutValiderRallonge || selected.status === "valide"}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                              data-testid="requete-valider"
+                            >
+                              <Check size={14} /> {selected.type === "justificatif_absence" && selected.absenceCahierId ? "Valider et justifier l'absence" : "Valider"}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleStatus("rejete")}
                             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 text-white text-sm hover:bg-red-700"

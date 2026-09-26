@@ -48,8 +48,8 @@ export default function CahiersAdminPage() {
 
   function act(id: string, approve: boolean) {
     if (!currentUser) return;
-    validateCahier(id, currentUser.id, approve);
-    toast.success(approve ? "Cahier validé — prêt pour vacations" : "Cahier rejeté");
+    const pointage = validateCahier(id, currentUser.id, approve);
+    toast.success(approve ? `Cahier validé${pointage ? ` — pointage de ${pointage.volumePointe} h en attente de confirmation` : ""}` : "Cahier rejeté");
   }
 
   return (
