@@ -1,5 +1,6 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
+import { getFilieres, subscribeFilieres } from "./filiereStore";
 import { getMethodesCalculActivesParNiveau } from "./bulletinMethodesStore";
 
 const STORAGE_KEY = "edumanage-scolarite-config-v1";
@@ -116,24 +117,21 @@ export interface ValeursParDefaut {
 
 const DEFAUT: ValeursParDefaut = { noteBareme: 20, cumulCredit: true, moyennePassage: 10, moyenneEliminatoire: 0 };
 
-const OVERRIDES: Record<string, Partial<ScolariteConfigRecord>> = {
-  f1: { moyenneEliminatoire: 8 },
-  f4: { cumulCredit: false },
-  f5: { moyenneEliminatoire: 8 },
-};
-
-function seedConfigs(): ScolariteConfigRecord[] {
-  return FILIERES.map((f) => ({
+function configPour(f: { id: string; nom: string }, valeurs: ValeursParDefaut = DEFAUT): ScolariteConfigRecord {
+  return {
     id: `scol-cfg-${f.id}`,
     filiereId: f.id,
     filiere: f.nom,
-    noteBareme: DEFAUT.noteBareme,
-    cumulCredit: DEFAUT.cumulCredit,
-    moyennePassage: DEFAUT.moyennePassage,
-    moyenneEliminatoire: DEFAUT.moyenneEliminatoire,
+    noteBareme: valeurs.noteBareme,
+    cumulCredit: valeurs.cumulCredit,
+    moyennePassage: valeurs.moyennePassage,
+    moyenneEliminatoire: valeurs.moyenneEliminatoire,
     calculGrade: false,
-    ...OVERRIDES[f.id],
-  }));
+  };
+}
+
+function seedConfigs(): ScolariteConfigRecord[] {
+  return FILIERES.map((f) => configPour(f));
 }
 
 interface Persisted {
@@ -160,6 +158,15 @@ function load(): Persisted {
 
 let store: Persisted = load();
 
+/** Toute filière créée après l'installation reçoit aussitôt sa configuration (valeurs par défaut
+ * de l'établissement) — sans attendre un rechargement de la page. */
+function completerFilieres() {
+  const manquantes = getFilieres().filter((f) => !store.configs.some((c) => c.filiereId === f.id));
+  if (manquantes.length === 0) return;
+  store.configs = [...store.configs, ...manquantes.map((f) => configPour(f, store.valeursParDefaut ?? DEFAUT))];
+  persist();
+}
+
 function persist() {
   store = { ...store, configs: store.configs.slice() };
   if (typeof window !== "undefined") {
@@ -167,6 +174,9 @@ function persist() {
   }
   notify();
 }
+
+completerFilieres();
+subscribeFilieres(completerFilieres);
 
 export function subscribeScolariteConfigs(fn: () => void) {
   listeners.add(fn);

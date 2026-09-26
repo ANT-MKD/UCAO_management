@@ -113,3 +113,28 @@ describe("règles de calcul configurables", () => {
     expect(Sc.updateReglesCalcul(config.id, { ...Sc.REGLES_CALCUL_DEFAUT, poidsDevoirDefaut: 140 }, "Test").ok).toBe(false);
   });
 });
+
+describe("filière créée après l'installation", () => {
+  it("reçoit aussitôt sa configuration et ses trois règles de validation", async () => {
+    const e = await preparerEtablissement();
+    const Sc = await import("@/data/scolariteConfigStore");
+    const Rv = await import("@/data/reglesValidationStore");
+    const F = await import("@/data/filiereStore");
+    const f = F.addFiliere({ code: "NEUVE", nom: "Filière neuve", responsable: "", nbClasses: 0, nbEtudiants: 0, statut: "actif" });
+    expect(Sc.getConfigForFiliere(f.id)).toBeDefined();
+    expect(Rv.getReglesValidation().filter((r) => r.filiereId === f.id)).toHaveLength(3);
+    expect(e.admin).toBeDefined();
+  });
+
+  it("la moyenne de passage changée dans Paramétrage scolarité s'applique au jury", async () => {
+    const e = await preparerEtablissement();
+    const Sc = await import("@/data/scolariteConfigStore");
+    const Rv = await import("@/data/reglesValidationStore");
+    const config = Sc.getConfigForFiliere(e.classe.filiereId)!;
+    Sc.updateScolariteConfig(config.id, { noteBareme: 20, cumulCredit: true, moyennePassage: 12, moyenneEliminatoire: 6 }, "Test");
+    const regle = Rv.getRegleValidation(e.classe.filiereId, "semestre")!;
+    expect(regle.moyennePassage).toBe(12);
+    expect(regle.moyenneEliminatoire).toBe(6);
+    expect(Rv.decideValidation(11, 30, 0, regle)).toBe("rattrapage");
+  });
+});

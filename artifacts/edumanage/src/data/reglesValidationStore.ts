@@ -1,7 +1,6 @@
-import { reglesDeCalcul } from "./scolariteConfigStore";
+import { reglesDeCalcul, getScolariteConfigs, subscribeScolariteConfigs } from "./scolariteConfigStore";
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
-import { getScolariteConfigs } from "./scolariteConfigStore";
 
 const STORAGE_KEY = "edumanage-regles-validation-store-v1";
 
@@ -23,14 +22,12 @@ export interface RegleValidationRecord {
   modifieLe?: string;
 }
 
-function seed(): RegleValidationRecord[] {
-  const configs = getScolariteConfigs();
+function reglesPour(f: { id: string; nom: string }): RegleValidationRecord[] {
+  const config = getScolariteConfigs().find((c) => c.filiereId === f.id);
   const types: TypeRegleValidation[] = ["semestre", "annee", "programme"];
-  return FILIERES.flatMap((f) => {
-    const config = configs.find((c) => c.filiereId === f.id);
-    // Le type "semestre" reprend exactement le comportement historique des Délibérations
-    // (validation par moyenne uniquement) pour ne rien changer tant que rien n'est reconfiguré.
-    return types.map((type): RegleValidationRecord => ({
+  // Le type "semestre" reprend exactement le comportement historique des Délibérations
+  // (validation par moyenne uniquement) pour ne rien changer tant que rien n'est reconfiguré.
+  return types.map((type): RegleValidationRecord => ({
       id: `regle-val-${f.id}-${type}`,
       filiereId: f.id,
       filiere: f.nom,
@@ -41,7 +38,10 @@ function seed(): RegleValidationRecord[] {
       moyennePassage: config?.moyennePassage ?? 10,
       moyenneEliminatoire: config?.moyenneEliminatoire ?? 0,
     }));
-  });
+}
+
+function seed(): RegleValidationRecord[] {
+  return FILIERES.flatMap(reglesPour);
 }
 
 const listeners = new Set<() => void>();
@@ -63,6 +63,33 @@ function load(): RegleValidationRecord[] {
 
 let store: RegleValidationRecord[] = load();
 
+/** Suit Paramétrage scolarité : une filière nouvellement configurée reçoit ses trois règles, et un
+ * changement de moyenne de passage / éliminatoire y est répercuté sur les règles qui avaient encore
+ * l'ancienne valeur (une règle réglée à part dans Paramétrage bulletins reste telle quelle). */
+const derniersSeuils = new Map(getScolariteConfigs().map((c) => [c.filiereId, { passage: c.moyennePassage, eliminatoire: c.moyenneEliminatoire }]));
+function suivreConfigsScolarite() {
+  let change = false;
+  for (const c of getScolariteConfigs()) {
+    if (!store.some((r) => r.filiereId === c.filiereId)) {
+      store = [...store, ...reglesPour({ id: c.filiereId, nom: c.filiere })];
+      change = true;
+    }
+    const avant = derniersSeuils.get(c.filiereId);
+    if (avant && (avant.passage !== c.moyennePassage || avant.eliminatoire !== c.moyenneEliminatoire)) {
+      store = store.map((r) => {
+        if (r.filiereId !== c.filiereId) return r;
+        const maj = { ...r };
+        if (r.moyennePassage === avant.passage) maj.moyennePassage = c.moyennePassage;
+        if (r.moyenneEliminatoire === avant.eliminatoire) maj.moyenneEliminatoire = c.moyenneEliminatoire;
+        return maj;
+      });
+      change = true;
+    }
+    derniersSeuils.set(c.filiereId, { passage: c.moyennePassage, eliminatoire: c.moyenneEliminatoire });
+  }
+  if (change) persist();
+}
+
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
@@ -70,6 +97,9 @@ function persist() {
   }
   notify();
 }
+
+suivreConfigsScolarite();
+subscribeScolariteConfigs(suivreConfigsScolarite);
 
 export function subscribeReglesValidation(fn: () => void) {
   listeners.add(fn);
