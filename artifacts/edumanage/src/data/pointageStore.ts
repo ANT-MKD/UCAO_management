@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-pointages-v1";
 
 export type PointageStatut = "brouillon" | "soumis" | "valide" | "rejete";
@@ -47,7 +48,7 @@ function persist() {
   // Object.is et ne re-rend pas si getPointages() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

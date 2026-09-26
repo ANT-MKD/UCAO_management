@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -51,13 +52,9 @@ export default function TeacherFormPage({ id }: Props) {
 
   const handlePhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PHOTO_OCTETS, usagePhoto: "portrait" })
+      .then((dataUrl) => setPhotoDataUrl(dataUrl))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   useEffect(() => {

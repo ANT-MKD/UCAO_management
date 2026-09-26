@@ -6,7 +6,7 @@ import { useOrganismesPEC } from "@/hooks/useOrganismePECStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { statutPEC, montantPEC } from "@/pages/admin/PriseEnChargePage";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
-import { formatCFA, cn } from "@/lib/utils";
+import { formatCFA, cn, formatShortDate } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
   Active: "bg-emerald-50 text-emerald-700",
@@ -149,7 +149,7 @@ export default function OrganismePECDetailPage({ id }: { id: string }) {
                     <div>
                       <p className="text-xs text-muted-foreground">
                         Réf : <span className="font-medium text-foreground">{r.reference}</span> | Période du <strong>{r.debut}</strong> au{" "}
-                        <strong>{r.fin}</strong> | Date limite : <strong>{r.dateLimite}</strong>
+                        <strong>{r.fin}</strong> | Date limite : <strong>{r.dateLimite ? formatShortDate(r.dateLimite) : "—"}</strong>
                       </p>
                       <p className="text-xs text-muted-foreground">{r.filiere} / {r.annee}</p>
                       <p className="font-semibold text-sm mt-0.5">{r.etudiant}</p>

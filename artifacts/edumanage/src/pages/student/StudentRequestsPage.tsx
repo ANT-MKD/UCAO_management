@@ -1,3 +1,4 @@
+import { ecrireStockage, lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
 import {
@@ -90,7 +91,7 @@ export default function StudentRequestsPage() {
    * (StudentLayout.tsx), jamais une donnée métier persistée dans studentStore. */
   useEffect(() => {
     if (!currentUser) return;
-    localStorage.setItem(requestsLastSeenKey(currentUser.id), new Date().toISOString());
+    ecrireStockage(requestsLastSeenKey(currentUser.id), new Date().toISOString());
   }, [currentUser, myRequests]);
 
   const [tab, setTab] = useState<"toutes" | "attente" | "validees" | "refusees" | "annulees">("toutes");
@@ -195,10 +196,10 @@ export default function StudentRequestsPage() {
   const choisirPiece = (file: File | undefined) => {
     setErreurPiece("");
     if (!file) { setPieceJointe(undefined); return; }
-    if (file.size > TAILLE_MAX_PIECE_DEMANDE) { setErreurPiece("Fichier trop lourd (1,5 Mo maximum) — photographiez ou scannez en qualité réduite."); return; }
-    const reader = new FileReader();
-    reader.onload = () => setPieceJointe({ nom: file.name, type: file.type, dataUrl: String(reader.result) });
-    reader.readAsDataURL(file);
+    // Les photos sont recompressées ; un PDF est limité à TAILLE_MAX_PIECE_DEMANDE.
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PIECE_DEMANDE, usagePhoto: "document" })
+      .then((dataUrl) => setPieceJointe({ nom: file.name, type: dataUrl.startsWith("data:image/jpeg") ? "image/jpeg" : file.type, dataUrl }))
+      .catch((err) => { setPieceJointe(undefined); setErreurPiece(err instanceof Error ? err.message : "Fichier illisible."); });
   };
 
   const estRallonge = type === "demande_rallonge";
@@ -517,7 +518,7 @@ export default function StudentRequestsPage() {
               </label>
               <label className="flex items-center gap-2 px-3 py-2.5 text-sm border border-dashed border-border rounded-xl cursor-pointer hover:bg-muted">
                 <Paperclip size={14} className="text-muted-foreground" />
-                <span className="truncate">{pieceJointe ? pieceJointe.nom : "Joindre un PDF ou une photo (1,5 Mo max.)"}</span>
+                <span className="truncate">{pieceJointe ? pieceJointe.nom : "Joindre un PDF (800 Ko max.) ou une photo"}</span>
                 <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => choisirPiece(e.target.files?.[0])} data-testid="requete-piece" />
               </label>
               {erreurPiece && <p className="text-xs text-red-600 mt-1">{erreurPiece}</p>}

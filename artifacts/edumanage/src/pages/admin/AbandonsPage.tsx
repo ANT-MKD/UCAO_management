@@ -84,7 +84,7 @@ export default function AbandonsPage() {
         title="Les abandons"
         subtitle="Étudiants ayant abandonné leur formation, avec leur situation financière au moment de l'abandon"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors" data-testid="abandons-export">
               <Download size={14} /> Export excel
             </button>

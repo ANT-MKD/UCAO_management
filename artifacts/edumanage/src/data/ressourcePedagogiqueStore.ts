@@ -1,4 +1,5 @@
-import { logAudit } from "./studentStore";
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { getEtudiants, getUserAccounts, logAudit, pushNotificationEtPersister } from "./studentStore";
 
 export const TAILLE_MAX_RESSOURCE_OCTETS = 800 * 1024;
 
@@ -50,7 +51,7 @@ function persist() {
   store = store.slice();
   parClasseCache = new Map();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -83,6 +84,11 @@ export function addRessourcePedagogique(payload: RessourcePedagogiqueInput, acto
   store.unshift(record);
   logAudit(actorId, "add_ressource_pedagogique", "classe", payload.classeId, payload.titre);
   persist();
+  // Les étudiants de la classe sont prévenus du nouveau support.
+  const etudiants = new Set(getEtudiants().filter((e) => e.classeId === payload.classeId && e.statut !== "abandon").map((e) => e.id));
+  for (const compte of getUserAccounts().filter((u) => u.role === "student" && u.linkedId && etudiants.has(u.linkedId))) {
+    pushNotificationEtPersister(compte.id, `Nouvelle ressource pédagogique${payload.ec ? ` en ${payload.ec}` : ""} : « ${payload.titre} ».`);
+  }
   return record;
 }
 

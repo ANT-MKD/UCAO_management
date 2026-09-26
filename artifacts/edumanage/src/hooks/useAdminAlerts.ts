@@ -7,6 +7,7 @@ import { useRallonges } from "@/hooks/useRallongeStore";
 import { useRoles } from "@/hooks/useRoleStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
+import { pourcentageStockage } from "@/lib/stockageLocal";
 
 export interface AdminAlert {
   id: string;
@@ -61,6 +62,12 @@ export function useAdminAlerts(): AdminAlert[] {
 
   const alerts: AdminAlert[] = [];
   const push = (a: AdminAlert) => { if (a.count > 0) alerts.push(a); };
+
+  const stockage = pourcentageStockage();
+  if (stockage >= 80) {
+    alerts.push({ id: "stockage", type: stockage >= 90 ? "danger" : "warning", count: stockage, domaine: "Sécurité", action: "Voir l'espace",
+      message: `Stockage du navigateur utilisé à ${stockage} % — au-delà de 100 %, plus rien ne s'enregistre`, temps: "Maintenant", href: "/admin/security/reinitialisation-donnees" });
+  }
 
   push({ id: "reinit-mdp", type: "danger", count: reinitEnAttente.length, domaine: "Sécurité", action: "Remettre un code",
     message: `${reinitEnAttente.length} demande(s) « mot de passe oublié » à traiter`, temps: depuis(reinitEnAttente.map((d) => d.createdAt)), href: "/admin/security/pin-activation" });

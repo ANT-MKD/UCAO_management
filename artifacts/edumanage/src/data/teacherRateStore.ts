@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-rates-v1";
 
 export type ModePaiementProf = "" | "taux_horaire" | "forfait";
@@ -34,7 +35,7 @@ let store: TeacherCourseRateRecord[] = load();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

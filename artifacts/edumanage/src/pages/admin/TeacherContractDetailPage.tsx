@@ -84,7 +84,7 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
         ]}
         title={`Contrat ${contract.id}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => printContract(contract, teacher, printRows, statut)}

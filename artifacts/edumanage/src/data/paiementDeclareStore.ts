@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getPaiements, getEtudiants, getUserAccounts, payerQuittance, pushNotificationEtPersister, logAudit, type PaiementRecord } from "./studentStore";
 import { enregistrerEncaissement } from "./encaissementStore";
 
@@ -47,7 +48,7 @@ function load(): PaiementDeclareRecord[] {
 
 function persist() {
   store = store.slice();
-  if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  if (typeof window !== "undefined") ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   listeners.forEach((fn) => fn());
 }
 

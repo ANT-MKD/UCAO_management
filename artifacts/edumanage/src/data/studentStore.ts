@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
@@ -291,7 +292,7 @@ export interface StudentRequestRecord {
 }
 
 /** Taille maximale d'une pièce jointe de demande : les données restent dans le navigateur. */
-export const TAILLE_MAX_PIECE_DEMANDE = 1_500_000;
+export const TAILLE_MAX_PIECE_DEMANDE = 800 * 1024;
 
 export interface MessageRecord {
   id: string;
@@ -542,7 +543,7 @@ function loadStore(): StoreData {
 function writeStoreToLocalStorage(data: StoreData): boolean {
   if (typeof window === "undefined") return false;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!ecrireStockage(STORAGE_KEY, JSON.stringify(data))) return false;
     localStorage.removeItem(LEGACY_STORAGE_KEY);
     return true;
   } catch (err) {
@@ -671,7 +672,7 @@ export interface AuthSessionSnapshot {
 export function saveAuthSession(user: AuthSessionSnapshot) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    ecrireStockage(AUTH_STORAGE_KEY, JSON.stringify(user));
   } catch (err) {
     console.error("[EduManage] Impossible de sauvegarder la session:", err);
   }
@@ -1668,7 +1669,7 @@ export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord |
     if (ins) ins.soldeDu = etudiant.soldeDu;
     const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
     if (studentUser) {
-      pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} (${nouveauMontantPaye} FCFA au total)`);
+      pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} : ${nouveauMontantPaye.toLocaleString("fr-FR")} F CFA réglés à ce jour sur cette facture`);
     }
   }
 
@@ -2766,13 +2767,13 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
 
   if (!payload.asDraft) {
     const admin = store.users.find((u) => u.role === "admin");
-    if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date})`);
+    if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date.split("-").reverse().join("/")})`);
 
     const notifAbsence = getNotificationEvenementielleParCode("NOTIFICATION_ABSENCE");
     if (notifAbsence?.actif && notifAbsence.envoyerEtudiant) {
       for (const etudiantId of absents) {
         const studentUser = store.users.find((u) => u.linkedId === etudiantId && u.role === "student");
-        if (studentUser) pushNotification(studentUser.id, `Absence constatée en ${base.ec} le ${base.date}`);
+        if (studentUser) pushNotification(studentUser.id, `Absence constatée en ${base.ec} le ${base.date.split("-").reverse().join("/")}`);
       }
     }
   }

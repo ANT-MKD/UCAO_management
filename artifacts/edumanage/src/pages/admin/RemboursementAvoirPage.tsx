@@ -100,7 +100,7 @@ export default function RemboursementAvoirPage() {
         title="Les remboursements"
         subtitle={`${remboursements.length} remboursement(s) enregistré(s)`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setAdvancedOpen((v) => !v)}
               className={cn(

@@ -125,7 +125,7 @@ export default function DecompteDetailPage({ id }: { id: string }) {
         ]}
         title={`Décompte ${record.reference}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setLocation("/admin/decomptes")}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"

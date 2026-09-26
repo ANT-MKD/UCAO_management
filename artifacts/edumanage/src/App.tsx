@@ -1,9 +1,11 @@
+import { getEtudiantById } from "@/data/studentStore";
 import { Suspense, lazy } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
+import { AlerteStockage } from "@/components/AlerteStockage";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -343,6 +345,16 @@ function Student({ children }: { children: React.ReactNode }) {
   if (!currentUser) return <Redirect to="/login" />;
   if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   if (currentUser.role !== "student") return <Redirect to={homeForRole(currentUser.role)} />;
+  // Compte étudiant qui ne correspond à aucune fiche : on n'affiche rien plutôt que de risquer les
+  // données d'un autre étudiant (les pages du portail retombaient sur la première fiche).
+  if (!currentUser.linkedId || !getEtudiantById(currentUser.linkedId)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center gap-3 px-4 bg-background">
+        <h1 className="text-lg font-semibold text-foreground">Dossier étudiant introuvable</h1>
+        <p className="text-sm text-muted-foreground max-w-md">Ce compte n&apos;est relié à aucun dossier étudiant. Contactez l&apos;administration pour qu&apos;elle rattache votre compte à votre dossier.</p>
+      </div>
+    );
+  }
   return (
     <StudentLayout>
       <Suspense fallback={<PageLoader />}>
@@ -1081,6 +1093,7 @@ function App() {
             </WouterRouter>
             <Toaster />
             <SonnerToaster />
+            <AlerteStockage />
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>

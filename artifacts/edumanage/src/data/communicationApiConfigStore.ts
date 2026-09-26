@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-communication-api-config-v1";
 const DEFAUT = "https://api-communication.edumanage.sn/api_communication";
 
@@ -28,7 +29,7 @@ export function getCommunicationApiUrl(): string {
 export function setCommunicationApiUrl(nouvelleUrl: string): void {
   url = nouvelleUrl;
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, url);
+    ecrireStockage(STORAGE_KEY, url);
   }
   notify();
 }

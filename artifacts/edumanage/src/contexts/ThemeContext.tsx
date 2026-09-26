@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
@@ -25,7 +26,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       root.classList.remove("dark");
     }
-    localStorage.setItem("edumanage-theme", theme);
+    ecrireStockage("edumanage-theme", theme);
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));

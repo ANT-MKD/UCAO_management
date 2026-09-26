@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { computeBulletinPourClasse } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
 import { decideValidation, type RegleValidationRecord } from "./reglesValidationStore";
@@ -88,7 +89,7 @@ let store: Persisted = load();
 function persist() {
   store = { deliberations: store.deliberations.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

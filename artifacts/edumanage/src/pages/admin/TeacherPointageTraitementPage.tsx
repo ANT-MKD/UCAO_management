@@ -11,6 +11,7 @@ import {
 import { updatePointageStatut, type PointageRecord, type PointageStatut } from "@/data/pointageStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import {
@@ -18,7 +19,7 @@ import {
   teacherDisplayLabel,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 type TraitementStatut = "" | "soumis" | "valide" | "rejete";
 
@@ -166,8 +167,17 @@ export default function TeacherPointageTraitementPage() {
   const pendingCount = pointages.filter((p) => p.statut === "soumis").length;
   const hasActiveRefinement = hasAnyCriterion(applied) || quickSearch.trim() !== "";
 
+  /** Le professeur apprend sur son portail que son pointage est validé ou rejeté (avec le motif). */
+  const notifierProfesseur = (id: string, message: (p: PointageRecord, date: string) => string) => {
+    const p = pointages.find((x) => x.id === id);
+    if (!p) return;
+    const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === p.teacherId);
+    if (compte) pushNotificationEtPersister(compte.id, message(p, p.date.slice(0, 10).split("-").reverse().join("/")));
+  };
+
   const handleValidate = (id: string) => {
     updatePointageStatut(id, "valide");
+    notifierProfesseur(id, (p, date) => `Pointage du ${date} (${p.heureDebut}–${p.heureFin}, ${p.volumePointe} h) validé.`);
     toast.success("Pointage validé");
   };
 
@@ -178,6 +188,7 @@ export default function TeacherPointageTraitementPage() {
       return;
     }
     updatePointageStatut(rejectId, "rejete", motifRejet.trim());
+    notifierProfesseur(rejectId, (p, date) => `Pointage du ${date} (${p.heureDebut}–${p.heureFin}) rejeté : ${motifRejet.trim()}.`);
     toast.success("Pointage rejeté");
     setRejectId(null);
     setMotifRejet("");
@@ -285,7 +296,7 @@ export default function TeacherPointageTraitementPage() {
                 const salle = salles.find((s) => s.id === p.salleId);
                 return (
                   <tr key={p.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap">{p.date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatShortDate(p.date)}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">
                         {teacher ? `${teacher.prenom} ${teacher.nom}` : p.teacherId}

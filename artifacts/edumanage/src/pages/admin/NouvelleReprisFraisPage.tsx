@@ -82,17 +82,17 @@ export default function NouvelleReprisFraisPage() {
         </div>
 
         <div className="flex items-center gap-4 mb-4">
-          <label className="text-sm text-muted-foreground w-24 flex-shrink-0">Fichier</label>
-          <div className="flex-1 flex items-center gap-2">
+          <label className="text-sm text-muted-foreground w-16 sm:w-24 flex-shrink-0">Fichier</label>
+          <div className="flex-1 min-w-0 flex items-center gap-2">
             <input
               readOnly
               value={fileName}
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-l-xl bg-background"
+              className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-l-xl bg-background"
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-muted border border-border rounded-r-xl text-sm hover:bg-muted/70 transition-colors -ml-2"
+              className="px-4 py-2 bg-muted border border-border rounded-r-xl text-sm hover:bg-muted/70 transition-colors -ml-2 flex-shrink-0"
               data-testid="reprise-frais-selectionner"
             >
               Sélectionner

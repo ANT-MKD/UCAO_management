@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getEtudiantById, getPaiementsByEtudiant, marquerEtudiantAbandon, reintegrerEtudiantStatut } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-abandons-v1";
@@ -70,7 +71,7 @@ let store: Persisted = load();
 function persist() {
   store = { records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

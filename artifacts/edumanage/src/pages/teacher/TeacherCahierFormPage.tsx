@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import { mondayOf, matchesProf } from "@/lib/teacherUtils";
 import { TAILLE_MAX_RESSOURCE_OCTETS } from "@/data/ressourcePedagogiqueStore";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
@@ -49,7 +50,14 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
-  const existing = id ? cahiers.find((c) => c.id === id) : undefined;
+  // Un cahier ne s'ouvre que pour le professeur de la séance (identifiant de sa fiche, ou nom
+  // complet exact pour les anciens cahiers) : l'adresse d'un cahier ne donne pas accès à celui d'un
+  // collègue, même encore modifiable.
+  const cahierDemande = id ? cahiers.find((c) => c.id === id) : undefined;
+  const seanceDuCahier = cahierDemande ? seances.find((s) => s.id === cahierDemande.seanceId) : undefined;
+  const existing = cahierDemande && myTeacher && matchesProf(myTeacher, cahierDemande.prof, cahierDemande.profId ?? seanceDuCahier?.profId)
+    ? cahierDemande
+    : undefined;
   const notFound = Boolean(id) && !existing;
   const readOnly = Boolean(existing) && existing?.statut === "valide";
 
@@ -152,36 +160,28 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
   function addPiece(file: File | null) {
     if (!file) return;
-    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
-      toast.error(`Fichier trop lourd (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_RESSOURCE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => {
       setPieces((prev) => [
         ...prev,
         {
           id: `pj-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           nom: file.name,
           type: file.type || "application/octet-stream",
-          tailleKo: Math.round(file.size / 1024),
+          tailleKo: Math.round((dataUrl.length * 0.75) / 1024),
           ref: file.name,
-          dataUrl: String(reader.result),
+          dataUrl: dataUrl,
         },
       ]);
-    };
-    reader.readAsDataURL(file);
+    })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
   function addPhoto(file: File | null) {
     if (!file) return;
-    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setPhotos((prev) => [...prev, String(reader.result)]);
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_RESSOURCE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => setPhotos((prev) => [...prev, dataUrl]))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
   function toggleEval(t: string) {
@@ -311,7 +311,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
             </div>
 
             <div>
-              <label className={labelClass}>Séance de la semaine du {mondayOf(date)}</label>
+              <label className={labelClass}>Séance de la semaine du {formatShortDate(mondayOf(date))}</label>
               <select
                 className={inputClass}
                 value={seanceId}
@@ -335,7 +335,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
             {jourFerie && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Le {date} est déclaré jour férié — {jourFerie.intitule}.
+                Le {formatShortDate(date)} est déclaré jour férié — {jourFerie.intitule}.
               </div>
             )}
 
@@ -471,7 +471,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                               type="button"
                               onClick={() => { setPresence(p.etudiantId, "absent"); setJustif(p.etudiantId, periode.motif); }}
                               className="text-[11px] px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700"
-                              title={`Absence déclarée du ${periode.dateDebut} au ${periode.dateFin} — ${periode.motif}`}
+                              title={`Absence déclarée du ${formatShortDate(periode.dateDebut)} au ${formatShortDate(periode.dateFin)} — ${periode.motif}`}
                             >
                               Absence prévue (période) — appliquer
                             </button>

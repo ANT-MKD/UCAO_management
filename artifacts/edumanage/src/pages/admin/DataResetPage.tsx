@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, Trash2, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
+import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
 
 const PHRASE_CONFIRMATION = "REINITIALISER";
 
@@ -50,6 +51,8 @@ export default function DataResetPage() {
       />
 
       <div className="max-w-2xl space-y-5">
+        <EspaceStockage />
+
         <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4 flex gap-3">
           <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -103,6 +106,29 @@ export default function DataResetPage() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Jauge de l'espace réellement occupé dans ce navigateur : au-delà de la capacité, plus aucun
+ * enregistrement ne passe (un avertissement s'affiche alors à chaque tentative). */
+function EspaceStockage() {
+  const utilise = useMemo(() => stockageUtilise(), []);
+  const pct = Math.min(100, Math.round((utilise / CAPACITE_STOCKAGE) * 100));
+  const couleur = pct >= 90 ? "bg-red-500" : pct >= 75 ? "bg-amber-500" : "bg-emerald-500";
+  const mo = (n: number) => (n / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2" data-testid="espace-stockage">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <HardDrive size={16} className="text-muted-foreground" /> Espace de stockage de ce navigateur
+        <span className="ml-auto tabular-nums">{pct} %</span>
+      </div>
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full ${couleur}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {mo(utilise)} Mo utilisés sur environ {mo(CAPACITE_STOCKAGE)} Mo. Les photos et pièces jointes (demandes, cahiers, ressources, documents) occupent l&apos;essentiel de l&apos;espace : supprimez celles devenues inutiles avant que le stockage soit plein.
+      </p>
     </div>
   );
 }

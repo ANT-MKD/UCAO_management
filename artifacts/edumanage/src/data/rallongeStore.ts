@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getTeacherVolume, makeTeacherVolumeId, upsertTeacherVolumes } from "@/data/teacherVolumeStore";
 import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
 
@@ -46,7 +47,7 @@ function persist() {
   // Object.is et ne re-rend pas si getRallonges() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

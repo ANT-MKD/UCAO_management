@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { relancerQuittances, reporterEcheanceQuittances } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-rappel-paiement-v1";
@@ -45,7 +46,7 @@ let store: Persisted = load();
 function persist() {
   store = { ...store, records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

@@ -98,7 +98,7 @@ export default function EncaissementPECDetailPage({ id }: { id: string }) {
         ]}
         title={`Encaissement ${record.reference}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setLocation("/admin/encaissements-pec")}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"

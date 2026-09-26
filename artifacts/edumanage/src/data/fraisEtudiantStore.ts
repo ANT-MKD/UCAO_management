@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { emettreQuittanceBrute, cancelQuittanceEmise, type PaiementRecord } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-frais-etudiant-v1";
@@ -54,7 +55,7 @@ let store: FraisEtudiantLigne[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Mail, Phone, ShieldCheck, ShieldOff, KeyRound, Pencil, Image as ImageIcon, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
@@ -76,13 +77,9 @@ export default function UserDetailPage({ id }: { id: string }) {
 
   const handlePhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setEditForm((f) => ({ ...f, photoDataUrl: String(reader.result) }));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PHOTO_OCTETS, usagePhoto: "portrait" })
+      .then((dataUrl) => setEditForm((f) => ({ ...f, photoDataUrl: dataUrl })))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleSaveEdit = () => {

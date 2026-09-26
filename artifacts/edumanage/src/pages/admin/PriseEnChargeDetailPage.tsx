@@ -212,7 +212,7 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
         ]}
         title={`Consultation prise en charge [${record.reference}]`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {organisme && (
               <button
                 onClick={() => setLocation(`/admin/organismes-pec/${organisme.id}`)}

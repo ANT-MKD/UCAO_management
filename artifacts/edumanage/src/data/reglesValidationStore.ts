@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 import { getScolariteConfigs } from "./scolariteConfigStore";
 
@@ -64,7 +65,7 @@ let store: RegleValidationRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

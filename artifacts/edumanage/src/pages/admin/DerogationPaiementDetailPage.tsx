@@ -49,7 +49,7 @@ export default function DerogationPaiementDetailPage({ id }: { id: string }) {
         title={`Dérogation ${record.reference}`}
         subtitle={`Accordée le ${formatDate(record.date)} par ${record.personnelLabel}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={statut} />
             <button onClick={() => setLocation("/admin/derogation-paiement")} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">
               <ArrowLeft size={15} /> Retour

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, ArrowLeft, Info } from "lucide-react";
@@ -36,7 +37,7 @@ export default function FicheInscriptionPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (definirParDefaut && filiereId) localStorage.setItem(DEFAULT_FILIERE_KEY, filiereId);
+    if (definirParDefaut && filiereId) ecrireStockage(DEFAULT_FILIERE_KEY, filiereId);
   }, [definirParDefaut, filiereId]);
 
   const niveauxFiliere = useMemo(() => NIVEAUX.filter((n) => n.filiereId === filiereId), [filiereId]);

@@ -108,7 +108,7 @@ export default function VacationsPage() {
         title="Vacations Enseignants"
         subtitle="Suivi des heures et rémunérations des vacataires"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => exportVacationsToExcel(vacations)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste" data-testid="vacation-export">
               <Download size={13} /> Exporter
             </button>

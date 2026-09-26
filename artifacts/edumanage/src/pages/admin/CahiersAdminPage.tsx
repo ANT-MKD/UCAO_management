@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier } from "@/data/studentStore";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
   soumis: "bg-amber-50 text-amber-700",
@@ -156,7 +156,7 @@ export default function CahiersAdminPage() {
               <div>
                 <p className="font-bold text-sm">{c.sujet || c.ec}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {c.date} · {c.classe} · {c.prof} · {c.typeSeance} · {c.heureDebut}–{c.heureFin}
+                  {formatShortDate(c.date)} · {c.classe} · {c.prof} · {c.typeSeance} · {c.heureDebut}–{c.heureFin}
                 </p>
               </div>
               <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium h-fit", STATUT_CLS[c.statut] || "bg-muted")}>

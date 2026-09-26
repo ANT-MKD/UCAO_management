@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-pin-activation-v1";
 const DEMANDES_STORAGE_KEY = "edumanage-demandes-reinit-v1";
 
@@ -85,8 +86,8 @@ function persist() {
   store = store.slice();
   demandes = demandes.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-    localStorage.setItem(DEMANDES_STORAGE_KEY, JSON.stringify(demandes));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(DEMANDES_STORAGE_KEY, JSON.stringify(demandes));
   }
   notify();
 }

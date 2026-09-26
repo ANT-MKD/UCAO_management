@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-type-evaluation-store-v1";
 
 export interface TypeEvaluationRecord {
@@ -41,7 +42,7 @@ let store: TypeEvaluationRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

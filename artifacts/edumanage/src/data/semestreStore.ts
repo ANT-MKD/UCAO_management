@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { SEMESTRES } from "./mockData";
 
 export interface SemestreRecord {
@@ -45,7 +46,7 @@ refreshSnapshot();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(semestres));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(semestres));
   }
   refreshSnapshot();
   notify();

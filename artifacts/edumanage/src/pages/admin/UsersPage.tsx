@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Plus, Image as ImageIcon, Eye, Download, Link2 } from "lucide-react";
@@ -64,13 +65,9 @@ export default function UsersPage() {
 
   const handlePhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, photoDataUrl: String(reader.result) }));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PHOTO_OCTETS, usagePhoto: "portrait" })
+      .then((dataUrl) => setForm((f) => ({ ...f, photoDataUrl: dataUrl })))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password) && (form.role !== "teacher" || form.teacherId);
@@ -211,7 +208,7 @@ export default function UsersPage() {
         title="Les utilisateurs"
         subtitle="Comptes réels d'administration et de professeurs — les étudiants sont gérés via l'inscription"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => exportUsersToExcel(filtered)} className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors text-muted-foreground" title="Exporter la liste" data-testid="user-export">
               <Download size={13} /> Exporter
             </button>

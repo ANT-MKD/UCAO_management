@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getGrilleFrais, calculerEcheances, nbEcheancesEffectif } from "./grilleFraisStore";
 import { getEtudiants, emettreQuittanceBrute, cancelQuittanceEmise } from "./studentStore";
 
@@ -54,7 +55,7 @@ function persist() {
   // et ne re-rend pas si getEmissionsMasse() renvoie la même référence.
   store = { ...store, records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

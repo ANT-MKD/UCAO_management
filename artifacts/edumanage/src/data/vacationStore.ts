@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { VACATIONS } from "./mockData";
 import { logAudit, getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
@@ -52,7 +53,7 @@ refreshSnapshot();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(vacations));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(vacations));
   }
   refreshSnapshot();
   notify();

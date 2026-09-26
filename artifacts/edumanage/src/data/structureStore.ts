@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { CLASSES as SEED_CLASSES, SALLES as SEED_SALLES, FILIERES, NIVEAUX } from "./mockData";
 
 /** Classe pédagogique = groupe d'étudiants (ex. LPIG L1 A 2025-2026) */
@@ -130,7 +131,7 @@ function persist() {
   store = { classes: store.classes.slice(), salles: store.salles.slice() };
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      ecrireStockage(STORAGE_KEY, JSON.stringify(store));
     } catch (err) {
       console.error("[EduManage] structure persist failed", err);
     }

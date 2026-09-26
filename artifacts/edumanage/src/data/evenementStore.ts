@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getSeances } from "./studentStore";
 import { dateToJour, mondayOf } from "@/lib/teacherUtils";
 import { detectEvenementConflicts, type ScheduleConflict } from "@/lib/scheduleUtils";
@@ -44,7 +45,7 @@ let evenements: EvenementRecord[] = load();
 function persist() {
   evenements = evenements.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(evenements));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(evenements));
   }
   notify();
 }

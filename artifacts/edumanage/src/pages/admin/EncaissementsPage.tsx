@@ -222,7 +222,7 @@ export default function EncaissementsPage() {
         title="Les opérations"
         subtitle={`${filtered.length} opération(s) enregistrée(s)`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setAdvancedOpen((v) => !v)}
               className={cn(

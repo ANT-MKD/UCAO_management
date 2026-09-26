@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getAnneesAcademiques } from "./studentStore";
 import { decalerDeNAns, premiereAnneeCivile } from "@/lib/anneeAcademique";
 
@@ -211,7 +212,7 @@ function persist() {
   // Object.is et ne re-rend pas si getGrillesFrais() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

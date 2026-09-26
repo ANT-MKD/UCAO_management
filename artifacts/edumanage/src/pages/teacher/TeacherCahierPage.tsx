@@ -6,7 +6,7 @@ import { useSeances, useCahiers } from "@/hooks/useStudentStore";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { mondayOf, matchesProf } from "@/lib/teacherUtils";
 import { KPICard } from "@/components/admin/KPICard";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 import { getCahierPourSeanceEtDate, type CahierSeanceRecord, type SeanceRecord } from "@/data/studentStore";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -108,7 +108,7 @@ export function TeacherCahierPage() {
           />
         </div>
         <p className="text-xs text-muted-foreground -mt-1">
-          Le {date} ({JOURS[jourChoisi] || "—"}) : {nbFaites}/{seancesAvecStatut.length} cahier(s) traité(s)
+          Le {formatShortDate(date)} ({JOURS[jourChoisi] || "—"}) : {nbFaites}/{seancesAvecStatut.length} cahier(s) traité(s)
         </p>
         {seancesAvecStatut.length === 0 ? (
           <p className="text-xs text-muted-foreground">Aucune séance programmée ce jour-là.</p>
@@ -165,7 +165,7 @@ export function TeacherCahierPage() {
                       <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
                       <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUT_CLS[c.statut] ?? "bg-muted")}>{c.statut} · {c.etatSeance}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{c.date} · {c.typeSeance} · présence {c.tauxPresence}%</p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatShortDate(c.date)} · {c.typeSeance} · présence {c.tauxPresence}%</p>
                     <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>
                   </div>
                 </div>

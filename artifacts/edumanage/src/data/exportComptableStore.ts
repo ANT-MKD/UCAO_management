@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-export-comptable-v1";
 
 export interface ExportComptableCategorieDetail {
@@ -50,7 +51,7 @@ let store: Persisted = load();
 function persist() {
   store = { ...store, records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

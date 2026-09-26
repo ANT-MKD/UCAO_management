@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-etablissement-v1";
@@ -44,7 +45,7 @@ function notify() {
 function persist() {
   store = { ...store };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

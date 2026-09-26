@@ -77,7 +77,9 @@ export default function TeacherGradesPage() {
     () => (course
       ? evaluations
         .filter((e) => e.classeId === course.classeId && e.ecId === course.ecId && e.session === undefined)
-        .filter((e) => !myTeacher || !e.professeurId || e.professeurId === myTeacher.id || matchesProf(myTeacher, e.professeur))
+        // Par identifiant quand l'évaluation en a un (un homonyme ne voit pas celles d'un collègue),
+        // sinon par nom complet exact (anciennes évaluations).
+        .filter((e) => !myTeacher || (e.professeurId ? e.professeurId === myTeacher.id : !e.professeur || matchesProf(myTeacher, e.professeur)))
         .sort((a, b) => a.dateCreation.localeCompare(b.dateCreation))
       : []),
     [course, evaluations, myTeacher],

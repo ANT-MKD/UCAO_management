@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import type { UserRole } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-portal-access-v1";
@@ -34,7 +35,7 @@ function notify() {
 function persist() {
   store = { ...store };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState } from "react";
 import { Plus, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { toast } from "sonner";
@@ -52,13 +53,9 @@ export default function PublicitesPage() {
 
   const handleFichierImage = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_IMAGE_OCTETS) {
-      toast.error(`Image trop lourde (max ${Math.round(TAILLE_MAX_IMAGE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, imageDataUrl: String(reader.result) }));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_IMAGE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => setForm((f) => ({ ...f, imageDataUrl: dataUrl })))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleSave = () => {

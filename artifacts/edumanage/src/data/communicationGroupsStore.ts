@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES, NIVEAUX } from "./mockData";
 import { getClasses } from "./structureStore";
 import type { EtudiantRecord } from "./studentStore";
@@ -78,7 +79,7 @@ let store: Persisted = load();
 function persist() {
   store = { externes: store.externes.slice(), internes: store.internes.slice(), personnalises: store.personnalises.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

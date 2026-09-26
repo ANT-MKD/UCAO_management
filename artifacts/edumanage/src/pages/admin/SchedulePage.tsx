@@ -310,7 +310,7 @@ export default function SchedulePage() {
         title="Emploi du Temps"
         subtitle="Propre à chaque semaine — vue par classe, salle ou professeur, conflits détectés au déplacement"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button data-testid="edt-ajouter-evenement" onClick={() => { resetEvenementForm(); setShowEvenementModal(true); }} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
               <CalendarPlus size={15} /> Ajouter un évènement
             </button>

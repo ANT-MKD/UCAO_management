@@ -41,7 +41,8 @@ function categoriser(message: string): string {
   if (/nouveau document disponible/i.test(message)) return "documents";
   if (/votre demande/i.test(message)) return "demandes";
   if (/nouveau message/i.test(message)) return "messagerie";
-  if (/nouvelle note publiée/i.test(message)) return "notes";
+  if (/nouvelle note publiée|relevé de notes/i.test(message)) return "notes";
+  if (/nouvelle ressource/i.test(message)) return "academique";
   if (/absence constatée/i.test(message)) return "absences";
   if (/nouveau créneau|edt mis à jour|^emploi du temps|séance (modifiée|annulée)|cours (modifié|annulé|déplacé)|créneau déplacé/i.test(message)) return "emploi_du_temps";
   if (/paiement validé|quittance|reçu /i.test(message)) return "finances";

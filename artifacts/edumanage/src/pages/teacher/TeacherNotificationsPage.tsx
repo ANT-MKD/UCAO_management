@@ -39,7 +39,7 @@ function categoriser(message: string): string {
   if (/cahier/i.test(message)) return "cahier";
   if (/absence|retard/i.test(message)) return "absences";
   if (/rallonge/i.test(message)) return "rallonge";
-  if (/décompte|vacation/i.test(message)) return "finances";
+  if (/décompte|vacation|contrat|avenant|pointage/i.test(message)) return "finances";
   if (/nouveau message/i.test(message)) return "messagerie";
   return "autres";
 }

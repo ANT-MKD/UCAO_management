@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-volumes-v1";
 
 export interface TeacherCourseVolumeRecord {
@@ -30,7 +31,7 @@ let store: TeacherCourseVolumeRecord[] = load();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

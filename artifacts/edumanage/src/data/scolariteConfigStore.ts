@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 import { getMethodesCalculActivesParNiveau } from "./bulletinMethodesStore";
 
@@ -120,7 +121,7 @@ let store: Persisted = load();
 function persist() {
   store = { ...store, configs: store.configs.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

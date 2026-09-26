@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type ContactRole = "pere" | "mere" | "tuteur" | "autre";
@@ -44,7 +45,7 @@ let store: ContactRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

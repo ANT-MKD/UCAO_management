@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier, getCahierStatsForEc } from "@/data/studentStore";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
   soumis: "bg-amber-50 text-amber-700",
@@ -55,7 +55,7 @@ export default function CahierDetailPage({ id }: { id: string }) {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Cahiers de séance" }, { label: c.sujet || c.ec }]}
         title={c.sujet || c.ec}
-        subtitle={`${c.date} · ${c.classe} · ${c.prof}`}
+        subtitle={`${formatShortDate(c.date)} · ${c.classe} · ${c.prof}`}
         actions={
           <span className={cn("text-xs px-3 py-1.5 rounded-full font-medium h-fit", STATUT_CLS[c.statut] || "bg-muted")}>
             {c.statut} · {c.etatSeance}

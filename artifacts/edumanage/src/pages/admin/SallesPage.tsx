@@ -98,7 +98,7 @@ export default function SallesPage() {
         title="Salles physiques"
         subtitle={`${filteredData.length} locaux — ${totalCapacite} places · noms stables (ex. RDC 1A)`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={downloadSalleTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
               <FileSpreadsheet size={13} /> Modèle
             </button>

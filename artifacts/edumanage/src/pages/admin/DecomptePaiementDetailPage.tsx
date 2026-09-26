@@ -118,7 +118,7 @@ export default function DecomptePaiementDetailPage({ id }: { id: string }) {
         ]}
         title={`Paiement professeur ${record.reference}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setLocation("/admin/decomptes-professeurs")}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"

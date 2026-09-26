@@ -3,27 +3,38 @@ import type { DecompteRecord } from "@/data/decompteStore";
 import type { DeliberationRecord } from "@/data/deliberationStore";
 import type { AssiduiteRow } from "@/data/assiduiteEngine";
 
-const MOIS_LABELS = ["Sep", "Oct", "Nov", "Déc", "Jan", "Fév", "Mar", "Avr", "Mai", "Jun"];
-const MOIS_NUM = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
+import { getAnneesAcademiques } from "@/data/studentStore";
 
-/** Les 10 mois d'une année académique (sept. à juin), dérivés de son libellé "2025-2026" —
- * remplace la fenêtre fixe "Sept 2025 – Juin 2026" pour que le graphique suive réellement
- * l'année sélectionnée. */
+const MOIS_COURTS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+
+/** Les mois d'une année académique, de sa rentrée réelle à sa date de fin (Paramétrage
+ * académique → dates de l'année) — une année qui commence en novembre commence en novembre.
+ * Sans dates renseignées, septembre → août, pour ne perdre aucun encaissement de l'été. */
 export function moisAcademiques(anneeLibelle: string): { label: string; year: number; month: number }[] {
-  const y1 = parseInt(anneeLibelle.split("-")[0] ?? "", 10);
-  const anneeValide = Number.isFinite(y1) ? y1 : new Date().getFullYear();
-  return MOIS_NUM.map((month, i) => ({
-    label: MOIS_LABELS[i],
-    year: month >= 9 ? anneeValide : anneeValide + 1,
-    month,
-  }));
+  const annee = getAnneesAcademiques().find((a) => a.libelle === anneeLibelle);
+  let y: number, m: number, nb: number;
+  if (annee?.dateDebut && annee.dateFin && annee.dateFin >= annee.dateDebut) {
+    y = Number(annee.dateDebut.slice(0, 4));
+    m = Number(annee.dateDebut.slice(5, 7));
+    nb = (Number(annee.dateFin.slice(0, 4)) - y) * 12 + (Number(annee.dateFin.slice(5, 7)) - m) + 1;
+  } else {
+    const y1 = parseInt(anneeLibelle.split("-")[0] ?? "", 10);
+    y = Number.isFinite(y1) ? y1 : new Date().getFullYear();
+    m = 9;
+    nb = 12;
+  }
+  return Array.from({ length: nb }, (_, i) => {
+    const month = ((m - 1 + i) % 12) + 1;
+    const year = y + Math.floor((m - 1 + i) / 12);
+    return { label: MOIS_COURTS[month - 1], year, month };
+  });
 }
 
 export function libelleFenetreAcademique(anneeLibelle: string): string {
   const mois = moisAcademiques(anneeLibelle);
   const premier = mois[0];
   const dernier = mois[mois.length - 1];
-  return `Sept ${premier.year} – Juin ${dernier.year}`;
+  return `${premier.label} ${premier.year} – ${dernier.label} ${dernier.year}`;
 }
 
 export interface PointFinancier {

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-notification-evenementielle-v1";
 const MIGRATION_KEY = "edumanage-notification-evenementielle-actives-par-defaut";
 
@@ -52,10 +53,10 @@ function load(): NotificationEvenementielleRecord[] {
     // touché) : on applique une seule fois les nouvelles valeurs d'origine. Si au moins une
     // notification a été activée, la configuration de l'établissement est respectée telle quelle.
     if (!localStorage.getItem(MIGRATION_KEY)) {
-      localStorage.setItem(MIGRATION_KEY, "1");
+      ecrireStockage(MIGRATION_KEY, "1");
       if (parsed.every((n) => !n.actif)) {
         const actives = parsed.map((n) => (n.brancheReellement ? { ...n, actif: true } : n));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(actives));
+        ecrireStockage(STORAGE_KEY, JSON.stringify(actives));
         return actives;
       }
     }
@@ -70,7 +71,7 @@ let store: NotificationEvenementielleRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

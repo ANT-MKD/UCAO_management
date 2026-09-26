@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getCodesMethodesDisponibles, type NiveauMethodeCalcul } from "@/lib/bulletinCalculs";
 
 const STORAGE_KEY = "edumanage-bulletin-methodes-store-v1";
@@ -79,7 +80,7 @@ let store: MethodeCalculRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

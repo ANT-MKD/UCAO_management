@@ -1,3 +1,6 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { getEcs } from "./curriculumStore";
 const STORAGE_KEY = "edumanage-teacher-absences-v1";
 
 export type TeacherAbsenceType = "absence" | "retard";
@@ -42,7 +45,7 @@ function persist() {
   // Object.is et ne re-rend pas si getTeacherAbsences() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -70,6 +73,14 @@ export function addTeacherAbsence(
   };
   store.push(record);
   persist();
+  // Le professeur est informé du constat dès sa saisie (et non plus seulement à sa validation).
+  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
+  if (compte) {
+    const ec = getEcs().find((e) => e.id === record.ecId);
+    const quoi = record.type === "retard" ? `Un retard${record.dureeMinutes ? ` de ${record.dureeMinutes} min` : ""} a été constaté` : "Une absence a été constatée";
+    const date = record.date.slice(0, 10).split("-").reverse().join("/");
+    pushNotificationEtPersister(compte.id, `${quoi} le ${date}${ec ? ` en ${ec.libelle}` : ""}${record.motif.trim() ? ` — motif : ${record.motif.trim()}` : ""}. Consultez « Mes absences ».`);
+  }
   return record;
 }
 

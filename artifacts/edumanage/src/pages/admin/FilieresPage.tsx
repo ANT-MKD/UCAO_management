@@ -112,7 +112,7 @@ export default function FilieresPage() {
         title="Filières"
         subtitle={`${filieres.length} filières configurées pour l'année 2025-2026`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={downloadFiliereTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
               <FileSpreadsheet size={13} /> Modèle
             </button>

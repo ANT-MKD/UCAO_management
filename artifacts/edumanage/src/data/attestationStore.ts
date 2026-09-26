@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
@@ -60,7 +61,7 @@ let store: AttestationRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

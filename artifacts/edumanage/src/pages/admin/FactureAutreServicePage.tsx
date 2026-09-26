@@ -102,7 +102,7 @@ export default function FactureAutreServicePage() {
         title="Les factures des autres services"
         subtitle={`${factures.length} facture(s) enregistrée(s)`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={exportExcel}
               className="flex items-center gap-1.5 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-organismes-pec-v1";
 
 export interface OrganismePECRecord {
@@ -51,7 +52,7 @@ function persist() {
   // et ne re-rend pas si getOrganismesPEC() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

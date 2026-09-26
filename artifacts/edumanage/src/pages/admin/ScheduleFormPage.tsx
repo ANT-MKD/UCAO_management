@@ -11,7 +11,7 @@ import { useEcs } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import { dateToJour, mondayOf } from "@/lib/teacherUtils";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -236,7 +236,7 @@ export default function ScheduleFormPage() {
             </h3>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date (semaine du {mondayOf(values.date || prochainLundi())}) *</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date (semaine du {formatShortDate(mondayOf(values.date || prochainLundi()))}) *</label>
                 <input type="date" {...form.register("date", { required: true })} className={inputClass} />
               </div>
               <div>

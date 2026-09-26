@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getEtudiantById, getEtudiants, logAudit } from "./studentStore";
 import { getRelanceActivePour, relanceEstExpiree } from "./relancePaiementStore";
 import { trouverDerogationIdentique } from "./derogationPaiementStore";
@@ -49,7 +50,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

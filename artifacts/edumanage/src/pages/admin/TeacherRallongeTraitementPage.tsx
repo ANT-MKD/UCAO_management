@@ -18,7 +18,7 @@ import {
   teacherDisplayLabel,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 type TraitementStatut = "" | RallongeStatut;
 
@@ -281,7 +281,7 @@ export default function TeacherRallongeTraitementPage() {
                 const ec = ecs.find((e) => e.id === r.ecId);
                 return (
                   <tr key={r.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap">{r.createdAt.slice(0, 10)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatShortDate(r.createdAt)}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">
                         {teacher ? `${teacher.prenom} ${teacher.nom}` : r.teacherId}

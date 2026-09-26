@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-absence-periode-v1";
 
 /** Absence déclarée sur une plage de dates (maladie, sortie scolaire, congé autorisé) plutôt
@@ -56,7 +57,7 @@ let store: Persisted = load();
 function persist() {
   store = { records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

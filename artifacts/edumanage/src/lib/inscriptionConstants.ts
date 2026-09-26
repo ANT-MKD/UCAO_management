@@ -72,11 +72,12 @@ export function generateMatriculeEnseignant(reserved: string[] = []): string {
   return `${prefix}${String(maxSeq + 1).padStart(3, "0")}`;
 }
 
+/** Mot de passe provisoire tiré avec le générateur cryptographique du navigateur (comme les codes
+ * PIN) : Math.random() est prévisible et ne doit pas servir à des identifiants. Caractères
+ * ambigus (0/O, 1/l/I) exclus pour une remise orale ou manuscrite sans erreur. */
 export function generateMotDePasse(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let pwd = "";
-  for (let i = 0; i < 8; i++) {
-    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return pwd;
+  const tirages = new Uint32Array(8);
+  crypto.getRandomValues(tirages);
+  return Array.from(tirages, (n) => chars.charAt(n % chars.length)).join("");
 }

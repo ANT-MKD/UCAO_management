@@ -143,7 +143,7 @@ export default function ParametrageScolaritePage() {
         title="Paramétrage scolarité"
         subtitle="Barème de notation, cumul des crédits, moyenne de passage et moyenne éliminatoire par programme"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={exportExcel}
               className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"

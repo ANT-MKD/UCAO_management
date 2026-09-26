@@ -22,7 +22,7 @@ import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 type TypeFilter = "" | TeacherAbsenceType;
 type JustifieFilter = "" | "oui" | "non";
@@ -183,7 +183,7 @@ export default function TeacherAbsencePage() {
       const notif = getNotificationEvenementielleParCode("NOTIFICATION_VALIDATION_ABSENCE_PROF");
       if (notif?.actif && notif.envoyerProfesseur) {
         const compte = getUserAccounts().find((u) => u.linkedId === editing.teacherId && u.role === "teacher");
-        if (compte) pushNotificationEtPersister(compte.id, `Votre ${editType === "retard" ? "retard" : "absence"} du ${editing.date} a été validé(e).`);
+        if (compte) pushNotificationEtPersister(compte.id, `Votre ${editType === "retard" ? "retard" : "absence"} du ${formatShortDate(editing.date)} a été validé(e).`);
       }
     }
     toast.success("Constat mis à jour");
@@ -302,7 +302,7 @@ export default function TeacherAbsencePage() {
                 const ec = ecs.find((e) => e.id === r.ecId);
                 return (
                   <tr key={r.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap">{r.date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatShortDate(r.date)}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{teacher ? `${teacher.prenom} ${teacher.nom}` : r.teacherId}</p>
                       <p className="text-xs text-muted-foreground">{teacher?.matricule}</p>

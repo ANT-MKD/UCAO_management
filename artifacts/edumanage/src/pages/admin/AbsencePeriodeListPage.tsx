@@ -82,7 +82,7 @@ export default function AbsencePeriodeListPage() {
         title="Les absences sur une période des étudiants"
         subtitle="Absences prolongées déclarées (maladie, sortie scolaire, congé autorisé)"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-2 px-4 py-2 border border-amber-300 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 transition-colors">
               <Search size={14} /> Recherche avancée
             </button>

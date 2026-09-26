@@ -112,7 +112,7 @@ export default function AssiduitesListPage() {
         title="Les assiduités des étudiants"
         subtitle="Chaque absence/retard vient du cahier de textes réellement soumis par le professeur — rien n'est ressaisi ici"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-2 px-4 py-2 border border-amber-300 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 transition-colors">
               <Search size={14} /> Recherche avancée
             </button>

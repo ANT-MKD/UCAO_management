@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Save, Building2, ShieldOff, PenTool, Shield, Plug, Users, BookOpen, Image as ImageIcon, Plus, Pencil, Trash2 } from "lucide-react";
@@ -28,13 +29,9 @@ const TABS = [
 const EMPTY_MOTIF = { code: "", intitule: "", actionsInterdites: [] as string[] };
 
 function readImageAsDataUrl(file: File, onDone: (dataUrl: string) => void) {
-  if (file.size > TAILLE_MAX_IMAGE_OCTETS) {
-    toast.error(`Image trop lourde (max ${Math.round(TAILLE_MAX_IMAGE_OCTETS / 1024)} Ko).`);
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => onDone(String(reader.result));
-  reader.readAsDataURL(file);
+  lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_IMAGE_OCTETS, usagePhoto: "document" })
+    .then((dataUrl) => onDone(dataUrl))
+    .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
 }
 
 export default function SettingsPage() {

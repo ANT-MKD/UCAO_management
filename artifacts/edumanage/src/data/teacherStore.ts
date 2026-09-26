@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { ENSEIGNANTS } from "./mockData";
 import { logAudit } from "./studentStore";
 
@@ -64,7 +65,7 @@ refreshSnapshot();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(teachers));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(teachers));
   }
   refreshSnapshot();
   notify();

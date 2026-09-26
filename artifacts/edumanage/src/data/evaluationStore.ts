@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES, ENSEIGNANTS } from "./mockData";
 import { getEcById } from "./curriculumStore";
 import { getClasseById } from "./structureStore";
@@ -77,7 +78,7 @@ function persist() {
   store = { evaluations: store.evaluations.slice() };
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      ecrireStockage(STORAGE_KEY, JSON.stringify(store));
     } catch (err) {
       console.error("[EduManage] evaluation persist failed", err);
     }

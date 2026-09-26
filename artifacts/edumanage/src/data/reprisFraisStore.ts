@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { ajouterFraisEtudiant } from "./fraisEtudiantStore";
 
 const STORAGE_KEY = "edumanage-reprise-frais-v1";
@@ -39,7 +40,7 @@ let store: ReprisFraisLigne[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

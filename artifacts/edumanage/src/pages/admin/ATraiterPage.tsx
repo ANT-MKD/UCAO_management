@@ -16,7 +16,7 @@ const NIVEAUX: { type: AdminAlert["type"]; titre: string; sousTitre: string; pas
  * disparaît d'elle-même une fois le dernier élément traité. */
 export default function ATraiterPage() {
   const alertes = useAdminAlerts();
-  const total = useMemo(() => alertes.filter((a) => a.type !== "info").reduce((s, a) => s + a.count, 0), [alertes]);
+  const total = useMemo(() => alertes.filter((a) => a.type !== "info" && a.id !== "stockage").reduce((s, a) => s + a.count, 0), [alertes]);
 
   return (
     <div>
@@ -54,7 +54,7 @@ export default function ATraiterPage() {
                 <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
                   {lignes.map((a) => (
                     <Link key={a.id} href={a.href} className="flex flex-wrap items-center gap-3 px-4 py-3.5 hover:bg-muted/50 transition-colors" data-testid={`a-traiter-${a.id}`}>
-                      <span className={cn("min-w-[2.5rem] text-center text-sm font-bold px-2 py-1 rounded-lg", niveau.badge)}>{a.count}</span>
+                      <span className={cn("min-w-[2.5rem] text-center text-sm font-bold px-2 py-1 rounded-lg", niveau.badge)}>{a.id === "stockage" ? `${a.count} %` : a.count}</span>
                       <div className="flex-1 min-w-[200px]">
                         <p className="text-sm font-medium text-foreground">{a.message}</p>
                         <p className="text-[11px] text-muted-foreground mt-0.5">{a.domaine} · {a.temps}</p>

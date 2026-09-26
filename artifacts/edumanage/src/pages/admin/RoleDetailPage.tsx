@@ -90,7 +90,7 @@ export default function RoleDetailPage({ id }: { id: string }) {
         title={role.code}
         subtitle={role.description}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={openEdit} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="role-editer">
               <Pencil size={13} /> Éditer
             </button>

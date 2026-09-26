@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-communication-roles-v1";
 
 /** Les 3 onglets de la référence (Validateur Messages, Validateur demande rallonge, Destinataires
@@ -37,7 +38,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

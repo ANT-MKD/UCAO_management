@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useRef, useState } from "react";
 import {
   Upload, Trash2, Download, ExternalLink, Search, LayoutGrid, List, Library, BookOpen,
@@ -152,12 +153,8 @@ export default function TeacherRessourcesPage() {
     const classe = classes.find((c) => c.id === formClasseId);
     if (!classe) { toast.error("Sélectionnez une classe."); return; }
     if (!formTitre.trim()) { toast.error("Indiquez un titre avant d'ajouter un fichier."); return; }
-    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
-      toast.error(`Fichier trop lourd (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_RESSOURCE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => {
       const ec = ecsDeLaClasseFormulaire.find((e) => e.id === formEcId);
       addRessourcePedagogique({
         classeId: classe.id,
@@ -167,15 +164,15 @@ export default function TeacherRessourcesPage() {
         titre: formTitre.trim(),
         description: formDescription.trim() || undefined,
         nom: file.name,
-        dataUrl: String(reader.result),
-        tailleOctets: file.size,
+        dataUrl: dataUrl,
+        tailleOctets: Math.round(dataUrl.length * 0.75),
         ajoutePar: currentUser.name,
       }, currentUser.id);
       toast.success("Ressource ajoutée.");
       resetForm();
       setModalOpen(false);
-    };
-    reader.readAsDataURL(file);
+    })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
   function handleDelete(id: string) {

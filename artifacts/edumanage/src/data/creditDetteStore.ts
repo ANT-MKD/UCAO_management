@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-credit-dette-store-v1";
@@ -50,7 +51,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

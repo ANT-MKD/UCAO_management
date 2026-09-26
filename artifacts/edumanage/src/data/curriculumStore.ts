@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { UES as SEED_UES, ECS as SEED_ECS } from "./mockData";
 import { getFiliereByCode } from "./filiereStore";
 
@@ -116,7 +117,7 @@ function persist() {
   store = { ues: store.ues.slice(), ecs: store.ecs.slice() };
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      ecrireStockage(STORAGE_KEY, JSON.stringify(store));
     } catch (err) {
       console.error("[EduManage] curriculum persist failed", err);
     }

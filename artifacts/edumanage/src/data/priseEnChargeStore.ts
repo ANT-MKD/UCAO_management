@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { payerQuittance, reverserReglementQuittance } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-prises-en-charge-v1";
@@ -67,7 +68,7 @@ function persist() {
   // et ne re-rend pas si getPrisesEnCharge() renvoie la même référence.
   store = { ...store, records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

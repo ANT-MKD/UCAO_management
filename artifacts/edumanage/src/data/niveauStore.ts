@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { NIVEAUX } from "./mockData";
 
 export interface NiveauRecord {
@@ -58,7 +59,7 @@ refreshSnapshot();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(niveaux));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(niveaux));
   }
   refreshSnapshot();
   notify();

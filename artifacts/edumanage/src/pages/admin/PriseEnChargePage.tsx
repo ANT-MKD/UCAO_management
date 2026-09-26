@@ -110,7 +110,7 @@ export default function PriseEnChargePage() {
         title="Les prises en charge"
         subtitle={`${prisesEnCharge.length} prise(s) en charge enregistrée(s)`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={exportExcel}
               className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"

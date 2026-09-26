@@ -825,7 +825,7 @@ function printRecu(p: import("@/data/studentStore").PaiementRecord) {
     <h1>EduManage — Reçu de paiement</h1>
     <p>N° ${p.numeroRecu || p.reference}</p>
     <table>
-      <tr><td>Date</td><td>${p.date}</td></tr>
+      <tr><td>Date</td><td>${formatShortDate(p.date)}</td></tr>
       <tr><td>Étudiant</td><td>${p.etudiant}</td></tr>
       <tr><td colspan="2"><strong>Détail facture</strong></td></tr>
       ${lignesHtml}

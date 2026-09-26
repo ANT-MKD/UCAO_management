@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
@@ -94,9 +95,9 @@ export default function TeacherProfilePage() {
 
   const handlePhoto = (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { usagePhoto: "portrait" })
+      .then((dataUrl) => setPhotoDataUrl(dataUrl))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleSaveInfos = () => {

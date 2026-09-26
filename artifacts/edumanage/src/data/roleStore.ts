@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { collectAllLeaves, getLeafIdsForSection } from "@/lib/adminNavConfig";
 import { getUserAccounts, logAudit } from "./studentStore";
 
@@ -77,7 +78,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { FileText, Printer, Eye, X, GraduationCap, Building2, BadgeCheck, ClipboardList, Search, Upload, CheckCircle2, AlertCircle, FolderOpen, MessageSquare } from "lucide-react";
@@ -88,9 +89,9 @@ export default function StudentDocumentsPage() {
 
   const handleFile = (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setUploadFile({ name: file.name, dataUrl: String(reader.result) });
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { usagePhoto: "document" })
+      .then((dataUrl) => setUploadFile({ name: file.name, dataUrl: dataUrl }))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleDeposer = () => {
