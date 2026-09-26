@@ -178,25 +178,14 @@ export function calculerEcheances(ligne: LigneGrilleFrais, anneeScolaire: string
   }));
 }
 
+/** Aucune grille préchargée : chaque grille est saisie (ou importée) par l'administration. */
 function seed(): GrilleFraisRecord[] {
-  return [
-    {
-      id: makeGrilleFraisId("f1", "L3", "2025-2026", "mf-seed-2"),
-      filiereId: "f1",
-      niveau: "L3",
-      annee: "2025-2026",
-      modeleFraisId: "mf-seed-2",
-      lignes: [
-        { id: "lgf-1", intitule: "Bureau des étudiants (BDE)", montant: 10000, modalite: "avant_inscription" },
-        { id: "lgf-2", intitule: "Frais Sortie promotion", montant: 30000, modalite: "echeances", nbEcheances: 3, dateLimite: "10/05" },
-        { id: "lgf-3", intitule: "Frais d'inscription", montant: 120000, modalite: "avant_inscription" },
-        { id: "lgf-4", intitule: "Frais de scolarité", montant: 520000, modalite: "echeances", nbEcheances: 8, dateLimite: "10/12" },
-        { id: "lgf-5", intitule: "Mutuelle Santé", montant: 5000, modalite: "avant_inscription" },
-        { id: "lgf-6", intitule: "Scolarité dernier mois", montant: 65000, modalite: "echeances", nbEcheances: 5, dateLimite: "10/12" },
-      ],
-    },
-  ];
+  return [];
 }
+
+/** Grille de démonstration autrefois préchargée (filière inexistante « f1 », montants inventés) :
+ * retirée aussi des navigateurs qui l'avaient déjà enregistrée. */
+const ANCIENNE_GRILLE_DEMO_ID = makeGrilleFraisId("f1", "L3", "2025-2026", "mf-seed-2");
 
 const listeners = new Set<() => void>();
 
@@ -209,7 +198,7 @@ function load(): GrilleFraisRecord[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seed();
-    return JSON.parse(raw) as GrilleFraisRecord[];
+    return (JSON.parse(raw) as GrilleFraisRecord[]).filter((g) => g.id !== ANCIENNE_GRILLE_DEMO_ID);
   } catch {
     return seed();
   }
