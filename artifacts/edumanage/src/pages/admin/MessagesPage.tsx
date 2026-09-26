@@ -30,7 +30,7 @@ export default function MessagesPage() {
   const groupesExternes = useGroupesExternes();
   const groupesInternes = useGroupesInternes();
   const groupesPersonnalises = useGroupesPersonnalises();
-  useCommunicationRoles(); // re-rend si les validateurs désignés changent
+  const rolesCommunication = useCommunicationRoles(); // re-rend si les validateurs désignés changent
 
   const [destSearch, setDestSearch] = useState("");
   const [selections, setSelections] = useState<SelectionDestinataireMail[]>([]);
@@ -39,7 +39,9 @@ export default function MessagesPage() {
   const [corpsMail, setCorpsMail] = useState("");
   const [fichiers, setFichiers] = useState<string[]>([]);
 
-  const autorise = currentUser ? estAutorise("validateur_message", currentUser.id) : false;
+  // Même règle que envoyerMail : sans aucun validateur désigné, l'envoi est direct.
+  const aucunValidateur = !rolesCommunication.some((r) => r.role === "validateur_message");
+  const autorise = aucunValidateur || (currentUser ? estAutorise("validateur_message", currentUser.id) : false);
 
   const candidats = useMemo(() => {
     const q = destSearch.trim().toLowerCase();
@@ -77,7 +79,7 @@ export default function MessagesPage() {
       fichiers,
     });
     if (mail.statut === "traite") {
-      toast.success(`Mail envoyé à ${apercuDestinataires.length} destinataire(s).`);
+      toast.success(`Mail envoyé à ${apercuDestinataires.length} destinataire(s) — déposé dans leur messagerie.`);
     } else {
       toast.info("Aucun validateur désigné pour votre compte — mail envoyé en validation (Validation mails).");
     }
@@ -108,7 +110,7 @@ export default function MessagesPage() {
             )}
           >
             {autorise ? <ShieldCheck size={12} /> : <Clock size={12} />}
-            {autorise ? "Envoi direct (validateur désigné)" : "Passera par validation"}
+            {aucunValidateur ? "Envoi direct (aucun validateur désigné)" : autorise ? "Envoi direct (validateur désigné)" : "Passera par validation"}
           </span>
         </div>
 

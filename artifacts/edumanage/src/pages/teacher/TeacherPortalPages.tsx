@@ -57,13 +57,13 @@ export function TeacherDashboardPage() {
 
   const thisWeekMonday = mondayOf(new Date().toISOString().slice(0, 10));
   const weekSeances = useMemo(
-    () => (myTeacher ? seances.filter((s) => matchesProf(myTeacher, s.prof) && s.semaineDu === thisWeekMonday).sort((a, b) => a.jour - b.jour || a.heureDebut.localeCompare(b.heureDebut)) : []),
+    () => (myTeacher ? seances.filter((s) => matchesProf(myTeacher, s.prof, s.profId) && s.semaineDu === thisWeekMonday).sort((a, b) => a.jour - b.jour || a.heureDebut.localeCompare(b.heureDebut)) : []),
     [seances, myTeacher, thisWeekMonday],
   );
   const todayJourNum = new Date().getDay();
   const todaySeances = useMemo(() => weekSeances.filter((s) => s.jour === todayJourNum), [weekSeances, todayJourNum]);
 
-  const mineEcs = useMemo(() => (myTeacher ? ecs.filter((e) => matchesProf(myTeacher, e.responsable)) : []), [ecs, myTeacher]);
+  const mineEcs = useMemo(() => (myTeacher ? ecs.filter((e) => matchesProf(myTeacher, e.responsable, e.responsableId)) : []), [ecs, myTeacher]);
   const courses = useMemo(() => (myTeacher ? buildTeacherCourses(myTeacher, seances, ecs, ues, classes, annee) : []), [myTeacher, seances, ecs, ues, classes, annee]);
   const volumeHoraireTotal = courses.reduce((sum, c) => sum + c.volumeHoraire, 0);
 
@@ -353,7 +353,7 @@ export function TeacherSchedulePage() {
   const displayDayIdxs = weekViewMode === "jour" ? [todayJourNum - 1] : [0, 1, 2, 3, 4, 5];
 
   const weekSeances = useMemo(
-    () => (myTeacher ? seances.filter((s) => matchesProf(myTeacher, s.prof) && s.semaineDu === weekMonday) : []),
+    () => (myTeacher ? seances.filter((s) => matchesProf(myTeacher, s.prof, s.profId) && s.semaineDu === weekMonday) : []),
     [seances, myTeacher, weekMonday],
   );
   const weekEvenements = useMemo(

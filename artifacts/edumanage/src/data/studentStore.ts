@@ -163,6 +163,8 @@ export interface CahierSeanceRecord {
   classeId: string;
   classe: string;
   prof: string;
+  /** Identifiant de la fiche enseignant (lien fiable, le nom seul pouvant être partagé). */
+  profId?: string;
   salle: string;
   salleId: string;
   /** Séance */
@@ -320,6 +322,8 @@ export interface SeanceRecord {
   salle: string;
   salleId: string;
   prof: string;
+  /** Identifiant de la fiche enseignant — absent sur les séances créées avant son ajout. */
+  profId?: string;
   type: string;
   annee: string;
 }
@@ -939,8 +943,18 @@ export function getAnneesAcademiques() {
   return store.annees;
 }
 
-export function allocateMatricule(filiereCode: string, anneePremiere?: number): string {
-  const year = anneePremiere ?? new Date().getFullYear();
+/** Année portée par le matricule : la première année civile de l'année académique d'inscription
+ * (2026 pour 2026-2027), pas l'année du calendrier au jour de la saisie — un étudiant inscrit en
+ * janvier 2027 pour 2026-2027 appartient à la promotion 2026. À défaut, l'année académique en cours. */
+function anneeDuMatricule(anneeAcademique?: string): number {
+  for (const libelle of [anneeAcademique, getAnneeActuelle()]) {
+    if (libelle && /^\d{4}-\d{4}$/.test(libelle)) return Number(libelle.slice(0, 4));
+  }
+  return new Date().getFullYear();
+}
+
+export function allocateMatricule(filiereCode: string, anneeAcademique?: string): string {
+  const year = anneeDuMatricule(anneeAcademique);
   const key = `${year}-${filiereCode}`;
   const next = (store.matriculeCounters[key] ?? 0) + 1;
   store.matriculeCounters[key] = next;
@@ -948,8 +962,8 @@ export function allocateMatricule(filiereCode: string, anneePremiere?: number): 
   return `${year}-${filiereCode}-${String(next).padStart(4, "0")}`;
 }
 
-export function peekNextMatricule(filiereCode: string, anneePremiere?: number): string {
-  const year = anneePremiere ?? new Date().getFullYear();
+export function peekNextMatricule(filiereCode: string, anneeAcademique?: string): string {
+  const year = anneeDuMatricule(anneeAcademique);
   const key = `${year}-${filiereCode}`;
   const next = (store.matriculeCounters[key] ?? 0) + 1;
   return `${year}-${filiereCode}-${String(next).padStart(4, "0")}`;
@@ -2157,11 +2171,20 @@ export interface NewSeancePayload {
   classeId: string;
   salleId: string;
   prof: string;
+  profId?: string;
   jour: number;
   semaineDu: string;
   heureDebut: string;
   heureFin: string;
   type: string;
+}
+
+/** « lundi 21/09 à 08:00 » — date réelle du créneau (semaine + jour), au lieu du numéro de jour. */
+function libelleCreneau(seance: Pick<SeanceRecord, "semaineDu" | "jour" | "heureDebut">): string {
+  const d = new Date(`${seance.semaineDu}T12:00:00`);
+  d.setDate(d.getDate() + (seance.jour - 1));
+  const jour = d.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  return `${jour} à ${seance.heureDebut}`;
 }
 
 export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; conflicts: ReturnType<typeof detectScheduleConflicts> } {
@@ -2191,6 +2214,7 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
     salle: salle?.nom ?? "",
     salleId: payload.salleId,
     prof: payload.prof,
+    profId: payload.profId,
     type: payload.type,
     annee: getAnneeActuelle(),
   };
@@ -2203,15 +2227,17 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
       (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === payload.classeId),
     );
     for (const u of studentUsers) {
-      pushNotification(u.id, `EDT mis à jour : ${seance.ec} (${seance.jour}/${seance.heureDebut}) — ${seance.salle}`);
+      pushNotification(u.id, `Emploi du temps : ${seance.ec} le ${libelleCreneau(seance)} — ${seance.salle}`);
     }
   }
   if (notifEdt?.actif && notifEdt.envoyerProfesseur) {
+    // Le compte relié à la fiche enseignant de la séance ; à défaut d'identifiant (ancienne donnée),
+    // le compte dont le nom complet est exactement celui de la séance — jamais le seul nom de famille.
     const teacherUser = store.users.find(
-      (u) => u.role === "teacher" && (u.displayName.includes(payload.prof.split(" ").slice(-1)[0] ?? "") || payload.prof.includes(u.displayName.split(" ").slice(-1)[0] ?? "")),
+      (u) => u.role === "teacher" && (payload.profId ? u.linkedId === payload.profId : u.displayName.trim().toLowerCase() === payload.prof.trim().toLowerCase()),
     );
     if (teacherUser) {
-      pushNotification(teacherUser.id, `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${seance.salle}`);
+      pushNotification(teacherUser.id, `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)} — ${seance.salle}`);
     }
   }
 
@@ -2554,6 +2580,7 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
     classeId: seance.classeId,
     classe: seance.classe,
     prof: payload.prof,
+    profId: seance.profId,
     salle: salle?.nom || seance.salle,
     salleId: seance.salleId,
     date: payload.date || new Date().toISOString().slice(0, 10),

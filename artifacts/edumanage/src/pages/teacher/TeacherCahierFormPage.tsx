@@ -102,7 +102,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
     setMotifAnnulation(existing.motifAnnulation ?? "");
   }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof) && s.semaineDu === mondayOf(date));
+  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof, s.profId) && s.semaineDu === mondayOf(date));
   const seance = seances.find((s) => s.id === seanceId);
   const ec = ecs.find((e) => e.id === seance?.ecId);
   const ue = ues.find((u) => u.id === ec?.ueId);

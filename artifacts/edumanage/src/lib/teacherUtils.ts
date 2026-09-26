@@ -15,13 +15,21 @@ export function teacherDisplayLabel(teacher: EnseignantRecord): string {
   return `${teacher.matricule} - ${teacher.prenom} ${teacher.nom}${tel} | ${teacher.grade}`;
 }
 
-export function matchesProf(teacher: EnseignantRecord, profLabel: string): boolean {
-  const clean = stripTitle(teacher.prenom);
-  const full = `${clean} ${teacher.nom}`.toLowerCase();
-  const label = profLabel.trim().toLowerCase();
-  if (label === full) return true;
-  const first = clean.split(/\s+/)[0]?.toLowerCase() ?? "";
-  return label.includes(teacher.nom.toLowerCase()) && !!first && label.includes(first);
+function normaliserNom(texte: string): string {
+  return stripTitle(texte.trim()).toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Ce cours / cette séance appartient-il à ce professeur ? Par identifiant dès qu'il est connu
+ * (seul lien fiable : deux enseignants peuvent porter le même nom). Sans identifiant (données
+ * saisies avant son ajout), on exige le nom complet exact, prénom-nom ou nom-prénom, titre
+ * ignoré — jamais le seul nom de famille, très souvent partagé (DIALLO, NDIAYE, FALL...). */
+export function matchesProf(teacher: EnseignantRecord, profLabel: string | undefined, profId?: string): boolean {
+  if (profId) return profId === teacher.id;
+  const label = normaliserNom(profLabel ?? "");
+  if (!label) return false;
+  const prenom = normaliserNom(teacher.prenom);
+  const nom = normaliserNom(teacher.nom);
+  return label === `${prenom} ${nom}` || label === `${nom} ${prenom}`;
 }
 
 export function filterTeachers(
@@ -75,8 +83,8 @@ export function computeVhPointe(
   ecId: string,
   classeId: string,
   annee: string,
-  cahiers: { ecId: string; classeId: string; annee: string; prof: string; heureDebut: string; heureFin: string; etatSeance?: string }[],
-  seances: { ecId: string; classeId: string; annee: string; prof: string; heureDebut: string; heureFin: string }[],
+  cahiers: { ecId: string; classeId: string; annee: string; prof: string; profId?: string; heureDebut: string; heureFin: string; etatSeance?: string }[],
+  seances: { ecId: string; classeId: string; annee: string; prof: string; profId?: string; heureDebut: string; heureFin: string }[],
   pointages: { teacherId: string; ecId: string; classeId: string; annee: string; volumePointe: number; statut: string }[] = [],
 ): number {
   const pointedRows = pointages.filter(
@@ -97,7 +105,7 @@ export function computeVhPointe(
       c.ecId === ecId &&
       c.classeId === classeId &&
       c.annee === annee &&
-      matchesProf(teacher, c.prof) &&
+      matchesProf(teacher, c.prof, c.profId) &&
       c.etatSeance !== "annulee",
   );
   const source =
@@ -108,7 +116,7 @@ export function computeVhPointe(
             s.ecId === ecId &&
             s.classeId === classeId &&
             s.annee === annee &&
-            matchesProf(teacher, s.prof),
+            matchesProf(teacher, s.prof, s.profId),
         );
   const minutes = source.reduce(
     (sum, row) => sum + seanceDurationMinutes(row.heureDebut, row.heureFin),

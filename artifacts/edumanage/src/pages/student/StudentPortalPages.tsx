@@ -283,6 +283,12 @@ interface MatiereRow extends Record<string, unknown> {
   credits: number;
 }
 
+/** Dernier semestre (dans l'ordre du niveau) qui a déjà des données ; à défaut, le premier. */
+function semestreLePlusAvance(semestres: string[], avecDonnees: Set<string>): string {
+  const ordre = [...semestres].sort((a, b) => (Number(a.replace(/\D/g, "")) || 0) - (Number(b.replace(/\D/g, "")) || 0) || a.localeCompare(b));
+  return [...ordre].reverse().find((s) => avecDonnees.has(s)) ?? ordre[0] ?? "";
+}
+
 /** Suivi des notes en cours — jamais un verdict officiel (ça, c'est Relevés & bulletins, avec
  * mention et décision de jury réelles). computeBulletin() n'est réutilisé ici que pour son
  * calcul de moyenne pondérée par les vrais coefficients, pas pour un statut "validé". */
@@ -292,6 +298,7 @@ export function StudentNotesPage() {
   const notes = useNotes();
   const ues = useUes();
   const ecs = useEcs();
+  const seances = useSeances();
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
 
   const [onglet, setOnglet] = useState<"matieres" | "evaluations">("matieres");
@@ -302,7 +309,18 @@ export function StudentNotesPage() {
     [ues, student?.filiereId, student?.niveau],
   );
   const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
-  const semestreActif = semestreSelectionne || semestres[0] || "";
+  // Par défaut : le semestre le plus avancé qui a déjà des notes publiées, pas le premier du
+  // niveau — sinon l'étudiant de S6 ouvre la page sur un S5 vide ou périmé. En début de parcours,
+  // avant toute note, celui des cours programmés pour sa classe.
+  const semestreParDefaut = useMemo(() => {
+    const ueParId = new Map(mesUes.map((u) => [u.id, u]));
+    const semestreDeLEc = (ecId: string) => ueParId.get(ecs.find((e) => e.id === ecId)?.ueId ?? "")?.semestre;
+    const semestresDe = (ecIds: string[]) => new Set(ecIds.map(semestreDeLEc).filter((x): x is string => !!x));
+    const avecNotes = semestresDe(notes.filter((n) => n.etudiantId === student?.id && n.statut === "publie").map((n) => n.ecId));
+    if (avecNotes.size > 0) return semestreLePlusAvance(semestres, avecNotes);
+    return semestreLePlusAvance(semestres, semestresDe(seances.filter((se) => se.classeId === student?.classeId).map((se) => se.ecId)));
+  }, [mesUes, notes, ecs, seances, student?.id, student?.classeId, semestres]);
+  const semestreActif = semestreSelectionne || semestreParDefaut;
 
   const bulletin = useMemo(() => {
     if (!student || !semestreActif) return undefined;
@@ -1904,7 +1922,7 @@ export function StudentAbsencesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();
   const ues = useUes();
-  useCahiers(); // s'abonne pour refléter les cahiers de séance réellement soumis
+  const cahiers = useCahiers(); // s'abonne pour refléter les cahiers de séance réellement soumis
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
 
   const [semestreSelectionne, setSemestreSelectionne] = useState("");
@@ -1916,11 +1934,18 @@ export function StudentAbsencesPage() {
     [ues, student?.filiereId, student?.niveau],
   );
   const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
-  const semestreActif = semestreSelectionne || semestres[0] || "";
+  // Par défaut : le semestre le plus avancé où l'étudiant a déjà été pointé (le semestre en cours).
+  const semestreParDefaut = useMemo(
+    () => semestreLePlusAvance(semestres, new Set(student ? getAssiduiteRowsPourEtudiant(student.id).map((r) => r.semestre) : [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [semestres, student, cahiers],
+  );
+  const semestreActif = semestreSelectionne || semestreParDefaut;
 
   const rowsSemestre = useMemo(
     () => (student ? getAssiduiteRowsPourEtudiant(student.id).filter((r) => r.semestre === semestreActif) : []),
-    [student, semestreActif],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [student, semestreActif, cahiers],
   );
   const matieres = useMemo(() => Array.from(new Set(rowsSemestre.map((r) => r.ec))).sort(), [rowsSemestre]);
   const rowsFiltrees = useMemo(

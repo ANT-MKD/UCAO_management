@@ -119,7 +119,7 @@ export default function TeacherPointageFormPage() {
     const semaineDu = mondayOf(date);
     return seances.filter(
       (s) =>
-        matchesProf(selected, s.prof) &&
+        matchesProf(selected, s.prof, s.profId) &&
         s.annee === anneeScolaire &&
         s.ecId === selectedCourse.ecId &&
         s.classeId === selectedCourse.classeId &&

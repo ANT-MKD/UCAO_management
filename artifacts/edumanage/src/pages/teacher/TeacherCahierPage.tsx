@@ -46,7 +46,7 @@ export function TeacherCahierPage() {
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
   const mineCahiers = useMemo(
-    () => cahiers.filter((c) => myTeacher && matchesProf(myTeacher, c.prof)).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
+    () => cahiers.filter((c) => myTeacher && matchesProf(myTeacher, c.prof, c.profId)).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
     [cahiers, myTeacher],
   );
   const moisCourant = new Date().toISOString().slice(0, 7);
@@ -57,7 +57,7 @@ export function TeacherCahierPage() {
     ? Math.round((cahiersSoumis.reduce((s, c) => s + (c.tauxPresence || 0), 0) / cahiersSoumis.length) * 10) / 10
     : 0;
 
-  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof) && s.semaineDu === mondayOf(date));
+  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof, s.profId) && s.semaineDu === mondayOf(date));
   const jourChoisi = date ? jourDeLaSemaine(date) : -1;
   const seancesDuJour = mine.filter((s) => s.jour === jourChoisi);
   const seancesAvecStatut = seancesDuJour.map((s) => ({

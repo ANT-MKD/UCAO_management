@@ -262,6 +262,11 @@ export default function StudentMessagesPage() {
                       )}
                       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2.5", mine ? "bg-primary text-white rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm")}>
+                          {/* L'objet n'est affiché qu'en tête d'un nouveau sujet (mail de l'administration,
+                              nouveau message) : les réponses reprennent l'objet et ne le répètent pas. */}
+                          {m.subject && m.subject !== prev?.subject && (
+                            <p className={cn("text-xs font-semibold mb-1", mine ? "text-white/90" : "text-foreground")} data-testid="message-objet">{m.subject}</p>
+                          )}
                           <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
                           <div className={cn("flex items-center gap-1 mt-1 justify-end", mine ? "text-white/70" : "text-muted-foreground")}>
                             <span className="text-[10px]">{timeLabel(m.createdAt)}</span>

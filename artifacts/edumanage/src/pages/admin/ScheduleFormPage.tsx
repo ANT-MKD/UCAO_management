@@ -48,7 +48,7 @@ export default function ScheduleFormPage() {
       ecId: ECS[0]?.id ?? "",
       classeId: CLASSES[0]?.id ?? "",
       salleId: SALLES[0]?.id ?? "",
-      prof: ENSEIGNANTS[0] ? `${ENSEIGNANTS[0].prenom} ${ENSEIGNANTS[0].nom}` : "",
+      prof: ENSEIGNANTS[0]?.id ?? "",
       date: params.get("date") || prochainLundi(),
       heureDebut: params.get("heureDebut") || "08:00",
       heureFin: params.get("heureFin") || "10:00",
@@ -58,6 +58,10 @@ export default function ScheduleFormPage() {
   });
 
   const values = form.watch();
+  const profLabel = (id: string) => {
+    const t = ENSEIGNANTS.find((e) => e.id === id);
+    return t ? `${t.prenom} ${t.nom}` : "";
+  };
   const ec = ECS.find((e) => e.id === values.ecId);
   const classe = CLASSES.find((c) => c.id === values.classeId);
   const salle = SALLES.find((s) => s.id === values.salleId);
@@ -74,7 +78,10 @@ export default function ScheduleFormPage() {
       ecId: data.ecId,
       classeId: data.classeId,
       salleId: data.salleId,
-      prof: data.prof,
+      // Le champ contient l'identifiant de l'enseignant : la séance garde son nom (affichage) et son
+      // identifiant (lien fiable vers son portail, même avec un homonyme).
+      prof: profLabel(data.prof),
+      profId: data.prof || undefined,
       jour: dateToJour(data.date),
       semaineDu: mondayOf(data.date),
       heureDebut: data.heureDebut,
@@ -189,7 +196,7 @@ export default function ScheduleFormPage() {
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant responsable *</label>
                 <select {...form.register("prof", { required: true })} className={inputClass}>
                   {ENSEIGNANTS.map((e) => (
-                    <option key={e.id} value={`${e.prenom} ${e.nom}`}>{e.prenom} {e.nom} — {e.specialite}</option>
+                    <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite}</option>
                   ))}
                 </select>
               </div>
@@ -240,7 +247,7 @@ export default function ScheduleFormPage() {
                   <MapPin size={14} /> {salle?.nom ?? "—"} · {classe?.nom ?? "—"}
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <User size={14} /> {values.prof || "—"}
+                  <User size={14} /> {profLabel(values.prof) || "—"}
                 </div>
               </div>
             )}

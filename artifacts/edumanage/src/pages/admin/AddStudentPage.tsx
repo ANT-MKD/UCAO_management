@@ -136,6 +136,7 @@ export default function AddStudentPage() {
   };
 
   const selectedFiliere = form3.watch("filiereId");
+  const anneeSaisie = form3.watch("annee");
   const typeAdmission = form2.watch("typeAdmission");
   const statutPaiementWatch = form5.watch("statutPaiement");
   const filteredNiveaux = NIVEAUX.filter((n) => n.filiereId === selectedFiliere);
@@ -214,17 +215,17 @@ export default function AddStudentPage() {
     setSelectedEcheanceIds(new Set(toutesEcheances.map((e) => e.id)));
   };
 
-  const ensureMatricule = (filiereId: string) => {
-    if (!matricule) {
-      const code = FILIERES.find((f) => f.id === filiereId)?.code;
-      if (code) setMatricule(peekNextMatricule(code));
-    }
+  // Recalculé à chaque passage de l'étape 3 : un retour arrière qui change la filière ou l'année
+  // ne doit pas laisser l'aperçu d'un matricule qui ne sera pas celui attribué.
+  const ensureMatricule = (filiereId: string, annee: string) => {
+    const code = FILIERES.find((f) => f.id === filiereId)?.code;
+    if (code) setMatricule(peekNextMatricule(code, annee));
   };
 
   const handleStep1 = form1.handleSubmit((data) => { setStep1Data(data); setCurrentStep(2); });
   const handleStep2 = form2.handleSubmit((data) => { setStep2Data(data); setCurrentStep(3); });
   const handleStep3 = form3.handleSubmit((data) => {
-    ensureMatricule(data.filiereId);
+    ensureMatricule(data.filiereId, data.annee);
     setStep3Data(data);
     setCurrentStep(4);
   });
@@ -245,7 +246,7 @@ export default function AddStudentPage() {
     const filiere = FILIERES.find((f) => f.id === step3Data.filiereId);
     const niveau = NIVEAUX.find((n) => n.id === step3Data.niveauId);
     const code = filiere?.code ?? "XXX";
-    const finalMatricule = allocateMatricule(code);
+    const finalMatricule = allocateMatricule(code, step3Data.annee);
     setMatricule(finalMatricule);
 
     const paye = step5Data.statutPaiement === "paye";
@@ -572,7 +573,7 @@ export default function AddStudentPage() {
               <input
                 type="text"
                 readOnly
-                value={selectedFiliere ? (matricule || peekNextMatricule(FILIERES.find((f) => f.id === selectedFiliere)?.code ?? "XXX")) : "—"}
+                value={selectedFiliere ? peekNextMatricule(FILIERES.find((f) => f.id === selectedFiliere)?.code ?? "XXX", anneeSaisie) : "—"}
                 className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-muted/50 font-mono cursor-not-allowed"
                 style={{ fontFamily: "JetBrains Mono, monospace" }}
               />

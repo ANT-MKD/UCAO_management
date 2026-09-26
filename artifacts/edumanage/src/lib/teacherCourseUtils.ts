@@ -66,14 +66,16 @@ export function buildTeacherCourses(
     });
   };
 
-  for (const s of seances.filter((s) => matchesProf(teacher, s.prof) && s.annee === annee)) {
+  for (const s of seances.filter((s) => matchesProf(teacher, s.prof, s.profId) && s.annee === annee)) {
     push(s.ecId, s.classeId);
   }
 
   for (const ec of ecs) {
-    if (!matchesProf(teacher, ec.responsable) && !ec.responsable.includes(teacher.nom)) continue;
+    if (!matchesProf(teacher, ec.responsable, ec.responsableId)) continue;
     const ue = ues.find((u) => u.id === ec.ueId);
-    for (const classe of classes.filter((c) => c.filiere === ue?.filiere && c.annee === annee)) {
+    if (!ue) continue;
+    // Uniquement les classes qui suivent réellement cette UE : même filière ET même niveau.
+    for (const classe of classes.filter((c) => c.filiere === ue.filiere && c.niveau === ue.niveau && c.annee === annee)) {
       push(ec.id, classe.id);
     }
   }

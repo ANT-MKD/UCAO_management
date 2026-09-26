@@ -34,7 +34,7 @@ export default function TeacherRessourcesPage() {
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
   // Mes modules : les EC dont je suis responsable, et les classes de leur filière/niveau.
-  const mesEcs = useMemo(() => (myTeacher ? ecs.filter((e) => matchesProf(myTeacher, e.responsable)) : []), [ecs, myTeacher]);
+  const mesEcs = useMemo(() => (myTeacher ? ecs.filter((e) => matchesProf(myTeacher, e.responsable, e.responsableId)) : []), [ecs, myTeacher]);
   const mesFiliereNiveau = useMemo(() => {
     const paires = new Set<string>();
     for (const e of mesEcs) {

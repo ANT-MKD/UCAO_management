@@ -51,7 +51,7 @@ export default function TeacherAbsenceFormPage() {
     const jour = dateToJour(date);
     const semaineDu = mondayOf(date);
     return seances.filter(
-      (s) => matchesProf(selected, s.prof) && s.jour === jour && s.semaineDu === semaineDu && s.annee === anneeScolaire,
+      (s) => matchesProf(selected, s.prof, s.profId) && s.jour === jour && s.semaineDu === semaineDu && s.annee === anneeScolaire,
     );
   }, [selected, seances, date, anneeScolaire]);
 

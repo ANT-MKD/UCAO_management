@@ -158,7 +158,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
           <div>
             <h3 className="font-bold text-foreground mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Modules enseignés</h3>
             <div className="space-y-2">
-              {seances.filter((s) => s.prof.includes(teacher.nom)).map((s) => (
+              {seances.filter((s) => matchesProf(teacher, s.prof, s.profId)).map((s) => (
                 <div key={s.id} className="flex items-center gap-3 p-4 bg-muted/30 rounded-xl border border-border">
                   <div
                     className="w-2 h-10 rounded-full flex-shrink-0"
@@ -186,7 +186,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
         {activeTab === "planning" && (() => {
           const JOURS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
           const thisWeekMonday = mondayOf(new Date().toISOString().slice(0, 10));
-          const teacherSeances = seances.filter((s) => s.prof.includes(teacher.nom) && s.semaineDu === thisWeekMonday);
+          const teacherSeances = seances.filter((s) => matchesProf(teacher, s.prof, s.profId) && s.semaineDu === thisWeekMonday);
           function typeColorOf(type: string) {
             const t = typesSeance.find((x) => x.code === type);
             const hex = t?.couleur ?? "#4f46e5";
@@ -315,7 +315,7 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
         )}
 
         {activeTab === "attestation" && (() => {
-          const teacherSeances = seances.filter((s) => s.prof.includes(teacher.nom));
+          const teacherSeances = seances.filter((s) => matchesProf(teacher, s.prof, s.profId));
           const totalH = teacherSeances.reduce((s, se) => {
             const [sh, sm] = se.heureDebut.split(":").map(Number);
             const [eh, em] = se.heureFin.split(":").map(Number);

@@ -6,7 +6,7 @@ import {
   resolveMembresGroupePersonnalise,
 } from "./communicationGroupsStore";
 import { estAutorise, getCommunicationRolesParType } from "./communicationRolesStore";
-import { getEtudiants, getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { getEtudiants, getUserAccounts, pushNotificationEtPersister, sendMessage } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-mails-envoyes-v1";
 
@@ -138,9 +138,22 @@ export function resolveDestinataires(selections: SelectionDestinataireMail[]): D
  * communicationApiConfigStore). Les contacts externes / comptes sans lien restent dans le log mais
  * ne reçoivent rien de plus qu'une trace. */
 function notifierDestinataires(mail: MailEnvoyeRecord) {
+  // Un mail rédigé par un membre de l'administration est déposé dans la messagerie du portail de
+  // chaque destinataire (lisible en entier, et il peut y répondre) ; sendMessage le notifie aussi.
+  // Les mails système (codes, identifiants) n'ont pas d'expéditeur à qui répondre : notification seule.
+  const auteurAUnCompte = mail.auteurId !== "system" && getUserAccounts().some((u) => u.id === mail.auteurId);
+  const contenu = mail.fichiers.length > 0 ? `${mail.message}\n\nPièces jointes : ${mail.fichiers.join(", ")}` : mail.message;
   for (const d of mail.destinataires) {
-    if (d.userId) pushNotificationEtPersister(d.userId, `Nouveau message : ${mail.objet}`);
+    if (!d.userId) continue;
+    if (auteurAUnCompte && d.userId !== mail.auteurId) sendMessage(mail.auteurId, d.userId, mail.objet, contenu);
+    else pushNotificationEtPersister(d.userId, `Nouveau message : ${mail.objet}`);
   }
+}
+
+/** Tant qu'aucun validateur n'est désigné (Paramétrage communication → Validateur Messages), il n'y
+ * a personne pour valider : les mails partent directement au lieu de rester bloqués en file. */
+function validationActive(): boolean {
+  return getCommunicationRolesParType("validateur_message").length > 0;
 }
 
 export interface EnvoyerMailPayload {
@@ -158,7 +171,7 @@ export interface EnvoyerMailPayload {
  * exige un validateur désigné avant de créer une vraie dérogation. */
 export function envoyerMail(payload: EnvoyerMailPayload): MailEnvoyeRecord {
   const destinataires = resolveDestinataires(payload.selections);
-  const autorise = estAutorise("validateur_message", payload.auteurId);
+  const autorise = !validationActive() || estAutorise("validateur_message", payload.auteurId);
   const now = new Date().toISOString();
 
   const mail: MailEnvoyeRecord = {
@@ -227,7 +240,7 @@ export function envoyerMailSysteme(payload: MailSystemePayload): MailEnvoyeRecor
 export function validerMail(id: string, validateurId: string, validateurLabel: string): void {
   const mail = store.find((m) => m.id === id);
   if (!mail) return;
-  if (!estAutorise("validateur_message", validateurId)) {
+  if (validationActive() && !estAutorise("validateur_message", validateurId)) {
     throw new Error("Seul un validateur désigné (Paramétrage communication) peut valider un mail.");
   }
   mail.statut = "traite";
@@ -244,7 +257,7 @@ export function validerMail(id: string, validateurId: string, validateurLabel: s
 export function rejeterMail(id: string, validateurId: string, validateurLabel: string, motif: string): void {
   const mail = store.find((m) => m.id === id);
   if (!mail) return;
-  if (!estAutorise("validateur_message", validateurId)) {
+  if (validationActive() && !estAutorise("validateur_message", validateurId)) {
     throw new Error("Seul un validateur désigné (Paramétrage communication) peut rejeter un mail.");
   }
   mail.statut = "rejete";

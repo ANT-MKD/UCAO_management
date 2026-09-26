@@ -169,7 +169,7 @@ export default function SchedulePage() {
     let list = seances.filter((s) => s.semaineDu === weekMonday);
     if (viewMode === "classe") list = list.filter((s) => s.classeId === viewTarget);
     else if (viewMode === "salle") list = list.filter((s) => s.salleId === viewTarget);
-    else if (viewMode === "prof" && selectedProf) list = list.filter((s) => matchesProf(selectedProf, s.prof));
+    else if (viewMode === "prof" && selectedProf) list = list.filter((s) => matchesProf(selectedProf, s.prof, s.profId));
     else if (viewMode === "prof") list = [];
     return list;
   }, [seances, viewMode, viewTarget, selectedProf, weekMonday]);

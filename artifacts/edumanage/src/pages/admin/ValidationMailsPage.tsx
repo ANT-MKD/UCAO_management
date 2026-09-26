@@ -24,13 +24,15 @@ const STATUT_CONFIG: Record<MailEnvoyeRecord["statut"], { label: string; cls: st
 export default function ValidationMailsPage() {
   const { currentUser } = useAuth();
   const mails = useMailsEnvoyes();
-  useCommunicationRoles();
+  const rolesCommunication = useCommunicationRoles();
   const [preview, setPreview] = useState<MailEnvoyeRecord | null>(null);
   const [rejetTarget, setRejetTarget] = useState<MailEnvoyeRecord | null>(null);
   const [motif, setMotif] = useState("");
 
   const enAttente = useMemo(() => mails.filter((m) => m.statut === "en_attente_validation"), [mails]);
-  const peutValider = currentUser ? estAutorise("validateur_message", currentUser.id) : false;
+  // Sans validateur désigné, tout administrateur peut débloquer les mails restés en attente.
+  const aucunValidateur = !rolesCommunication.some((r) => r.role === "validateur_message");
+  const peutValider = aucunValidateur || (currentUser ? estAutorise("validateur_message", currentUser.id) : false);
 
   const handleValider = (mail: MailEnvoyeRecord) => {
     if (!currentUser) return;

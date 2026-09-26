@@ -106,7 +106,7 @@ export default function DevisConvertirPage({ id }: { id: string }) {
         etudiant = selectedStudent;
       } else {
         const filiere = FILIERES.find((f) => f.id === record.filiereId);
-        const matricule = allocateMatricule(filiere?.code ?? "XXX");
+        const matricule = allocateMatricule(filiere?.code ?? "XXX", record.annee);
         etudiant = registerNewEtudiant(
           {
             prenom: prenom.trim(),
