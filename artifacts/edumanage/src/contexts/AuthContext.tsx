@@ -7,7 +7,6 @@ import {
   logAudit,
   pushNotificationEtPersister,
   saveAuthSession,
-  MOT_DE_PASSE_INITIAL,
   type UserRole,
 } from "@/data/studentStore";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
@@ -133,9 +132,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       identifier: account.identifier,
       linkedId: account.linkedId,
       roleId: account.roleId,
-      // Mot de passe provisoire remis par l'administration, ou mot de passe initial du compte
-      // d'origine : il faut en choisir un autre avant d'entrer dans le portail.
-      doitChangerMotDePasse: account.doitChangerMotDePasse === true || password === MOT_DE_PASSE_INITIAL,
+      // Mot de passe provisoire remis par l'administration : il faut en choisir un autre avant
+      // d'entrer dans le portail.
+      doitChangerMotDePasse: account.doitChangerMotDePasse === true,
     };
     setCurrentUser(user);
     saveAuthSession(user);

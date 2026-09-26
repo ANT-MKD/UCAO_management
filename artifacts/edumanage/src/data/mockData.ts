@@ -2,11 +2,9 @@
  * un établissement (filières, classes, étudiants, professeurs, notes, paiements...). Rien de
  * fictif n'est préchargé : chaque store se remplit uniquement avec ce que l'administrateur
  * saisit réellement, et tout est ensuite persisté en local (localStorage du navigateur).
- * ANNEES_ACADEMIQUES garde une seule entrée : sans au moins une année en cours, la quasi-totalité
- * des formulaires (inscription, classe, paiement...) n'aurait aucune année à proposer. */
-export const ANNEES_ACADEMIQUES = [
-  { id: "aa1", libelle: "2025-2026", actuelle: true },
-];
+ * ANNEES_ACADEMIQUES est vide aussi : l'année en cours et ses dates sont saisies à l'installation
+ * (écran de première ouverture), avant tout autre formulaire. */
+export const ANNEES_ACADEMIQUES: { id: string; libelle: string; actuelle: boolean; dateDebut?: string; dateFin?: string }[] = [];
 
 export const FILIERES: {
   id: string; code: string; nom: string; responsable: string;

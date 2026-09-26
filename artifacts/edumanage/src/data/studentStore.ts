@@ -407,18 +407,9 @@ function parseMatriculeYear(matricule: string): number {
   return m ? Number(m[1]) : new Date().getFullYear();
 }
 
-/** Seul compte préexistant : celui de l'administrateur, indispensable pour pouvoir se connecter
- * la toute première fois. Les comptes professeur et étudiant ne sont plus préchargés — ils sont
- * créés réellement (Sécurité → Ajouter un utilisateur, ou automatiquement à l'inscription d'un
- * étudiant) une fois que l'établissement a de vraies personnes à y rattacher. */
-/** Haché une seule fois au chargement du module — seedUsers() est appelée à chaque tentative de
- * connexion (voir authenticateUser) : ne sert qu'au compte administrateur d'origine. */
-const DEMO_PASSWORD_HASH = hashPassword("demo123");
-
-/** Mot de passe initial du seul compte livré (ADM-0001) : utilisable une fois, puis changement
- * obligatoire. Toute connexion réussie avec ce mot de passe impose d'en choisir un autre. */
-export const MOT_DE_PASSE_INITIAL = "demo123";
-
+/** Aucun compte n'est livré avec l'application : le premier super administrateur est créé à
+ * l'installation (installerEtablissement), avec le mot de passe qu'il choisit lui-même. Il n'existe
+ * donc aucun identifiant ni mot de passe connu à l'avance. */
 /** Hash d'un mot de passe aléatoire que personne ne connaît : un compte créé sans mot de passe
  * remis (import Excel, conversion de devis, compte recréé) existe mais reste inaccessible tant que
  * l'administration ne lui a pas remis un code PIN. Jamais un mot de passe devinable partagé. */
@@ -427,19 +418,7 @@ const COMPTE_SANS_MOT_DE_PASSE_HASH = hashPassword(
 );
 
 function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
-  const users: UserAccountRecord[] = [
-    {
-      id: "u-admin-1",
-      role: "admin",
-      email: "admin@edumanage.com",
-      password: DEMO_PASSWORD_HASH,
-      identifier: "ADM-0001",
-      displayName: "Administrateur",
-      fonction: "Direction",
-      actif: true,
-      doitChangerMotDePasse: true,
-    },
-  ];
+  const users: UserAccountRecord[] = [];
 
   for (const e of etudiants) {
     users.push({
@@ -469,15 +448,7 @@ function mergeUsersWithSeed(existing: UserAccountRecord[], seed: UserAccountReco
 }
 
 function seedNotifications(): NotificationRecord[] {
-  return [
-    {
-      id: "nt-1",
-      userId: "u-admin-1",
-      message: "Bienvenue dans la messagerie interne.",
-      createdAt: new Date().toISOString(),
-      read: false,
-    },
-  ];
+  return [];
 }
 
 function buildFreshStore(): StoreData {
@@ -486,7 +457,7 @@ function buildFreshStore(): StoreData {
     etudiants: [],
     inscriptions: [],
     matriculeCounters: {},
-    annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: !a.actuelle && a.libelle < "2025-2026", archivee: false })),
+    annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: false, archivee: false })),
     paiements: [],
     notes: [],
     seances: [],
@@ -642,7 +613,8 @@ export function resetOperationalData(keepUserId: string) {
     etudiants: [],
     inscriptions: [],
     matriculeCounters: {},
-    annees: fresh.annees,
+    // L'année en cours (et ses dates) fait partie du paramétrage : elle est conservée.
+    annees: store.annees.filter((a) => a.actuelle).map((a) => ({ ...a, cloturee: false, archivee: false })),
     paiements: [],
     notes: [],
     seances: [],
@@ -725,6 +697,62 @@ export function setEtudiantMotifBlocage(etudiantId: string, motifBlocageId: stri
   persist();
 }
 
+/** Vrai tant qu'aucun compte administrateur actif n'existe : la page de connexion affiche alors
+ * l'écran d'installation au lieu du formulaire de connexion. */
+export function installationRequise(): boolean {
+  return !store.users.some((u) => u.role === "admin" && u.actif !== false);
+}
+
+export interface InstallationPayload {
+  prenom: string;
+  nom: string;
+  identifier: string;
+  email: string;
+  password: string;
+  annee: { libelle: string; dateDebut: string; dateFin: string };
+}
+
+/** Première ouverture de l'application : crée le premier super administrateur (mot de passe choisi
+ * par lui-même, jamais un mot de passe par défaut) et l'année académique en cours avec ses dates.
+ * Refusé dès qu'un administrateur existe. */
+export function installerEtablissement(payload: InstallationPayload): UserAccountRecord {
+  if (!installationRequise()) throw new Error("L'application est déjà installée : connectez-vous.");
+  const motifDates = validerDatesAnnee(payload.annee.libelle, payload.annee.dateDebut, payload.annee.dateFin);
+  if (motifDates) throw new Error(motifDates);
+  const identifiant = payload.identifier.trim().toUpperCase();
+  const email = payload.email.trim().toLowerCase();
+  if (!identifiant || !email || !payload.prenom.trim() || !payload.nom.trim()) throw new Error("Renseignez tous les champs.");
+  if (payload.password.length < 8) throw new Error("Le mot de passe du super administrateur doit contenir au moins 8 caractères.");
+  if (store.users.some((u) => u.identifier.toUpperCase() === identifiant || u.email.toLowerCase() === email)) {
+    throw new Error("Cet identifiant ou cet e-mail est déjà utilisé.");
+  }
+  const existante = store.annees.find((a) => a.libelle === payload.annee.libelle);
+  if (existante) {
+    store.annees = store.annees.map((a) => ({ ...a, actuelle: a.id === existante.id, ...(a.id === existante.id ? { dateDebut: payload.annee.dateDebut, dateFin: payload.annee.dateFin } : {}) }));
+  } else {
+    store.annees = [
+      ...store.annees.map((a) => ({ ...a, actuelle: false })),
+      { id: `aa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, libelle: payload.annee.libelle, actuelle: true, dateDebut: payload.annee.dateDebut, dateFin: payload.annee.dateFin },
+    ];
+  }
+  const compte: UserAccountRecord = {
+    id: store.users.some((u) => u.id === "u-admin-1") ? `u-admin-${Date.now()}` : "u-admin-1",
+    role: "admin",
+    email,
+    password: hashPassword(payload.password),
+    identifier: identifiant,
+    displayName: `${payload.prenom.trim()} ${payload.nom.trim().toUpperCase()}`,
+    fonction: "Super administrateur",
+    actif: true,
+    doitChangerMotDePasse: false,
+    passwordUpdatedAt: new Date().toISOString(),
+  };
+  store.users = [...store.users, compte];
+  logAudit(compte.id, "installation", "user_account", compte.id, `Année ${payload.annee.libelle}`);
+  persist();
+  return compte;
+}
+
 export function getUserAccounts(): UserAccountRecord[] {
   return store.users;
 }
@@ -746,10 +774,9 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
       u.identifier.toUpperCase() === qMatricule,
   );
   if (!user || !verifyPassword(password, user.password)) return null;
-  // Seul le compte d'origine peut encore s'ouvrir avec le mot de passe initial (pour être configuré
-  // la première fois). Un autre compte resté sur ce mot de passe connu (créé avant les mots de passe
-  // provisoires) ne s'ouvre pas : son titulaire obtient un code auprès de l'administration.
-  if (password === MOT_DE_PASSE_INITIAL && user.id !== "u-admin-1") return null;
+  // Ancien mot de passe de démonstration : un compte resté dessus ne s'ouvre plus, son titulaire
+  // obtient un code auprès de l'administration.
+  if (password === "demo123") return null;
   if (!isPasswordHashed(user.password)) {
     // Migration transparente : un compte encore en clair (créé avant l'introduction du hachage)
     // est rehaché dès qu'il s'authentifie avec succès, sans jamais invalider le compte existant.
@@ -790,7 +817,7 @@ export function updateUserPassword(userId: string, newPassword: string): void {
 export function definirMotDePasseDefinitif(userId: string, newPassword: string): { ok: boolean; reason?: string } {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return { ok: false, reason: "Compte introuvable." };
-  if (newPassword === MOT_DE_PASSE_INITIAL) return { ok: false, reason: "Choisissez un mot de passe différent du mot de passe initial." };
+  if (newPassword === "demo123") return { ok: false, reason: "Ce mot de passe est trop connu : choisissez-en un autre." };
   if (verifyPassword(newPassword, user.password)) return { ok: false, reason: "Le nouveau mot de passe doit être différent de l'actuel." };
   user.password = hashPassword(newPassword);
   user.doitChangerMotDePasse = false;
@@ -1416,7 +1443,7 @@ export function desarchiverAnnee(id: string) {
 }
 
 export function getAnneeActuelle(): string {
-  return store.annees.find((a) => a.actuelle)?.libelle ?? "2025-2026";
+  return store.annees.find((a) => a.actuelle)?.libelle ?? "";
 }
 
 // ——— Paiements ———

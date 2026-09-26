@@ -6,7 +6,8 @@ import { z } from "zod";
 import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { findUserAccountByIdentifier, updateUserPassword, getUserAccounts, pushNotificationEtPersister, logAudit } from "@/data/studentStore";
+import { findUserAccountByIdentifier, updateUserPassword, getUserAccounts, pushNotificationEtPersister, logAudit, installationRequise } from "@/data/studentStore";
+import { PremiereInstallation } from "@/components/PremiereInstallation";
 import { signalerDemandeReinitialisation, verifierEtConsommerPin } from "@/data/pinActivationStore";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
 
@@ -27,6 +28,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const [mode, setMode] = useState<Mode>("login");
+  // Aucun administrateur encore : première ouverture, on installe au lieu de se connecter.
+  const [installation] = useState(() => installationRequise());
   const [forgotIdentifier, setForgotIdentifier] = useState("");
   const [forgotError, setForgotError] = useState("");
   const [pinInput, setPinInput] = useState("");
@@ -142,7 +145,21 @@ export default function LoginPage() {
             </span>
           </div>
 
-          {mode === "login" && (
+          {installation && (
+            <PremiereInstallation
+              onInstalled={async (identifiant, motDePasse) => {
+                try {
+                  await login(identifiant, motDePasse);
+                  toast.success("EduManage est installé. Bienvenue !");
+                  setLocation("/admin/dashboard");
+                } catch {
+                  window.location.reload();
+                }
+              }}
+            />
+          )}
+
+          {!installation && mode === "login" && (
           <>
           <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
             Content de vous revoir
@@ -233,7 +250,7 @@ export default function LoginPage() {
           </>
           )}
 
-          {mode === "forgot-request" && (
+          {!installation && mode === "forgot-request" && (
             <>
               <button
                 type="button"
@@ -291,7 +308,7 @@ export default function LoginPage() {
             </>
           )}
 
-          {mode === "forgot-sent" && (
+          {!installation && mode === "forgot-sent" && (
             <>
               <button
                 type="button"
@@ -321,7 +338,7 @@ export default function LoginPage() {
             </>
           )}
 
-          {mode === "forgot-reset" && (
+          {!installation && mode === "forgot-reset" && (
             <>
               <button
                 type="button"

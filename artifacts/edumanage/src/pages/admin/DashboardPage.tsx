@@ -135,8 +135,8 @@ export default function DashboardPage() {
     [paiements, decomptes, anneeFilter],
   );
   const successRateData = useMemo(
-    () => calculerTauxReussiteParFiliere(deliberations, filieresActives),
-    [deliberations, filieresActives],
+    () => calculerTauxReussiteParFiliere(deliberations.filter((d) => d.annee === anneeActuelle), filieresActives),
+    [deliberations, filieresActives, anneeActuelle],
   );
   const successBySemestreData = useMemo(
     () => calculerReussiteParSemestre(deliberations, filieresActives),
@@ -258,7 +258,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Taux de Réussite</h3>
-              <p className="text-xs text-muted-foreground">Par filière — S1 2025</p>
+              <p className="text-xs text-muted-foreground">Par filière — délibérations {anneeActuelle || "de l'année"}</p>
             </div>
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               {(["donut", "pie"] as const).map((t) => (

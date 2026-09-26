@@ -31,7 +31,7 @@ export default function PECMasseFormPage() {
   const organismes = useOrganismesPEC();
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(() => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)), [anneesAcademiques]);
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0]?.libelle ?? "";
 
   const [organismeId, setOrganismeId] = useState("");
   const [filiereId, setFiliereId] = useState("");

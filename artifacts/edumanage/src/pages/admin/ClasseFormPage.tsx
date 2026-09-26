@@ -44,7 +44,7 @@ export default function ClasseFormPage({ id }: Props) {
           filiereId: "",
           niveauId: "",
           max: 35,
-          annee: annees.find((a) => a.actuelle)?.libelle ?? "2025-2026",
+          annee: annees.find((a) => a.actuelle)?.libelle ?? "",
           delegue: "",
           salleParDefautId: "",
         },

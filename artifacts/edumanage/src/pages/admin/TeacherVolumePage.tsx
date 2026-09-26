@@ -47,7 +47,7 @@ export default function TeacherVolumePage() {
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(teacherIdParam);
