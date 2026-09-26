@@ -43,7 +43,7 @@ function categoriser(message: string): string {
   if (/nouveau message/i.test(message)) return "messagerie";
   if (/nouvelle note publiée/i.test(message)) return "notes";
   if (/absence constatée/i.test(message)) return "absences";
-  if (/edt mis à jour|nouveau créneau/i.test(message)) return "emploi_du_temps";
+  if (/nouveau créneau|edt mis à jour|^emploi du temps|séance (modifiée|annulée)|cours (modifié|annulé|déplacé)|créneau déplacé/i.test(message)) return "emploi_du_temps";
   if (/paiement validé|quittance|reçu /i.test(message)) return "finances";
   if (/affecté à la classe/i.test(message)) return "academique";
   return "autres";

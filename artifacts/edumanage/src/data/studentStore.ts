@@ -2359,13 +2359,19 @@ export function modifierSeance(
   if (conflicts.length > 0) return { ok: false, conflicts };
 
   const avant = { ...seance };
+  // Même enseignant resaisi sans identifiant : on garde le lien existant plutôt que de le perdre.
+  if (!patch.profId && avant.profId && patch.prof.trim().toLowerCase() === avant.prof.trim().toLowerCase()) {
+    patch = { ...patch, profId: avant.profId };
+  }
   const changements: string[] = [];
   const creneauAvant = `${libelleCreneau(avant)}–${avant.heureFin}`;
   Object.assign(seance, { ...patch, salle: salle?.nom ?? seance.salle });
   const creneauApres = `${libelleCreneau(seance)}–${seance.heureFin}`;
   if (creneauAvant !== creneauApres) changements.push(`${creneauAvant} → ${creneauApres}`);
   if (avant.salleId !== seance.salleId) changements.push(`salle ${avant.salle} → ${seance.salle}`);
-  const changeProf = (avant.profId ?? avant.prof) !== (seance.profId ?? seance.prof);
+  const changeProf = avant.profId && seance.profId
+    ? avant.profId !== seance.profId
+    : avant.prof.trim().toLowerCase() !== seance.prof.trim().toLowerCase();
   if (changeProf) changements.push(`professeur ${avant.prof} → ${seance.prof}`);
   if (avant.type !== seance.type) changements.push(`type ${avant.type} → ${seance.type}`);
   store.seances = [...store.seances];

@@ -35,7 +35,7 @@ const CATEGORIES: Record<string, Categorie> = {
 
 function categoriser(message: string): string {
   if (/bloqu/i.test(message)) return "compte";
-  if (/nouveau créneau|edt mis à jour/i.test(message)) return "emploi_du_temps";
+  if (/nouveau créneau|edt mis à jour|^emploi du temps|séance (modifiée|annulée)|cours (modifié|annulé|déplacé)|créneau déplacé/i.test(message)) return "emploi_du_temps";
   if (/cahier/i.test(message)) return "cahier";
   if (/absence|retard/i.test(message)) return "absences";
   if (/rallonge/i.test(message)) return "rallonge";
