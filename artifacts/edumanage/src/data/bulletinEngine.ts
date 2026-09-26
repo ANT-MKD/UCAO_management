@@ -73,17 +73,18 @@ function resolveEcComposite(etudiantId: string, classeId: string, ecId: string, 
 /** Poids global du côté devoir et du côté examen pour un EC : somme des poids de toutes les
  * évaluations de chaque rôle (au lieu du poids d'une seule, historique) — dans le cas courant à
  * une évaluation par rôle, c'est exactement son poids, donc identique à avant. */
-function resolvePoidsRoles(classeId: string, ecId: string): { poidsDevoir?: number; poidsExamen?: number } {
+function resolvePoidsRoles(classeId: string, ecId: string): { poidsDevoir?: number; poidsExamen?: number; examenSeul?: boolean } {
   const evaluations = getEvaluationsForClasseEc(classeId, ecId);
   if (evaluations.length === 0) {
     const { devoir, examen } = getPoidsForClasseEc(classeId, ecId);
     return { poidsDevoir: devoir, poidsExamen: examen };
   }
   const sommePoids = (evals: EvaluationRecord[]) => (evals.length > 0 ? evals.reduce((s, e) => s + e.poids, 0) : undefined);
-  return {
-    poidsDevoir: sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "devoir")),
-    poidsExamen: sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "examen")),
-  };
+  const poidsDevoir = sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "devoir"));
+  const poidsExamen = sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "examen"));
+  // EC évalué uniquement par examen : l'examen compte pour 100 %. L'inverse (devoirs sans examen)
+  // reste « en attente » — c'est le cas normal d'un examen pas encore planifié.
+  return { poidsDevoir, poidsExamen, examenSeul: poidsDevoir === undefined && poidsExamen !== undefined };
 }
 
 export interface EcMoyenne {
@@ -116,6 +117,8 @@ export interface BulletinEtudiant {
   moyenneSession?: number;
   creditsObtenus: number;
   creditsTotal: number;
+  /** Moyenne de passage de la filière (Paramétrage scolarité) — seuil d'affichage « admis ». */
+  moyennePassage: number;
 }
 
 /** Moteur de calcul du bulletin réel d'un étudiant pour une classe et une session, à partir
@@ -146,10 +149,10 @@ export function computeBulletin(
     const ecsUe = ecsAll.filter((ec) => ec.ueId === ue.id && !estEcRetireePourEtudiant(etudiantId, classeId, ec.id));
     const ecs: EcMoyenne[] = ecsUe.map((ec): EcMoyenne => {
       const { cc, ef } = resolveEcComposite(etudiantId, classeId, ec.id, regles);
-      const { poidsDevoir: devoir, poidsExamen: examen } = resolvePoidsRoles(classeId, ec.id);
+      const { poidsDevoir: devoir, poidsExamen: examen, examenSeul } = resolvePoidsRoles(classeId, ec.id);
       const poidsCc = (devoir ?? regles.poidsDevoirDefaut) / 100;
       const poidsExamen = (examen ?? 100 - regles.poidsDevoirDefaut) / 100;
-      const moyenne = cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;
+      const moyenne = examenSeul ? ef : cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;
       const validee = moyenne !== undefined && moyenne >= regles.seuilValidationEc;
       return { id: ec.id, code: ec.code, libelle: ec.libelle, credits: ec.credits, cc, ef, moyenne, creditsObtenus: validee ? ec.credits : 0, validee };
     });
@@ -186,7 +189,7 @@ export function computeBulletin(
     : ues;
   const creditsObtenus = uesFinales.reduce((s, u) => s + u.creditsObtenus, 0);
 
-  return { ues: uesFinales, moyenneSession, creditsObtenus, creditsTotal };
+  return { ues: uesFinales, moyenneSession, creditsObtenus, creditsTotal, moyennePassage: config?.moyennePassage ?? 10 };
 }
 
 /** Variante pratique pour itérer tout le monde d'une classe : dérive filiereId/niveau de la

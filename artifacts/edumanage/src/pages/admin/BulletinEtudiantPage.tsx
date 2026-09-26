@@ -101,9 +101,9 @@ export default function BulletinEtudiantPage() {
 
   // Moteur partagé avec Moyennes par promotion, Délibérations et Relevés & Bulletins — une
   // seule vraie source de calcul, jamais de logique dupliquée ou de valeur fabriquée.
-  const { ues: bulletin, moyenneSession, creditsObtenus: creditsObtenusTotal, creditsTotal } = canShowBulletin
+  const { ues: bulletin, moyenneSession, creditsObtenus: creditsObtenusTotal, creditsTotal, moyennePassage } = canShowBulletin
     ? computeBulletin(etudiantId, classeId, filiereId, niveau.alias, semestre.alias)
-    : { ues: [], moyenneSession: undefined, creditsObtenus: 0, creditsTotal: 0 };
+    : { ues: [], moyenneSession: undefined, creditsObtenus: 0, creditsTotal: 0, moyennePassage: 10 };
 
   const toggleUe = (id: string) => {
     setExpandedUe((prev) => {
@@ -210,7 +210,7 @@ export default function BulletinEtudiantPage() {
             <div className="flex items-center gap-2">
               <Award size={16} className="text-primary" />
               <span className="text-sm text-muted-foreground">Moyenne session :</span>
-              <span className={cn("text-lg font-bold", moyenneSession !== undefined ? (moyenneSession >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
+              <span className={cn("text-lg font-bold", moyenneSession !== undefined ? (moyenneSession >= moyennePassage ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
                 {moyenneSession !== undefined ? moyenneSession.toFixed(2) : "—"}
               </span>
             </div>
@@ -237,8 +237,8 @@ export default function BulletinEtudiantPage() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground flex-shrink-0">
                         <span>Nombre crédit UE : <strong className="text-foreground">{ue.credits.toFixed(1)}</strong></span>
                         <span>Nombre de crédits obtenus : <strong className="text-foreground">{ue.creditsObtenus.toFixed(1)}</strong></span>
-                        <span>Moyenne UE : <strong className={ue.moyenne !== undefined ? (ue.validee ? "text-emerald-600" : "text-red-500") : "text-muted-foreground"}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(1) : "En attente"}</strong></span>
-                        {ue.moyenne !== undefined && (ue.validee ? <CheckCircle2 size={14} className="text-emerald-600" /> : <span className="text-red-500 font-bold">✕</span>)}
+                        <span>Moyenne UE : <strong className={ue.moyenne !== undefined ? (ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500") : "text-muted-foreground"}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(1) : "En attente"}</strong></span>
+                        {ue.moyenne !== undefined && (ue.validee ? <CheckCircle2 size={14} className="text-emerald-600" /> : ue.valideeParCompensation ? <span className="text-emerald-600 font-semibold">Compensée</span> : <span className="text-red-500 font-bold">✕</span>)}
                       </div>
                     </button>
                     {expanded && (

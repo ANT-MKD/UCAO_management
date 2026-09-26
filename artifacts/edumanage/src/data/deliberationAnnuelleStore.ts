@@ -163,7 +163,7 @@ function calculerLigneAnnuelle(e: EtudiantPourDeliberationAnnuelle, input: Charg
   const uesNonValidees: UeNonValideeAnnuelle[] = input.semestresAlias.flatMap((semestreAlias) => {
     const bulletin = computeBulletin(e.id, input.classeId, input.filiereId, input.niveauAlias, semestreAlias);
     return bulletin.ues
-      .filter((u) => !u.validee)
+      .filter((u) => !u.validee && !u.valideeParCompensation)
       .map((u): UeNonValideeAnnuelle => ({ ueId: u.id, ueCode: u.code, ueLibelle: u.libelle, ueCredits: u.credits, semestreAlias }));
   });
 

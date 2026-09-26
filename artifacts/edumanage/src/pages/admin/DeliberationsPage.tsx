@@ -549,7 +549,7 @@ function DetailDeliberation({
                       <div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className={cn("text-sm font-bold font-mono", l.moyenne >= 10 ? "text-emerald-600" : "text-red-600")}>{l.moyenne.toFixed(2)}</span>
+                      <span className={cn("text-sm font-bold font-mono", l.moyenne >= (deliberation.seuilOverride ?? regleSemestre?.moyennePassage ?? 10) ? "text-emerald-600" : "text-red-600")}>{l.moyenne.toFixed(2)}</span>
                     </td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}</td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsTotal}</td>
@@ -762,7 +762,7 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                       )}
                       <td className="px-3 py-2 text-muted-foreground">
                         {ec.libelle}
-                        {ec.ef !== undefined && ec.moyenne !== undefined && ec.moyenne < 10 && (
+                        {ec.ef !== undefined && ec.moyenne !== undefined && !ec.validee && (
                           <button
                             onClick={() => allerAuRattrapage(ec.id)}
                             className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 hover:opacity-80"

@@ -30,6 +30,7 @@ export interface BulletinResolu {
   etudiant: EtudiantRecord;
   ues: UeMoyenne[];
   moyenne: number;
+  moyennePassage: number;
   mention: string;
   creditsObtenus: number;
   creditsTotal: number;
@@ -87,7 +88,8 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
     etudiant,
     ues: bulletin.ues,
     moyenne: bulletin.moyenneSession,
-    mention: resoudreMention("moyenneSession", bulletin.moyenneSession, bulletin.moyenneSession >= 10).mention ?? "—",
+    moyennePassage: bulletin.moyennePassage,
+    mention: resoudreMention("moyenneSession", bulletin.moyenneSession, bulletin.moyenneSession >= bulletin.moyennePassage).mention ?? "—",
     creditsObtenus: bulletin.creditsObtenus,
     creditsTotal: bulletin.creditsTotal,
     rang: rangIndex >= 0 ? rangIndex + 1 : undefined,
@@ -122,13 +124,13 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 
   let tableRows = "";
   resolved.ues.forEach((ue) => {
-    const ueResultat = ue.moyenne !== undefined ? (ue.validee ? "UE Acquise" : "UE Non Acquise") : "";
+    const ueResultat = ue.moyenne !== undefined ? (ue.validee ? "UE Acquise" : ue.valideeParCompensation ? "UE Acquise par compensation" : "UE Non Acquise") : "";
     tableRows += `
       <tr class="ue-row">
         <td>${ue.code} - ${ue.libelle}</td>
         <td class="c">${ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}</td>
         <td class="c">${ue.credits}</td>
-        <td class="c" style="color:${ue.validee ? "#166534" : "#991b1b"};">${ueResultat}</td>
+        <td class="c" style="color:${ue.validee || ue.valideeParCompensation ? "#166534" : "#991b1b"};">${ueResultat}</td>
       </tr>`;
     ue.ecs.forEach((ec) => {
       tableRows += `

@@ -330,6 +330,7 @@ function DetailDeliberationAnnuelle({
   }
 
   const cloture = deliberation.statut === "cloturee";
+  const seuilPassageAnnuel = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "annee")?.moyennePassage ?? 10;
   const displayedLignes = decisionFilter ? deliberation.lignes.filter((l) => l.decisionFinale === decisionFilter) : deliberation.lignes;
 
   const stats = {
@@ -463,7 +464,7 @@ function DetailDeliberationAnnuelle({
                 return (
                   <tr key={l.etudiantId} className={cn("border-b border-border last:border-0", i % 2 === 0 ? "bg-background" : "bg-muted/20")}>
                     <td className="px-5 py-3"><div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div></td>
-                    <td className="px-3 py-3 text-center"><span className={cn("text-sm font-bold font-mono", l.moyenneAnnuelle >= 10 ? "text-emerald-600" : "text-red-600")}>{l.moyenneAnnuelle.toFixed(2)}</span></td>
+                    <td className="px-3 py-3 text-center"><span className={cn("text-sm font-bold font-mono", l.moyenneAnnuelle >= seuilPassageAnnuel ? "text-emerald-600" : "text-red-600")}>{l.moyenneAnnuelle.toFixed(2)}</span></td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}/{l.creditsTotal}</td>
                     <td className="px-5 py-3">
                       {editing && !cloture ? (

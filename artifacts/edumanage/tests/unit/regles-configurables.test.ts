@@ -17,6 +17,22 @@ async function avecRegles(regles: Partial<ReglesCalcul>) {
 }
 
 describe("règles de calcul configurables", () => {
+  it("EC évalué uniquement par examen : l'examen compte pour 100 %", async () => {
+    const { e, bulletin } = await avecRegles({});
+    const awa = e.inscrire("Awa", "SECK");
+    const [ec] = e.ecsDe(e.uesDu("S5")[0].id);
+    e.noter(awa.id, ec.id, "examen", 11, 100);
+    const ligne = bulletin(awa.id).ues.flatMap((u) => u.ecs).find((x) => x.id === ec.id)!;
+    expect(ligne.moyenne).toBe(11);
+    expect(ligne.validee).toBe(true);
+  });
+
+  it("moyenne de passage de la filière exposée par le bulletin (seuil d'affichage « admis »)", async () => {
+    const { e, bulletin, config } = await avecRegles({});
+    const awa = e.inscrire("Awa", "SECK");
+    expect(bulletin(awa.id).moyennePassage).toBe(config.moyennePassage);
+  });
+
   it("seuil de validation d'un EC relevé à 12 : un 10,20 n'est plus validé", async () => {
     const { e, bulletin } = await avecRegles({ seuilValidationEc: 12 });
     const awa = e.inscrire("Awa", "SECK");

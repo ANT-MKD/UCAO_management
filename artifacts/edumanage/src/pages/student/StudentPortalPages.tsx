@@ -404,7 +404,7 @@ export function StudentNotesPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <KPICard icon={GraduationCap} label="Moyenne générale" value={bulletin?.moyenneSession !== undefined ? `${bulletin.moyenneSession.toFixed(2)}/20` : "—"} accentColor={bulletin?.moyenneSession !== undefined && bulletin.moyenneSession >= 10 ? "#10b981" : "#ef4444"} />
+        <KPICard icon={GraduationCap} label="Moyenne générale" value={bulletin?.moyenneSession !== undefined ? `${bulletin.moyenneSession.toFixed(2)}/20` : "—"} accentColor={bulletin?.moyenneSession !== undefined && bulletin.moyenneSession >= bulletin.moyennePassage ? "#10b981" : "#ef4444"} />
         <KPICard icon={Award} label="Crédits obtenus" value={bulletin ? `${bulletin.creditsObtenus}/${bulletin.creditsTotal}` : "—"} subtitle={bulletin ? `${pctCredits}% obtenus` : undefined} accentColor="#2563eb" />
         <KPICard icon={FileText} label="Notes publiées" value={notesDuSemestre.length} accentColor="#8b5cf6" />
       </div>
@@ -589,7 +589,7 @@ export function StudentRelevesPage() {
               icon={GraduationCap}
               label="Moyenne du semestre"
               value={resolved ? `${resolved.moyenne.toFixed(2)}/20` : "—"}
-              accentColor={resolved && resolved.moyenne >= 10 ? "#10b981" : "#ef4444"}
+              accentColor={resolved && resolved.moyenne >= resolved.moyennePassage ? "#10b981" : "#ef4444"}
             />
             <KPICard
               icon={Award}
@@ -658,18 +658,18 @@ export function StudentRelevesPage() {
                                 <td className="px-4 py-2.5 font-bold text-foreground">{ue.code} — {ue.libelle}</td>
                                 <td className="px-4 py-2.5" />
                                 <td className="px-4 py-2.5" />
-                                <td className={cn("px-4 py-2.5 font-bold", ue.moyenne !== undefined ? (ue.moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "")}>
+                                <td className={cn("px-4 py-2.5 font-bold", ue.moyenne !== undefined ? (ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500") : "")}>
                                   {ue.moyenne !== undefined ? `${ue.moyenne.toFixed(2)}/20` : "—"}
                                 </td>
                                 <td className="px-4 py-2.5 font-medium">{ue.creditsObtenus}/{ue.credits}</td>
-                                <td className={cn("px-4 py-2.5 font-medium", ue.validee ? "text-emerald-600" : "text-red-500")}>{ue.validee ? "Validée" : "Non validée"}</td>
+                                <td className={cn("px-4 py-2.5 font-medium", ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500")}>{ue.validee ? "Validée" : ue.valideeParCompensation ? "Acquise par compensation" : "Non validée"}</td>
                               </tr>
                               {ue.ecs.map((ec) => (
                                 <tr key={ec.id} className="border-b border-border last:border-0">
                                   <td className="px-4 py-2.5 pl-8 text-muted-foreground">{ec.libelle}</td>
                                   <td className="px-4 py-2.5">{ec.cc !== undefined ? ec.cc.toFixed(2) : "—"}</td>
                                   <td className="px-4 py-2.5">{ec.ef !== undefined ? ec.ef.toFixed(2) : "—"}</td>
-                                  <td className={cn("px-4 py-2.5 font-medium", ec.moyenne !== undefined ? (ec.moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "")}>
+                                  <td className={cn("px-4 py-2.5 font-medium", ec.moyenne !== undefined ? (ec.validee ? "text-emerald-600" : "text-red-500") : "")}>
                                     {ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}
                                   </td>
                                   <td className="px-4 py-2.5" />
