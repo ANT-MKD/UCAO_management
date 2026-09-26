@@ -15,6 +15,10 @@ export default function MessagesPage() {
   const { currentUser } = useAuth();
   const messages = useMessages(currentUser?.id);
   const users = useMemo(() => getUserAccounts().filter((u) => u.id !== currentUser?.id), [currentUser?.id]);
+  // Boîte de réception = messages reçus uniquement : un mail diffusé à une classe dépose une copie
+  // chez chaque étudiant, qui ne doit pas revenir en autant d'entrées chez l'expéditeur.
+  const recus = useMemo(() => messages.filter((m) => m.toUserId === currentUser?.id), [messages, currentUser?.id]);
+  const nomExpediteur = (id: string) => getUserAccounts().find((u) => u.id === id)?.displayName ?? "Compte supprimé";
   const [toUserId, setToUserId] = useState("");
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
@@ -210,17 +214,19 @@ export default function MessagesPage() {
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Boîte de réception</h4>
             <div className="space-y-2 max-h-[420px] overflow-auto">
-              {messages.map((m) => (
+              {recus.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => currentUser && markMessageAsRead(m.id, currentUser.id)}
-                  className="w-full text-left rounded-xl border border-border p-3 hover:bg-muted"
+                  onClick={() => { if (currentUser) markMessageAsRead(m.id, currentUser.id); setToUserId(m.fromUserId); setSubject(m.subject); }}
+                  className={cn("w-full text-left rounded-xl border border-border p-3 hover:bg-muted", !m.read && "border-primary/40 bg-primary/5")}
+                  data-testid={`message-recu-${m.id}`}
                 >
+                  <p className="text-[11px] text-muted-foreground">{nomExpediteur(m.fromUserId)} · {new Date(m.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</p>
                   <p className="text-sm font-semibold">{m.subject}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{m.content}</p>
                 </button>
               ))}
-              {messages.length === 0 && <p className="text-sm text-muted-foreground">Aucun message.</p>}
+              {recus.length === 0 && <p className="text-sm text-muted-foreground">Aucun message reçu.</p>}
             </div>
           </div>
           <div>
