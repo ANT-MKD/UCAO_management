@@ -12,6 +12,7 @@ import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
+import { reglesDeCalcul } from "@/data/scolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { createEvaluation, updateEvaluation, getPoidsForClasseEc } from "@/data/evaluationStore";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
@@ -22,8 +23,6 @@ import { toast } from "sonner";
 type NoteEntry = { note: string; absent: boolean };
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-const POIDS_CC_DEFAUT = 30;
-const POIDS_EXAMEN_DEFAUT = 70;
 
 export default function RattrapagePage() {
   const { currentUser } = useAuth();
@@ -68,7 +67,9 @@ export default function RattrapagePage() {
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
   const semestre = SEMESTRES.find((s) => s.id === semestreId);
   const bareme = scolariteConfigs.find((c) => c.filiereId === filiereId)?.noteBareme ?? 20;
-  const moyennePassage = scolariteConfigs.find((c) => c.filiereId === filiereId)?.moyennePassage ?? 10;
+  // Un EC se rattrape quand il n'est pas validé : seuil et poids par défaut = règles de calcul de la filière.
+  const regles = reglesDeCalcul(filiereId);
+  const moyennePassage = regles.seuilValidationEc;
 
   const niveauxFiliere = NIVEAUX.filter((n) => n.filiereId === filiereId);
   const classesDisponibles = CLASSES.filter(
@@ -156,16 +157,17 @@ export default function RattrapagePage() {
     return (estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute;
   });
   const { devoir: poidsDevoirReel, examen: poidsExamenReel } = ecId ? getPoidsForClasseEc(classeId, ecId) : {};
-  const poidsCc = (poidsDevoirReel ?? POIDS_CC_DEFAUT) / 100;
-  const poidsExamen = (poidsExamenReel ?? POIDS_EXAMEN_DEFAUT) / 100;
+  const poidsCc = (poidsDevoirReel ?? regles.poidsDevoirDefaut) / 100;
+  const poidsExamen = (poidsExamenReel ?? 100 - regles.poidsDevoirDefaut) / 100;
+  const examenSeul = poidsDevoirReel === undefined && poidsExamenReel !== undefined;
   // Ajourné = moyenne normale (CC + EF, tous deux déjà saisis) réellement sous la moyenne de
   // passage. Un étudiant dont l'examen normal n'a pas encore été noté n'apparaît pas ici — ce
   // n'est pas un cas de rattrapage, c'est une saisie normale à faire d'abord.
   const ajournes = classeStudentsAll.filter((etu) => {
     const cc = getEffectiveNote(etu.id, classeId, ecId, "CC")?.note;
     const ef = getEffectiveNote(etu.id, classeId, ecId, "EF")?.note;
-    if (cc === undefined || ef === undefined) return false;
-    return cc * poidsCc + ef * poidsExamen < moyennePassage;
+    if (ef === undefined || (cc === undefined && !examenSeul)) return false;
+    return (examenSeul ? ef : cc! * poidsCc + ef * poidsExamen) < moyennePassage;
   });
   const classeStudents = ajournes.filter((e) => {
     if (!searchStudent) return true;
