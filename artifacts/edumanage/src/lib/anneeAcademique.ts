@@ -47,11 +47,17 @@ export function validerDatesAnnee(libelle: string, dateDebut: string, dateFin: s
   return null;
 }
 
-/** Décale une date ISO d'un an (29 février → 28 février les années non bissextiles). */
-export function decalerDUnAn(dateIso: string): string {
+/** Décale une date ISO de `n` années (négatif = vers le passé ; 29 février → 28 février les
+ * années non bissextiles). */
+export function decalerDeNAns(dateIso: string, n: number): string {
   const [a, m, j] = dateIso.split("-").map(Number);
-  const dernierJour = new Date(Date.UTC(a + 1, m, 0)).getUTCDate();
-  return `${a + 1}-${String(m).padStart(2, "0")}-${String(Math.min(j, dernierJour)).padStart(2, "0")}`;
+  const dernierJour = new Date(Date.UTC(a + n, m, 0)).getUTCDate();
+  return `${a + n}-${String(m).padStart(2, "0")}-${String(Math.min(j, dernierJour)).padStart(2, "0")}`;
+}
+
+/** Décale une date ISO d'un an. */
+export function decalerDUnAn(dateIso: string): string {
+  return decalerDeNAns(dateIso, 1);
 }
 
 /** "2 nov. 2026" — affichage court d'une date ISO sans décalage de fuseau. */

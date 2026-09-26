@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
-import { getGrilleFrais, getModelesFraisDisponibles } from "@/data/grilleFraisStore";
+import { getGrilleFrais, getModelesFraisDisponibles, resoudreDateGrille, formatDateGrille } from "@/data/grilleFraisStore";
 import { genererDevis, type DevisLigne } from "@/data/devisStore";
 import { niveauLabel } from "@/lib/teacherCourseUtils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +19,7 @@ const inputClass =
 function ligneDescription(intitule: string, montant: number, modalite: string, nbEcheances: number | undefined, dateLimite: string | undefined, modeleLabel: string): string {
   if (modalite === "echeances" && nbEcheances) {
     const parEcheance = Math.round(montant / nbEcheances);
-    const dateTxt = dateLimite ? ` au plus tard le ${dateLimite}` : "";
+    const dateTxt = dateLimite ? ` au plus tard le ${formatDateGrille(dateLimite)}` : "";
     return `${intitule} - ${formatCFA(montant)} payable en ${nbEcheances} échéances de ${formatCFA(parEcheance)}${dateTxt} pour le modèle de frais ${modeleLabel}`;
   }
   return `${intitule} - ${formatCFA(montant)} pour le modèle de frais ${modeleLabel} avant inscription`;
@@ -68,10 +68,11 @@ export default function DevisFormPage() {
       montantHT: l.montant,
       modalite: l.modalite,
       nbEcheances: l.nbEcheances,
-      dateLimite: l.dateLimite,
+      // Date réelle (ISO) figée dans le devis, qu'elle ait été saisie complète ou en ancien format JJ/MM.
+      dateLimite: l.dateLimite ? resoudreDateGrille(annee, l.dateLimite) ?? l.dateLimite : undefined,
       montantTTC: Math.round(l.montant * (1 + tauxTaxeNum / 100)),
     }));
-  }, [grille, tauxTaxeNum]);
+  }, [grille, tauxTaxeNum, annee]);
 
   const totalHT = lignes.reduce((s, l) => s + l.montantHT, 0);
   const totalTTC = lignes.reduce((s, l) => s + l.montantTTC, 0);

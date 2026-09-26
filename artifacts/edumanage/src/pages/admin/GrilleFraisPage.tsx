@@ -14,7 +14,9 @@ import {
   makeLigneGrilleFraisId,
   calculerEcheances,
   nbEcheancesEffectif,
-  resoudreDateJourMois,
+  resoudreDateGrille,
+  periodeAnneeScolaire,
+  decalerLigneGrille,
   type GrilleFraisRecord,
   type LigneGrilleFrais,
   type EcheancePersonnalisee,
@@ -23,6 +25,7 @@ import {
 import { parseGrilleFraisExcel, downloadGrilleFraisTemplate, exportGrillesFraisExcel } from "@/lib/grilleFraisImport";
 import { niveauLabel } from "@/lib/teacherCourseUtils";
 import { formatCFA, cn } from "@/lib/utils";
+import { formatDateCourte, premiereAnneeCivile } from "@/lib/anneeAcademique";
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -75,6 +78,9 @@ export default function GrilleFraisPage() {
   const dupNiveauxDisponibles = useMemo(() => NIVEAUX.filter((n) => n.filiereId === dupFiliereId), [dupFiliereId]);
 
   const combinaisonComplete = !!filiereId && !!niveau && !!annee && !!modeleFraisId;
+  // Période de l'année de la grille (rentrée → fin, ou 1er sept. → 31 août si non renseignée) :
+  // bornes des dates d'échéance et valeurs proposées par défaut.
+  const periode = useMemo(() => (annee ? periodeAnneeScolaire(annee) : undefined), [annee, anneesAcademiques]);
 
   useEffect(() => {
     if (!combinaisonComplete) {
@@ -152,14 +158,22 @@ export default function GrilleFraisPage() {
     );
   };
 
-  /** Garde-fou : avec dateDebut ET dateLimite renseignées, la date de fin résolue (selon l'année
-   * scolaire) doit tomber après la date de début — sinon l'échéancier calculé serait inversé. */
-  const periodeInversee = (l: LigneGrilleFrais): boolean => {
-    if (l.modalite !== "echeances" || !l.dateDebut || !l.dateLimite) return false;
-    const debut = resoudreDateJourMois(annee, l.dateDebut);
-    const fin = resoudreDateJourMois(annee, l.dateLimite);
-    if (!debut || !fin) return false;
-    return debut >= fin;
+  /** Contrôle des dates d'une ligne à échéances : chaque date (début, fin, échéances personnalisées)
+   * doit tomber dans l'année de la grille, et la fin après le début. Renvoie le motif, ou null. */
+  const erreurDatesLigne = (l: LigneGrilleFrais): string | null => {
+    if (l.modalite !== "echeances" || !periode) return null;
+    const hors = (d: string) => d < periode.debut || d > periode.fin;
+    const borne = `${formatDateCourte(periode.debut)} → ${formatDateCourte(periode.fin)}`;
+    if (l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0) {
+      const dehors = l.echeancesPersonnalisees.find((e) => e.date && hors(e.date));
+      return dehors ? `Échéance du ${formatDateCourte(dehors.date)} hors de l'année ${annee} (${borne})` : null;
+    }
+    const debut = l.dateDebut ? resoudreDateGrille(annee, l.dateDebut) : undefined;
+    const fin = l.dateLimite ? resoudreDateGrille(annee, l.dateLimite) : undefined;
+    if (debut && hors(debut)) return `Date début hors de l'année ${annee} (${borne})`;
+    if (fin && hors(fin)) return `Date fin hors de l'année ${annee} (${borne})`;
+    if (debut && fin && debut >= fin) return "La date de fin doit être après la date de début";
+    return null;
   };
 
   const handleSave = () => {
@@ -176,8 +190,9 @@ export default function GrilleFraisPage() {
       toast.error("Chaque échéance personnalisée doit avoir une date et un montant supérieur à 0");
       return;
     }
-    if (lignes.some(periodeInversee)) {
-      toast.error("La date de début doit être avant la date de fin (une fois rattachées à l'année scolaire) pour chaque ligne à échéances");
+    const ligneEnErreur = lignes.find((l) => erreurDatesLigne(l));
+    if (ligneEnErreur) {
+      toast.error(`${ligneEnErreur.intitule || "Ligne sans intitulé"} : ${erreurDatesLigne(ligneEnErreur)}`);
       return;
     }
     upsertGrilleFrais({
@@ -212,7 +227,11 @@ export default function GrilleFraisPage() {
       niveau: dupNiveau,
       annee: dupAnnee,
       modeleFraisId: dupModeleFraisId,
-      lignes: duplicateTarget.lignes.map((l) => ({ ...l, id: makeLigneGrilleFraisId() })),
+      // Les dates complètes suivent la nouvelle année (grille 2025-2026 copiée en 2026-2027 → +1 an).
+      lignes: duplicateTarget.lignes.map((l) => ({
+        ...decalerLigneGrille(l, (premiereAnneeCivile(dupAnnee) - premiereAnneeCivile(duplicateTarget.annee)) || 0),
+        id: makeLigneGrilleFraisId(),
+      })),
     });
     toast.success("Grille dupliquée");
     setDuplicateTarget(null);
@@ -459,6 +478,17 @@ export default function GrilleFraisPage() {
         </div>
       ) : (
         <>
+          {periode && (
+            periode.definie ? (
+              <p className="text-xs text-muted-foreground mb-2" data-testid="grille-periode-annee">
+                Année {annee} : du {formatDateCourte(periode.debut)} au {formatDateCourte(periode.fin)} — les dates d&apos;échéance doivent tomber dans cette période.
+              </p>
+            ) : (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mb-2" data-testid="grille-periode-annee">
+                Dates de l&apos;année {annee} non renseignées (Académiques → Années académiques) : les échéances sont contrôlées sur la période par défaut, du {formatDateCourte(periode.debut)} au {formatDateCourte(periode.fin)}.
+              </p>
+            )
+          )}
           <div className="bg-card border border-border rounded-xl overflow-x-auto mb-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <table className="w-full min-w-[1050px] text-sm">
               <thead>
@@ -483,7 +513,7 @@ export default function GrilleFraisPage() {
                   lignes.map((l) => {
                     const personnalisee = !!l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0;
                     const arrondiInexact = l.modalite === "echeances" && !personnalisee && !!l.nbEcheances && l.montant % l.nbEcheances !== 0;
-                    const inversee = periodeInversee(l);
+                    const erreurDates = erreurDatesLigne(l);
                     return (
                       <Fragment key={l.id}>
                       <tr className="border-b border-border last:border-0 align-top">
@@ -526,8 +556,16 @@ export default function GrilleFraisPage() {
                         <td className="px-3 py-3">
                           <select
                             value={l.modalite}
-                            onChange={(e) => updateLigne(l.id, { modalite: e.target.value as ModaliteFrais })}
-                            className={inputClass}
+                            onChange={(e) => {
+                              const modalite = e.target.value as ModaliteFrais;
+                              // Passage en échéances : dates proposées = rentrée et fin de l'année de la
+                              // grille, si elles sont renseignées (jamais inventées), modifiables ensuite.
+                              const prefill = modalite === "echeances" && !l.dateDebut && !l.dateLimite && periode?.definie
+                                ? { dateDebut: periode.debut, dateLimite: periode.fin }
+                                : {};
+                              updateLigne(l.id, { modalite, ...prefill });
+                            }}
+                            className={`${inputClass} min-w-[150px]`}
                           >
                             <option value="avant_inscription">Avant inscription</option>
                             <option value="echeances">Échéances</option>
@@ -556,10 +594,12 @@ export default function GrilleFraisPage() {
                               <span className="text-xs text-muted-foreground">Dates perso.</span>
                             ) : (
                               <input
-                                value={l.dateDebut ?? ""}
-                                onChange={(e) => updateLigne(l.id, { dateDebut: e.target.value })}
+                                type="date"
+                                value={l.dateDebut ? resoudreDateGrille(annee, l.dateDebut) ?? "" : ""}
+                                onChange={(e) => updateLigne(l.id, { dateDebut: e.target.value || undefined })}
+                                min={periode?.debut}
+                                max={periode?.fin}
                                 className={inputClass}
-                                placeholder="JJ/MM"
                                 title="Optionnel — sans date début, les échéances tombent chaque mois avant la date fin"
                                 data-testid={`grille-ligne-date-debut-${l.id}`}
                               />
@@ -569,19 +609,28 @@ export default function GrilleFraisPage() {
                         <td className="px-3 py-3">
                           {l.modalite === "echeances" && (
                             personnalisee ? (
-                              <span className="text-xs text-muted-foreground">Dates perso.</span>
+                              <>
+                                <span className="text-xs text-muted-foreground">Dates perso.</span>
+                                {erreurDates && (
+                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-erreur-dates-${l.id}`}>
+                                    ⚠ {erreurDates}
+                                  </p>
+                                )}
+                              </>
                             ) : (
                               <>
                                 <input
-                                  value={l.dateLimite ?? ""}
-                                  onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
+                                  type="date"
+                                  value={l.dateLimite ? resoudreDateGrille(annee, l.dateLimite) ?? "" : ""}
+                                  onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value || undefined })}
+                                  min={periode?.debut}
+                                  max={periode?.fin}
                                   className={inputClass}
-                                  placeholder="JJ/MM"
                                   data-testid={`grille-ligne-date-fin-${l.id}`}
                                 />
-                                {inversee && (
-                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-periode-inversee-${l.id}`}>
-                                    ⚠ avant la date début une fois rattachée à {annee}
+                                {erreurDates && (
+                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-erreur-dates-${l.id}`}>
+                                    ⚠ {erreurDates}
                                   </p>
                                 )}
                               </>
@@ -621,6 +670,8 @@ export default function GrilleFraisPage() {
                                     type="date"
                                     value={e.date}
                                     onChange={(ev) => updateEcheancePerso(l.id, idx, { date: ev.target.value })}
+                                    min={periode?.debut}
+                                    max={periode?.fin}
                                     className={`${inputClass} max-w-[170px]`}
                                     data-testid={`grille-ligne-eperso-date-${l.id}-${idx}`}
                                   />
@@ -696,7 +747,7 @@ export default function GrilleFraisPage() {
       <FormModal open={importOpen} onClose={() => setImportOpen(false)} title="Importer une grille tarifaire" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date début, Date limite.
+            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date début, Date limite (dates au format JJ/MM/AAAA).
             Le fichier remplace intégralement les grilles pour les combinaisons qu&apos;il contient.
           </p>
           <div className="flex flex-wrap gap-2">

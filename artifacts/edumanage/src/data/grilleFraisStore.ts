@@ -1,3 +1,6 @@
+import { getAnneesAcademiques } from "./studentStore";
+import { decalerDeNAns, premiereAnneeCivile } from "@/lib/anneeAcademique";
+
 const STORAGE_KEY = "edumanage-grille-frais-v1";
 
 export type ModaliteFrais = "avant_inscription" | "echeances";
@@ -17,11 +20,12 @@ export interface LigneGrilleFrais {
   montant: number;
   modalite: ModaliteFrais;
   nbEcheances?: number;
-  /** Date de la première échéance ("JJ/MM", même convention que dateLimite). Absente = comportement
-   * historique (échéances mensuelles consécutives se terminant à dateLimite). Présente avec
-   * dateLimite = les échéances sont réparties uniformément entre les deux dates. */
+  /** Date de la première échéance — date complète ISO ("2026-11-10"). Les lignes saisies avant le
+   * passage à la date complète gardent l'ancien format "JJ/MM", résolu via resoudreDateGrille().
+   * Absente = échéances mensuelles consécutives se terminant à dateLimite. Présente avec dateLimite
+   * = les échéances sont réparties uniformément entre les deux dates. */
   dateDebut?: string;
-  /** Date de la dernière échéance ("JJ/MM", sans année — déduite de l'année scolaire). */
+  /** Date de la dernière échéance — date complète ISO, ou "JJ/MM" pour les lignes anciennes. */
   dateLimite?: string;
   /** Échéances définies manuellement (date + montant chacune) — remplace le partage automatique
    * par nbEcheances/dateLimite quand présent. La somme doit égaler `montant`. */
@@ -71,18 +75,73 @@ function evenlySpacedDates(startIso: string, endIso: string, n: number): string[
   return Array.from({ length: n }, (_, i) => new Date(start + step * i).toISOString().slice(0, 10));
 }
 
-/** dateDebut/dateLimite d'une ligne grille sont au format jour/mois ("10/12") sans année : on
- * déduit l'année civile réelle à partir de l'année scolaire (ex: "2025-2026") — septembre à
- * décembre tombent sur la première année, janvier à août sur la seconde. Exportée pour que l'UI
- * puisse afficher le même calcul en aperçu (garde-fou "date début après date fin"). */
-export function resoudreDateJourMois(anneeScolaire: string, dateLimite: string): string | undefined {
-  const [jourStr, moisStr] = dateLimite.split("/");
+export function estDateIso(valeur: string | undefined): boolean {
+  return !!valeur && /^\d{4}-\d{2}-\d{2}$/.test(valeur);
+}
+
+/** Période couverte par une année scolaire : ses dates réelles de rentrée et de fin quand elles
+ * sont renseignées (Années académiques), sinon 1er septembre → 31 août. */
+export function periodeAnneeScolaire(anneeScolaire: string): { debut: string; fin: string; definie: boolean } | undefined {
+  const record = getAnneesAcademiques().find((a) => a.libelle === anneeScolaire);
+  if (record?.dateDebut && record.dateFin) return { debut: record.dateDebut, fin: record.dateFin, definie: true };
+  const an1 = premiereAnneeCivile(anneeScolaire);
+  if (!Number.isFinite(an1)) return undefined;
+  return { debut: `${an1}-09-01`, fin: `${an1 + 1}-08-31`, definie: false };
+}
+
+/** Date réelle (ISO) d'une date de ligne grille. Une date complète est renvoyée telle quelle ; une
+ * date ancienne "JJ/MM" est rattachée à l'année scolaire : les mois à partir du mois de rentrée
+ * tombent sur la première année civile, les autres sur la seconde (rentrée en novembre → novembre
+ * et décembre en 2026, janvier à octobre en 2027 pour 2026-2027). */
+export function resoudreDateGrille(anneeScolaire: string, valeur: string): string | undefined {
+  if (estDateIso(valeur)) return valeur;
+  const [jourStr, moisStr] = valeur.split("/");
   const jour = Number(jourStr);
   const mois = Number(moisStr);
-  const [an1, an2] = anneeScolaire.split("-").map(Number);
-  if (!jour || !mois || !an1) return undefined;
-  const annee = mois >= 9 ? an1 : (an2 || an1 + 1);
+  const an1 = premiereAnneeCivile(anneeScolaire);
+  if (!jour || !mois || !Number.isFinite(an1)) return undefined;
+  const periode = periodeAnneeScolaire(anneeScolaire);
+  const moisRentree = periode ? Number(periode.debut.slice(5, 7)) : 9;
+  const annee = mois >= moisRentree ? an1 : an1 + 1;
   return `${annee}-${String(mois).padStart(2, "0")}-${String(jour).padStart(2, "0")}`;
+}
+
+/** Normalise une date saisie ou importée : ISO, "JJ/MM/AAAA" et numéro de série Excel deviennent
+ * une date ISO ; "JJ/MM" (ancien format) est conservé tel quel. Renvoie undefined si illisible. */
+export function normaliserDateGrille(valeur: unknown): string | undefined {
+  if (typeof valeur === "number" && valeur > 0) {
+    // Numéro de série Excel (jours depuis le 30/12/1899).
+    return new Date(Date.UTC(1899, 11, 30) + Math.round(valeur) * 86400000).toISOString().slice(0, 10);
+  }
+  const txt = String(valeur ?? "").trim();
+  if (!txt) return undefined;
+  if (estDateIso(txt)) return txt;
+  const complet = txt.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (complet) return `${complet[3]}-${complet[2].padStart(2, "0")}-${complet[1].padStart(2, "0")}`;
+  const court = txt.match(/^(\d{1,2})[/.-](\d{1,2})$/);
+  if (court) return `${court[1].padStart(2, "0")}/${court[2].padStart(2, "0")}`;
+  return undefined;
+}
+
+/** Affichage d'une date de ligne grille : "10/06/2027" pour une date complète, "10/06" sinon. */
+export function formatDateGrille(valeur: string | undefined): string {
+  if (!valeur) return "";
+  if (estDateIso(valeur)) return `${valeur.slice(8, 10)}/${valeur.slice(5, 7)}/${valeur.slice(0, 4)}`;
+  return valeur;
+}
+
+/** Recopie une ligne vers une autre année scolaire en décalant ses dates complètes (début, fin,
+ * échéances personnalisées) du même nombre d'années. Les dates anciennes "JJ/MM" n'ont pas
+ * d'année : elles se rattachent d'elles-mêmes à la nouvelle année. */
+export function decalerLigneGrille(ligne: LigneGrilleFrais, nbAnnees: number): LigneGrilleFrais {
+  if (nbAnnees === 0) return { ...ligne };
+  const decaler = (d?: string) => (d && estDateIso(d) ? decalerDeNAns(d, nbAnnees) : d);
+  return {
+    ...ligne,
+    dateDebut: decaler(ligne.dateDebut),
+    dateLimite: decaler(ligne.dateLimite),
+    echeancesPersonnalisees: ligne.echeancesPersonnalisees?.map((e) => ({ ...e, date: decaler(e.date) ?? e.date })),
+  };
 }
 
 /** Calcule les échéances réelles (date + montant) d'une ligne en modalité "echeances". Si des
@@ -102,12 +161,12 @@ export function calculerEcheances(ligne: LigneGrilleFrais, anneeScolaire: string
     return ligne.echeancesPersonnalisees.map((e, i) => ({ index: i + 1, date: e.date, montant: e.montant }));
   }
   const n = Math.max(1, ligne.nbEcheances ?? 1);
-  const dateFinale = ligne.dateLimite ? resoudreDateJourMois(anneeScolaire, ligne.dateLimite) : undefined;
+  const dateFinale = ligne.dateLimite ? resoudreDateGrille(anneeScolaire, ligne.dateLimite) : undefined;
   if (n <= 1 || !dateFinale) {
     return [{ index: 1, date: dateFinale ?? new Date().toISOString().slice(0, 10), montant: ligne.montant }];
   }
   const montants = splitMontantEgal(ligne.montant, n);
-  const dateInitiale = ligne.dateDebut ? resoudreDateJourMois(anneeScolaire, ligne.dateDebut) : undefined;
+  const dateInitiale = ligne.dateDebut ? resoudreDateGrille(anneeScolaire, ligne.dateDebut) : undefined;
   if (dateInitiale) {
     const dates = evenlySpacedDates(dateInitiale, dateFinale, n);
     return montants.map((montant, i) => ({ index: i + 1, date: dates[i], montant }));
