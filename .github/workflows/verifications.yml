@@ -1,0 +1,55 @@
+# Vérifications automatiques d'EduManage, à chaque envoi sur GitHub et à chaque demande de fusion :
+# compilation, tests des calculs, construction, puis parcours complets dans un vrai navigateur.
+# Une modification qui casse l'un d'eux est signalée avant d'arriver en production.
+name: Vérifications
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+
+      - name: Compilation (types)
+        working-directory: artifacts/edumanage
+        run: pnpm run typecheck
+
+      - name: Tests des calculs et des règles
+        working-directory: artifacts/edumanage
+        run: pnpm test
+
+      - name: Construction de l'application
+        working-directory: artifacts/edumanage
+        run: pnpm run build
+
+      - name: Navigateur pour les parcours
+        working-directory: artifacts/edumanage
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Parcours complets dans le navigateur
+        working-directory: artifacts/edumanage
+        run: pnpm run test:e2e
+
+      - name: Rapport des parcours (en cas d'échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-parcours
+          path: artifacts/edumanage/playwright-report
+          retention-days: 7

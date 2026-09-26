@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Résultats des tests de navigateur (Playwright)
+test-results
+playwright-report
