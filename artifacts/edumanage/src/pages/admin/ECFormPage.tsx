@@ -142,7 +142,7 @@ export default function ECFormPage({ id }: Props) {
       />
       <div className="max-w-2xl">
         <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code EC *</label>
               <input {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" }, onChange: () => setCodeManuel(true) })} placeholder="ex: LPIG3511" className={`${inputClass} uppercase font-mono`} data-testid="ec-code" />
@@ -161,18 +161,18 @@ export default function ECFormPage({ id }: Props) {
               />
               {errors.ueId && <p className="text-xs text-red-500 mt-1">{errors.ueId.message}</p>}
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Élément constitutif *</label>
               <input {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" }, onChange: (e) => { if (!abregeManuel) setValue("abrege", abregerIntitule(e.target.value)); } })} placeholder="ex: Concepts et fondamentaux de la POO Java" className={inputClass} data-testid="ec-libelle" />
               {errors.libelle && <p className="text-xs text-red-500 mt-1">{errors.libelle.message}</p>}
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé abrégé</label>
               <input {...register("abrege", { onChange: () => setAbregeManuel(true) })} placeholder="ex: ICPT" className={`${inputClass} uppercase font-mono`} data-testid="ec-abrege" />
               {!abregeManuel && <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1"><Wand2 size={11} /> Proposé d&apos;après l&apos;intitulé — modifiable</p>}
             </div>
 
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <p className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wide">Enseignements (heures)</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>

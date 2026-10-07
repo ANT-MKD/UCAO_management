@@ -121,7 +121,7 @@ export default function UEFormPage({ id }: Props) {
       />
       <div className="max-w-2xl">
         <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code UE *</label>
               <input {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" }, onChange: () => setCodeManuel(true) })} placeholder="Choisissez filière, niveau et semestre" className={`${inputClass} uppercase font-mono`} data-testid="ue-code" />
@@ -133,7 +133,7 @@ export default function UEFormPage({ id }: Props) {
               <input {...register("credits", { required: "Crédits requis", valueAsNumber: true, min: { value: 1, message: "Minimum 1" }, max: { value: 30, message: "Maximum 30" } })} type="number" min={1} max={30} className={inputClass} />
               {errors.credits && <p className="text-xs text-red-500 mt-1">{errors.credits.message}</p>}
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Unité d'enseignement *</label>
               <input {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Génie logiciel 5" className={inputClass} />
               {errors.libelle && <p className="text-xs text-red-500 mt-1">{errors.libelle.message}</p>}
@@ -169,7 +169,7 @@ export default function UEFormPage({ id }: Props) {
               </select>
               {errors.semestreId && <p className="text-xs text-red-500 mt-1">{errors.semestreId.message}</p>}
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description (optionnel)</label>
               <textarea {...register("description")} rows={3} placeholder="Objectifs pédagogiques..." className={`${inputClass} resize-none`} />
             </div>
