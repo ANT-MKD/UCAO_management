@@ -5,6 +5,7 @@ import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
 import { type RegleValidationRecord } from "./reglesValidationStore";
 import { type NiveauRecord } from "./niveauStore";
 import { creerCreditDette } from "./creditDetteStore";
+import { tronquer, atteint } from "@/lib/notes";
 
 const STORAGE_KEY = "edumanage-deliberation-annuelle-store-v1";
 
@@ -27,11 +28,22 @@ export interface UeNonValideeAnnuelle {
   semestreAlias: string;
 }
 
+/** Résultat d'un semestre de l'année : l'UCAO ne calcule pas de moyenne annuelle, l'année se
+ * décide sur les crédits des deux semestres. */
+export interface SemestreAnnuel {
+  semestreAlias: string;
+  moyenne?: number;
+  creditsObtenus: number;
+  creditsTotal: number;
+}
+
 export interface DeliberationAnnuelleLigne {
   etudiantId: string;
   etudiant: string;
   matricule: string;
+  /** Utilisée seulement par une filière validée à la moyenne (hors LMD). */
   moyenneAnnuelle: number;
+  semestres?: SemestreAnnuel[];
   creditsObtenus: number;
   creditsTotal: number;
   uesNonValidees: UeNonValideeAnnuelle[];
@@ -112,7 +124,7 @@ export function getDeliberationAnnuelleForClasse(classeId: string): Deliberation
  * decideValidation le fait pour un semestre) avec la tolérance de passage conditionnel (AJAC)
  * propre au niveau quitté — jamais la même chose que decideValidation, qui ignore l'existence
  * même d'une dette de crédits. */
-function decideValidationAnnuelle(
+export function decideValidationAnnuelle(
   moyenne: number,
   creditsObtenus: number,
   absencesHeures: number,
@@ -121,13 +133,15 @@ function decideValidationAnnuelle(
 ): DecisionAnnuelle {
   const { heuresAbsenceExclusion } = reglesDeCalcul(regle.filiereId);
   if (heuresAbsenceExclusion > 0 && absencesHeures > heuresAbsenceExclusion) return "exclu";
-  if (regle.moyenneEliminatoire > 0 && moyenne < regle.moyenneEliminatoire) return "exclu";
+  if (regle.moyenneEliminatoire > 0 && !atteint(moyenne, regle.moyenneEliminatoire)) return "exclu";
 
-  const okMoyenne = !regle.validationParMoyenne || moyenne >= regle.moyennePassage;
+  const okMoyenne = !regle.validationParMoyenne || atteint(moyenne, regle.moyennePassage);
   const okCredit = !regle.validationParCredit || creditsObtenus >= regle.creditPassage;
   if (okMoyenne && okCredit) return "admis";
 
-  if (niveau?.passageConditionnelAutorise && creditsObtenus >= (niveau.creditDetteMin ?? 0)) return "admis_avec_dette";
+  // Passage avec dette : seuil propre au niveau s'il en a un, sinon règle de la filière (42 crédits).
+  const seuilDette = niveau?.passageConditionnelAutorise ? (niveau.creditDetteMin ?? 0) : reglesDeCalcul(regle.filiereId).creditsPassageAvecDette;
+  if (seuilDette > 0 && creditsObtenus >= seuilDette) return "admis_avec_dette";
   return "redouble";
 }
 
@@ -155,13 +169,16 @@ export interface ChargerDeliberationAnnuelleInput {
 }
 
 function calculerLigneAnnuelle(e: EtudiantPourDeliberationAnnuelle, input: ChargerDeliberationAnnuelleInput): DeliberationAnnuelleLigne {
-  const { moyenne, creditsObtenus, creditsTotal } = computeMoyenneAnnuelle(e.id, input.classeId, input.filiereId, input.niveauAlias);
+  const { moyenne } = computeMoyenneAnnuelle(e.id, input.classeId, input.filiereId, input.niveauAlias);
+  const bulletins = input.semestresAlias.map((semestreAlias) => ({ semestreAlias, bulletin: computeBulletin(e.id, input.classeId, input.filiereId, input.niveauAlias, semestreAlias) }));
+  const semestres: SemestreAnnuel[] = bulletins.map(({ semestreAlias, bulletin }) => ({ semestreAlias, moyenne: bulletin.moyenneSession, creditsObtenus: bulletin.creditsObtenus, creditsTotal: bulletin.creditsTotal }));
+  const creditsObtenus = semestres.reduce((s, x) => s + x.creditsObtenus, 0);
+  const creditsTotal = semestres.reduce((s, x) => s + x.creditsTotal, 0);
   const absences = input.semestresAlias.reduce(
     (s, semestreAlias) => s + getHeuresAbsenceNonJustifieePourEtudiant(e.id, input.classeId, semestreAlias),
     0,
   );
-  const uesNonValidees: UeNonValideeAnnuelle[] = input.semestresAlias.flatMap((semestreAlias) => {
-    const bulletin = computeBulletin(e.id, input.classeId, input.filiereId, input.niveauAlias, semestreAlias);
+  const uesNonValidees: UeNonValideeAnnuelle[] = bulletins.flatMap(({ semestreAlias, bulletin }) => {
     return bulletin.ues
       .filter((u) => !u.validee && !u.valideeParCompensation)
       .map((u): UeNonValideeAnnuelle => ({ ueId: u.id, ueCode: u.code, ueLibelle: u.libelle, ueCredits: u.credits, semestreAlias }));
@@ -173,7 +190,8 @@ function calculerLigneAnnuelle(e: EtudiantPourDeliberationAnnuelle, input: Charg
     etudiantId: e.id,
     etudiant: `${e.prenom} ${e.nom}`,
     matricule: e.matricule,
-    moyenneAnnuelle: parseFloat((moyenne ?? 0).toFixed(2)),
+    moyenneAnnuelle: tronquer(moyenne ?? 0),
+    semestres,
     creditsObtenus,
     creditsTotal,
     uesNonValidees,

@@ -14,6 +14,7 @@ import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 import { FormModal } from "@/components/admin/FormModal";
 import { KPICard } from "@/components/admin/KPICard";
 import { cn, formatDate } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const ACTION_IMPRESSION: Record<AttestationType, string> = {
   scolarite: "impression_certificat_scolarite",
@@ -183,7 +184,7 @@ export default function StudentDocumentsPage() {
                           </p>
                           {doc.type === "reussite" && doc.moyenneConstatee !== undefined && (
                             <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                              <BadgeCheck size={12} className="text-emerald-600" /> Moyenne {doc.moyenneConstatee.toFixed(2)}/20
+                              <BadgeCheck size={12} className="text-emerald-600" /> Moyenne {formatNote(doc.moyenneConstatee)}/20
                             </p>
                           )}
                           <div className="flex gap-2 mt-3">

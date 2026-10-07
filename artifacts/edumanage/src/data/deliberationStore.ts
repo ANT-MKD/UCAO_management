@@ -1,7 +1,9 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
+import { tronquer } from "@/lib/notes";
 import { computeBulletinPourClasse } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
-import { decideValidation, type RegleValidationRecord } from "./reglesValidationStore";
+import { decideValidation, getRegleValidation, type RegleValidationRecord } from "./reglesValidationStore";
+import { SEMESTRES } from "./mockData";
 import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
 
 const STORAGE_KEY = "edumanage-deliberation-store-v1";
@@ -11,8 +13,8 @@ export type DecisionJury = "admis" | "ajourne" | "rattrapage" | "exclu" | "a_dec
 /** Libellés canoniques des décisions de jury — source unique réutilisée partout où une décision
  * doit être affichée (Délibération, Attestations, Relevés) pour ne jamais diverger. */
 export const DECISION_LABELS: Record<DecisionJury, string> = {
-  admis: "Admis",
-  ajourne: "Ajourné",
+  admis: "Semestre validé",
+  ajourne: "Semestre non validé",
   rattrapage: "Rattrapage",
   exclu: "Exclu",
   a_declasser: "À déclasser",
@@ -147,7 +149,7 @@ function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationIn
     etudiantId: e.id,
     etudiant: `${e.prenom} ${e.nom}`,
     matricule: e.matricule,
-    moyenne: parseFloat(moyenne.toFixed(2)),
+    moyenne: tronquer(moyenne),
     creditsObtenus: bulletin?.creditsObtenus ?? 0,
     creditsTotal: bulletin?.creditsTotal ?? 0,
     absences,
@@ -214,6 +216,33 @@ export function chargerDeliberation(input: ChargerDeliberationInput): Deliberati
   store.deliberations.unshift(record);
   persist();
   return record;
+}
+
+/** Recalcule la ligne d'un seul étudiant (après un repêchage d'UE par le jury, par exemple) avec
+ * les règles en vigueur et le seuil de session éventuellement ajusté ; une décision corrigée
+ * manuellement par le jury reste celle du jury. Jamais sur une délibération clôturée. */
+export function recalculerLigneDeliberation(deliberationId: string, etudiantId: string): void {
+  const deliberation = getDeliberationById(deliberationId);
+  if (!deliberation || deliberation.statut === "cloturee") return;
+  const index = deliberation.lignes.findIndex((l) => l.etudiantId === etudiantId);
+  const regle = getRegleValidation(deliberation.filiereId, "semestre");
+  const semestreAlias = SEMESTRES.find((s) => s.id === deliberation.semestreId)?.alias;
+  if (index < 0 || !regle || !semestreAlias) return;
+  const ancienne = deliberation.lignes[index];
+  const input = {
+    filiereId: deliberation.filiereId, annee: deliberation.annee, niveauAlias: deliberation.niveau,
+    classeId: deliberation.classeId, semestreAlias, regle,
+  } as ChargerDeliberationInput;
+  const nouvelle = calculerLigne({ id: etudiantId, prenom: "", nom: "", matricule: ancienne.matricule }, input, deliberation.seuilOverride);
+  const corrigee = ancienne.decisionFinale !== ancienne.decisionAuto;
+  deliberation.lignes[index] = {
+    ...nouvelle,
+    etudiant: ancienne.etudiant,
+    decisionFinale: corrigee ? ancienne.decisionFinale : nouvelle.decisionAuto,
+    overrideRaison: corrigee ? ancienne.overrideRaison : undefined,
+    overrideModifiePar: corrigee ? ancienne.overrideModifiePar : undefined,
+  };
+  persist();
 }
 
 /** Corrige manuellement la décision d'un étudiant avant clôture — jamais après (la délibération

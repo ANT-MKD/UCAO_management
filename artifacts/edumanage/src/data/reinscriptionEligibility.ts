@@ -3,6 +3,7 @@ import { getDerogationsPaiement, derogationActivePour } from "./derogationPaieme
 import { getDeliberations, DECISION_LABELS, type DeliberationLigne } from "./deliberationStore";
 import { computeCreditsCumulesParcours } from "./bulletinEngine";
 import { getDettesActivesPourEtudiant } from "./creditDetteStore";
+import { getDeliberationsAnnuelles, DECISION_ANNUELLE_LABELS, type DeliberationAnnuelleLigne } from "./deliberationAnnuelleStore";
 import type { NiveauRecord } from "./niveauStore";
 
 export interface ReinscriptionEligibility {
@@ -28,6 +29,14 @@ export function getDerniereLigneDeliberation(etudiantId: string): DeliberationLi
 /** niveauCible : le niveau visé par la réinscription en cours — permet de vérifier le garde-fou
  * de crédits cumulés (NiveauRecord.creditsRequisEntree, ex. 120 crédits requis pour L3). Optionnel
  * pour ne pas casser les appels existants qui ne connaissent pas encore le niveau cible. */
+/** Dernière décision de délibération annuelle connue pour cet étudiant (la plus récente). */
+export function getDerniereLigneDeliberationAnnuelle(etudiantId: string): DeliberationAnnuelleLigne | undefined {
+  const derniere = getDeliberationsAnnuelles()
+    .filter((d) => d.lignes.some((l) => l.etudiantId === etudiantId))
+    .sort((a, b) => b.annee.localeCompare(a.annee) || b.dateDeliberation.localeCompare(a.dateDeliberation))[0];
+  return derniere?.lignes.find((l) => l.etudiantId === etudiantId);
+}
+
 export function checkReinscriptionEligibility(etudiantId: string, niveauCible?: NiveauRecord): ReinscriptionEligibility {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant) return { decision: "blocked", reasons: ["Étudiant introuvable"] };
@@ -52,10 +61,41 @@ export function checkReinscriptionEligibility(etudiantId: string, niveauCible?: 
       reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA)`);
     }
   }
-  const ligne = getDerniereLigneDeliberation(etudiantId);
-  if (ligne && ligne.decisionFinale !== "admis") {
-    conditional = true;
-    reasons.push(`Délibération : ${DECISION_LABELS[ligne.decisionFinale]}`);
+  // Règle UCAO : le passage se décide sur l'année (délibération annuelle) ; la délibération de
+  // semestre ne sert de repère que si l'année n'a pas encore été délibérée.
+  const monte = !!niveauCible && niveauCible.alias !== etudiant.niveau;
+  const ligneAnnuelle = getDerniereLigneDeliberationAnnuelle(etudiantId);
+  if (ligneAnnuelle) {
+    const decision = ligneAnnuelle.decisionFinale;
+    if (decision === "admis_avec_dette") {
+      conditional = true;
+      reasons.push(`Délibération annuelle : ${DECISION_ANNUELLE_LABELS[decision]} — ${ligneAnnuelle.creditsObtenus}/${ligneAnnuelle.creditsTotal} crédits`);
+    } else if (decision !== "admis" && monte) {
+      blocked = true;
+      reasons.push(`Délibération annuelle : ${DECISION_ANNUELLE_LABELS[decision]} — passage au niveau supérieur impossible`);
+    } else if (decision !== "admis") {
+      conditional = true;
+      reasons.push(`Délibération annuelle : ${DECISION_ANNUELLE_LABELS[decision]}`);
+    }
+  } else {
+    const ligne = getDerniereLigneDeliberation(etudiantId);
+    if (ligne && ligne.decisionFinale !== "admis") {
+      conditional = true;
+      reasons.push(`Délibération : ${DECISION_LABELS[ligne.decisionFinale]}`);
+    }
+  }
+
+  // Règle UCAO : on monte avec une dette d'un seul niveau. Pour entrer en L3, la L1 doit être
+  // entièrement validée (tous ses crédits), même si la L2 a été obtenue avec dette.
+  if (monte) {
+    const { detail } = computeCreditsCumulesParcours(etudiantId, etudiant.filiereId);
+    for (const d of detail) {
+      if (d.niveau === etudiant.niveau || d.niveau === niveauCible!.alias) continue;
+      if (d.creditsTotal > 0 && d.creditsObtenus < d.creditsTotal) {
+        blocked = true;
+        reasons.push(`Entrée en ${niveauCible!.nom} impossible : ${d.niveau} n'est pas entièrement validé (${d.creditsObtenus}/${d.creditsTotal} crédits)`);
+      }
+    }
   }
 
   // Garde-fou de crédits cumulés (ex. 120 crédits requis pour L3) : un contrôle dur, jamais

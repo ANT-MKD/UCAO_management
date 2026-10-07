@@ -217,7 +217,7 @@ export default function ParametrageScolaritePage() {
         open={!!reglesPour}
         onClose={() => setReglesPour(null)}
         title={reglesPour ? `Règles de calcul — ${reglesPour.filiere}` : ""}
-        subtitle="Selon le règlement des études de l'établissement. Les valeurs proposées au départ reproduisent le fonctionnement actuel."
+        subtitle="Selon le règlement des études de l'établissement. Les valeurs proposées au départ sont les règles de l'UCAO."
       >
         <div className="space-y-5 text-sm">
           <fieldset className="space-y-3">
@@ -244,7 +244,7 @@ export default function ParametrageScolaritePage() {
                 <label htmlFor="regle-rattrapage" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de rattrapage</label>
                 <select id="regle-rattrapage" value={regles.regleRattrapage} onChange={(e) => setRegles((r) => ({ ...r, regleRattrapage: e.target.value as ReglesCalcul["regleRattrapage"] }))} className={inputClass} data-testid="regle-rattrapage">
                   <option value="remplace">Remplace la note d&apos;examen</option>
-                  <option value="meilleure">Meilleure des deux notes</option>
+                  <option value="meilleure">Remplace l&apos;examen si elle est meilleure</option>
                   <option value="plafonnee">Remplace l&apos;examen, plafonnée</option>
                 </select>
               </div>
@@ -258,7 +258,8 @@ export default function ParametrageScolaritePage() {
             <legend className="font-semibold text-foreground mb-1">Délibération</legend>
             <div className="grid sm:grid-cols-2 gap-3">
               <ChampNombre id="regle-marge" label="Marge ouvrant le rattrapage (points)" aide="Avec 10 de moyenne de passage et 2 points : rattrapage de 8 à 9,99." valeur={regles.margeRattrapage} pas={0.5} onChange={(v) => setRegles((r) => ({ ...r, margeRattrapage: v }))} />
-              <ChampNombre id="regle-absences" label="Heures d'absence avant exclusion (0 = jamais)" aide="Absences non justifiées du semestre." valeur={regles.heuresAbsenceExclusion} pas={1} onChange={(v) => setRegles((r) => ({ ...r, heuresAbsenceExclusion: v }))} />
+              <ChampNombre id="regle-absences" label="Heures d'absence avant exclusion (0 = jamais)" aide="Absences non justifiées. Avec 0, les absences servent seulement au jury (repêchage)." valeur={regles.heuresAbsenceExclusion} pas={1} onChange={(v) => setRegles((r) => ({ ...r, heuresAbsenceExclusion: v }))} />
+              <ChampNombre id="regle-dette" label="Passage avec dette à partir de (crédits de l'année, 0 = jamais)" aide="Ex. 42 sur 60 : l'étudiant passe au niveau supérieur et rattrape ses UE non acquises." valeur={regles.creditsPassageAvecDette} pas={1} onChange={(v) => setRegles((r) => ({ ...r, creditsPassageAvecDette: v }))} />
             </div>
           </fieldset>
 

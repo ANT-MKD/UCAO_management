@@ -10,6 +10,7 @@ import { deleteNote, type EtudiantRecord, type NoteRecord } from "@/data/student
 import { getClasseById } from "@/data/structureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -144,7 +145,7 @@ export default function NotesEtudiantPage() {
       key: "note", header: "Note",
       sortable: true,
       render: (r) => (
-        <span className={cn("text-sm font-bold", r.note >= 10 ? "text-emerald-600" : "text-red-500")}>{r.note.toFixed(1)}</span>
+        <span className={cn("text-sm font-bold", r.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(r.note)}</span>
       ),
     },
     {

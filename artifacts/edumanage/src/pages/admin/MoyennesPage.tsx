@@ -6,10 +6,11 @@ import { FILIERES, SEMESTRES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore, useNotes, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { computeBulletin } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise } from "@/data/bulletinEngine";
 import { resoudreMention } from "@/data/mentionsStore";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const MENTION_COLORS: Record<string, string> = {
   "Très Bien": "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300",
@@ -198,7 +199,7 @@ export default function MoyennesPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn("font-bold text-base", m.moyenneGenerale === undefined ? "text-muted-foreground" : m.moyenneGenerale >= m.moyennePassage ? "text-emerald-600" : "text-red-500")}>
-                            {m.moyenneGenerale !== undefined ? m.moyenneGenerale.toFixed(2) : "En attente"}
+                            {m.moyenneGenerale !== undefined ? formatNote(m.moyenneGenerale) : "En attente"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -231,11 +232,11 @@ export default function MoyennesPage() {
                                 {m.ues.map((ue) => (
                                   <div key={ue.id} className="flex flex-col items-center gap-1 bg-card border border-border rounded-xl px-4 py-3">
                                     <div className="text-[10px] text-muted-foreground">{ue.code}</div>
-                                    <div className={cn("font-bold text-base", ue.moyenne === undefined ? "text-muted-foreground" : ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500")}>
-                                      {ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}
+                                    <div className={cn("font-bold text-base", ue.moyenne === undefined ? "text-muted-foreground" : ueAcquise(ue) ? "text-emerald-600" : "text-red-500")}>
+                                      {formatNote(ue.moyenne)}
                                     </div>
                                     <div className={cn("text-[9px] font-medium px-1.5 rounded", ue.moyenne === undefined ? "text-muted-foreground" : ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500")}>
-                                      {ue.moyenne === undefined ? "EN ATTENTE" : ue.validee ? "VALIDÉ" : ue.valideeParCompensation ? "COMPENSÉ" : "AJOURNÉ"}
+                                      {libelleResultatUe(ue).replace(/^UE /, "").toUpperCase()}
                                     </div>
                                   </div>
                                 ))}

@@ -9,7 +9,7 @@ import { FILIERES, SEMESTRES } from "@/data/mockData";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import type { UeRecord, EcRecord } from "@/data/curriculumStore";
 import { DataTable, type Column } from "@/components/admin/DataTable";
-import { computeBulletin } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise } from "@/data/bulletinEngine";
 import { KPICard } from "@/components/admin/KPICard";
 import { useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
 import { useTypesSeance, useJoursFeries } from "@/hooks/useScheduleSettingsStore";
@@ -33,6 +33,7 @@ import { useRelances } from "@/hooks/useRelancePaiementStore";
 import { derogationActivePour } from "@/data/derogationPaiementStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import type { ReleveRecord } from "@/data/studentStore";
+import { formatNote } from "@/lib/notes";
 
 const JOURS_GRID = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
@@ -359,9 +360,9 @@ export function StudentNotesPage() {
     code: l.code,
     ue: l.ue,
     prof: l.responsable,
-    cc: l.cc !== undefined ? l.cc.toFixed(2) : "—",
-    examen: l.ef !== undefined ? l.ef.toFixed(2) : "—",
-    moyenne: l.moyenne !== undefined ? l.moyenne.toFixed(2) : "—",
+    cc: formatNote(l.cc),
+    examen: formatNote(l.ef),
+    moyenne: formatNote(l.moyenne),
     credits: l.credits,
   })), [lignesMatieres]);
 
@@ -404,7 +405,7 @@ export function StudentNotesPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <KPICard icon={GraduationCap} label="Moyenne générale" value={bulletin?.moyenneSession !== undefined ? `${bulletin.moyenneSession.toFixed(2)}/20` : "—"} accentColor={bulletin?.moyenneSession !== undefined && bulletin.moyenneSession >= bulletin.moyennePassage ? "#10b981" : "#ef4444"} />
+        <KPICard icon={GraduationCap} label="Moyenne générale" value={bulletin?.moyenneSession !== undefined ? `${formatNote(bulletin.moyenneSession)}/20` : "—"} accentColor={bulletin?.moyenneSession !== undefined && bulletin.moyenneSession >= bulletin.moyennePassage ? "#10b981" : "#ef4444"} />
         <KPICard icon={Award} label="Crédits obtenus" value={bulletin ? `${bulletin.creditsObtenus}/${bulletin.creditsTotal}` : "—"} subtitle={bulletin ? `${pctCredits}% obtenus` : undefined} accentColor="#2563eb" />
         <KPICard icon={FileText} label="Notes publiées" value={notesDuSemestre.length} accentColor="#8b5cf6" />
       </div>
@@ -588,7 +589,7 @@ export function StudentRelevesPage() {
             <KPICard
               icon={GraduationCap}
               label="Moyenne du semestre"
-              value={resolved ? `${resolved.moyenne.toFixed(2)}/20` : "—"}
+              value={resolved ? `${formatNote(resolved.moyenne)}/20` : "—"}
               accentColor={resolved && resolved.moyenne >= resolved.moyennePassage ? "#10b981" : "#ef4444"}
             />
             <KPICard
@@ -658,19 +659,19 @@ export function StudentRelevesPage() {
                                 <td className="px-4 py-2.5 font-bold text-foreground">{ue.code} — {ue.libelle}</td>
                                 <td className="px-4 py-2.5" />
                                 <td className="px-4 py-2.5" />
-                                <td className={cn("px-4 py-2.5 font-bold", ue.moyenne !== undefined ? (ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500") : "")}>
-                                  {ue.moyenne !== undefined ? `${ue.moyenne.toFixed(2)}/20` : "—"}
+                                <td className={cn("px-4 py-2.5 font-bold", ue.moyenne !== undefined ? (ueAcquise(ue) ? "text-emerald-600" : "text-red-500") : "")}>
+                                  {ue.moyenne !== undefined ? `${formatNote(ue.moyenne)}/20` : "—"}
                                 </td>
                                 <td className="px-4 py-2.5 font-medium">{ue.creditsObtenus}/{ue.credits}</td>
-                                <td className={cn("px-4 py-2.5 font-medium", ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500")}>{ue.validee ? "Validée" : ue.valideeParCompensation ? "Acquise par compensation" : "Non validée"}</td>
+                                <td className={cn("px-4 py-2.5 font-medium", ueAcquise(ue) ? "text-emerald-600" : "text-red-500")}>{libelleResultatUe(ue)}</td>
                               </tr>
                               {ue.ecs.map((ec) => (
                                 <tr key={ec.id} className="border-b border-border last:border-0">
                                   <td className="px-4 py-2.5 pl-8 text-muted-foreground">{ec.libelle}</td>
-                                  <td className="px-4 py-2.5">{ec.cc !== undefined ? ec.cc.toFixed(2) : "—"}</td>
-                                  <td className="px-4 py-2.5">{ec.ef !== undefined ? ec.ef.toFixed(2) : "—"}</td>
+                                  <td className="px-4 py-2.5">{formatNote(ec.cc)}</td>
+                                  <td className="px-4 py-2.5">{formatNote(ec.ef)}</td>
                                   <td className={cn("px-4 py-2.5 font-medium", ec.moyenne !== undefined ? (ec.validee ? "text-emerald-600" : "text-red-500") : "")}>
-                                    {ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}
+                                    {formatNote(ec.moyenne)}
                                   </td>
                                   <td className="px-4 py-2.5" />
                                   <td className="px-4 py-2.5" />
@@ -683,7 +684,7 @@ export function StudentRelevesPage() {
                           <tr className="bg-muted/40 font-bold text-foreground">
                             <td className="px-4 py-3">Moyenne {selected.semestre}</td>
                             <td className="px-4 py-3" colSpan={2} />
-                            <td className="px-4 py-3">{resolved.moyenne.toFixed(2)}/20</td>
+                            <td className="px-4 py-3">{formatNote(resolved.moyenne)}/20</td>
                             <td className="px-4 py-3">{resolved.creditsObtenus}/{resolved.creditsTotal}</td>
                             <td className="px-4 py-3" />
                           </tr>
@@ -750,7 +751,7 @@ export function StudentRelevesPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{r.annee ?? "Année inconnue"}</p>
                         <div className="flex gap-4 mt-2.5 text-xs">
-                          <span className="text-muted-foreground">Moyenne <strong className="text-foreground">{res ? `${res.moyenne.toFixed(2)}/20` : "—"}</strong></span>
+                          <span className="text-muted-foreground">Moyenne <strong className="text-foreground">{res ? `${formatNote(res.moyenne)}/20` : "—"}</strong></span>
                           <span className="text-muted-foreground">Crédits <strong className="text-foreground">{res ? `${res.creditsObtenus}/${res.creditsTotal}` : "—"}</strong></span>
                         </div>
                       </button>

@@ -9,6 +9,7 @@ import { useNotes } from "@/hooks/useStudentStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import type { EvaluationRecord } from "@/data/evaluationStore";
 import { cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -208,7 +209,7 @@ export default function DevoirsListPage() {
                         </p>
                         <p className="text-xs text-muted-foreground">effectué le {ev.dateCreation}</p>
                         <p className="text-xs text-muted-foreground">
-                          {stats ? `Note min : ${stats.min} | Note max : ${stats.max} | Moyenne : ${stats.moyenne.toFixed(1)}` : "Pas de fiche de notes"}
+                          {stats ? `Note min : ${stats.min} | Note max : ${stats.max} | Moyenne : ${formatNote(stats.moyenne)}` : "Pas de fiche de notes"}
                         </p>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{ev.semestre}</td>

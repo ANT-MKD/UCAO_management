@@ -16,6 +16,7 @@ import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNote } from "@/lib/notes";
 
 type NoteEntry = {
   note: string;
@@ -442,14 +443,14 @@ export default function NotesPage() {
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp size={11} /> Moyenne</p>
               <p className={cn("text-2xl font-bold", moyenne !== null ? (moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
-                {moyenne !== null ? moyenne.toFixed(2) : "—"}
+                {formatNote(moyenne)}
               </p>
               <p className="text-[10px] text-muted-foreground">/{bareme}</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1">Max / Min</p>
               <p className="text-lg font-bold text-foreground">
-                {noteMax !== null ? noteMax.toFixed(1) : "—"} <span className="text-muted-foreground text-sm">/</span> {noteMin !== null ? noteMin.toFixed(1) : "—"}
+                {formatNote(noteMax)} <span className="text-muted-foreground text-sm">/</span> {formatNote(noteMin)}
               </p>
               <p className="text-[10px] text-muted-foreground">{nbSaisis}/{classeStudents.length} saisies</p>
             </div>

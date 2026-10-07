@@ -7,7 +7,8 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockDat
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
-import { computeBulletin } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise } from "@/data/bulletinEngine";
+import { formatNote } from "@/lib/notes";
 import type { EtudiantRecord } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
@@ -211,7 +212,7 @@ export default function BulletinEtudiantPage() {
               <Award size={16} className="text-primary" />
               <span className="text-sm text-muted-foreground">Moyenne session :</span>
               <span className={cn("text-lg font-bold", moyenneSession !== undefined ? (moyenneSession >= moyennePassage ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
-                {moyenneSession !== undefined ? moyenneSession.toFixed(2) : "—"}
+                {formatNote(moyenneSession)}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -237,8 +238,8 @@ export default function BulletinEtudiantPage() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground flex-shrink-0">
                         <span>Nombre crédit UE : <strong className="text-foreground">{ue.credits.toFixed(1)}</strong></span>
                         <span>Nombre de crédits obtenus : <strong className="text-foreground">{ue.creditsObtenus.toFixed(1)}</strong></span>
-                        <span>Moyenne UE : <strong className={ue.moyenne !== undefined ? (ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500") : "text-muted-foreground"}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(1) : "En attente"}</strong></span>
-                        {ue.moyenne !== undefined && (ue.validee ? <CheckCircle2 size={14} className="text-emerald-600" /> : ue.valideeParCompensation ? <span className="text-emerald-600 font-semibold">Compensée</span> : <span className="text-red-500 font-bold">✕</span>)}
+                        <span>Moyenne UE : <strong className={ue.moyenne !== undefined ? (ueAcquise(ue) ? "text-emerald-600" : "text-red-500") : "text-muted-foreground"}>{ue.moyenne !== undefined ? formatNote(ue.moyenne) : "En attente"}</strong></span>
+                        {(ue.moyenne !== undefined || ue.capitalisee) && <span className={cn("font-semibold", ueAcquise(ue) ? "text-emerald-600" : "text-red-500")}>{libelleResultatUe(ue)}</span>}
                       </div>
                     </button>
                     {expanded && (
@@ -249,7 +250,7 @@ export default function BulletinEtudiantPage() {
                             <div className="flex items-center gap-4 text-muted-foreground">
                               <span>Nombre crédits : <strong className="text-foreground">{ec.credits.toFixed(1)}</strong></span>
                               <span>Nombre crédits obtenus : <strong className="text-foreground">{ec.creditsObtenus.toFixed(1)}</strong></span>
-                              <span>Moyenne : <strong className={ec.moyenne !== undefined ? (ec.validee ? "text-emerald-600" : "text-red-500") : "text-amber-600"}>{ec.moyenne !== undefined ? ec.moyenne.toFixed(1) : "En attente"}</strong></span>
+                              <span>Moyenne : <strong className={ec.moyenne !== undefined ? (ec.validee ? "text-emerald-600" : "text-red-500") : "text-amber-600"}>{ec.moyenne !== undefined ? formatNote(ec.moyenne) : "En attente"}</strong></span>
                             </div>
                           </div>
                         ))}

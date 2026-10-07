@@ -1,5 +1,6 @@
 import { reglesDeCalcul, getScolariteConfigs, subscribeScolariteConfigs } from "./scolariteConfigStore";
 import { ecrireStockage } from "@/lib/stockageLocal";
+import { atteint } from "@/lib/notes";
 import { FILIERES } from "./mockData";
 
 const STORAGE_KEY = "edumanage-regles-validation-store-v1";
@@ -22,19 +23,28 @@ export interface RegleValidationRecord {
   modifieLe?: string;
 }
 
+/** Règles de l'UCAO (système LMD) : semestre validé avec ses 30 crédits, année validée avec 60
+ * crédits, licence avec 180 — la validation se fait par les crédits, pas par la moyenne. */
+const CREDITS_PAR_TYPE: Record<TypeRegleValidation, number> = { semestre: 30, annee: 60, programme: 180 };
+
+/** Critères par défaut d'un type de règle. Une filière hors LMD (Paramétrage scolarité « Cumul
+ * crédit » = Non) reste validée à la moyenne. */
+function criteresParDefaut(filiereId: string, type: TypeRegleValidation): Pick<RegleValidationRecord, "validationParCredit" | "validationParMoyenne" | "creditPassage"> {
+  const lmd = getScolariteConfigs().find((c) => c.filiereId === filiereId)?.cumulCredit ?? true;
+  return lmd
+    ? { validationParCredit: true, validationParMoyenne: false, creditPassage: CREDITS_PAR_TYPE[type] }
+    : { validationParCredit: false, validationParMoyenne: true, creditPassage: 0 };
+}
+
 function reglesPour(f: { id: string; nom: string }): RegleValidationRecord[] {
   const config = getScolariteConfigs().find((c) => c.filiereId === f.id);
   const types: TypeRegleValidation[] = ["semestre", "annee", "programme"];
-  // Le type "semestre" reprend exactement le comportement historique des Délibérations
-  // (validation par moyenne uniquement) pour ne rien changer tant que rien n'est reconfiguré.
   return types.map((type): RegleValidationRecord => ({
       id: `regle-val-${f.id}-${type}`,
       filiereId: f.id,
       filiere: f.nom,
       type,
-      validationParCredit: type === "semestre" ? false : (config?.cumulCredit ?? true),
-      validationParMoyenne: true,
-      creditPassage: 0,
+      ...criteresParDefaut(f.id, type),
       moyennePassage: config?.moyennePassage ?? 10,
       moyenneEliminatoire: config?.moyenneEliminatoire ?? 0,
     }));
@@ -55,7 +65,9 @@ function load(): RegleValidationRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RegleValidationRecord[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : seed();
+    if (!Array.isArray(parsed) || parsed.length === 0) return seed();
+    // Une règle jamais modifiée par un administrateur suit les critères par défaut en vigueur.
+    return parsed.map((r) => (r.modifiePar ? r : { ...r, ...criteresParDefaut(r.filiereId, r.type) }));
   } catch {
     return seed();
   }
@@ -158,12 +170,12 @@ export function decideValidation(
   // Seuil d'absences et marge de rattrapage : règles de calcul de la filière (Paramétrage scolarité).
   const { heuresAbsenceExclusion, margeRattrapage } = reglesDeCalcul(regle.filiereId);
   if (heuresAbsenceExclusion > 0 && absencesHeures > heuresAbsenceExclusion) return "exclu";
-  if (regle.moyenneEliminatoire > 0 && moyenne < regle.moyenneEliminatoire) return "exclu";
+  if (regle.moyenneEliminatoire > 0 && !atteint(moyenne, regle.moyenneEliminatoire)) return "exclu";
 
-  const okMoyenne = !regle.validationParMoyenne || moyenne >= regle.moyennePassage;
+  const okMoyenne = !regle.validationParMoyenne || atteint(moyenne, regle.moyennePassage);
   const okCredit = !regle.validationParCredit || creditsObtenus >= regle.creditPassage;
 
   if (okMoyenne && okCredit) return "admis";
-  if (regle.validationParMoyenne && !okMoyenne && okCredit && moyenne >= regle.moyennePassage - margeRattrapage) return "rattrapage";
+  if (regle.validationParMoyenne && !okMoyenne && okCredit && atteint(moyenne, regle.moyennePassage - margeRattrapage)) return "rattrapage";
   return "ajourne";
 }

@@ -8,7 +8,7 @@ import { useReleves, useStudentStore, useAnneesAcademiques, useNotes } from "@/h
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import type { ReleveRecord, EtudiantRecord } from "@/data/studentStore";
-import { computeBulletin, type UeMoyenne } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise, type UeMoyenne } from "@/data/bulletinEngine";
 import { resoudreMention } from "@/data/mentionsStore";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
@@ -23,6 +23,7 @@ import { getEtablissement } from "@/data/etablissementStore";
 import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
 import { formatDate, cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 type ReleverEntry = ReleveRecord;
 
@@ -124,19 +125,19 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 
   let tableRows = "";
   resolved.ues.forEach((ue) => {
-    const ueResultat = ue.moyenne !== undefined ? (ue.validee ? "UE Acquise" : ue.valideeParCompensation ? "UE Acquise par compensation" : "UE Non Acquise") : "";
+    const ueResultat = libelleResultatUe(ue);
     tableRows += `
       <tr class="ue-row">
         <td>${ue.code} - ${ue.libelle}</td>
-        <td class="c">${ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}</td>
+        <td class="c">${formatNote(ue.moyenne)}</td>
         <td class="c">${ue.credits}</td>
-        <td class="c" style="color:${ue.validee || ue.valideeParCompensation ? "#166534" : "#991b1b"};">${ueResultat}</td>
+        <td class="c" style="color:${ueAcquise(ue) ? "#166534" : "#991b1b"};">${ueResultat}</td>
       </tr>`;
     ue.ecs.forEach((ec) => {
       tableRows += `
         <tr>
           <td class="ec-label">${ec.libelle}</td>
-          <td class="c">${ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+          <td class="c">${formatNote(ec.moyenne)}</td>
           <td class="c"></td>
           <td class="c"></td>
         </tr>`;
@@ -226,9 +227,9 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
     <tfoot>
       <tr>
         <td>Moyenne ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</td>
-        <td class="c">${moy.toFixed(2)}</td>
+        <td class="c">${formatNote(moy)}</td>
         <td class="c">${creditsObtenus}/${creditsTotal}</td>
-        <td class="c"></td>
+        <td class="c">${resolved.decision === "admis" && resolved.mention !== "—" ? `Mention ${resolved.mention}` : ""}</td>
       </tr>
     </tfoot>
   </table>

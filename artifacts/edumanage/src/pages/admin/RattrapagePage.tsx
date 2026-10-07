@@ -5,20 +5,21 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
 import {
   saveNotesGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc,
-  getEffectiveNote, type GridNoteInput,
+  type GridNoteInput,
 } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
-import { reglesDeCalcul } from "@/data/scolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { createEvaluation, updateEvaluation, getPoidsForClasseEc } from "@/data/evaluationStore";
+import { createEvaluation, updateEvaluation } from "@/data/evaluationStore";
+import { doitRattraperUe } from "@/data/bulletinEngine";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNote } from "@/lib/notes";
 
 type NoteEntry = { note: string; absent: boolean };
 
@@ -67,9 +68,8 @@ export default function RattrapagePage() {
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
   const semestre = SEMESTRES.find((s) => s.id === semestreId);
   const bareme = scolariteConfigs.find((c) => c.filiereId === filiereId)?.noteBareme ?? 20;
-  // Un EC se rattrape quand il n'est pas validé : seuil et poids par défaut = règles de calcul de la filière.
-  const regles = reglesDeCalcul(filiereId);
-  const moyennePassage = regles.seuilValidationEc;
+  // Règle UCAO : on rattrape toutes les matières d'une UE non acquise à la session normale.
+  const ueDuCours = UES.find((u) => u.id === ECS.find((ec) => ec.id === ecId)?.ueId);
 
   const niveauxFiliere = NIVEAUX.filter((n) => n.filiereId === filiereId);
   const classesDisponibles = CLASSES.filter(
@@ -156,19 +156,11 @@ export default function RattrapagePage() {
     const estAjoute = etudiantsAjoutesIds.has(e.id);
     return (estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute;
   });
-  const { devoir: poidsDevoirReel, examen: poidsExamenReel } = ecId ? getPoidsForClasseEc(classeId, ecId) : {};
-  const poidsCc = (poidsDevoirReel ?? regles.poidsDevoirDefaut) / 100;
-  const poidsExamen = (poidsExamenReel ?? 100 - regles.poidsDevoirDefaut) / 100;
-  const examenSeul = poidsDevoirReel === undefined && poidsExamenReel !== undefined;
-  // Ajourné = moyenne normale (CC + EF, tous deux déjà saisis) réellement sous la moyenne de
-  // passage. Un étudiant dont l'examen normal n'a pas encore été noté n'apparaît pas ici — ce
-  // n'est pas un cas de rattrapage, c'est une saisie normale à faire d'abord.
-  const ajournes = classeStudentsAll.filter((etu) => {
-    const cc = getEffectiveNote(etu.id, classeId, ecId, "CC")?.note;
-    const ef = getEffectiveNote(etu.id, classeId, ecId, "EF")?.note;
-    if (ef === undefined || (cc === undefined && !examenSeul)) return false;
-    return (examenSeul ? ef : cc! * poidsCc + ef * poidsExamen) < moyennePassage;
-  });
+  // Concerné = l'UE de ce cours n'est pas acquise à la session normale (calcul du bulletin, sans
+  // les notes de rattrapage) — ni repêchée par le jury, ni acquise une année précédente. Tant que
+  // l'UE n'a pas de moyenne, ses notes normales restent à saisir : pas encore de rattrapage.
+  const ajournes = classeStudentsAll.filter((etu) => !!niveau && !!semestre && !!ueDuCours
+    && doitRattraperUe(etu.id, classeId, filiereId, niveau.alias, semestre.alias, ueDuCours.id));
   const classeStudents = ajournes.filter((e) => {
     if (!searchStudent) return true;
     const q = searchStudent.toLowerCase();
@@ -371,14 +363,14 @@ export default function RattrapagePage() {
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp size={11} /> Moyenne</p>
               <p className={cn("text-2xl font-bold", moyenne !== null ? (moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
-                {moyenne !== null ? moyenne.toFixed(2) : "—"}
+                {formatNote(moyenne)}
               </p>
               <p className="text-[10px] text-muted-foreground">/{bareme}</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1">Max / Min</p>
               <p className="text-lg font-bold text-foreground">
-                {noteMax !== null ? noteMax.toFixed(1) : "—"} <span className="text-muted-foreground text-sm">/</span> {noteMin !== null ? noteMin.toFixed(1) : "—"}
+                {formatNote(noteMax)} <span className="text-muted-foreground text-sm">/</span> {formatNote(noteMin)}
               </p>
               <p className="text-[10px] text-muted-foreground">{nbSaisis}/{classeStudents.length} saisies</p>
             </div>
@@ -402,7 +394,7 @@ export default function RattrapagePage() {
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
                   {ECS.find((e) => e.id === ecId)?.libelle} — Rattrapage
                 </h3>
-                <p className="text-xs text-muted-foreground">{ajournes.length} étudiant(s) ajourné(s) (moyenne &lt; {moyennePassage})</p>
+                <p className="text-xs text-muted-foreground">{ajournes.length} étudiant(s) dont l&apos;UE {ueDuCours ? `« ${ueDuCours.libelle} »` : ""} n&apos;est pas acquise</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />

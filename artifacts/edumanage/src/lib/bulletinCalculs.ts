@@ -80,6 +80,9 @@ export const METHODES_MOYENNE_UE: Record<string, CalculMoyenneFn> = {
 };
 
 export const METHODES_MOYENNE_SESSION: Record<string, CalculMoyenneFn> = {
+  /** Somme des moyennes de TOUS les EC du semestre ÷ nombre d'EC (règle UCAO) — le moteur lui
+   * transmet les EC du semestre au lieu des UE (voir CODE_MOYENNE_EC_SEMESTRE). */
+  calculMoyenneEcSemestre: (els) => moyenneSimple(els),
   calculMoyenneDefault: (els) => moyenneSimple(els),
   calculMoyenneCoefficient: (els) => moyennePonderee(els, "coeff"),
   calculMoyenneCredit: (els) => moyennePonderee(els, "credits"),
@@ -100,6 +103,9 @@ export const METHODES_MOYENNE_PROGRAMME: Record<string, CalculMoyenneFn> = {
   calculMoyenneDefault: (els) => moyenneSimple(els),
   calculMoyenneProgrammeESMT: (els) => moyenneProgrammeEsmt(els),
 };
+
+/** Méthode de session calculée sur les EC du semestre plutôt que sur les UE. */
+export const CODE_MOYENNE_EC_SEMESTRE = "calculMoyenneEcSemestre";
 
 export type NiveauMethodeCalcul = "moyenneUe" | "moyenneSession" | "moyenneAnnee" | "moyenneProgramme";
 

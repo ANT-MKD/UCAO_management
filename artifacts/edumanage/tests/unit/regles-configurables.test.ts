@@ -135,6 +135,7 @@ describe("filière créée après l'installation", () => {
     const regle = Rv.getRegleValidation(e.classe.filiereId, "semestre")!;
     expect(regle.moyennePassage).toBe(12);
     expect(regle.moyenneEliminatoire).toBe(6);
-    expect(Rv.decideValidation(11, 30, 0, regle)).toBe("rattrapage");
+    // Une règle validée à la moyenne (filière hors LMD) applique le nouveau seuil de 12.
+    expect(Rv.decideValidation(11, 30, 0, { ...regle, validationParMoyenne: true, validationParCredit: false })).toBe("rattrapage");
   });
 });

@@ -5,12 +5,12 @@ import { getMethodesCalculActivesParNiveau } from "./bulletinMethodesStore";
 
 const STORAGE_KEY = "edumanage-scolarite-config-v1";
 
-/** Codes de repli si aucune méthode n'est configurée pour la filière — reproduisent exactement
- * le calcul jusque-là câblé en dur dans bulletinEngine.ts, pour ne rien changer aux bulletins
- * déjà produits tant que l'admin n'a rien reconfiguré. */
+/** Codes appliqués quand aucune méthode n'est choisie pour la filière — règles de l'UCAO :
+ * moyenne d'UE = somme des moyennes des EC ÷ nombre d'EC ; moyenne de semestre = somme des
+ * moyennes de tous les EC du semestre ÷ nombre d'EC du semestre. */
 const METHODE_DEFAUT: Record<"moyenneUe" | "moyenneSession" | "moyenneAnnee" | "moyenneProgramme", string> = {
-  moyenneUe: "calculMoyenneCredit",
-  moyenneSession: "calculMoyenneCredit",
+  moyenneUe: "calculMoyenneDefault",
+  moyenneSession: "calculMoyenneEcSemestre",
   moyenneAnnee: "calculMoyenneCredit",
   moyenneProgramme: "calculMoyenneDefault",
 };
@@ -39,19 +39,26 @@ export interface ReglesCalcul {
   heuresAbsenceExclusion: number;
   /** Écart sous la moyenne de passage qui ouvre le droit au rattrapage (ex. 2 points : de 8 à 9,99). */
   margeRattrapage: number;
+  /** Crédits de l'année à partir desquels l'étudiant passe au niveau supérieur avec ses UE non
+   * acquises en dette (ex. 42 sur 60). 0 = jamais de passage avec dette. Un niveau peut fixer son
+   * propre seuil (Académique → Niveaux). */
+  creditsPassageAvecDette: number;
 }
 
-/** Valeurs d'origine d'EduManage : les appliquer ne change rien aux résultats existants. */
+/** Valeurs par défaut — règles de l'UCAO : 30 % devoirs / 70 % examen, UE acquise à 10, la note de
+ * rattrapage remplace l'examen seulement si elle est meilleure, pas d'exclusion pour absences (les
+ * absences éclairent le jury pour repêcher un étudiant à qui il manque peu). */
 export const REGLES_CALCUL_DEFAUT: ReglesCalcul = {
   seuilValidationEc: 10,
   seuilValidationUe: 10,
   noteEliminatoireEc: 0,
   creditsParCompensation: false,
   poidsDevoirDefaut: 30,
-  regleRattrapage: "remplace",
+  regleRattrapage: "meilleure",
   plafondRattrapage: 10,
-  heuresAbsenceExclusion: 10,
+  heuresAbsenceExclusion: 0,
   margeRattrapage: 2,
+  creditsPassageAvecDette: 42,
 };
 
 export interface ScolariteConfigRecord {
@@ -211,6 +218,7 @@ export function validerReglesCalcul(r: ReglesCalcul, bareme = 20): string | null
   if (!dansBareme(r.plafondRattrapage)) return `Le plafond du rattrapage doit être compris entre 0 et ${bareme}.`;
   if (!(r.heuresAbsenceExclusion >= 0)) return "Le nombre d'heures d'absence doit être positif (0 = jamais d'exclusion).";
   if (!(r.margeRattrapage >= 0 && r.margeRattrapage <= bareme)) return "La marge de rattrapage doit être positive.";
+  if (!(r.creditsPassageAvecDette >= 0)) return "Les crédits du passage avec dette doivent être positifs (0 = jamais).";
   return null;
 }
 

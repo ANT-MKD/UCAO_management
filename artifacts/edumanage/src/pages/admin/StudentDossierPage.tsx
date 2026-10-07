@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useReleves, useStudentStore } from "@/hooks/useStudentStore";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
-import { computeMoyenneAnnuelle, computeMoyenneProgramme } from "@/data/bulletinEngine";
+import { computeMoyenneAnnuelle, computeCreditsCumulesParcours } from "@/data/bulletinEngine";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { useAttestations } from "@/hooks/useAttestationStore";
@@ -37,6 +37,7 @@ import { useAbandons } from "@/hooks/useAbandonStore";
 import { useCreditDettes } from "@/hooks/useCreditDetteStore";
 import { soldeCreditDette } from "@/data/creditDetteStore";
 import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
+import { formatNote } from "@/lib/notes";
 
 interface StudentDossierPageProps {
   id: string;
@@ -77,7 +78,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   // affichées nulle part avant cette reconnexion, alors que la méthode de calcul est configurable
   // dans Paramétrage bulletins (onglet Méthodes de calcul).
   const moyenneAnnuelle = student ? computeMoyenneAnnuelle(student.id, student.classeId, student.filiereId, student.niveau) : undefined;
-  const moyenneProgramme = student ? computeMoyenneProgramme(student.id, student.filiereId) : undefined;
+  const creditsParcours = student ? computeCreditsCumulesParcours(student.id, student.filiereId) : undefined;
   const avoirDepots = useAvoirDepots();
   const avoirRemboursements = useRemboursementsAvoir();
   const studentDepots = avoirDepots.filter((d) => d.etudiantId === id);
@@ -412,21 +413,19 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
 
         {activeTab === "notes" && (
           <div className="space-y-8">
-            {/* ===== Moyennes annuelle / programme (bulletinEngine — jamais affichées avant) ===== */}
-            {(moyenneAnnuelle?.moyenne !== undefined || moyenneProgramme?.moyenne !== undefined) && (
+            {/* ===== Crédits (règle UCAO : pas de moyenne annuelle, l'année se décide sur les crédits) ===== */}
+            {moyenneAnnuelle && moyenneAnnuelle.creditsTotal > 0 && (
               <div className="grid sm:grid-cols-2 gap-4">
-                {moyenneAnnuelle?.moyenne !== undefined && (
-                  <div className="p-4 border border-border rounded-xl bg-muted/20">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Moyenne annuelle — {student.niveau}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{moyenneAnnuelle.moyenne.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/20</span></p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{moyenneAnnuelle.creditsObtenus}/{moyenneAnnuelle.creditsTotal} crédits obtenus</p>
-                  </div>
-                )}
-                {moyenneProgramme?.moyenne !== undefined && (
-                  <div className="p-4 border border-border rounded-xl bg-muted/20">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Moyenne de programme</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{moyenneProgramme.moyenne.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/20</span></p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{moyenneProgramme.anneesRetenues.map((a) => `${a.niveau} (${a.annee})`).join(" · ")}</p>
+                <div className="p-4 border border-border rounded-xl bg-muted/20" data-testid="dossier-credits-annee">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Crédits de l&apos;année — {student.niveau}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{moyenneAnnuelle.creditsObtenus}<span className="text-sm font-normal text-muted-foreground"> / {moyenneAnnuelle.creditsTotal}</span></p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Année validée à 60 crédits · passage avec dette selon les règles de la filière</p>
+                </div>
+                {creditsParcours && creditsParcours.creditsTotal > 0 && (
+                  <div className="p-4 border border-border rounded-xl bg-muted/20" data-testid="dossier-credits-parcours">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Crédits du parcours</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{creditsParcours.creditsObtenus}<span className="text-sm font-normal text-muted-foreground"> / {creditsParcours.creditsTotal}</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{creditsParcours.detail.map((d) => `${d.niveau} : ${d.creditsObtenus}/${d.creditsTotal}`).join(" · ")}</p>
                   </div>
                 )}
               </div>
@@ -449,7 +448,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                           <p className="font-semibold text-foreground text-sm">{releve.semestre}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {resolved ? (
-                              <>Moyenne <span className="font-bold text-foreground">{resolved.moyenne.toFixed(2)}/20</span> · Mention {resolved.mention} · Décision : <span className="font-medium">{resolved.decisionLabel}</span></>
+                              <>Moyenne <span className="font-bold text-foreground">{formatNote(resolved.moyenne)}/20</span> · Mention {resolved.mention} · Décision : <span className="font-medium">{resolved.decisionLabel}</span></>
                             ) : (
                               "Bulletin indisponible pour cette session"
                             )}

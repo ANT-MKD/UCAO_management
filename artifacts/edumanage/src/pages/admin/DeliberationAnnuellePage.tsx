@@ -14,8 +14,9 @@ import { useDeliberationsAnnuelles } from "@/hooks/useDeliberationAnnuelleStore"
 import {
   chargerDeliberationAnnuelle, overrideDecisionAnnuelle, cloturerDeliberationAnnuelle, reouvrirDeliberationAnnuelle,
   DECISION_ANNUELLE_LABELS,
-  type DeliberationAnnuelleRecord, type DecisionAnnuelle,
+  type DeliberationAnnuelleRecord, type DeliberationAnnuelleLigne, type DecisionAnnuelle,
 } from "@/data/deliberationAnnuelleStore";
+import { formatNote } from "@/lib/notes";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -38,6 +39,12 @@ function Badge({ children, tone = "muted" }: { children: React.ReactNode; tone?:
   return <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap", tones[tone])}>{children}</span>;
 }
 
+/** L'UCAO ne calcule pas de moyenne annuelle : on montre chaque semestre (moyenne, crédits). */
+function resumeSemestres(l: DeliberationAnnuelleLigne): string {
+  if (!l.semestres || l.semestres.length === 0) return formatNote(l.moyenneAnnuelle);
+  return l.semestres.map((s) => `${s.semestreAlias} : ${formatNote(s.moyenne)} (${s.creditsObtenus}/${s.creditsTotal} cr.)`).join(" · ");
+}
+
 function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
   const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const rows = deliberation.lignes
@@ -47,7 +54,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:10px;">${l.matricule}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${l.etudiant}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${l.moyenneAnnuelle.toFixed(2)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${resumeSemestres(l)}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${l.creditsObtenus}/${l.creditsTotal}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${cfg.label.toUpperCase()}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:10px;">${dette}</td>
@@ -74,7 +81,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
       <strong>Statut :</strong> ${deliberation.statut === "cloturee" ? "Clôturée" : deliberation.statut === "reouverte" ? "Réouverte" : "En cours"}
     </div>
     <table>
-      <thead><tr><th>Matricule</th><th>Étudiant</th><th style="text-align:center;">Moyenne</th><th style="text-align:center;">Crédits</th><th style="text-align:center;">Décision</th><th>UE en dette</th></tr></thead>
+      <thead><tr><th>Matricule</th><th>Étudiant</th><th style="text-align:center;">Semestres</th><th style="text-align:center;">Crédits de l'année</th><th style="text-align:center;">Décision</th><th>UE en dette</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="signatures">
@@ -146,7 +153,7 @@ export default function DeliberationAnnuellePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Évaluations" }, { label: "Délibération annuelle" }]}
         title="Délibération annuelle"
-        subtitle="Bilan de l'année : moyenne annuelle, crédits cumulés, passage conditionnel (AJAC)"
+        subtitle="Bilan de l'année sur les crédits des deux semestres : admis (60 crédits), passage avec dette (42 crédits par défaut), redoublement"
         actions={
           mode === "liste" ? (
             <button onClick={() => setMode("form")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
@@ -330,7 +337,8 @@ function DetailDeliberationAnnuelle({
   }
 
   const cloture = deliberation.statut === "cloturee";
-  const seuilPassageAnnuel = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "annee")?.moyennePassage ?? 10;
+  const regleAnnee = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "annee");
+  const creditsAnnee = regleAnnee?.validationParCredit ? regleAnnee.creditPassage : 60;
   const displayedLignes = decisionFilter ? deliberation.lignes.filter((l) => l.decisionFinale === decisionFilter) : deliberation.lignes;
 
   const stats = {
@@ -449,7 +457,7 @@ function DetailDeliberationAnnuelle({
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 <th className="text-left text-xs font-semibold text-muted-foreground px-5 py-3">Étudiant</th>
-                <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Moyenne annuelle</th>
+                <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Semestres</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Crédits</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-5 py-3">Décision</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground px-3 py-3">UE en dette</th>
@@ -464,8 +472,8 @@ function DetailDeliberationAnnuelle({
                 return (
                   <tr key={l.etudiantId} className={cn("border-b border-border last:border-0", i % 2 === 0 ? "bg-background" : "bg-muted/20")}>
                     <td className="px-5 py-3"><div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div></td>
-                    <td className="px-3 py-3 text-center"><span className={cn("text-sm font-bold font-mono", l.moyenneAnnuelle >= seuilPassageAnnuel ? "text-emerald-600" : "text-red-600")}>{l.moyenneAnnuelle.toFixed(2)}</span></td>
-                    <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}/{l.creditsTotal}</td>
+                    <td className="px-3 py-3 text-center text-xs text-muted-foreground" data-testid={`deliberation-annuelle-semestres-${l.etudiantId}`}>{resumeSemestres(l)}</td>
+                    <td className="px-3 py-3 text-center"><span className={cn("text-sm font-bold font-mono", l.creditsObtenus >= creditsAnnee ? "text-emerald-600" : "text-red-600")}>{l.creditsObtenus}/{l.creditsTotal}</span></td>
                     <td className="px-5 py-3">
                       {editing && !cloture ? (
                         <div className="flex items-center gap-1 justify-center flex-wrap">

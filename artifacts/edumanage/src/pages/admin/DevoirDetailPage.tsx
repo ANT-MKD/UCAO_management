@@ -8,6 +8,7 @@ import { deleteEvaluation, type EvaluationRecord } from "@/data/evaluationStore"
 import { useNotes, useStudentStore } from "@/hooks/useStudentStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 function noteTypeFor(type: EvaluationRecord["type"]): "CC" | "EF" {
   return type === "devoir" ? "CC" : "EF";
@@ -109,7 +110,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
                 <div className="flex gap-4 text-xs">
                   <span className="text-muted-foreground">Note min : <strong className="text-foreground">{stats.min}</strong></span>
                   <span className="text-muted-foreground">Note max : <strong className="text-foreground">{stats.max}</strong></span>
-                  <span className="text-muted-foreground">Moyenne : <strong className="text-foreground">{stats.moyenne.toFixed(1)}</strong></span>
+                  <span className="text-muted-foreground">Moyenne : <strong className="text-foreground">{formatNote(stats.moyenne)}</strong></span>
                 </div>
               ) : (
                 <span className="flex items-center gap-1.5 text-xs text-amber-600"><AlertTriangle size={12} /> Pas de fiche de notes</span>
@@ -143,7 +144,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", note.note >= 10 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300" : "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300")}>
-                      {note.note.toFixed(1)}
+                      {formatNote(note.note)}
                     </span>
                   </td>
                 </tr>

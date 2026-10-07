@@ -30,6 +30,7 @@ import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { derogationActivePour } from "@/data/derogationPaiementStore";
 import { cn, formatCFA, formatShortDate } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNote } from "@/lib/notes";
 
 const STEPS = [
   { id: 1, label: "Recherche", icon: Search },
@@ -324,7 +325,7 @@ export default function ReinscriptionPage() {
               {ligneDeliberation ? (
                 <p className="text-sm">
                   Statut : <StatusBadge status={ligneDeliberation.decisionFinale === "admis" ? "actif" : "suspendu"} />
-                  {" · "}{DECISION_LABELS[ligneDeliberation.decisionFinale]} · Moyenne : {ligneDeliberation.moyenne.toFixed(2)}
+                  {" · "}{DECISION_LABELS[ligneDeliberation.decisionFinale]} · Moyenne : {formatNote(ligneDeliberation.moyenne)}
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Pas encore de délibération enregistrée</p>

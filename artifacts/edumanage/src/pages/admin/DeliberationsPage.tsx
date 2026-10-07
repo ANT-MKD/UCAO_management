@@ -15,12 +15,15 @@ import { useReglesValidation } from "@/hooks/useReglesValidationStore";
 import { useBulletinGenerations } from "@/hooks/useBulletinGenerationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import {
-  chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation, ajusterSeuilSession,
+  chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation, ajusterSeuilSession, recalculerLigneDeliberation,
   DECISION_LABELS,
   type DeliberationRecord, type DecisionJury,
 } from "@/data/deliberationStore";
 import { decideValidation, type RegleValidationRecord } from "@/data/reglesValidationStore";
-import { computeBulletinPourClasse } from "@/data/bulletinEngine";
+import { computeBulletinPourClasse, type UeMoyenne } from "@/data/bulletinEngine";
+import { repecherUe, annulerRepechage, getRepechageUe } from "@/data/repechageStore";
+import { useRepechages } from "@/hooks/useRepechageStore";
+import { formatNote } from "@/lib/notes";
 import { getEvaluationsForClasseEc, getRattrapageEvaluation } from "@/data/evaluationStore";
 import { getNoteForEvaluation } from "@/data/studentStore";
 import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
@@ -55,7 +58,7 @@ function buildPvHtml(deliberation: DeliberationRecord): string {
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:10px;">${l.matricule}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${l.etudiant}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${l.moyenne.toFixed(2)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${formatNote(l.moyenne)}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${l.creditsObtenus}/${l.creditsTotal}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${cfg.label.toUpperCase()}</td>
       </tr>`;
@@ -493,9 +496,9 @@ function DetailDeliberation({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: "Total", value: stats.total, icon: Users, color: "#6366f1" },
-          { label: "Admis", value: stats.admis, icon: CheckCircle2, color: "#10b981" },
+          { label: "Validés", value: stats.admis, icon: CheckCircle2, color: "#10b981" },
           { label: "Rattrapage", value: stats.rattrapage, icon: AlertTriangle, color: "#f59e0b" },
-          { label: "Ajournés", value: stats.ajourne, icon: XCircle, color: "#ef4444" },
+          { label: "Non validés", value: stats.ajourne, icon: XCircle, color: "#ef4444" },
           { label: "Exclus", value: stats.exclu, icon: Ban, color: "#71717a" },
           { label: "À déclasser", value: stats.aDeclasser, icon: AlertOctagon, color: "#9333ea" },
           { label: "Taux réussite", value: `${tauxReussite}%`, icon: TrendingUp, color: "#4f46e5" },
@@ -517,8 +520,8 @@ function DetailDeliberation({
           <div className="flex items-center gap-3">
             <select value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background" data-testid="deliberation-filtre-statut">
               <option value="">Statut</option>
-              <option value="admis">Admis</option>
-              <option value="ajourne">Ajourné</option>
+              <option value="admis">Semestre validé</option>
+              <option value="ajourne">Semestre non validé</option>
               <option value="rattrapage">Rattrapage</option>
               <option value="exclu">Exclu</option>
             </select>
@@ -549,7 +552,7 @@ function DetailDeliberation({
                       <div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className={cn("text-sm font-bold font-mono", l.moyenne >= (deliberation.seuilOverride ?? regleSemestre?.moyennePassage ?? 10) ? "text-emerald-600" : "text-red-600")}>{l.moyenne.toFixed(2)}</span>
+                      <span className={cn("text-sm font-bold font-mono", l.moyenne >= (deliberation.seuilOverride ?? regleSemestre?.moyennePassage ?? 10) ? "text-emerald-600" : "text-red-600")}>{formatNote(l.moyenne)}</span>
                     </td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}</td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsTotal}</td>
@@ -715,6 +718,32 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
   const bulletin = deliberation && semestreAlias ? computeBulletinPourClasse(etudiantId, deliberation.classeId, semestreAlias) : undefined;
   const [notesEc, setNotesEc] = useState<{ id: string; libelle: string } | null>(null);
   const niveauId = deliberation ? NIVEAUX.find((n) => n.filiereId === deliberation.filiereId && n.alias === deliberation.niveau)?.id : undefined;
+  const { currentUser } = useAuth();
+  useRepechages();
+  const modifiable = !!deliberation && deliberation.statut !== "cloturee";
+  const [repechageUe, setRepechageUe] = useState<UeMoyenne | null>(null);
+  const [motif, setMotif] = useState("");
+
+  const confirmerRepechage = () => {
+    if (!deliberation || !repechageUe || !semestreAlias) return;
+    const res = repecherUe({
+      etudiantId, classeId: deliberation.classeId, ueId: repechageUe.id, ueLibelle: repechageUe.libelle, semestreAlias,
+      moyenne: repechageUe.moyenne, absences: ligne?.absences ?? 0, motif, decidePar: currentUser?.id ?? "admin",
+    });
+    if (!res.ok) { toast.error(res.reason); return; }
+    recalculerLigneDeliberation(deliberation.id, etudiantId);
+    toast.success(`UE « ${repechageUe.libelle} » acquise par décision du jury`);
+    setRepechageUe(null); setMotif("");
+  };
+
+  const annuler = (ue: UeMoyenne) => {
+    if (!deliberation) return;
+    const rep = getRepechageUe(etudiantId, deliberation.classeId, ue.id);
+    if (!rep) return;
+    annulerRepechage(rep.id, currentUser?.id ?? "admin");
+    recalculerLigneDeliberation(deliberation.id, etudiantId);
+    toast.success("Repêchage annulé");
+  };
 
   const allerAuRattrapage = (ecId: string) => {
     if (!deliberation) return;
@@ -737,6 +766,14 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6">
+          {ligne && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs mb-4 p-3 rounded-xl bg-muted/40" data-testid="deliberation-dossier-resume">
+              <span>Crédits : <strong className="text-foreground">{ligne.creditsObtenus} / {ligne.creditsTotal}</strong></span>
+              <span>Moyenne du semestre : <strong className="text-foreground">{formatNote(ligne.moyenne)}</strong></span>
+              <span>Absences non justifiées : <strong className={cn(ligne.absences > 0 ? "text-amber-700" : "text-emerald-700")}>{ligne.absences} h</strong></span>
+              {modifiable && <span className="text-muted-foreground w-full">Le jury peut repêcher une UE non acquise, en s&apos;appuyant notamment sur l&apos;assiduité.</span>}
+            </div>
+          )}
           {!bulletin || bulletin.ues.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun détail disponible pour cet étudiant.</p>
           ) : (
@@ -762,7 +799,7 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                       )}
                       <td className="px-3 py-2 text-muted-foreground">
                         {ec.libelle}
-                        {ec.ef !== undefined && ec.moyenne !== undefined && !ec.validee && (
+                        {ec.moyenne !== undefined && !ue.validee && !ue.valideeParCompensation && (
                           <button
                             onClick={() => allerAuRattrapage(ec.id)}
                             className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 hover:opacity-80"
@@ -773,14 +810,29 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                           </button>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-center">{ec.cc !== undefined ? ec.cc.toFixed(2) : "—"}</td>
-                      <td className="px-3 py-2 text-center">{ec.ef !== undefined ? ec.ef.toFixed(2) : "—"}</td>
-                      <td className="px-3 py-2 text-center font-semibold">{ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+                      <td className="px-3 py-2 text-center">{formatNote(ec.cc)}</td>
+                      <td className="px-3 py-2 text-center">{formatNote(ec.ef)}</td>
+                      <td className="px-3 py-2 text-center font-semibold">{formatNote(ec.moyenne)}</td>
                       {i === 0 && (
-                        <td className="px-3 py-2 text-center align-top font-semibold text-primary" rowSpan={ue.ecs.length}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-2 text-center align-top font-semibold text-primary" rowSpan={ue.ecs.length}>{formatNote(ue.moyenne)}</td>
                       )}
                       {i === 0 && (
-                        <td className="px-3 py-2 text-center align-top" rowSpan={ue.ecs.length}>{ue.credits}</td>
+                        <td className="px-3 py-2 text-center align-top" rowSpan={ue.ecs.length} data-testid={`deliberation-ue-statut-${ue.id}`}>
+                          <div className="font-medium">{ue.creditsObtenus} / {ue.credits}</div>
+                          <div className={cn("text-[10px] font-semibold mt-0.5", ue.validee || ue.valideeParCompensation ? "text-emerald-700" : "text-red-600")}>
+                            {ue.valideeParJury ? "Acquise par décision du jury" : ue.capitalisee ? `Acquise en ${ue.capitalisee.annee}` : ue.valideeParCompensation ? "Acquise par compensation" : ue.validee ? "Acquise" : ue.moyenne !== undefined ? "Non acquise" : "En attente"}
+                          </div>
+                          {modifiable && !ue.validee && !ue.valideeParCompensation && ue.moyenne !== undefined && (
+                            <button onClick={() => { setRepechageUe(ue); setMotif(""); }} className="mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20" data-testid={`deliberation-repecher-${ue.id}`}>
+                              Repêcher
+                            </button>
+                          )}
+                          {modifiable && ue.valideeParJury && (
+                            <button onClick={() => annuler(ue)} className="mt-1 text-[10px] text-muted-foreground hover:underline" data-testid={`deliberation-annuler-repechage-${ue.id}`}>
+                              Annuler
+                            </button>
+                          )}
+                        </td>
                       )}
                       <td className="px-3 py-2 text-center">
                         <button
@@ -797,6 +849,19 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                 )}
               </tbody>
             </table>
+          )}
+          {repechageUe && (
+            <div className="mt-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2" data-testid="deliberation-repechage-form">
+              <p className="text-sm font-semibold text-foreground">Repêcher l&apos;UE « {repechageUe.libelle} »</p>
+              <p className="text-xs text-muted-foreground">
+                Moyenne de l&apos;UE : {formatNote(repechageUe.moyenne)} · absences non justifiées : {ligne?.absences ?? 0} h. L&apos;UE sera acquise avec ses {repechageUe.credits} crédits ; sa vraie moyenne reste sur le relevé, avec la mention « acquise par décision du jury ».
+              </p>
+              <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif de la décision du jury (ex. étudiant assidu, aucune absence)" className="w-full px-3 py-2 text-sm border border-border rounded-xl bg-background" data-testid="deliberation-repechage-motif" />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setRepechageUe(null)} className="px-3 py-1.5 border border-border rounded-xl text-xs hover:bg-muted">Annuler</button>
+                <button onClick={confirmerRepechage} className="px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary/90" data-testid="deliberation-repechage-confirmer">Repêcher l&apos;UE</button>
+              </div>
+            </div>
           )}
           <div className="flex justify-end pt-4">
             <button onClick={onClose} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Retour</button>
@@ -867,7 +932,7 @@ function NotesEtudiantModal({
                       <td className="px-3 py-2 text-muted-foreground">{ev.professeur}</td>
                       <td className="px-3 py-2 text-center text-muted-foreground">{formatDate(ev.dateCreation)}</td>
                       <td className="px-3 py-2 text-center">{typeLabel ?? (ev.type === "devoir" ? "Devoir" : "Examen")}{ev.session === "rattrapage" ? " (rattrapage)" : ""}</td>
-                      <td className="px-3 py-2 text-center font-semibold">{note ? note.note.toFixed(2) : "—"}</td>
+                      <td className="px-3 py-2 text-center font-semibold">{note ? formatNote(note.note) : "—"}</td>
                     </tr>
                   );
                 })}

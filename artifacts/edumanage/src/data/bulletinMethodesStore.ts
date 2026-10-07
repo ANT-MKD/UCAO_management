@@ -19,7 +19,8 @@ export interface MethodeCalculRecord {
 const LABELS_DEFAUT: Record<string, string> = {
   calculMoyenneCoefficient: "Moyenne pondérée par coefficient",
   calculMoyenneCredit: "Moyenne pondérée par crédit",
-  calculMoyenneDefault: "Moyenne simple (par défaut)",
+  calculMoyenneDefault: "Moyenne simple",
+  calculMoyenneEcSemestre: "Moyenne simple de tous les EC du semestre",
   calculMoyenneSommeMoyenne: "Somme des moyennes",
   calculSessionMoyenneByUEAndCreditUE: "Moyenne session par UE et crédit UE",
   calculMoyenneAvecBaseNotation: "Moyenne avec base de notation",
@@ -31,6 +32,7 @@ const DESCRIPTIONS_DEFAUT: Record<string, string> = {
   calculMoyenneCoefficient: "Moyenne des éléments pondérée par leur coefficient.",
   calculMoyenneCredit: "Moyenne des éléments pondérée par leurs crédits ECTS.",
   calculMoyenneDefault: "Moyenne arithmétique simple, sans pondération.",
+  calculMoyenneEcSemestre: "Somme des moyennes de tous les EC du semestre ÷ nombre d'EC du semestre (sans passer par les UE).",
   calculMoyenneSommeMoyenne: "Somme brute des moyennes, sans division.",
   calculSessionMoyenneByUEAndCreditUE: "Moyenne de session pondérée par crédit de chaque UE.",
   calculMoyenneAvecBaseNotation: "Moyenne pondérée par coefficient, normalisée par le barème de notation.",

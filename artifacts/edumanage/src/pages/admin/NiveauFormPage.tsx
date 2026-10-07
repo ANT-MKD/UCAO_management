@@ -36,7 +36,7 @@ export default function NiveauFormPage({ id }: Props) {
           creditDetteMin: existing.creditDetteMin ?? 0,
           creditsRequisEntree: existing.creditsRequisEntree ?? "",
         }
-      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "", passageConditionnelAutorise: false, creditDetteMin: 0, creditsRequisEntree: "" },
+      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "", passageConditionnelAutorise: false, creditDetteMin: 42, creditsRequisEntree: "" },
   });
   const passageConditionnelAutorise = watch("passageConditionnelAutorise");
 
@@ -132,11 +132,14 @@ export default function NiveauFormPage({ id }: Props) {
             </div>
             <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
               <input type="checkbox" {...register("passageConditionnelAutorise")} className="w-4 h-4 rounded border-border" />
-              Autoriser le passage conditionnel (AJAC) depuis ce niveau
+              Seuil de passage avec dette propre à ce niveau
             </label>
+            {!passageConditionnelAutorise && (
+              <p className="text-[11px] text-muted-foreground -mt-2">Non coché : la règle de la filière s&apos;applique (Paramétrage scolarité → Règles de calcul, 42 crédits par défaut).</p>
+            )}
             {passageConditionnelAutorise && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour le passage conditionnel</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour passer avec dette (0 = jamais pour ce niveau)</label>
                 <input type="number" min={0} step={1} {...register("creditDetteMin")} placeholder="ex: 42 sur 60" className={inputClass} />
                 <p className="text-[11px] text-muted-foreground mt-1">En dessous de ce seuil, l&apos;étudiant redouble ce niveau plutôt que de monter avec dette.</p>
               </div>
