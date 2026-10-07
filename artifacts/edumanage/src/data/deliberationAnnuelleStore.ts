@@ -1,5 +1,6 @@
-import { reglesDeCalcul, formulesDeCalcul } from "./scolariteConfigStore";
-import { executerFormule, interpreterDecisionAnnee } from "./formulesCalcul";
+import { reglesDeCalcul } from "./scolariteConfigStore";
+import { formulesPour } from "./reglementCalculStore";
+import { executerFormule, interpreterDecisionAnnee, type FormulesCalcul } from "./formulesCalcul";
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { computeBulletin, computeMoyenneAnnuelle } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
@@ -169,6 +170,25 @@ export interface ChargerDeliberationAnnuelleInput {
   effectuePar: string;
 }
 
+/** Décision automatique de l'année : formule « Décision de l'année » du règlement de l'année s'il
+ * en a une, sinon les règles de la filière (60 crédits, passage avec dette…). */
+export function decisionAnnee(p: {
+  moyenne?: number; semestres: SemestreAnnuel[]; absences: number; nbUeNonAcquises: number;
+  regle: RegleValidationRecord; niveau: NiveauRecord | undefined; formules: FormulesCalcul;
+}): DecisionAnnuelle {
+  const creditsObtenus = p.semestres.reduce((s, x) => s + x.creditsObtenus, 0);
+  const creditsTotal = p.semestres.reduce((s, x) => s + x.creditsTotal, 0);
+  const parFormule = p.formules.decisionAnnee
+    ? interpreterDecisionAnnee(executerFormule("decisionAnnee", p.formules.decisionAnnee, {
+      CREDITS_ANNEE: creditsObtenus, CREDITS_TOTAL_ANNEE: creditsTotal,
+      CREDITS_S1: p.semestres[0]?.creditsObtenus, CREDITS_S2: p.semestres[1]?.creditsObtenus,
+      MOYENNE_S1: p.semestres[0]?.moyenne, MOYENNE_S2: p.semestres[1]?.moyenne,
+      ABSENCES: p.absences, UE_NON_ACQUISES: p.nbUeNonAcquises,
+    }))
+    : undefined;
+  return parFormule ?? decideValidationAnnuelle(p.moyenne ?? 0, creditsObtenus, p.absences, p.regle, p.niveau);
+}
+
 function calculerLigneAnnuelle(e: EtudiantPourDeliberationAnnuelle, input: ChargerDeliberationAnnuelleInput): DeliberationAnnuelleLigne {
   const { moyenne } = computeMoyenneAnnuelle(e.id, input.classeId, input.filiereId, input.niveauAlias);
   const bulletins = input.semestresAlias.map((semestreAlias) => ({ semestreAlias, bulletin: computeBulletin(e.id, input.classeId, input.filiereId, input.niveauAlias, semestreAlias) }));
@@ -185,17 +205,7 @@ function calculerLigneAnnuelle(e: EtudiantPourDeliberationAnnuelle, input: Charg
       .map((u): UeNonValideeAnnuelle => ({ ueId: u.id, ueCode: u.code, ueLibelle: u.libelle, ueCredits: u.credits, semestreAlias }));
   });
 
-  // Formule « Décision de l'année » de la filière si elle en a une, sinon les règles (60 / 42…).
-  const formule = formulesDeCalcul(input.filiereId).decisionAnnee;
-  const parFormule = formule
-    ? interpreterDecisionAnnee(executerFormule("decisionAnnee", formule, {
-      CREDITS_ANNEE: creditsObtenus, CREDITS_TOTAL_ANNEE: creditsTotal,
-      CREDITS_S1: semestres[0]?.creditsObtenus, CREDITS_S2: semestres[1]?.creditsObtenus,
-      MOYENNE_S1: semestres[0]?.moyenne, MOYENNE_S2: semestres[1]?.moyenne,
-      ABSENCES: absences, UE_NON_ACQUISES: uesNonValidees.length,
-    }))
-    : undefined;
-  const decisionAuto = parFormule ?? decideValidationAnnuelle(moyenne ?? 0, creditsObtenus, absences, input.regle, input.niveau);
+  const decisionAuto = decisionAnnee({ moyenne, semestres, absences, nbUeNonAcquises: uesNonValidees.length, regle: input.regle, niveau: input.niveau, formules: formulesPour(input.filiereId, input.annee) });
 
   return {
     etudiantId: e.id,

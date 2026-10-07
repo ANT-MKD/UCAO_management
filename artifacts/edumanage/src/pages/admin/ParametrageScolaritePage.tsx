@@ -2,6 +2,9 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import { Settings2, Pencil, RotateCcw, Download, AlertTriangle, Calculator, Sigma } from "lucide-react";
 import { Link } from "wouter";
+import { useSyncExternalStore } from "react";
+import { getReglements, subscribeReglements, reglementPour } from "@/data/reglementCalculStore";
+import { getAnneeActuelle } from "@/data/studentStore";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -28,6 +31,8 @@ export default function ParametrageScolaritePage() {
   const { currentUser } = useAuth();
   const configs = useScolariteConfigs();
   const valeursParDefaut = useValeursParDefautScolarite();
+  useSyncExternalStore(subscribeReglements, getReglements, getReglements);
+  const anneeEnCours = getAnneeActuelle();
 
   const [editing, setEditing] = useState<ScolariteConfigRecord | null>(null);
   const [form, setForm] = useState<ScolariteConfigPatch>(EMPTY_FORM);
@@ -130,11 +135,11 @@ export default function ParametrageScolaritePage() {
       render: (row) => {
         const r = row as unknown as ScolariteConfigRecord;
         const perso = r.reglesCalcul && Object.entries(r.reglesCalcul).some(([k, v]) => REGLES_CALCUL_DEFAUT[k as keyof ReglesCalcul] !== v);
-        const nbFormules = Object.keys(r.formulesCalcul ?? {}).length;
+        const reglement = reglementPour(r.filiereId, anneeEnCours);
         return (
           <div className="flex flex-wrap gap-1">
             <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", perso ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{perso ? "Personnalisées" : "Par défaut"}</span>
-            {nbFormules > 0 && <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{nbFormules} formule(s)</span>}
+            {reglement && <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" title={`Règlement ${anneeEnCours}`}>{reglement.nom}</span>}
           </div>
         );
       },
@@ -181,8 +186,8 @@ export default function ParametrageScolaritePage() {
             <Link
               href={`/admin/scolarite/formules?filiere=${r.filiereId}`}
               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-              aria-label="Formules de calcul"
-              title="Formules de calcul"
+              aria-label="Règlement de calcul"
+              title="Règlement de calcul de l'année"
               data-testid={`scolarite-config-formules-${r.id}`}
             >
               <Sigma size={14} />

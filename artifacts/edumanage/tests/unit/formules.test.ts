@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preparerEtablissement } from "../fixtures/etablissement";
+import { ANNEE_TEST, preparerEtablissement } from "../fixtures/etablissement";
 
 async function moteur() {
   const F = await import("@/lib/formules");
@@ -94,16 +94,15 @@ describe("formules de calcul d'une filière", () => {
   it("les formules équivalentes aux réglages UCAO donnent exactement les mêmes bulletins", async () => {
     const e = await preparerEtablissement();
     const { computeBulletin } = await import("@/data/bulletinEngine");
-    const Sc = await import("@/data/scolariteConfigStore");
+    const R = await import("@/data/reglementCalculStore");
     const { formuleEquivalente } = await import("@/data/formulesEquivalentes");
     const { ETAPES_FORMULES } = await import("@/data/formulesCalcul");
     const awa = e.inscrire("Awa", "SECK");
     let n = 0;
     for (const ue of e.uesDu("S5")) for (const ec of e.ecsDe(ue.id)) { const note = 6 + (n++ % 9); e.noter(awa.id, ec.id, "devoir", note + 1, 30); e.noter(awa.id, ec.id, "examen", note, 70); }
     const avant = computeBulletin(awa.id, e.classe.id, e.classe.filiereId, "L3", "S5");
-    const config = Sc.getConfigForFiliere(e.classe.filiereId)!;
     const formules = Object.fromEntries(ETAPES_FORMULES.map((x) => [x.cle, formuleEquivalente(x.cle, e.classe.filiereId)!]));
-    expect(Sc.updateFormulesCalcul(config.id, formules, "Test").ok).toBe(true);
+    expect(R.enregistrerReglement({ nom: "UCAO", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules }, undefined, "Test").ok).toBe(true);
     const apres = computeBulletin(awa.id, e.classe.id, e.classe.filiereId, "L3", "S5");
     expect(apres.moyenneSession).toBeCloseTo(avant.moyenneSession!, 9);
     expect(apres.creditsObtenus).toBe(avant.creditsObtenus);
@@ -113,18 +112,19 @@ describe("formules de calcul d'une filière", () => {
   it("une formule propre à la filière change vraiment les résultats", async () => {
     const e = await preparerEtablissement();
     const { computeBulletin } = await import("@/data/bulletinEngine");
-    const Sc = await import("@/data/scolariteConfigStore");
+    const R = await import("@/data/reglementCalculStore");
     const awa = e.inscrire("Awa", "SECK");
     const ue = e.uesDu("S5")[0];
     const [ec1, ec2] = e.ecsDe(ue.id);
     e.noter(awa.id, ec1.id, "devoir", 14, 30); e.noter(awa.id, ec1.id, "examen", 12, 70);
     e.noter(awa.id, ec2.id, "devoir", 8, 30); e.noter(awa.id, ec2.id, "examen", 7, 70);
-    const config = Sc.getConfigForFiliere(e.classe.filiereId)!;
     // Master : 40 % / 60 % ; UE acquise dès 9,5 si aucune matière sous 7.
-    expect(Sc.updateFormulesCalcul(config.id, {
+    const projet = { nom: "Master", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: {
       noteEc: "DEVOIR × 0,4 + EXAMEN_RETENU × 0,6",
       creditsUe: "SI(ET(MOYENNE_UE >= 9,5 ; NOTE_MIN >= 7) ; CREDITS_UE ; 0)",
-    }, "Test").ok).toBe(true);
+    } };
+    const cree = R.enregistrerReglement(projet, undefined, "Test");
+    expect(cree.ok).toBe(true);
     const b = computeBulletin(awa.id, e.classe.id, e.classe.filiereId, "L3", "S5");
     const u = b.ues.find((x) => x.id === ue.id)!;
     expect(u.ecs.find((l) => l.id === ec1.id)!.moyenne).toBeCloseTo(12.8, 9);
@@ -132,17 +132,17 @@ describe("formules de calcul d'une filière", () => {
     expect(u.moyenne).toBeCloseTo(10.1, 9);
     expect(u.validee).toBe(true);
     // Une formule incorrecte n'est jamais enregistrée.
-    const refus = Sc.updateFormulesCalcul(config.id, { noteEc: "DEVOIR × 0,4 + EXAMN × 0,6" }, "Test");
+    const refus = R.enregistrerReglement({ ...projet, formules: { noteEc: "DEVOIR × 0,4 + EXAMN × 0,6" } }, cree.reglement!.id, "Test");
     expect(refus.ok).toBe(false);
     expect(refus.reason).toMatch(/EXAMN.*EXAMEN/);
     // Effacer la formule rend l'étape aux réglages.
-    expect(Sc.updateFormulesCalcul(config.id, {}, "Test").ok).toBe(true);
+    expect(R.enregistrerReglement({ ...projet, formules: {} }, cree.reglement!.id, "Test").ok).toBe(true);
     expect(computeBulletin(awa.id, e.classe.id, e.classe.filiereId, "L3", "S5").ues.find((x) => x.id === ue.id)!.validee).toBe(false);
   });
 
   it("décisions du jury écrites en formule : semestre et année", async () => {
     const e = await preparerEtablissement();
-    const Sc = await import("@/data/scolariteConfigStore");
+    const R = await import("@/data/reglementCalculStore");
     const Rv = await import("@/data/reglesValidationStore");
     const D = await import("@/data/deliberationStore");
     const DA = await import("@/data/deliberationAnnuelleStore");
@@ -150,12 +150,11 @@ describe("formules de calcul d'une filière", () => {
     const [premiere, ...autres] = e.uesDu("S5");
     e.ecsDe(premiere.id).forEach((ec) => { e.noter(awa.id, ec.id, "devoir", 8, 30); e.noter(awa.id, ec.id, "examen", 8, 70); });
     autres.forEach((u) => e.ecsDe(u.id).forEach((ec) => { e.noter(awa.id, ec.id, "devoir", 15, 30); e.noter(awa.id, ec.id, "examen", 15, 70); }));
-    const config = Sc.getConfigForFiliere(e.classe.filiereId)!;
     // Semestre validé avec 20 crédits et une moyenne d'au moins 12 (règle d'exemple).
-    expect(Sc.updateFormulesCalcul(config.id, {
+    expect(R.enregistrerReglement({ nom: "Exemple", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: {
       decisionSemestre: 'SI(ET(CREDITS_SEMESTRE >= 20 ; MOYENNE_SEMESTRE >= 12) ; "VALIDÉ" ; "NON VALIDÉ")',
       decisionAnnee: 'SI(CREDITS_ANNEE >= 20 ; "ADMIS AVEC DETTE" ; "REDOUBLE")',
-    }, "Test").ok).toBe(true);
+    } }, undefined, "Test").ok).toBe(true);
     const sem = e.semestreDe("S5");
     const etudiants = [{ id: awa.id, prenom: "Awa", nom: "SECK", matricule: awa.matricule }];
     const d = D.chargerDeliberation({ filiereId: e.classe.filiereId, filiere: e.classe.filiere, annee: "2025-2026", niveauAlias: "L3", niveauLabel: "Licence 3", classeId: e.classe.id, classe: e.classe.nom, semestreId: sem.id, semestreAlias: "S5", semestreLabel: "Semestre 5 (S5)", etudiants, regle: Rv.getRegleValidation(e.classe.filiereId, "semestre")!, effectuePar: "Test" });

@@ -8,8 +8,9 @@ import { NIVEAUX, SEMESTRES } from "./mockData";
 import { appliquerMethodeCalcul, CODE_MOYENNE_EC_SEMESTRE, type ElementPondere } from "@/lib/bulletinCalculs";
 import { atteint } from "@/lib/notes";
 import { getRepechageUe } from "./repechageStore";
-import { formulesDeCalcul } from "./scolariteConfigStore";
-import { executerFormule, interpreterCredits } from "./formulesCalcul";
+import { formulesPour } from "./reglementCalculStore";
+import { bulletinFige } from "./resultatsFigesStore";
+import { executerFormule, interpreterCredits, type FormulesCalcul } from "./formulesCalcul";
 import type { Valeur } from "@/lib/formules";
 
 /** Résultat numérique d'une formule (une valeur non numérique compte comme « en attente »). */
@@ -20,6 +21,10 @@ const enNombre = (v: Valeur): number | undefined => (typeof v === "number" && Nu
 export interface OptionsBulletin {
   sessionNormale?: boolean;
   sansCapitalisation?: boolean;
+  /** Formules à essayer à la place du règlement de l'année (comparaison avant/après). */
+  formules?: FormulesCalcul;
+  /** Recalcule même si le jury de la session est clôturé (sert à figer les résultats). */
+  sansFige?: boolean;
 }
 
 /** Note d'examen retenue quand un rattrapage existe, selon la règle de la filière. Règle UCAO
@@ -165,9 +170,15 @@ export function computeBulletin(
   semestreAlias: string,
   options: OptionsBulletin = {},
 ): BulletinEtudiant {
+  // Jury clôturé : le bulletin délibéré fait foi, quoi qu'il change ensuite.
+  if (!options.sessionNormale && !options.formules && !options.sansFige) {
+    const fige = bulletinFige(etudiantId, classeId, semestreAlias);
+    if (fige) return fige;
+  }
   const config = getConfigForFiliere(filiereId);
   const regles = reglesDeCalcul(filiereId);
-  const formules = formulesDeCalcul(filiereId);
+  // Formules du règlement de l'année de la classe (une filière sans règlement suit ses réglages).
+  const formules = options.formules ?? formulesPour(filiereId, getClasseById(classeId)?.annee);
   const codeMoyUe = resolveCodeMethodeCalcul(config, "moyenneUe");
   const codeMoySession = resolveCodeMethodeCalcul(config, "moyenneSession");
 
@@ -281,10 +292,10 @@ function ueAcquiseAnneePrecedente(etudiantId: string, classeId: string, filiereI
 
 /** Variante pratique pour itérer tout le monde d'une classe : dérive filiereId/niveau de la
  * classe elle-même plutôt que de les faire fournir par l'appelant. */
-export function computeBulletinPourClasse(etudiantId: string, classeId: string, semestreAlias: string): BulletinEtudiant | undefined {
+export function computeBulletinPourClasse(etudiantId: string, classeId: string, semestreAlias: string, options: OptionsBulletin = {}): BulletinEtudiant | undefined {
   const classe = getClasseById(classeId);
   if (!classe) return undefined;
-  return computeBulletin(etudiantId, classeId, classe.filiereId, classe.niveau, semestreAlias);
+  return computeBulletin(etudiantId, classeId, classe.filiereId, classe.niveau, semestreAlias, options);
 }
 
 export interface MoyenneAnnuelle {

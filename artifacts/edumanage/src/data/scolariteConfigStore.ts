@@ -1,7 +1,7 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 import { getFilieres, subscribeFilieres } from "./filiereStore";
-import { validerFormule, ETAPES_FORMULES, type FormulesCalcul } from "./formulesCalcul";
+import type { FormulesCalcul } from "./formulesCalcul";
 import { getMethodesCalculActivesParNiveau } from "./bulletinMethodesStore";
 
 const STORAGE_KEY = "edumanage-scolarite-config-v1";
@@ -88,8 +88,8 @@ export interface ScolariteConfigRecord {
   /** Règles de calcul propres à la filière (seuils, rattrapage, compensation…). Chaque règle absente
    * prend sa valeur par défaut (REGLES_CALCUL_DEFAUT), qui reproduit le comportement d'origine. */
   reglesCalcul?: Partial<ReglesCalcul>;
-  /** Formules écrites par l'établissement pour certaines étapes du calcul (Formules de calcul) ;
-   * une étape sans formule suit les réglages ci-dessus. */
+  /** Formules de l'étape 1 (avant les règlements par année) — reprises une fois dans un
+   * règlement de l'année en cours (reglementCalculStore), plus utilisées ensuite. */
   formulesCalcul?: FormulesCalcul;
   formulesModifieesPar?: string;
   formulesModifieesLe?: string;
@@ -226,30 +226,6 @@ export function validerReglesCalcul(r: ReglesCalcul, bareme = 20): string | null
   if (!(r.margeRattrapage >= 0 && r.margeRattrapage <= bareme)) return "La marge de rattrapage doit être positive.";
   if (!(r.creditsPassageAvecDette >= 0)) return "Les crédits du passage avec dette doivent être positifs (0 = jamais).";
   return null;
-}
-
-/** Formules de calcul de la filière (seulement les étapes qui en ont une). */
-export function formulesDeCalcul(filiereId: string | undefined): FormulesCalcul {
-  const config = filiereId ? store.configs.find((c) => c.filiereId === filiereId) : undefined;
-  return config?.formulesCalcul ?? {};
-}
-
-/** Enregistre les formules d'une filière — refusé si l'une d'elles est incorrecte. Une formule
- * vide rend l'étape aux réglages de la filière. */
-export function updateFormulesCalcul(id: string, formules: FormulesCalcul, modifiePar: string): { ok: boolean; reason?: string } {
-  const config = store.configs.find((c) => c.id === id);
-  if (!config) return { ok: false, reason: "Filière introuvable." };
-  const propres: FormulesCalcul = {};
-  for (const etape of ETAPES_FORMULES) {
-    const texte = formules[etape.cle]?.trim();
-    if (!texte) continue;
-    const motif = validerFormule(etape.cle, texte);
-    if (motif) return { ok: false, reason: `${etape.titre} : ${motif}` };
-    propres[etape.cle] = texte;
-  }
-  store.configs = store.configs.map((c) => (c.id === id ? { ...c, formulesCalcul: propres, formulesModifieesPar: modifiePar, formulesModifieesLe: new Date().toISOString() } : c));
-  persist();
-  return { ok: true };
 }
 
 export function updateReglesCalcul(id: string, regles: ReglesCalcul, modifiePar: string): { ok: boolean; reason?: string } {
