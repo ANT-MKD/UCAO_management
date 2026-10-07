@@ -4,6 +4,9 @@ import { computeBulletinPourClasse } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
 import { decideValidation, getRegleValidation, type RegleValidationRecord } from "./reglesValidationStore";
 import { SEMESTRES } from "./mockData";
+import { formulesDeCalcul } from "./scolariteConfigStore";
+import { executerFormule, interpreterDecisionSemestre } from "./formulesCalcul";
+import { ueAcquise } from "./bulletinEngine";
 import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
 
 const STORAGE_KEY = "edumanage-deliberation-store-v1";
@@ -143,7 +146,15 @@ function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationIn
 
   const declassement = detecterDeclassementEtudiant(e.id, input.classeId, input.filiereId, input.niveauAlias, input.annee, input.semestreAlias);
   const regleEffective = seuilEffectif !== undefined ? { ...input.regle, moyennePassage: seuilEffectif } : input.regle;
-  const decisionAuto: DecisionJury = declassement ? "a_declasser" : decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, regleEffective);
+  // Formule « Décision du semestre » de la filière si elle en a une, sinon la règle de validation.
+  const formule = formulesDeCalcul(input.filiereId).decisionSemestre;
+  const parFormule = formule && bulletin
+    ? interpreterDecisionSemestre(executerFormule("decisionSemestre", formule, {
+      CREDITS_SEMESTRE: bulletin.creditsObtenus, CREDITS_TOTAL_SEMESTRE: bulletin.creditsTotal, MOYENNE_SEMESTRE: bulletin.moyenneSession,
+      ABSENCES: absences, UE_NON_ACQUISES: bulletin.ues.filter((u) => !ueAcquise(u)).length,
+    }))
+    : undefined;
+  const decisionAuto: DecisionJury = declassement ? "a_declasser" : parFormule ?? decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, regleEffective);
 
   return {
     etudiantId: e.id,
@@ -272,6 +283,8 @@ export function ajusterSeuilSession(
 ): void {
   const deliberation = getDeliberationById(deliberationId);
   if (!deliberation || deliberation.statut === "cloturee") return;
+  // Une décision écrite en formule ne dépend pas d'un seuil de moyenne réglable ici.
+  if (formulesDeCalcul(deliberation.filiereId).decisionSemestre) return;
   const regleAjustee: RegleValidationRecord = { ...regle, moyennePassage: nouveauSeuil };
   deliberation.lignes = deliberation.lignes.map((ligne) => {
     if (ligne.decisionAuto === "a_declasser") return ligne;

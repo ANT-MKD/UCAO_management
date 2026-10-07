@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { Settings2, Pencil, RotateCcw, Download, AlertTriangle, Calculator } from "lucide-react";
+import { Settings2, Pencil, RotateCcw, Download, AlertTriangle, Calculator, Sigma } from "lucide-react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -129,7 +130,13 @@ export default function ParametrageScolaritePage() {
       render: (row) => {
         const r = row as unknown as ScolariteConfigRecord;
         const perso = r.reglesCalcul && Object.entries(r.reglesCalcul).some(([k, v]) => REGLES_CALCUL_DEFAUT[k as keyof ReglesCalcul] !== v);
-        return <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", perso ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{perso ? "Personnalisées" : "Par défaut"}</span>;
+        const nbFormules = Object.keys(r.formulesCalcul ?? {}).length;
+        return (
+          <div className="flex flex-wrap gap-1">
+            <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", perso ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{perso ? "Personnalisées" : "Par défaut"}</span>
+            {nbFormules > 0 && <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{nbFormules} formule(s)</span>}
+          </div>
+        );
       },
     },
     {
@@ -171,6 +178,15 @@ export default function ParametrageScolaritePage() {
             >
               <Calculator size={14} />
             </button>
+            <Link
+              href={`/admin/scolarite/formules?filiere=${r.filiereId}`}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Formules de calcul"
+              title="Formules de calcul"
+              data-testid={`scolarite-config-formules-${r.id}`}
+            >
+              <Sigma size={14} />
+            </Link>
           </div>
         );
       },

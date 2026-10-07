@@ -24,6 +24,7 @@ import { computeBulletinPourClasse, type UeMoyenne } from "@/data/bulletinEngine
 import { repecherUe, annulerRepechage, getRepechageUe } from "@/data/repechageStore";
 import { useRepechages } from "@/hooks/useRepechageStore";
 import { formatNote } from "@/lib/notes";
+import { formulesDeCalcul } from "@/data/scolariteConfigStore";
 import { getEvaluationsForClasseEc, getRattrapageEvaluation } from "@/data/evaluationStore";
 import { getNoteForEvaluation } from "@/data/studentStore";
 import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
@@ -400,7 +401,7 @@ function DetailDeliberation({
   const regleSemestre = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "semestre");
   // Règle UCAO : le semestre se valide aux crédits — le seuil de moyenne et la décision
   // « rattrapage » (marge sous la moyenne) ne s'appliquent alors pas.
-  const parMoyenne = regleSemestre?.validationParMoyenne ?? true;
+  const parMoyenne = !formulesDeCalcul(deliberation.filiereId).decisionSemestre && (regleSemestre?.validationParMoyenne ?? true);
 
   const handleRecharger = () => {
     const semestre = SEMESTRES.find((s) => s.id === deliberation.semestreId);

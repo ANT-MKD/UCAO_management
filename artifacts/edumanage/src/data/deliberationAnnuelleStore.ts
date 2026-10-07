@@ -1,4 +1,5 @@
-import { reglesDeCalcul } from "./scolariteConfigStore";
+import { reglesDeCalcul, formulesDeCalcul } from "./scolariteConfigStore";
+import { executerFormule, interpreterDecisionAnnee } from "./formulesCalcul";
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { computeBulletin, computeMoyenneAnnuelle } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
@@ -184,7 +185,17 @@ function calculerLigneAnnuelle(e: EtudiantPourDeliberationAnnuelle, input: Charg
       .map((u): UeNonValideeAnnuelle => ({ ueId: u.id, ueCode: u.code, ueLibelle: u.libelle, ueCredits: u.credits, semestreAlias }));
   });
 
-  const decisionAuto = decideValidationAnnuelle(moyenne ?? 0, creditsObtenus, absences, input.regle, input.niveau);
+  // Formule « Décision de l'année » de la filière si elle en a une, sinon les règles (60 / 42…).
+  const formule = formulesDeCalcul(input.filiereId).decisionAnnee;
+  const parFormule = formule
+    ? interpreterDecisionAnnee(executerFormule("decisionAnnee", formule, {
+      CREDITS_ANNEE: creditsObtenus, CREDITS_TOTAL_ANNEE: creditsTotal,
+      CREDITS_S1: semestres[0]?.creditsObtenus, CREDITS_S2: semestres[1]?.creditsObtenus,
+      MOYENNE_S1: semestres[0]?.moyenne, MOYENNE_S2: semestres[1]?.moyenne,
+      ABSENCES: absences, UE_NON_ACQUISES: uesNonValidees.length,
+    }))
+    : undefined;
+  const decisionAuto = parFormule ?? decideValidationAnnuelle(moyenne ?? 0, creditsObtenus, absences, input.regle, input.niveau);
 
   return {
     etudiantId: e.id,

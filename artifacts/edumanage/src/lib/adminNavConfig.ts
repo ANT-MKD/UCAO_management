@@ -200,6 +200,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     icon: BookOpen,
     children: [
       { id: "scol-param", label: "Paramétrage scolarité", href: "/admin/scolarite/parametrage" },
+      { id: "scol-formules", label: "Formules de calcul", href: "/admin/scolarite/formules" },
       {
         id: "scol-inscription",
         label: "Inscription",
