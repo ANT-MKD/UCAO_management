@@ -244,7 +244,7 @@ export default function ParametrageScolaritePage() {
                 <label htmlFor="regle-rattrapage" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de rattrapage</label>
                 <select id="regle-rattrapage" value={regles.regleRattrapage} onChange={(e) => setRegles((r) => ({ ...r, regleRattrapage: e.target.value as ReglesCalcul["regleRattrapage"] }))} className={inputClass} data-testid="regle-rattrapage">
                   <option value="remplace">Remplace la note d&apos;examen</option>
-                  <option value="meilleure">Remplace l&apos;examen si elle est meilleure</option>
+                  <option value="meilleure">Si meilleure que l&apos;examen</option>
                   <option value="plafonnee">Remplace l&apos;examen, plafonnée</option>
                 </select>
               </div>
