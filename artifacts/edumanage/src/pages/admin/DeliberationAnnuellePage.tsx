@@ -460,7 +460,7 @@ function DetailDeliberationAnnuelle({
                 <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Semestres</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Crédits</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-5 py-3">Décision</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground px-3 py-3">UE en dette</th>
+                <th className="text-left text-xs font-semibold text-muted-foreground px-3 py-3">UE non acquises (à rattraper)</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Détails</th>
               </tr>
             </thead>

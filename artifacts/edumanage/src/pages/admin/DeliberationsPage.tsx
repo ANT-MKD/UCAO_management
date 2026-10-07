@@ -398,6 +398,9 @@ function DetailDeliberation({
 
   const cloture = deliberation.statut === "cloturee";
   const regleSemestre = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "semestre");
+  // Règle UCAO : le semestre se valide aux crédits — le seuil de moyenne et la décision
+  // « rattrapage » (marge sous la moyenne) ne s'appliquent alors pas.
+  const parMoyenne = regleSemestre?.validationParMoyenne ?? true;
 
   const handleRecharger = () => {
     const semestre = SEMESTRES.find((s) => s.id === deliberation.semestreId);
@@ -489,7 +492,7 @@ function DetailDeliberation({
         </div>
       )}
 
-      {!cloture && regleSemestre && (
+      {!cloture && regleSemestre && parMoyenne && (
         <SeuilSimulateur deliberation={deliberation} regle={regleSemestre} auteur={auteur} />
       )}
 
@@ -497,7 +500,7 @@ function DetailDeliberation({
         {[
           { label: "Total", value: stats.total, icon: Users, color: "#6366f1" },
           { label: "Validés", value: stats.admis, icon: CheckCircle2, color: "#10b981" },
-          { label: "Rattrapage", value: stats.rattrapage, icon: AlertTriangle, color: "#f59e0b" },
+          ...(parMoyenne ? [{ label: "Rattrapage", value: stats.rattrapage, icon: AlertTriangle, color: "#f59e0b" }] : []),
           { label: "Non validés", value: stats.ajourne, icon: XCircle, color: "#ef4444" },
           { label: "Exclus", value: stats.exclu, icon: Ban, color: "#71717a" },
           { label: "À déclasser", value: stats.aDeclasser, icon: AlertOctagon, color: "#9333ea" },
@@ -552,7 +555,7 @@ function DetailDeliberation({
                       <div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className={cn("text-sm font-bold font-mono", l.moyenne >= (deliberation.seuilOverride ?? regleSemestre?.moyennePassage ?? 10) ? "text-emerald-600" : "text-red-600")}>{formatNote(l.moyenne)}</span>
+                      <span className={cn("text-sm font-bold font-mono", !parMoyenne ? "text-foreground" : l.moyenne >= (deliberation.seuilOverride ?? regleSemestre?.moyennePassage ?? 10) ? "text-emerald-600" : "text-red-600")}>{formatNote(l.moyenne)}</span>
                     </td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}</td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsTotal}</td>

@@ -64,7 +64,13 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
   const etudiant = etudiants.find((e) => e.id === entry.etudiantId);
   if (!etudiant) return undefined;
   const filiereObj = FILIERES.find((f) => f.code === entry.filiere) ?? FILIERES.find((f) => f.id === etudiant.filiereId);
-  const semestreObj = SEMESTRES.find((s) => `${s.nom} (${s.alias})` === entry.semestre);
+  // Le libellé « Semestre 5 (S5) » existe dans chaque filière : on prend celui de la filière et
+  // du niveau de l'étudiant, sinon la délibération (cherchée par id de semestre) n'est pas trouvée.
+  const memeLibelle = (s: (typeof SEMESTRES)[number]) => `${s.nom} (${s.alias})` === entry.semestre;
+  const semestreObj = filiereObj
+    ? SEMESTRES.find((s) => memeLibelle(s) && s.filiere === filiereObj.code && s.niveau === etudiant.niveau)
+      ?? SEMESTRES.find((s) => memeLibelle(s) && s.filiere === filiereObj.code)
+    : undefined;
   if (!filiereObj || !semestreObj) return undefined;
 
   const bulletin = computeBulletin(etudiant.id, etudiant.classeId, filiereObj.id, etudiant.niveau, semestreObj.alias);

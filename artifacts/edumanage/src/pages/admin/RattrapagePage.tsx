@@ -234,7 +234,7 @@ export default function RattrapagePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Évaluation" }, { label: "Rattrapage" }]}
         title="Rattrapage"
-        subtitle="Reprise de l'examen pour les étudiants ajournés — la nouvelle note remplace l'examen normal dans le calcul final"
+        subtitle="Toutes les matières des UE non acquises — la note de rattrapage remplace l'examen si elle est meilleure (règle de la filière)"
       />
 
       <div className="grid lg:grid-cols-2 gap-5 mb-5">
@@ -331,7 +331,7 @@ export default function RattrapagePage() {
                 <span className="text-muted-foreground">Noté sur</span>
                 <span className="font-bold text-foreground">{bareme}</span>
               </div>
-              <p className="text-[11px] text-muted-foreground">Cette note remplace l&apos;examen normal ({evaluationRattrapage.poids}% de la moyenne du cours) dans le calcul final.</p>
+              <p className="text-[11px] text-muted-foreground">Cette note remplace l&apos;examen ({evaluationRattrapage.poids}% de la moyenne du cours) si elle est meilleure ; sinon l&apos;examen est conservé.</p>
               <button
                 onClick={() => setLocation(`/admin/deliberations?classeId=${classeId}&semestreId=${semestreId}`)}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-50 transition-colors"

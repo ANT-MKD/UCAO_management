@@ -38,7 +38,8 @@ export default function UEFormPage({ id }: Props) {
           coeff: existing.coeff,
           filiereId: existing.filiereId,
           niveauId: NIVEAUX.find((n) => n.alias === existing.niveau && n.filiereId === existing.filiereId)?.id ?? "",
-          semestreId: SEMESTRES.find((s) => s.alias === existing.semestre)?.id ?? "",
+          // Le semestre « S1 » existe dans chaque filière : celui du niveau de cette UE.
+          semestreId: SEMESTRES.find((s) => s.alias === existing.semestre && s.niveauId === NIVEAUX.find((n) => n.alias === existing.niveau && n.filiereId === existing.filiereId)?.id)?.id ?? "",
           type: existing.type,
           description: existing.description ?? "",
         }
