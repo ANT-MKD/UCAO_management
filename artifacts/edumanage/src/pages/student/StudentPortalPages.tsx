@@ -293,7 +293,7 @@ function semestreLePlusAvance(semestres: string[], avecDonnees: Set<string>): st
 
 /** Suivi des notes en cours — jamais un verdict officiel (ça, c'est Relevés & bulletins, avec
  * mention et décision de jury réelles). computeBulletin() n'est réutilisé ici que pour son
- * calcul de moyenne pondérée par les vrais coefficients, pas pour un statut "validé". */
+ * calcul de moyenne selon les règles de la filière, pas pour un statut "validé". */
 export function StudentNotesPage() {
   const { currentUser } = useAuth();
   const students = useStudentStore();

@@ -17,25 +17,21 @@ export interface MethodeCalculRecord {
 }
 
 const LABELS_DEFAUT: Record<string, string> = {
-  calculMoyenneCoefficient: "Moyenne pondérée par coefficient",
   calculMoyenneCredit: "Moyenne pondérée par crédit",
   calculMoyenneDefault: "Moyenne simple",
   calculMoyenneEcSemestre: "Moyenne simple de tous les EC du semestre",
   calculMoyenneSommeMoyenne: "Somme des moyennes",
   calculSessionMoyenneByUEAndCreditUE: "Moyenne session par UE et crédit UE",
-  calculMoyenneAvecBaseNotation: "Moyenne avec base de notation",
   calculMoyenneMethodeSupdeco: "Méthode Supdeco",
   calculMoyenneProgrammeESMT: "Méthode ESMT (préparatoire + examen×2)/3",
 };
 
 const DESCRIPTIONS_DEFAUT: Record<string, string> = {
-  calculMoyenneCoefficient: "Moyenne des éléments pondérée par leur coefficient.",
   calculMoyenneCredit: "Moyenne des éléments pondérée par leurs crédits ECTS.",
   calculMoyenneDefault: "Moyenne arithmétique simple, sans pondération.",
   calculMoyenneEcSemestre: "Somme des moyennes de tous les EC du semestre ÷ nombre d'EC du semestre (sans passer par les UE).",
   calculMoyenneSommeMoyenne: "Somme brute des moyennes, sans division.",
   calculSessionMoyenneByUEAndCreditUE: "Moyenne de session pondérée par crédit de chaque UE.",
-  calculMoyenneAvecBaseNotation: "Moyenne pondérée par coefficient, normalisée par le barème de notation.",
   calculMoyenneMethodeSupdeco: "Formule spécifique à Supdeco (approximée par une pondération crédits).",
   calculMoyenneProgrammeESMT: "(moyenne classe préparatoire + moyenne classe d'examen × 2) / 3.",
 };
@@ -69,9 +65,12 @@ function load(): MethodeCalculRecord[] {
     const parsed = JSON.parse(raw) as MethodeCalculRecord[];
     // Complète avec les méthodes techniques nouvellement enregistrées côté code, absentes du
     // localStorage existant (ex. après un déploiement qui ajoute une méthode).
-    const known = new Set(parsed.map((m) => `${m.niveau}:${m.code}`));
+    // Retire les méthodes qui n'existent plus (ex. pondération par coefficient, abandonnée : l'UCAO
+    // ne travaille qu'avec les crédits) — une filière qui les utilisait retombe sur la méthode par défaut.
+    const existantes = parsed.filter((m) => getCodesMethodesDisponibles(m.niveau).includes(m.code));
+    const known = new Set(existantes.map((m) => `${m.niveau}:${m.code}`));
     const fresh = seed().filter((m) => !known.has(`${m.niveau}:${m.code}`));
-    return [...parsed, ...fresh];
+    return [...existantes, ...fresh];
   } catch {
     return seed();
   }

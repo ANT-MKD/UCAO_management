@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Pencil, Trash2, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, ListPlus } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
@@ -67,6 +67,15 @@ export default function UEsPage() {
       render: (r) => (
         <div className="flex items-center gap-1">
           <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ues/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ecs/new?ue=${r.id}`); }}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+            title="Ajouter un EC à cette UE"
+            aria-label="Ajouter un EC à cette UE"
+            data-testid={`ue-ajouter-ec-${r.id}`}
+          >
+            <ListPlus size={14} />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();

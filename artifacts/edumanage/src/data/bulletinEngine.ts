@@ -199,7 +199,7 @@ export function computeBulletin(
         ? enNombre(executerFormule("noteEc", formules.noteEc, {
           DEVOIR: examenSeul ? 0 : cc, EXAMEN: examenSession, RATTRAPAGE: rattrapage, EXAMEN_RETENU: ef,
           POIDS_DEVOIR: examenSeul ? 0 : poidsCc, POIDS_EXAMEN: examenSeul ? 1 : poidsExamen,
-          CREDITS_MATIERE: ec.credits, COEFF_MATIERE: ec.coeff ?? 1,
+          CREDITS_MATIERE: ec.credits,
         }))
         : examenSeul ? ef : cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;
       const validee = moyenne !== undefined && atteint(moyenne, regles.seuilValidationEc);
@@ -209,13 +209,13 @@ export function computeBulletin(
       .filter((l) => l.moyenne !== undefined)
       .map((l) => {
         const ec = ecsUe.find((e) => e.id === l.id);
-        return { moyenne: l.moyenne!, coeff: ec?.coeff ?? l.credits, credits: l.credits };
+        return { moyenne: l.moyenne!, credits: ec?.credits ?? l.credits };
       });
     const notees = ecs.filter((l) => l.moyenne !== undefined);
     const moyenneUe = formules.moyenneUe
       ? enNombre(executerFormule("moyenneUe", formules.moyenneUe, {
         MATIERES: notees.map((l) => l.moyenne!), CREDITS_MATIERES: notees.map((l) => l.credits),
-        COEFF_MATIERES: notees.map((l) => ecsUe.find((e) => e.id === l.id)?.coeff ?? 1), NB_MATIERES: ecs.length, CREDITS_UE: ue.credits,
+        NB_MATIERES: ecs.length, CREDITS_UE: ue.credits,
       }))
       : appliquerMethodeCalcul("moyenneUe", codeMoyUe, elementsUe);
     // Note plancher : un EC en dessous empêche la compensation au sein de l'UE.
@@ -243,12 +243,12 @@ export function computeBulletin(
   });
 
   const elementsSession: ElementPondere[] = codeMoySession === CODE_MOYENNE_EC_SEMESTRE
-    ? ues.flatMap((u) => u.ecs).filter((l) => l.moyenne !== undefined).map((l) => ({ moyenne: l.moyenne!, coeff: 1, credits: l.credits }))
+    ? ues.flatMap((u) => u.ecs).filter((l) => l.moyenne !== undefined).map((l) => ({ moyenne: l.moyenne!, credits: l.credits }))
     : ues
       .filter((u) => u.moyenne !== undefined)
       .map((u) => {
         const ueRecord = uesSession.find((ue) => ue.id === u.id);
-        return { moyenne: u.moyenne!, coeff: ueRecord?.coeff ?? u.credits, credits: u.credits };
+        return { moyenne: u.moyenne!, credits: ueRecord?.credits ?? u.credits };
       });
   const ecsNotes = ues.flatMap((u) => u.ecs).filter((l) => l.moyenne !== undefined);
   const uesNotees = ues.filter((u) => u.moyenne !== undefined);
@@ -317,7 +317,7 @@ export function computeMoyenneAnnuelle(etudiantId: string, classeId: string, fil
   const bulletins = semestres.map((s) => computeBulletin(etudiantId, classeId, filiereId, niveauAlias, s.alias));
   const elements: ElementPondere[] = bulletins
     .filter((b) => b.moyenneSession !== undefined)
-    .map((b) => ({ moyenne: b.moyenneSession!, coeff: b.creditsTotal, credits: b.creditsTotal }));
+    .map((b) => ({ moyenne: b.moyenneSession!, credits: b.creditsTotal }));
 
   const moyenne = appliquerMethodeCalcul("moyenneAnnee", codeMoyAnnee, elements);
   const creditsObtenus = bulletins.reduce((s, b) => s + b.creditsObtenus, 0);
@@ -383,7 +383,7 @@ export function computeMoyenneProgramme(etudiantId: string, filiereId: string): 
 
   const elements: ElementPondere[] = anneesRetenues
     .filter((a) => a.moyenne !== undefined)
-    .map((a) => ({ moyenne: a.moyenne!, coeff: 1, credits: a.credits }));
+    .map((a) => ({ moyenne: a.moyenne!, credits: a.credits }));
   const moyenne = appliquerMethodeCalcul("moyenneProgramme", codeMoyProgramme, elements);
 
   return { moyenne, anneesRetenues: anneesRetenues.map(({ annee, niveau, moyenne }) => ({ annee, niveau, moyenne })) };

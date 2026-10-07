@@ -7,10 +7,6 @@ export interface UeRecord {
   code: string;
   libelle: string;
   credits: number;
-  /** Coefficient de pondération de l'UE, distinct du crédit — utilisé par les méthodes de calcul
-   * "coefficient" (Paramétrage bulletin). Optionnel : les méthodes qui en ont besoin retombent
-   * sur `credits` si non renseigné. */
-  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
@@ -30,7 +26,6 @@ export interface EcRecord {
   abrege?: string;
   ue: string;
   ueId: string;
-  coeff: number;
   credits: number;
   volCm: number;
   volTd: number;
@@ -158,7 +153,6 @@ export interface UePayload {
   code: string;
   libelle: string;
   credits: number;
-  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
@@ -196,7 +190,6 @@ export interface EcPayload {
   libelle: string;
   abrege?: string;
   ueId: string;
-  coeff: number;
   credits: number;
   volCm: number;
   volTd: number;
@@ -307,7 +300,6 @@ export function importCurriculumRows(
         code: row.codeEc.toUpperCase(),
         libelle: row.libelleEc,
         ueId: ue.id,
-        coeff: 1,
         credits: row.credits || 0,
         volCm: cm,
         volTd: td,

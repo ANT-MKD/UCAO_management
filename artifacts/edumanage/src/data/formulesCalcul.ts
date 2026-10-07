@@ -37,7 +37,6 @@ export const ETAPES_FORMULES: EtapeFormule[] = [
       v("POIDS_DEVOIR", "Poids des devoirs (ex. 0,3), fixé à la création des évaluations", 0.3),
       v("POIDS_EXAMEN", "Poids de l'examen (ex. 0,7)", 0.7),
       v("CREDITS_MATIERE", "Crédits de la matière", 5),
-      v("COEFF_MATIERE", "Coefficient de la matière", 1),
     ],
   },
   {
@@ -46,7 +45,6 @@ export const ETAPES_FORMULES: EtapeFormule[] = [
     variables: [
       v("MATIERES", "Liste des moyennes des matières de l'UE (déjà notées)", [12.6, 7.3]),
       v("CREDITS_MATIERES", "Liste des crédits de ces matières (même ordre)", [6, 4]),
-      v("COEFF_MATIERES", "Liste des coefficients de ces matières (même ordre)", [1, 1]),
       v("NB_MATIERES", "Nombre de matières de l'UE (notées ou non)", 2),
       v("CREDITS_UE", "Crédits de l'UE", 10),
     ],

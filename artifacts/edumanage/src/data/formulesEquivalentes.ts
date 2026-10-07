@@ -18,7 +18,6 @@ export function formuleEquivalente(cle: CleFormule, filiereId: string): string |
       const code = resolveCodeMethodeCalcul(config, "moyenneUe");
       if (code === "calculMoyenneDefault") return "= MOYENNE(MATIERES)";
       if (code === "calculMoyenneCredit") return "= MOYENNE_PONDEREE(MATIERES ; CREDITS_MATIERES)";
-      if (code === "calculMoyenneCoefficient") return "= MOYENNE_PONDEREE(MATIERES ; COEFF_MATIERES)";
       return undefined;
     }
     case "creditsUe": {

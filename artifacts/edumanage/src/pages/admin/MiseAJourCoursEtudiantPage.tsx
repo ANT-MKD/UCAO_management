@@ -236,7 +236,7 @@ export default function MiseAJourCoursEtudiantPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground">{ec.code} - {ec.libelle}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          UE : {ue.libelle} ({ue.obligatoire ? "Obligatoire" : "Optionnelle"}) | Crédit : {ec.credits.toFixed(1)} | VH : {ec.vht.toFixed(1)} | Coef : {ec.coeff.toFixed(1)}
+                          UE : {ue.libelle} ({ue.obligatoire ? "Obligatoire" : "Optionnelle"}) | Crédit : {ec.credits.toFixed(1)} | VH : {ec.vht.toFixed(1)}
                         </p>
                         {(nbAjoutes > 0 || nbRetires > 0) && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">

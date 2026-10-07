@@ -36,7 +36,7 @@ export const UES: {
 }[] = [];
 
 export const ECS: {
-  id: string; code: string; libelle: string; ue: string; ueId: string; coeff: number;
+  id: string; code: string; libelle: string; ue: string; ueId: string;
   credits: number; volCm: number; volTd: number; responsable: string;
 }[] = [];
 
