@@ -64,7 +64,7 @@ export default function NotesEtudiantPage() {
 
   const handleSelectEtudiant = (e: EtudiantRecord) => {
     setEtudiantId(e.id);
-    setSearchQuery(`${e.matricule} - ${e.prenom} ${e.nom} (${e.telephone})`);
+    setSearchQuery(`${e.matricule} - ${e.prenom} ${e.nom}${e.telephone ? ` (${e.telephone})` : ""}`);
     setShowSuggestions(false);
   };
 

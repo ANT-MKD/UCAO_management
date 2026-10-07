@@ -7,6 +7,7 @@ import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier } from "@/data/studentStore";
 import { toast } from "sonner";
 import { cn, formatShortDate } from "@/lib/utils";
+import { LIBELLE_ETAT_SEANCE, LIBELLE_STATUT_CAHIER } from "@/lib/cahierLibelles";
 
 const STATUT_CLS: Record<string, string> = {
   soumis: "bg-amber-50 text-amber-700",
@@ -160,7 +161,7 @@ export default function CahiersAdminPage() {
                 </p>
               </div>
               <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium h-fit", STATUT_CLS[c.statut] || "bg-muted")}>
-                {c.statut} · {c.etatSeance}
+                {LIBELLE_STATUT_CAHIER[c.statut] ?? c.statut} · {LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance}
               </span>
             </div>
             <p className="text-sm mt-2 line-clamp-2 text-muted-foreground">{c.resume || c.activite}</p>

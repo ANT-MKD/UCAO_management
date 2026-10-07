@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier, getCahierStatsForEc } from "@/data/studentStore";
 import { cn, formatShortDate } from "@/lib/utils";
+import { LIBELLE_ETAT_SEANCE, LIBELLE_STATUT_CAHIER } from "@/lib/cahierLibelles";
 
 const STATUT_CLS: Record<string, string> = {
   soumis: "bg-amber-50 text-amber-700",
@@ -58,7 +59,7 @@ export default function CahierDetailPage({ id }: { id: string }) {
         subtitle={`${formatShortDate(c.date)} · ${c.classe} · ${c.prof}`}
         actions={
           <span className={cn("text-xs px-3 py-1.5 rounded-full font-medium h-fit", STATUT_CLS[c.statut] || "bg-muted")}>
-            {c.statut} · {c.etatSeance}
+            {LIBELLE_STATUT_CAHIER[c.statut] ?? c.statut} · {LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance}
           </span>
         }
       />
@@ -90,7 +91,7 @@ export default function CahierDetailPage({ id }: { id: string }) {
             ["Date", c.date],
             ["Horaire", `${c.heureDebut || "—"} – ${c.heureFin || "—"}`],
             ["Type", c.typeSeance],
-            ["État séance", c.etatSeance],
+            ["État séance", LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance],
             ["Taux présence", `${c.tauxPresence}%`],
           ].map(([k, v]) => (
             <div key={k}>

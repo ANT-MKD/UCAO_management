@@ -57,7 +57,7 @@ export default function BulletinEtudiantPage() {
 
   const handleSelectEtudiant = (e: EtudiantRecord) => {
     setEtudiantId(e.id);
-    setSearchQuery(`${e.matricule} - ${e.prenom} ${e.nom} (${e.telephone})`);
+    setSearchQuery(`${e.matricule} - ${e.prenom} ${e.nom}${e.telephone ? ` (${e.telephone})` : ""}`);
     setShowSuggestions(false);
     // Préremplit Filière/Année/Niveau/Classe à partir de l'inscription réelle et actuelle de
     // l'étudiant ; la cascade normale reste active ensuite pour consulter un autre bulletin

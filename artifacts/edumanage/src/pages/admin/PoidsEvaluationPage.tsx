@@ -69,7 +69,7 @@ export default function PoidsEvaluationPage() {
 
   const handleSelectProfesseur = (en: (typeof ENSEIGNANTS)[number]) => {
     setProfesseurId(en.id);
-    setSearchQuery(`${en.matricule} - ${en.prenom} ${en.nom} (${en.telephone})`);
+    setSearchQuery(`${en.matricule} - ${en.prenom} ${en.nom}${en.telephone ? ` (${en.telephone})` : ""}`);
     setShowSuggestions(false);
     setClasseId("");
     setSelectedIds(new Set());
