@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Redirect, useLocation } from "wouter";
-import { GraduationCap, KeyRound, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { LogOut, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { definirMotDePasseDefinitif } from "@/data/studentStore";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
-
-const inputClass =
-  "w-full px-4 py-3 text-sm border border-[#e2e8f0] dark:border-[#2d3748] rounded-xl bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#f1f5f9] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30 focus:border-[#4f46e5] transition-all";
+import { CadreConnexion, EtapesAide, champConnexion, etiquetteChamp, boutonPrincipal } from "@/components/site/CadreConnexion";
+import { DISPLAY } from "@/components/site/Decor";
 
 function accueil(role: string): string {
   if (role === "admin") return "/admin/dashboard";
@@ -40,59 +39,50 @@ export default function ChangerMotDePassePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 py-10 bg-white dark:bg-[#0d1117]">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-8 h-8 bg-[#4f46e5] rounded-lg flex items-center justify-center">
-            <GraduationCap size={16} className="text-white" />
-          </div>
-          <span className="font-bold text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>
-            Edu<span style={{ color: "#4f46e5" }}>Manage</span>
-          </span>
+    <CadreConnexion
+      etiquette="Première connexion"
+      titre={<>Choisissez votre<br /><span className="text-[#4f46e5] dark:text-[#a5b4fc]">mot de passe.</span></>}
+      intro={<>{currentUser.name}, vous vous êtes connecté avec un mot de passe provisoire. Choisissez-en un personnel pour accéder à votre espace.</>}
+      retourAccueil={false}
+      aide={(
+        <EtapesAide
+          etapes={[
+            { titre: "Au moins 6 caractères", texte: "Plus il est long, plus il est sûr : une courte phrase se retient facilement." },
+            { titre: "Gardez-le pour vous", texte: "L'administration ne vous le demandera jamais." },
+            { titre: "Oublié plus tard ?", texte: "« Mot de passe oublié ? » sur l'écran de connexion : un code vous sera remis au secrétariat." },
+          ]}
+        />
+      )}
+    >
+      <h2 className="text-2xl font-extrabold tracking-tight mb-1.5" style={DISPLAY}>Nouveau mot de passe</h2>
+      <p className="text-sm text-[#5d5a7a] dark:text-[#a3a6c2] mb-6">Il remplacera le mot de passe provisoire.</p>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="nouveau-mdp" className={etiquetteChamp}>Nouveau mot de passe</label>
+          <input id="nouveau-mdp" type="password" autoComplete="new-password" value={nouveau} onChange={(e) => setNouveau(e.target.value)} className={champConnexion} placeholder="••••••••" data-testid="input-nouveau-mdp" />
+          <p className="text-xs text-[#6b6889] dark:text-[#a3a6c2] mt-1.5">{PASSWORD_HINT}</p>
         </div>
-        <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>
-          Choisissez votre mot de passe
-        </h1>
-        <p className="text-sm text-[#64748b] mb-6">
-          {currentUser.name}, vous vous êtes connecté avec un mot de passe provisoire. Choisissez un mot de passe personnel
-          pour accéder à votre espace.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="nouveau-mdp" className="block text-xs font-medium text-[#64748b] mb-1.5">Nouveau mot de passe</label>
-            <input id="nouveau-mdp" type="password" value={nouveau} onChange={(e) => setNouveau(e.target.value)} className={inputClass} placeholder="••••••••" data-testid="input-nouveau-mdp" />
-            <p className="text-[11px] text-[#94a3b8] mt-1">{PASSWORD_HINT}</p>
-          </div>
-          <div>
-            <label htmlFor="confirmation-mdp" className="block text-xs font-medium text-[#64748b] mb-1.5">Confirmer le mot de passe</label>
-            <input id="confirmation-mdp" type="password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} className={inputClass} placeholder="••••••••" data-testid="input-confirmation-mdp" />
-          </div>
-
-          {erreur && (
-            <div className="flex items-start gap-2.5 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl" role="alert">
-              <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-red-600 dark:text-red-400">{erreur}</p>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={valider}
-            className="w-full h-12 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
-            data-testid="button-valider-mdp"
-          >
-            <CheckCircle2 size={15} /> Enregistrer et continuer
-          </button>
-          <button
-            type="button"
-            onClick={() => { logout(); setLocation("/login"); }}
-            className="w-full flex items-center justify-center gap-1.5 text-xs text-[#64748b] hover:text-[#4f46e5]"
-          >
-            <KeyRound size={12} /> Se déconnecter
-          </button>
+        <div>
+          <label htmlFor="confirmation-mdp" className={etiquetteChamp}>Confirmer le mot de passe</label>
+          <input id="confirmation-mdp" type="password" autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} className={champConnexion} placeholder="••••••••" data-testid="input-confirmation-mdp" />
         </div>
+        {erreur && (
+          <div className="flex items-start gap-2.5 p-3.5 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 rounded-2xl" role="alert">
+            <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[13px] text-red-700 dark:text-red-300">{erreur}</p>
+          </div>
+        )}
+        <button type="button" onClick={valider} className={boutonPrincipal} data-testid="button-valider-mdp">
+          <CheckCircle2 size={16} /> Enregistrer et continuer
+        </button>
+        <button
+          type="button"
+          onClick={() => { logout(); setLocation("/login"); }}
+          className="w-full flex items-center justify-center gap-1.5 text-[13px] font-semibold text-[#5d5a7a] dark:text-[#a3a6c2] hover:text-[#17133a] dark:hover:text-white"
+        >
+          <LogOut size={14} /> Se déconnecter
+        </button>
       </div>
-    </div>
+    </CadreConnexion>
   );
 }
