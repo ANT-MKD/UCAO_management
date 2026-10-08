@@ -9,7 +9,7 @@ import { verifierSuppressionEvaluation, supprimerEvaluation } from "@/data/suppr
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotes, useStudentStore } from "@/hooks/useStudentStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { formatNote } from "@/lib/notes";
 
 function noteTypeFor(type: EvaluationRecord["type"]): "CC" | "EF" {
@@ -107,7 +107,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
         <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center gap-2 px-5 py-3 bg-primary/10 border-b border-border">
             <ClipboardList size={16} className="text-primary" />
-            <h3 className="font-bold text-foreground text-sm">Code {evaluation.type === "devoir" ? "devoir" : "examen"} : {evaluation.code} effectué le : {evaluation.dateCreation}</h3>
+            <h3 className="font-bold text-foreground text-sm">Code {evaluation.type === "devoir" ? "devoir" : "examen"} : {evaluation.code} effectué le {formatDate(evaluation.dateCreation)}</h3>
           </div>
           <div className="px-5 py-2">
             {infoRow("Type évaluation", `${evaluation.type === "devoir" ? "Devoir" : "Examen"}${evaluation.session === "rattrapage" ? " (Rattrapage)" : ""}`)}

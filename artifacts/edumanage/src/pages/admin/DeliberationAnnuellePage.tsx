@@ -19,6 +19,8 @@ import {
 import { formatNote } from "@/lib/notes";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
+import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
+import { MotifModal } from "@/components/admin/MotifModal";
 
 const DECISION_CONFIG: Record<DecisionAnnuelle, { label: string; color: string; bg: string; icon: React.ElementType; border: string }> = {
   admis: { label: DECISION_ANNUELLE_LABELS.admis, color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/50", icon: CheckCircle2, border: "border-emerald-200 dark:border-emerald-800" },
@@ -46,7 +48,6 @@ function resumeSemestres(l: DeliberationAnnuelleLigne): string {
 }
 
 function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const rows = deliberation.lignes
     .map((l) => {
       const cfg = DECISION_CONFIG[l.decisionFinale];
@@ -73,6 +74,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
     .sig-box { border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-family: Arial, sans-serif; font-size: 10px; color: #6b7280; }
   </style>
   </head><body>
+    ${enteteEtablissementHtml()}
     <h1>Procès-verbal de délibération annuelle</h1>
     <div class="meta">
       <strong>Filière :</strong> ${deliberation.filiere} — ${deliberation.niveauLabel} — ${deliberation.annee}<br/>
@@ -87,7 +89,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
     <div class="signatures">
       <div class="sig-box">Le Président du jury<br/><br/><br/>Signature</div>
       <div class="sig-box">Le Secrétaire<br/><br/><br/>Signature</div>
-      <div class="sig-box">Fait le ${now}</div>
+      <div class="sig-box">${faitALe()}</div>
     </div>
     <script>window.onload = function(){ window.print(); }</script>
   </body></html>`;
@@ -331,6 +333,7 @@ function DetailDeliberationAnnuelle({
   const deliberations = useDeliberationsAnnuelles();
   const deliberation = deliberations.find((d) => d.id === deliberationId);
   const [decisionFilter, setDecisionFilter] = useState("");
+  const [correction, setCorrection] = useState<{ etudiantId: string; etudiant: string; decision: DecisionAnnuelle; decisionAuto: DecisionAnnuelle } | null>(null);
 
   if (!deliberation) {
     return <div className="bg-card border border-border rounded-xl p-10 text-center text-sm text-muted-foreground">Délibération introuvable.</div>;
@@ -350,9 +353,11 @@ function DetailDeliberationAnnuelle({
   };
   const tauxReussite = stats.total > 0 ? Math.round(((stats.admis + stats.avecDette) / stats.total) * 100) : 0;
 
+  /** Revenir à la décision calculée ne demande rien ; une correction manuelle demande son motif. */
   const handleOverride = (etudiantId: string, decision: DecisionAnnuelle, decisionAuto: DecisionAnnuelle) => {
-    const raison = decision !== decisionAuto ? (window.prompt("Motif de la correction manuelle (optionnel) :") ?? "") : "";
-    overrideDecisionAnnuelle(deliberationId, etudiantId, decision, raison, auteur);
+    if (decision === decisionAuto) { overrideDecisionAnnuelle(deliberationId, etudiantId, decision, "", auteur); return; }
+    const etudiant = deliberation.lignes.find((l) => l.etudiantId === etudiantId)?.etudiant ?? "";
+    setCorrection({ etudiantId, etudiant, decision, decisionAuto });
   };
 
   const handleRecharger = () => {
@@ -518,6 +523,20 @@ function DetailDeliberationAnnuelle({
           </table>
         </div>
       </div>
+
+      <MotifModal
+        open={!!correction}
+        title="Correction manuelle de la décision annuelle"
+        description={correction && <>Décision de <strong>{correction.etudiant}</strong> : {DECISION_CONFIG[correction.decisionAuto].label} → <strong>{DECISION_CONFIG[correction.decision].label}</strong>.</>}
+        libelleConfirmer="Corriger la décision"
+        placeholder="ex : décision du jury après examen du dossier"
+        onCancel={() => setCorrection(null)}
+        onConfirm={(motif) => {
+          if (correction) overrideDecisionAnnuelle(deliberationId, correction.etudiantId, correction.decision, motif, auteur);
+          setCorrection(null);
+        }}
+        testId="correction-decision-annuelle"
+      />
     </div>
   );
 }

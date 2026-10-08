@@ -89,6 +89,7 @@ export default function TeacherFormPage({ id }: Props) {
   const onSubmit = (data: FormData) => {
     if (!currentUser) return;
     const specialitesRemplies = specialites.filter(Boolean);
+    if (specialitesRemplies.length === 0) { toast.error("Indiquez au moins une spécialité."); return; }
     const payload = {
       prenom: data.prenom.trim(),
       nom: data.nom.trim().toUpperCase(),
@@ -180,7 +181,7 @@ export default function TeacherFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-6" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-6" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Identité</p>
             <div className="flex items-center gap-4 mb-4">

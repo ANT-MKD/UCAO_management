@@ -705,7 +705,7 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/40 border-b border-border">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Etudiant</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Étudiant</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Suggestion</th>
               <th className="px-5 py-3"></th>
             </tr>

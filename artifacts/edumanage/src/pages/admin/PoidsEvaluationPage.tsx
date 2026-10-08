@@ -54,7 +54,7 @@ export default function PoidsEvaluationPage() {
           en.matricule.toLowerCase().includes(q) ||
           en.prenom.toLowerCase().includes(q) ||
           en.nom.toLowerCase().includes(q) ||
-          en.telephone.includes(q)
+          (en.telephone ?? "").includes(q)
         );
       })
     : [];
@@ -238,7 +238,7 @@ export default function PoidsEvaluationPage() {
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted transition-colors"
                   data-testid={`poids-professeur-suggestion-${en.id}`}
                 >
-                  {en.matricule} - {en.prenom} {en.nom} ({en.telephone})
+                  {en.matricule} - {en.prenom} {en.nom}{en.telephone ? ` (${en.telephone})` : ""}
                 </button>
               ))}
             </div>

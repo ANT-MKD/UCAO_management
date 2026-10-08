@@ -2,6 +2,7 @@ import type { TeacherContractRecord } from "@/data/teacherContractStore";
 import type { EnseignantRecord } from "@/lib/teacherUtils";
 import { formatCFA, formatDate } from "@/lib/utils";
 import { getEtablissement } from "@/data/etablissementStore";
+import { faitALe } from "@/lib/printDocument";
 
 export interface ContractPrintRow {
   coursLabel: string;
@@ -23,7 +24,6 @@ export function buildContractHtml(
   statut: "actif" | "expire" | "resilie",
 ): string {
   const total = rows.reduce((sum, r) => sum + r.montant, 0);
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const etab = getEtablissement();
 
   const avenantsHtml =
@@ -92,7 +92,7 @@ ${rows
 </table>
 ${avenantsHtml}
 <div class="signatures"><div>Le Professeur</div><div>Le Directeur</div></div>
-<p style="margin-top:40px;font-size:11px;color:#666">Fait à Dakar, le ${now}</p>
+<p style="margin-top:40px;font-size:11px;color:#666">${faitALe()}</p>
 </body></html>`;
 }
 

@@ -259,7 +259,7 @@ export default function PriseEnChargeFormPage() {
                 >
                   <UserAvatar name={`${s.prenom} ${s.nom}`} size="sm" />
                   <span>
-                    <span className="font-mono text-xs text-muted-foreground">{s.matricule}</span> — {s.prenom} {s.nom} ({s.telephone})
+                    <span className="font-mono text-xs text-muted-foreground">{s.matricule}</span> — {s.prenom} {s.nom}{s.telephone ? ` (${s.telephone})` : ""}
                   </span>
                 </button>
               ))}

@@ -13,7 +13,7 @@ export interface PortalFeatureItem {
 /** Reflète exactement STUDENT_NAV_ITEMS de StudentLayout.tsx — jamais une liste de fonctionnalités
  * inventée séparément du vrai menu du portail. */
 export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
-  { id: "student-dashboard", label: "Dashboard", href: "/student/dashboard" },
+  { id: "student-dashboard", label: "Tableau de bord", href: "/student/dashboard" },
   { id: "student-schedule", label: "Emploi du temps", href: "/student/schedule", group: "Enseignement" },
   { id: "student-cours", label: "Cours", href: "/student/cours", group: "Enseignement" },
   { id: "student-cahier", label: "Cahier de texte", href: "/student/cahier", group: "Enseignement" },
@@ -21,8 +21,8 @@ export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "student-notes", label: "Notes", href: "/student/notes", group: "Enseignement" },
   { id: "student-releves", label: "Relevés & bulletins", href: "/student/releves", group: "Enseignement" },
   { id: "student-absences", label: "Absences/retards", href: "/student/absences", group: "Enseignement" },
-  { id: "student-frais-paye", label: "Frais payé", href: "/student/frais-paye", group: "Finances" },
-  { id: "student-frais-impaye", label: "Frais impayé", href: "/student/frais-impaye", group: "Finances" },
+  { id: "student-frais-paye", label: "Frais payés", href: "/student/frais-paye", group: "Finances" },
+  { id: "student-frais-impaye", label: "Frais impayés", href: "/student/frais-impaye", group: "Finances" },
   { id: "student-payer-factures", label: "Payer factures", href: "/student/payer-factures", group: "Finances" },
   { id: "student-messages", label: "Messagerie", href: "/student/messages", group: "Communication" },
   { id: "student-requests", label: "Mes demandes", href: "/student/requests", group: "Communication" },

@@ -41,7 +41,7 @@ export default function AbsencePeriodeListPage() {
 
   const columns: Column<AbsencePeriodeRecord>[] = [
     {
-      key: "etudiant", header: "Etudiant",
+      key: "etudiant", header: "Étudiant",
       render: (r) => (
         <div>
           <p className="font-medium text-foreground">{r.matricule} - {r.etudiant}</p>

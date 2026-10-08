@@ -35,7 +35,7 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
     return (
       <div>
         <PageHeader
-          breadcrumb={[{ label: "Accueil" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
+          breadcrumb={[{ label: "Admin" }, { label: "Professeurs" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
           title="Contrat introuvable"
         />
         <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
@@ -78,7 +78,8 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
     <div>
       <PageHeader
         breadcrumb={[
-          { label: "Accueil" },
+          { label: "Admin" },
+          { label: "Professeurs" },
           { label: "Les contrats Professeur", href: "/admin/teachers/contracts" },
           { label: contract.id },
         ]}

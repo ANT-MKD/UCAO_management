@@ -89,7 +89,7 @@ export default function SalleFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="rounded-xl border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 px-4 py-3 text-xs text-amber-800 dark:text-amber-200">
             Wifi, climatisation et sonorisation sont considérés comme implicites — seuls le matériel pédagogique est listé.
           </div>
@@ -107,7 +107,8 @@ export default function SalleFormPage({ id }: Props) {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité *</label>
-              <input {...register("capacite", { required: true, valueAsNumber: true, min: 1 })} type="number" min={1} className={inputClass} />
+              <input {...register("capacite", { required: "Capacité requise", valueAsNumber: true, min: { value: 1, message: "Au moins 1 place" } })} type="number" min={1} className={inputClass} />
+              {errors.capacite && <p className="text-xs text-red-500 mt-1">{errors.capacite.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Bâtiment *</label>

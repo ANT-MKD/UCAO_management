@@ -108,7 +108,7 @@ export default function ParametrageScolaritePage() {
   const eliminatoireChangeeVersHaut = !!editing && form.moyenneEliminatoire > 0 && form.moyenneEliminatoire !== editing.moyenneEliminatoire;
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "filiere", header: "Programme", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.filiere as string}</span> },
+    { key: "filiere", header: "Programme", sortable: true, render: (r) => <span className="font-medium text-foreground block min-w-[240px]">{r.filiere as string}</span> },
     { key: "noteBareme", header: "Note B.", sortable: true, render: (r) => <span>{r.noteBareme as number}</span> },
     {
       key: "cumulCredit",

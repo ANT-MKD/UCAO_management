@@ -17,6 +17,7 @@ import { PORTEE_LABELS } from "@/data/derogationPaiementStore";
 import { estAutorise } from "@/data/communicationRolesStore";
 import { useCommunicationRoles } from "@/hooks/useCommunicationRolesStore";
 import { cn, formatDate } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const TYPE_LABELS: Record<StudentRequestRecord["type"], string> = {
   justificatif_absence: "Justificatif d'absence",
@@ -284,8 +285,8 @@ export default function RequestsPage() {
                         {selected.noteLibelle ? (
                           <>
                             <p className="font-medium text-foreground">{selected.noteLibelle}</p>
-                            {noteReclamee && noteReclamee.note.toFixed(2) !== selected.noteLibelle.match(/(\d+\.\d{2})\/20$/)?.[1] && (
-                              <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Note actuelle : {noteReclamee.note.toFixed(2)}/20 (modifiée depuis la réclamation)</p>
+                            {noteReclamee && formatNote(noteReclamee.note) !== selected.noteLibelle.match(/(\d+[.,]\d{2})\/20$/)?.[1]?.replace(".", ",") && (
+                              <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Note actuelle : {formatNote(noteReclamee.note)}/20 (modifiée depuis la réclamation)</p>
                             )}
                           </>
                         ) : (

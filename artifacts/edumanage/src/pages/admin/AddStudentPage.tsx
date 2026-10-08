@@ -83,6 +83,20 @@ interface Step5Data {
   classeIdApresPaiement: string;
 }
 
+/** Intitulé + champ : le champ est placé dans l'intitulé, qui le désigne donc (clic, lecteur
+ * d'écran). Défini hors de la page pour ne pas être recréé — et le champ remonté — à chaque rendu. */
+function InputField({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block">
+        <span className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</span>
+        {children}
+      </label>
+      {error && <p className="text-xs text-red-500 mt-1" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 export default function AddStudentPage() {
   const [, setLocation] = useLocation();
   const classes = useClasses();
@@ -329,14 +343,6 @@ export default function AddStudentPage() {
     setLocation(`/admin/students/${etudiant.id}`);
   };
 
-  const InputField = ({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
-      {children}
-      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-    </div>
-  );
-
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
   return (
@@ -377,7 +383,7 @@ export default function AddStudentPage() {
       <div className="max-w-2xl mx-auto">
         {/* Étape 1 — État civil + Contacts */}
         {currentStep === 1 && (
-          <form onSubmit={handleStep1} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep1} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>État Civil</h3>
 
             <div className="flex items-center gap-4">
@@ -461,7 +467,7 @@ export default function AddStudentPage() {
 
         {/* Étape 2 — Scolarité antérieure / Transfert */}
         {currentStep === 2 && (
-          <form onSubmit={handleStep2} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep2} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Scolarité Antérieure</h3>
             <p className="text-sm text-muted-foreground">Renseignez le parcours scolaire ou universitaire avant l'inscription dans notre établissement.</p>
 
@@ -488,7 +494,7 @@ export default function AddStudentPage() {
                   </select>
                 </InputField>
                 <InputField label="Année BAC (obtention) *" error={form2.formState.errors.anneeBac?.message}>
-                  <input {...form2.register("anneeBac", { required: "Année requise" })} type="number" min={2000} max={2026} className={inputClass} placeholder="2025" />
+                  <input {...form2.register("anneeBac", { required: "Année requise", min: { value: 2000, message: `Année entre 2000 et ${new Date().getFullYear()}` }, max: { value: new Date().getFullYear(), message: `Année entre 2000 et ${new Date().getFullYear()}` } })} type="number" min={2000} max={new Date().getFullYear()} className={inputClass} placeholder="2025" />
                 </InputField>
                 <InputField label="Dernier établissement *" error={form2.formState.errors.dernierEtablissement?.message}>
                   <input {...form2.register("dernierEtablissement", { required: "Établissement requis" })} className={inputClass + " col-span-2"} placeholder="Lycée Blaise Diagne, Dakar" />
@@ -505,8 +511,8 @@ export default function AddStudentPage() {
                 <InputField label="Niveau atteint *">
                   <input {...form2.register("niveauAtteint", { required: "Niveau requis" })} className={inputClass} placeholder="Licence 2" />
                 </InputField>
-                <InputField label="Crédits validés (ECTS)">
-                  <input {...form2.register("creditsValides", { valueAsNumber: true })} type="number" min={0} className={inputClass} placeholder="60" />
+                <InputField label="Crédits validés (ECTS)" error={form2.formState.errors.creditsValides?.message}>
+                  <input {...form2.register("creditsValides", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} placeholder="60" />
                 </InputField>
                 <InputField label="Dernier établissement *">
                   <input {...form2.register("dernierEtablissement", { required: "Établissement requis" })} className={inputClass + " col-span-2"} placeholder="Université Cheikh Anta Diop" />
@@ -527,7 +533,7 @@ export default function AddStudentPage() {
 
         {/* Étape 3 — Inscription académique */}
         {currentStep === 3 && (
-          <form onSubmit={handleStep3} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep3} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Inscription Académique</h3>
 
             <InputField label="Filière *" error={form3.formState.errors.filiereId?.message}>
@@ -640,7 +646,7 @@ export default function AddStudentPage() {
 
         {/* Étape 5 — Paiement */}
         {currentStep === 5 && (
-          <form onSubmit={handleStep5} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep5} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Paiement des Frais d'Inscription</h3>
 
             <InputField label="Modèle de frais *">

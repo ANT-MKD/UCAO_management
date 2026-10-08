@@ -8,6 +8,8 @@ import { useRoles } from "@/hooks/useRoleStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { pourcentageStockage } from "@/lib/stockageLocal";
+import { useEtablissement } from "@/hooks/useEtablissementStore";
+import { NOM_ETABLISSEMENT_PAR_DEFAUT, nomEtablissementParDefaut } from "@/data/etablissementStore";
 
 export interface AdminAlert {
   id: string;
@@ -47,6 +49,7 @@ export function useAdminAlerts(): AdminAlert[] {
   const cahiers = useCahiers();
   const pointages = usePointages();
   const rallonges = useRallonges();
+  const etablissement = useEtablissement();
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
   const notesEnAttente = notes.filter((n) => n.statut === "soumis_admin");
@@ -67,6 +70,11 @@ export function useAdminAlerts(): AdminAlert[] {
   if (stockage >= 80) {
     alerts.push({ id: "stockage", type: stockage >= 90 ? "danger" : "warning", count: stockage, domaine: "Sécurité", action: "Voir l'espace",
       message: `Stockage du navigateur utilisé à ${stockage} % — au-delà de 100 %, plus rien ne s'enregistre`, temps: "Maintenant", href: "/admin/security/reinitialisation-donnees" });
+  }
+
+  if (nomEtablissementParDefaut(etablissement)) {
+    alerts.push({ id: "etablissement-nom", type: "warning", count: 1, domaine: "Sécurité", action: "Renseigner",
+      message: `Nom de l'établissement à renseigner : reçus, attestations et procès-verbaux portent encore « ${NOM_ETABLISSEMENT_PAR_DEFAUT} »`, temps: "Avant toute impression", href: "/admin/settings" });
   }
 
   push({ id: "reinit-mdp", type: "danger", count: reinitEnAttente.length, domaine: "Sécurité", action: "Remettre un code",

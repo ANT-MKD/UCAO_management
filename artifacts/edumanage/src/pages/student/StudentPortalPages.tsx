@@ -723,7 +723,7 @@ export function StudentRelevesPage() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="semestre" tick={{ fontSize: 11 }} />
                           <YAxis domain={[0, 20]} tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v: number) => [`${(v as number).toFixed(2)}/20`, "Moyenne"]} labelFormatter={(l, items) => `${l}${items?.[0]?.payload?.annee ? " — " + items[0].payload.annee : ""}`} />
+                          <Tooltip formatter={(v: number) => [`${formatNote(v as number)}/20`, "Moyenne"]} labelFormatter={(l, items) => `${l}${items?.[0]?.payload?.annee ? " — " + items[0].payload.annee : ""}`} />
                           <Line type="monotone" dataKey="moyenne" stroke="#4f46e5" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                         </LineChart>
                       </ResponsiveContainer>

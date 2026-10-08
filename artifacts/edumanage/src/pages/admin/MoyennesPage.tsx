@@ -148,7 +148,7 @@ export default function MoyennesPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <KPICard icon={BarChart3} label="Moyenne promo" value={avgPromo.toFixed(2)} accentColor="#4f46e5" />
+            <KPICard icon={BarChart3} label="Moyenne promo" value={formatNote(avgPromo)} accentColor="#4f46e5" />
             <KPICard icon={BarChart3} label="% Admis" value={`${pctAdmis}%`} accentColor="#10b981" />
             <KPICard icon={BarChart3} label="% Ajournés" value={`${pctAjournes}%`} accentColor="#ef4444" />
             <KPICard icon={BarChart3} label="Mentions TB" value={tb} accentColor="#f59e0b" />

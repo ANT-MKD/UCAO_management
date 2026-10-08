@@ -1,5 +1,5 @@
 import { formatCFA } from "@/lib/utils";
-import { getEtablissement } from "@/data/etablissementStore";
+import { getEtablissement, villeEtablissement } from "@/data/etablissementStore";
 
 export interface PrintDocumentLigne {
   label: string;
@@ -175,4 +175,31 @@ ${args.messageMerci !== "" ? `<p class="thanks">${args.messageMerci ?? "Merci po
   </div>
 </div>
 </body></html>`;
+}
+
+function echapperHtml(texte: string): string {
+  return texte.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** En-tête des documents narratifs (attestation de service, procès-verbal, paiement professeur) :
+ * l'identité réelle de l'établissement (Paramètres généraux), jamais un nom écrit dans le modèle. */
+export function enteteEtablissementHtml(): string {
+  const etab = getEtablissement();
+  const contacts = [etab.telephone && `Tél. ${etab.telephone}`, etab.email, etab.siteWeb].filter(Boolean).map((c) => echapperHtml(String(c))).join(" · ");
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:14px;border-bottom:3px double #4f46e5;padding-bottom:16px;margin-bottom:24px;font-family:Arial,sans-serif">
+  ${etab.logoDataUrl ? `<img src="${etab.logoDataUrl}" alt="" style="width:56px;height:56px;object-fit:contain;flex-shrink:0" />` : ""}
+  <div style="text-align:${etab.logoDataUrl ? "left" : "center"}">
+    <div style="font-size:20px;font-weight:700;color:#1a2f5e">${echapperHtml(etab.nom)}</div>
+    ${etab.adresse ? `<div style="font-size:12px;color:#555;margin-top:2px">${echapperHtml(etab.adresse)}</div>` : ""}
+    ${contacts ? `<div style="font-size:11px;color:#777;margin-top:2px">${contacts}</div>` : ""}
+    ${etab.agrement ? `<div style="font-size:11px;color:#777;margin-top:2px">Agrément : ${echapperHtml(etab.agrement)}</div>` : ""}
+  </div>
+</div>`;
+}
+
+/** « Fait à Dakar, le 8 octobre 2026 » — la ville vient de l'adresse de l'établissement. */
+export function faitALe(date = new Date()): string {
+  const jour = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const ville = villeEtablissement();
+  return ville ? `Fait à ${ville}, le ${jour}` : `Fait le ${jour}`;
 }

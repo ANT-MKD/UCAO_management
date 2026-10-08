@@ -11,6 +11,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { cn } from "@/lib/utils";
 
+/** « Awa SECK (étudiante) » plutôt que le code technique du portail. */
+const PROFIL_COMPTE: Record<string, string> = { admin: "administration", teacher: "professeur", student: "étudiant" };
+const profil = (role: string) => PROFIL_COMPTE[role] ?? role;
+
 export default function MessagesPage() {
   const { currentUser } = useAuth();
   const messages = useMessages(currentUser?.id);
@@ -26,6 +30,7 @@ export default function MessagesPage() {
   const handleSend = () => {
     if (!currentUser || !toUserId || !subject.trim() || !content.trim()) return;
     sendMessage(currentUser.id, toUserId, subject.trim(), content.trim());
+    toast.success(`Message envoyé à ${nomExpediteur(toUserId)} — il le trouvera dans sa messagerie.`);
     setSubject("");
     setContent("");
   };
@@ -54,7 +59,7 @@ export default function MessagesPage() {
     groupesExternes.filter((g) => g.nom.toLowerCase().includes(q)).forEach((g) => out.push({ type: "groupe_externe", id: g.id, label: `Groupe externe — ${g.nom}` }));
     groupesInternes.filter((g) => g.nom.toLowerCase().includes(q)).forEach((g) => out.push({ type: "groupe_interne", id: g.id, label: `Groupe interne — ${g.nom}` }));
     groupesPersonnalises.filter((g) => g.nom.toLowerCase().includes(q)).forEach((g) => out.push({ type: "groupe_personnalise", id: g.id, label: `Groupe personnalisé — ${g.nom}` }));
-    getUserAccounts().filter((u) => u.displayName.toLowerCase().includes(q)).forEach((u) => out.push({ type: "compte", id: u.id, label: `${u.displayName} (${u.role})` }));
+    getUserAccounts().filter((u) => u.displayName.toLowerCase().includes(q)).forEach((u) => out.push({ type: "compte", id: u.id, label: `${u.displayName} (${profil(u.role)})` }));
     return out.filter((c) => !selections.some((s) => s.type === c.type && s.id === c.id)).slice(0, 8);
   }, [destSearch, groupesExternes, groupesInternes, groupesPersonnalises, selections]);
 
@@ -234,7 +239,7 @@ export default function MessagesPage() {
             <div className="space-y-3">
               <select value={toUserId} onChange={(e) => setToUserId(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-border bg-background">
                 <option value="">Destinataire</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.displayName} ({u.role})</option>)}
+                {users.map((u) => <option key={u.id} value={u.id}>{u.displayName} ({profil(u.role)})</option>)}
               </select>
               <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet" className="w-full px-3 py-2 rounded-xl border border-border bg-background" />
               <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Message..." className="w-full min-h-[120px] px-3 py-2 rounded-xl border border-border bg-background" />

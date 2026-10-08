@@ -6,7 +6,6 @@ import {
   CreditCard, GraduationCap,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { getGrilleFrais } from "@/data/grilleFraisStore";
@@ -23,7 +22,8 @@ import {
   emettreQuittanceBrute,
   type EtudiantRecord,
 } from "@/data/studentStore";
-import { checkReinscriptionEligibility, getDerniereLigneDeliberation } from "@/data/reinscriptionEligibility";
+import { checkReinscriptionEligibility, getDerniereDecisionAnnuelle, getDerniereLigneDeliberation, LIBELLE_DECISION_REINSCRIPTION } from "@/data/reinscriptionEligibility";
+import { DECISION_ANNUELLE_LABELS } from "@/data/deliberationAnnuelleStore";
 import { DECISION_LABELS } from "@/data/deliberationStore";
 import { useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
@@ -128,7 +128,9 @@ export default function ReinscriptionPage() {
       : Math.round(fraisRef.scolariteAnnuelle / 10);
   }, [fraisRef, form4.watch("modeScolarite")]);
 
-  const ligneDeliberation = student ? getDerniereLigneDeliberation(student.id) : undefined;
+  // Le passage se décide sur l'année : le jury de semestre ne sert de repère qu'en l'absence de délibération annuelle.
+  const decisionAnnuelle = student ? getDerniereDecisionAnnuelle(student.id) : undefined;
+  const ligneDeliberation = student && !decisionAnnuelle ? getDerniereLigneDeliberation(student.id) : undefined;
   const niveauCible = NIVEAUX.find((n) => n.id === selectedNiveau);
   const eligibility = student ? checkReinscriptionEligibility(student.id, niveauCible) : null;
   const derogations = useDerogationsPaiement();
@@ -321,11 +323,23 @@ export default function ReinscriptionPage() {
               )}
             </div>
             <div className="rounded-xl border border-border p-4 bg-card">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Dernière délibération</p>
-              {ligneDeliberation ? (
-                <p className="text-sm">
-                  Statut : <StatusBadge status={ligneDeliberation.decisionFinale === "admis" ? "actif" : "suspendu"} />
-                  {" · "}{DECISION_LABELS[ligneDeliberation.decisionFinale]} · Moyenne : {formatNote(ligneDeliberation.moyenne)}
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                {decisionAnnuelle ? `Délibération annuelle ${decisionAnnuelle.annee}` : "Dernière délibération de semestre"}
+              </p>
+              {decisionAnnuelle ? (
+                <p className="text-sm" data-testid="reinscription-deliberation">
+                  <span className={cn("font-semibold", decisionAnnuelle.ligne.decisionFinale === "admis" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+                    {DECISION_ANNUELLE_LABELS[decisionAnnuelle.ligne.decisionFinale]}
+                  </span>
+                  {" · "}{decisionAnnuelle.ligne.creditsObtenus}/{decisionAnnuelle.ligne.creditsTotal} crédits de l&apos;année
+                </p>
+              ) : ligneDeliberation ? (
+                <p className="text-sm" data-testid="reinscription-deliberation">
+                  <span className={cn("font-semibold", ligneDeliberation.decisionFinale === "admis" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+                    {DECISION_LABELS[ligneDeliberation.decisionFinale]}
+                  </span>
+                  {" · "}Moyenne : {formatNote(ligneDeliberation.moyenne)}
+                  <span className="block text-xs text-muted-foreground mt-0.5">L&apos;année n&apos;a pas encore été délibérée.</span>
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Pas encore de délibération enregistrée</p>
@@ -333,6 +347,19 @@ export default function ReinscriptionPage() {
             </div>
           </div>
 
+          {eligibility && (
+            <div className={cn(
+              "rounded-xl p-3 text-xs",
+              eligibility.decision === "allowed" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+              eligibility.decision === "conditional" && "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
+              eligibility.decision === "blocked" && "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
+            )} data-testid="reinscription-decision">
+              <p className="font-semibold mb-1">Réinscription : {LIBELLE_DECISION_REINSCRIPTION[eligibility.decision]}</p>
+              <ul className="list-disc ml-4">
+                {eligibility.reasons.map((r) => <li key={r}>{r}</li>)}
+              </ul>
+            </div>
+          )}
           <div className="flex gap-3">
             <button onClick={() => setCurrentStep(1)} className="flex-1 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">
               Retour
@@ -340,29 +367,18 @@ export default function ReinscriptionPage() {
             <button
               onClick={() => setCurrentStep(3)}
               disabled={eligibility?.decision === "blocked"}
-              className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 flex items-center justify-center gap-2"
+              title={eligibility?.decision === "blocked" ? "Réinscription bloquée : voir les motifs ci-dessus" : undefined}
+              className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 flex items-center justify-center gap-2 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
+              data-testid="reinscription-continuer"
             >
               Continuer <ArrowRight size={15} />
             </button>
           </div>
-          {eligibility && (
-            <div className={cn(
-              "rounded-xl p-3 text-xs",
-              eligibility.decision === "allowed" && "bg-emerald-50 text-emerald-700",
-              eligibility.decision === "conditional" && "bg-amber-50 text-amber-800",
-              eligibility.decision === "blocked" && "bg-red-50 text-red-700",
-            )}>
-              <p className="font-semibold mb-1">Décision: {eligibility.decision}</p>
-              <ul className="list-disc ml-4">
-                {eligibility.reasons.map((r) => <li key={r}>{r}</li>)}
-              </ul>
-            </div>
-          )}
         </div>
       )}
 
       {currentStep === 3 && student && (
-        <form onSubmit={handleStep3} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
+        <form noValidate onSubmit={handleStep3} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
           <h3 className="font-bold flex items-center gap-2">
             <GraduationCap size={18} className="text-primary" /> Inscription académique {anneeActuelle}
           </h3>
@@ -418,7 +434,7 @@ export default function ReinscriptionPage() {
       )}
 
       {currentStep === 4 && student && (
-        <form onSubmit={handleStep4} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
+        <form noValidate onSubmit={handleStep4} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
           <h3 className="font-bold flex items-center gap-2">
             <CreditCard size={18} className="text-primary" /> Paiement scolarité uniquement
           </h3>

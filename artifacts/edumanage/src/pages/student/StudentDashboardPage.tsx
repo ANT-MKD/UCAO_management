@@ -11,6 +11,7 @@ import { PubliciteBanner } from "@/components/PubliciteBanner";
 import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
+import { formatNote } from "@/lib/notes";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -35,7 +36,7 @@ export default function StudentDashboardPage() {
   const studentNotes = useMemo(() => notes.filter((n) => n.etudiantId === student?.id && n.statut === "publie"), [notes, student?.id]);
   const recentNotes = useMemo(() => studentNotes.slice(-10).reverse(), [studentNotes]);
   const moyenne = studentNotes.length
-    ? (studentNotes.reduce((sum, n) => sum + n.note, 0) / studentNotes.length).toFixed(2)
+    ? formatNote(studentNotes.reduce((sum, n) => sum + n.note, 0) / studentNotes.length)
     : "--";
 
   const paiementsPayes = useMemo(() => paiements.filter((p) => p.statut !== "annule" && p.montant > 0), [paiements]);

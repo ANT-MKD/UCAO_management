@@ -349,7 +349,7 @@ export default function MiseAJourCoursEtudiantPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{r.motif || "—"}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{r.dateAction}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{formatShortDate(r.dateAction)}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{r.effectuePar}</td>
                     <td className="px-4 py-2.5 text-center">
                       <button onClick={() => handleSupprimerHistorique(r.id)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`portefeuille-supprimer-${r.id}`}>

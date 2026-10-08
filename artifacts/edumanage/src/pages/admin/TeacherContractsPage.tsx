@@ -33,7 +33,7 @@ export default function TeacherContractsPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={[{ label: "Accueil" }, { label: "Les contrats Professeur" }]}
+        breadcrumb={[{ label: "Admin" }, { label: "Professeurs" }, { label: "Les contrats Professeur" }]}
         title="Les contrats Professeur"
         actions={
           <Link

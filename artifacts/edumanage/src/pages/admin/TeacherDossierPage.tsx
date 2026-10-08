@@ -5,7 +5,9 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { MemosPanel } from "@/components/admin/MemosPanel";
 import { DocumentsPanel } from "@/components/admin/DocumentsPanel";
 import { useTeachers } from "@/hooks/useTeacherStore";
-import { useSeances } from "@/hooks/useStudentStore";
+import { useAnneeActuelle, useSeances } from "@/hooks/useStudentStore";
+import { useEtablissement } from "@/hooks/useEtablissementStore";
+import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
 import { useDecomptes } from "@/hooks/useDecompteStore";
 import { useTypesSeance } from "@/hooks/useScheduleSettingsStore";
 import { usePointages } from "@/hooks/usePointageStore";
@@ -37,10 +39,34 @@ const DECOMPTE_TYPE_LABEL: Record<string, string> = {
   a_terme: "À terme",
 };
 
+/** « 12 h » ou « 7 h 30 ». */
+function formatHeures(h: number): string {
+  const min = Math.round(h * 60);
+  const reste = min % 60;
+  return reste ? `${Math.floor(min / 60)} h ${String(reste).padStart(2, "0")}` : `${min / 60} h`;
+}
+
+/** Une ligne par module, type et classe, avec le nombre de séances et les heures programmées. */
+function regrouperSeances(seances: { ec: string; type: string; classe: string; heureDebut: string; heureFin: string }[]) {
+  const lignes = new Map<string, { module: string; type: string; classe: string; seances: number; heures: number }>();
+  for (const s of seances) {
+    const [sh, sm] = s.heureDebut.split(":").map(Number);
+    const [eh, em] = s.heureFin.split(":").map(Number);
+    const cle = `${s.ec}|${s.type}|${s.classe}`;
+    const l = lignes.get(cle) ?? { module: s.ec, type: s.type, classe: s.classe, seances: 0, heures: 0 };
+    l.seances += 1;
+    l.heures += (eh * 60 + em - sh * 60 - sm) / 60;
+    lignes.set(cle, l);
+  }
+  return [...lignes.values()].sort((a, b) => a.module.localeCompare(b.module, "fr"));
+}
+
 export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("informations");
   const seances = useSeances();
+  const anneeActuelle = useAnneeActuelle();
+  const etablissement = useEtablissement();
   const typesSeance = useTypesSeance();
   const decomptes = useDecomptes();
   const pointages = usePointages();
@@ -315,36 +341,32 @@ export default function TeacherDossierPage({ id }: TeacherDossierPageProps) {
         )}
 
         {activeTab === "attestation" && (() => {
-          const teacherSeances = seances.filter((s) => matchesProf(teacher, s.prof, s.profId));
-          const totalH = teacherSeances.reduce((s, se) => {
-            const [sh, sm] = se.heureDebut.split(":").map(Number);
-            const [eh, em] = se.heureFin.split(":").map(Number);
-            return s + (eh * 60 + em - sh * 60 - sm) / 60;
-          }, 0);
-          const modules = [...new Set(teacherSeances.map((s) => s.ec))];
+          // Année académique en cours : seules ses séances (les séances annulées sont retirées de l'emploi du temps).
+          const teacherSeances = seances.filter((s) => matchesProf(teacher, s.prof, s.profId) && s.annee === anneeActuelle);
+          const lignes = regrouperSeances(teacherSeances);
+          const totalH = lignes.reduce((t, l) => t + l.heures, 0);
+          const nbModules = new Set(lignes.map((l) => l.module)).size;
           const printAttestation = () => {
-            const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Attestation de service</title>
+            const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Attestation de service — ${teacher.prenom} ${teacher.nom}</title>
 <style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
 .title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0;text-decoration:underline}
 .body{font-size:14px;line-height:1.8} table{width:100%;border-collapse:collapse;margin:20px 0}
-th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:12px} th{background:#f0f4ff}
+th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:12px} th{background:#f0f4ff} td.num{text-align:right}
 .footer{margin-top:40px;display:flex;justify-content:space-between;font-size:12px;color:#666}
 </style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
+${enteteEtablissementHtml()}
 <div class="title">ATTESTATION DE SERVICE</div>
 <div class="body">
 <p>Je certifie que <strong>${teacher.prenom} ${teacher.nom}</strong> (matricule ${teacher.matricule}),
-${teacher.grade} en ${teacher.specialite}, a effectivement enseigné dans notre établissement
-durant l'année académique 2025-2026.</p>
-<table><tr><th>Module</th><th>Type</th><th>Classe</th><th>Horaire</th></tr>
-${teacherSeances.map((s) => `<tr><td>${s.ec}</td><td>${s.type}</td><td>${s.classe}</td><td>${s.heureDebut}-${s.heureFin}</td></tr>`).join("")}
+${teacher.grade} en ${teacher.specialite}, a enseigné dans notre établissement
+durant l'année académique ${anneeActuelle}.</p>
+<table><tr><th>Module</th><th>Type</th><th>Classe</th><th>Séances</th><th>Heures</th></tr>
+${lignes.map((l) => `<tr><td>${l.module}</td><td>${l.type}</td><td>${l.classe}</td><td class="num">${l.seances}</td><td class="num">${formatHeures(l.heures)}</td></tr>`).join("")}
 </table>
-<p><strong>Volume horaire total :</strong> ${totalH.toFixed(0)} heures/semaine · <strong>Modules :</strong> ${modules.length}</p>
+<p><strong>Volume horaire programmé :</strong> ${formatHeures(totalH)} · <strong>Modules :</strong> ${nbModules}</p>
 <p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>
 </div>
-<div class="footer"><div>Fait à Dakar, le ${new Date().toLocaleDateString("fr-FR")}</div><div>Le Directeur</div></div>
+<div class="footer"><div>${faitALe()}</div><div>Le Directeur</div></div>
 </body></html>`;
             const win = window.open("", "_blank");
             if (win) { win.document.write(html); win.document.close(); win.print(); }
@@ -353,36 +375,41 @@ ${teacherSeances.map((s) => `<tr><td>${s.ec}</td><td>${s.type}</td><td>${s.class
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Attestation de Service</h3>
-                <button onClick={printAttestation} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90">
+                <button onClick={printAttestation} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90" data-testid="attestation-imprimer">
                   <Printer size={14} /> Imprimer / PDF
                 </button>
               </div>
-              <div className="border border-border rounded-xl p-6 bg-muted/20">
+              <div className="border border-border rounded-xl p-6 bg-muted/20" data-testid="attestation-apercu">
                 <div className="text-center border-b-2 border-indigo-600 pb-4 mb-6">
-                  <h2 className="text-lg font-bold text-indigo-600">Institut Supérieur EduManage</h2>
-                  <p className="text-xs text-muted-foreground">Dakar, Sénégal</p>
+                  <h2 className="text-lg font-bold text-indigo-600">{etablissement.nom}</h2>
+                  {etablissement.adresse && <p className="text-xs text-muted-foreground">{etablissement.adresse}</p>}
                 </div>
                 <h3 className="text-center font-bold underline mb-4">ATTESTATION DE SERVICE</h3>
                 <p className="text-sm leading-relaxed mb-4">
                   Je certifie que <strong>{teacher.prenom} {teacher.nom}</strong> ({teacher.matricule}),
-                  {teacher.grade} en {teacher.specialite}, a enseigné {modules.length} module(s)
-                  pour un volume de <strong>{totalH.toFixed(0)}h/semaine</strong> durant l'année 2025-2026.
+                  {" "}{teacher.grade} en {teacher.specialite}, a enseigné {nbModules} module(s)
+                  pour un volume programmé de <strong>{formatHeures(totalH)}</strong> durant l&apos;année académique {anneeActuelle}.
                 </p>
-                <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
-                  <thead><tr className="bg-muted/50">
-                    {["Module", "Type", "Classe", "Horaire"].map((h) => <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>)}
-                  </tr></thead>
-                  <tbody>
-                    {teacherSeances.slice(0, 6).map((s) => (
-                      <tr key={s.id} className="border-t border-border">
-                        <td className="px-3 py-2">{s.ec}</td>
-                        <td className="px-3 py-2">{s.type}</td>
-                        <td className="px-3 py-2">{s.classe}</td>
-                        <td className="px-3 py-2">{s.heureDebut}–{s.heureFin}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {lignes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucune séance programmée pour ce professeur en {anneeActuelle}.</p>
+                ) : (
+                  <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+                    <thead><tr className="bg-muted/50">
+                      {["Module", "Type", "Classe", "Séances", "Heures"].map((h) => <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {lignes.map((l) => (
+                        <tr key={`${l.module}|${l.type}|${l.classe}`} className="border-t border-border">
+                          <td className="px-3 py-2">{l.module}</td>
+                          <td className="px-3 py-2">{l.type}</td>
+                          <td className="px-3 py-2">{l.classe}</td>
+                          <td className="px-3 py-2">{l.seances}</td>
+                          <td className="px-3 py-2">{formatHeures(l.heures)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           );

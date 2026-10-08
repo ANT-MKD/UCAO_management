@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useDecomptePaiements } from "@/hooks/useDecomptePaiementStore";
 import { annulerPaiementDecompte, type DecomptePaiementLigneDetail } from "@/data/decomptePaiementStore";
 import { formatCFA, formatDate, formatShortDate, cn } from "@/lib/utils";
+import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
 
 function buildPaiementHtml(args: {
   reference: string;
@@ -20,7 +21,6 @@ function buildPaiementHtml(args: {
   referenceBancaire?: string;
   lignes: DecomptePaiementLigneDetail[];
 }): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const rows = args.lignes
     .map(
       (l) =>
@@ -30,9 +30,6 @@ function buildPaiementHtml(args: {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${args.reference}</title>
 <style>
 body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:40px;color:#1a1a1a}
-.header{text-align:center;border-bottom:3px double #4f46e5;padding-bottom:20px;margin-bottom:30px}
-.header h1{font-size:22px;color:#4f46e5;margin:0}
-.header p{font-size:12px;color:#666;margin:4px 0}
 .title{text-align:center;font-size:18px;font-weight:bold;margin:30px 0}
 .meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px;margin-bottom:20px}
 table{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px}
@@ -40,7 +37,7 @@ th,td{border:1px solid #ccc;padding:6px 8px}
 th{background:#f3f4f6;text-align:left}
 .footer{margin-top:50px;font-size:11px;color:#666}
 </style></head><body>
-<div class="header"><h1>Institut Supérieur EduManage</h1><p>Dakar, Sénégal</p></div>
+${enteteEtablissementHtml()}
 <div class="title">PAIEMENT PROFESSEUR N° ${args.reference}</div>
 <div class="meta">
   <div>Date : <strong>${formatDate(args.date)}</strong></div>
@@ -53,7 +50,7 @@ th{background:#f3f4f6;text-align:left}
   ${args.referenceBancaire ? `<div>Référence : <strong>${args.referenceBancaire}</strong></div>` : ""}
 </div>
 ${rows ? `<table><thead><tr><th>Cours</th><th>Date du cours</th><th>Durée</th><th>Payés</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
-<div class="footer">Fait à Dakar, le ${now}</div>
+<div class="footer">${faitALe()}</div>
 </body></html>`;
 }
 

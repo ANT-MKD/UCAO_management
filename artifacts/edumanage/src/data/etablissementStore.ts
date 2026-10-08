@@ -13,8 +13,12 @@ export interface EtablissementInfo {
   logoDataUrl?: string;
 }
 
+/** Nom livré avec l'application : tant qu'il n'est pas remplacé, les documents officiels portent
+ * un établissement qui n'existe pas (un avertissement le rappelle dans l'administration). */
+export const NOM_ETABLISSEMENT_PAR_DEFAUT = "Institut Supérieur EduManage";
+
 const DEFAULT_INFO: EtablissementInfo = {
-  nom: "Institut Supérieur EduManage",
+  nom: NOM_ETABLISSEMENT_PAR_DEFAUT,
   adresse: "Dakar, Sénégal",
   telephone: "",
   email: "",
@@ -66,4 +70,21 @@ export function updateEtablissement(payload: EtablissementInfo, actorId: string)
   store = { ...payload };
   logAudit(actorId, "update_etablissement", "etablissement", "etablissement", payload.nom);
   persist();
+}
+
+/** Vrai tant que le nom de l'établissement n'a jamais été renseigné. */
+export function nomEtablissementParDefaut(info: EtablissementInfo = store): boolean {
+  return !info.nom.trim() || info.nom.trim() === NOM_ETABLISSEMENT_PAR_DEFAUT;
+}
+
+/** Ville pour « Fait à … » : début de l'adresse (« Dakar, Sénégal » → « Dakar »). */
+export function villeEtablissement(info: EtablissementInfo = store): string {
+  return info.adresse.split(/[,\n]/)[0].trim();
+}
+
+/** Identité saisie à l'installation : le reste (téléphone, logo…) se complète dans les Paramètres. */
+export function definirIdentiteEtablissement(nom: string, adresse: string, actorId: string): void {
+  const nomPropre = nom.trim();
+  if (!nomPropre) throw new Error("Indiquez le nom de l'établissement : il figure sur les reçus, attestations et procès-verbaux.");
+  updateEtablissement({ ...store, nom: nomPropre, adresse: adresse.trim() || store.adresse }, actorId);
 }

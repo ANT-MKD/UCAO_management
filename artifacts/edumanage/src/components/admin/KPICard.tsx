@@ -70,9 +70,12 @@ export function KPICard({
           )}
         </div>
 
-        {/* Value */}
+        {/* Valeur toujours entière (jamais « 800 000 F… ») : la taille baisse pour les montants longs. */}
         <div
-          className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-none truncate"
+          className={cn(
+            "font-extrabold text-foreground tracking-tight leading-tight tabular-nums",
+            String(value).length > 11 ? "text-lg sm:text-xl" : String(value).length > 7 ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl",
+          )}
           style={{ fontFamily: "Outfit, sans-serif" }}
         >
           {value}

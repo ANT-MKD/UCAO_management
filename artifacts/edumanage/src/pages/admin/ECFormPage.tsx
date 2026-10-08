@@ -141,7 +141,7 @@ export default function ECFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code EC *</label>
@@ -177,19 +177,23 @@ export default function ECFormPage({ id }: Props) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">CM</label>
-                  <input {...register("volCm", { valueAsNumber: true, min: 0 })} type="number" min={0} className={inputClass} />
+                  <input {...register("volCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  {errors.volCm && <p className="text-xs text-red-500 mt-1">{errors.volCm.message}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">TD</label>
-                  <input {...register("volTd", { valueAsNumber: true, min: 0 })} type="number" min={0} className={inputClass} />
+                  <input {...register("volTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  {errors.volTd && <p className="text-xs text-red-500 mt-1">{errors.volTd.message}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">TP</label>
-                  <input {...register("volTp", { valueAsNumber: true, min: 0 })} type="number" min={0} className={inputClass} />
+                  <input {...register("volTp", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  {errors.volTp && <p className="text-xs text-red-500 mt-1">{errors.volTp.message}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">TPE</label>
-                  <input {...register("volTpe", { valueAsNumber: true, min: 0 })} type="number" min={0} className={inputClass} />
+                  <input {...register("volTpe", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  {errors.volTpe && <p className="text-xs text-red-500 mt-1">{errors.volTpe.message}</p>}
                 </div>
               </div>
               <div className="mt-3 rounded-xl border border-border bg-muted/30 px-4 py-3 flex items-center justify-between">
@@ -201,7 +205,8 @@ export default function ECFormPage({ id }: Props) {
 
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits de l&apos;EC</label>
-              <input {...register("credits", { valueAsNumber: true, min: 0 })} type="number" min={0} step={0.5} className={inputClass} data-testid="ec-credits" />
+              <input {...register("credits", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} data-testid="ec-credits" />
+              {errors.credits && <p className="text-xs text-red-500 mt-1">{errors.credits.message}</p>}
               {ue && (
                 <p className={cn("text-[11px] mt-1", sommeCredits > ue.credits ? "text-amber-700" : "text-muted-foreground")} data-testid="ec-controle-credits">
                   {sommeCredits > ue.credits && <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />}

@@ -31,6 +31,7 @@ import { KPICard } from "@/components/admin/KPICard";
 import { FormModal } from "@/components/admin/FormModal";
 import { requestsLastSeenKey } from "@/components/layout/StudentLayout";
 import { cn, formatDate } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 type ReqType = StudentRequestRecord["type"];
 type ReqStatus = StudentRequestRecord["status"];
@@ -124,7 +125,7 @@ export default function StudentRequestsPage() {
   );
   const libelleAbsence = (r: (typeof absencesNonJustifiees)[number]) =>
     `${r.type === "retard" ? "Retard" : "Absence"} du ${formatDate(r.date)} ${r.heureDebut}–${r.heureFin} — ${r.ec}`;
-  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${n.type} : ${n.note.toFixed(2)}/20`;
+  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${n.type} : ${formatNote(n.note)}/20`;
 
   const total = myRequests.length;
   const enAttente = myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours").length;

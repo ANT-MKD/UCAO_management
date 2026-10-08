@@ -57,7 +57,7 @@ export interface ReductionAutoriseeRecord {
 }
 
 const SEED_TYPES_FRAIS: TypeFraisRecord[] = [
-  { id: "tf-seed-1", code: "APE", intitule: "Association des Parents d'Etudiants (APE)" },
+  { id: "tf-seed-1", code: "APE", intitule: "Association des Parents d'Étudiants (APE)" },
   { id: "tf-seed-2", code: "AVU", intitule: "Avance uniforme" },
   { id: "tf-seed-3", code: "BDE", intitule: "Bureau des étudiants (BDE)" },
   { id: "tf-seed-4", code: "FG", intitule: "Frais généraux" },
@@ -78,7 +78,7 @@ const SEED_TYPES_FACTURE: TypeFactureRecord[] = [];
 const SEED_MODELES_FRAIS: ModeleFraisRecord[] = [
   { id: "mf-seed-1", code: "AN", intitule: "Ancien" },
   { id: "mf-seed-2", code: "ep", intitule: "Privé" },
-  { id: "mf-seed-3", code: "etat", intitule: "Etat" },
+  { id: "mf-seed-3", code: "etat", intitule: "État" },
   { id: "mf-seed-4", code: "NV", intitule: "Nouveau" },
 ];
 

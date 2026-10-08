@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { KPICard } from "@/components/admin/KPICard";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { formatCFA, formatDate, moyenPaiementColor } from "@/lib/utils";
+import { formatCFA, moyenPaiementColor } from "@/lib/utils";
 import { FILIERES } from "@/data/mockData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, usePaiements, useSeances, useAnneesAcademiques, useAnneeActuelle, useCahiers, useAllInscriptions } from "@/hooks/useStudentStore";
@@ -91,8 +91,7 @@ export default function DashboardPage() {
   const [filiereFilter, setFiliereFilter] = useState("");
 
   const today = new Date();
-  const dayName = today.toLocaleDateString("fr-FR", { weekday: "long" });
-  const dayNum = today.getDate();
+  const dateDuJour = today.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayDayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
   const todayIso = today.toISOString().slice(0, 10);
   const todayMonday = mondayOf(todayIso);
@@ -177,7 +176,7 @@ export default function DashboardPage() {
             Bonjour, {currentUser?.name?.split(" ")[0] || "Administrateur"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {dayName.charAt(0).toUpperCase() + dayName.slice(1)} {dayNum} — {formatDate(today)}
+            {dateDuJour.charAt(0).toUpperCase() + dateDuJour.slice(1)}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
@@ -209,14 +208,14 @@ export default function DashboardPage() {
           accentColor="#10b981"
           onClick={() => setLocation("/admin/encaissements")}
         />
-        <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiants`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
+        <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiant${impayes > 1 ? "s" : ""}`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
         <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend="Crédits dus aux étudiants" trendDirection="down" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
         <KPICard icon={GraduationCap} label="Reste à payer aux profs" value={formatCFA(totalDecompteRestant)} trend="Décomptes non soldés" trendDirection="down" accentColor="#8b5cf6" onClick={() => setLocation("/admin/decomptes")} />
         <KPICard icon={BarChart3} label="Taux de réussite" value={tauxReussiteMoy === null ? "—" : `${tauxReussiteMoy}%`} trend={tauxReussiteMoy === null ? "Aucune délibération enregistrée" : "Voir le détail"} trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
       </div>
 
       {/* Charts row */}
-      <div className="grid lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
         <div className="lg:col-span-3 bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -297,7 +296,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Widgets: Paiements | Alertes + Planning */}
-      <div className="grid lg:grid-cols-5 gap-5 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-6">
         {/* Paiements récents — colonne large */}
         <div className="lg:col-span-3 bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
@@ -441,7 +440,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-5 mb-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
               <DollarSign size={16} className="text-primary" /> Évolution financière — {anneeFilter}
@@ -475,7 +474,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4">Répartition par filière</h3>
             {repartitionFiliereData.length === 0 ? (

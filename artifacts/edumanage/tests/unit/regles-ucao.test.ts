@@ -186,8 +186,8 @@ describe("règles UCAO — redoublement et passage", () => {
 describe("pas d'arrondi", () => {
   it("9,996 s'affiche 9,99 (jamais 10,00) et une moyenne de 10 exactement est bien acquise", async () => {
     const { formatNote, atteint, tronquer } = await import("@/lib/notes");
-    expect(formatNote(9.996)).toBe("9.99");
-    expect(formatNote(12.6)).toBe("12.60");
+    expect(formatNote(9.996)).toBe("9,99");
+    expect(formatNote(12.6)).toBe("12,60");
     expect(tronquer(14 * 0.3 + 12 * 0.7)).toBe(12.6);
     expect(atteint(0.1 * 3 * (10 / 0.3), 10)).toBe(true);
     expect(atteint(9.999, 10)).toBe(false);

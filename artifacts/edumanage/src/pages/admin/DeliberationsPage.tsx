@@ -30,6 +30,8 @@ import { getNoteForEvaluation } from "@/data/studentStore";
 import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
+import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
+import { MotifModal } from "@/components/admin/MotifModal";
 
 const DECISION_CONFIG: Record<DecisionJury, { label: string; color: string; bg: string; icon: React.ElementType; border: string }> = {
   admis: { label: DECISION_LABELS.admis, color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/50", icon: CheckCircle2, border: "border-emerald-200 dark:border-emerald-800" },
@@ -52,7 +54,6 @@ function Badge({ children, tone = "muted" }: { children: React.ReactNode; tone?:
 }
 
 function buildPvHtml(deliberation: DeliberationRecord): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const rows = deliberation.lignes
     .map((l) => {
       const cfg = DECISION_CONFIG[l.decisionFinale];
@@ -77,6 +78,7 @@ function buildPvHtml(deliberation: DeliberationRecord): string {
     .sig-box { border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-family: Arial, sans-serif; font-size: 10px; color: #6b7280; }
   </style>
   </head><body>
+    ${enteteEtablissementHtml()}
     <h1>Procès-verbal de délibération</h1>
     <div class="meta">
       <strong>Filière :</strong> ${deliberation.filiere} — ${deliberation.niveauLabel} — ${deliberation.annee}<br/>
@@ -91,7 +93,7 @@ function buildPvHtml(deliberation: DeliberationRecord): string {
     <div class="signatures">
       <div class="sig-box">Le Président du jury<br/><br/><br/>Signature</div>
       <div class="sig-box">Le Secrétaire<br/><br/><br/>Signature</div>
-      <div class="sig-box">Fait le ${now}</div>
+      <div class="sig-box">${faitALe()}</div>
     </div>
     <script>window.onload = function(){ window.print(); }</script>
   </body></html>`;
@@ -392,6 +394,7 @@ function DetailDeliberation({
   const deliberations = useDeliberations();
   const deliberation = deliberations.find((d) => d.id === deliberationId);
   const [decisionFilter, setDecisionFilter] = useState("");
+  const [correction, setCorrection] = useState<{ etudiantId: string; etudiant: string; decision: DecisionJury; decisionAuto: DecisionJury } | null>(null);
 
   if (!deliberation) {
     return <div className="bg-card border border-border rounded-xl p-10 text-center text-sm text-muted-foreground">Délibération introuvable.</div>;
@@ -439,11 +442,13 @@ function DetailDeliberation({
     aDeclasser: deliberation.lignes.filter((l) => l.decisionFinale === "a_declasser").length,
   };
   const tauxReussite = stats.total > 0 ? Math.round((stats.admis / stats.total) * 100) : 0;
-  const moyGeneral = stats.total > 0 ? (deliberation.lignes.reduce((s, l) => s + l.moyenne, 0) / stats.total).toFixed(2) : "—";
+  const moyGeneral = stats.total > 0 ? formatNote(deliberation.lignes.reduce((s, l) => s + l.moyenne, 0) / stats.total) : "—";
 
+  /** Revenir à la décision calculée ne demande rien ; une correction manuelle demande son motif. */
   const handleOverride = (etudiantId: string, decision: DecisionJury, decisionAuto: DecisionJury) => {
-    const raison = decision !== decisionAuto ? (window.prompt("Motif de la correction manuelle (optionnel) :") ?? "") : "";
-    overrideDecision(deliberationId, etudiantId, decision, raison, auteur);
+    if (decision === decisionAuto) { overrideDecision(deliberationId, etudiantId, decision, "", auteur); return; }
+    const etudiant = deliberation.lignes.find((l) => l.etudiantId === etudiantId)?.etudiant ?? "";
+    setCorrection({ etudiantId, etudiant, decision, decisionAuto });
   };
 
   return (
@@ -611,6 +616,20 @@ function DetailDeliberation({
           </table>
         </div>
       </div>
+
+      <MotifModal
+        open={!!correction}
+        title="Correction manuelle de la décision"
+        description={correction && <>Décision de <strong>{correction.etudiant}</strong> : {DECISION_CONFIG[correction.decisionAuto].label} → <strong>{DECISION_CONFIG[correction.decision].label}</strong>.</>}
+        libelleConfirmer="Corriger la décision"
+        placeholder="ex : décision du jury après examen du dossier"
+        onCancel={() => setCorrection(null)}
+        onConfirm={(motif) => {
+          if (correction) overrideDecision(deliberationId, correction.etudiantId, correction.decision, motif, auteur);
+          setCorrection(null);
+        }}
+        testId="correction-decision"
+      />
     </div>
   );
 }
@@ -643,15 +662,15 @@ function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: Delibe
     return lignesAutomatiques.filter((l) => decideValidation(l.moyenne, l.creditsObtenus, l.absences, regleSimulee) !== l.decisionAuto);
   }, [seuil, lignesAutomatiques, regle]);
 
+  const [demandeMotif, setDemandeMotif] = useState(false);
   const handleAppliquer = () => {
     if (seuil === seuilActuel) return;
-    const raison = window.prompt(`Motif de l'ajustement du seuil de cette session (${seuilActuel} → ${seuil}) :`) ?? "";
-    if (!raison.trim()) {
-      toast.error("Un motif est requis pour ajuster le seuil de session");
-      return;
-    }
-    ajusterSeuilSession(deliberation.id, seuil, raison.trim(), auteur, regle);
-    toast.success(`Seuil de session ajusté à ${seuil}`);
+    setDemandeMotif(true);
+  };
+  const appliquerSeuil = (raison: string) => {
+    ajusterSeuilSession(deliberation.id, seuil, raison, auteur, regle);
+    toast.success(`Seuil de session ajusté à ${formatNote(seuil)}`);
+    setDemandeMotif(false);
     setOpen(false);
   };
 
@@ -678,7 +697,7 @@ function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: Delibe
               onChange={(e) => setSeuil(parseFloat(e.target.value))}
               className="flex-1" data-testid="deliberation-seuil-slider"
             />
-            <span className="font-mono text-lg font-bold text-foreground w-16 text-right">{seuil.toFixed(2)}</span>
+            <span className="font-mono text-lg font-bold text-foreground w-16 text-right">{formatNote(seuil)}</span>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-3">
@@ -709,6 +728,17 @@ function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: Delibe
           </button>
         </div>
       )}
+      <MotifModal
+        open={demandeMotif}
+        title="Ajuster le seuil de cette session"
+        description={<>Seuil de passage : {formatNote(seuilActuel)} → <strong>{formatNote(seuil)}</strong>{bascules.length > 0 ? ` (${bascules.length} étudiant${bascules.length > 1 ? "s" : ""} change${bascules.length > 1 ? "nt" : ""} de décision)` : ""}.</>}
+        obligatoire
+        libelleConfirmer="Ajuster le seuil"
+        placeholder="ex : péréquation décidée par le jury"
+        onCancel={() => setDemandeMotif(false)}
+        onConfirm={appliquerSeuil}
+        testId="seuil-motif"
+      />
     </div>
   );
 }

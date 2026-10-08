@@ -110,7 +110,7 @@ export default function TeacherContractAvenantPage({ id }: { id: string }) {
     return (
       <div>
         <PageHeader
-          breadcrumb={[{ label: "Accueil" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
+          breadcrumb={[{ label: "Admin" }, { label: "Professeurs" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
           title="Contrat introuvable"
         />
       </div>
@@ -148,7 +148,8 @@ export default function TeacherContractAvenantPage({ id }: { id: string }) {
     <div>
       <PageHeader
         breadcrumb={[
-          { label: "Accueil" },
+          { label: "Admin" },
+          { label: "Professeurs" },
           { label: "Les contrats Professeur", href: "/admin/teachers/contracts" },
           { label: contract.id, href: `/admin/teachers/contracts/${contract.id}` },
           { label: "Nouvel avenant" },

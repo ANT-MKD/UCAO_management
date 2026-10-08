@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { useEtablissement } from "@/hooks/useEtablissementStore";
-import { updateEtablissement, type EtablissementInfo } from "@/data/etablissementStore";
+import { nomEtablissementParDefaut, NOM_ETABLISSEMENT_PAR_DEFAUT, updateEtablissement, type EtablissementInfo } from "@/data/etablissementStore";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
 import { upsertMotifBlocage, deleteMotifBlocage, ACTIONS_INTERDITES, type MotifBlocageRecord } from "@/data/motifBlocageStore";
 import { useSignatureConfigs } from "@/hooks/useSignatureConfigStore";
@@ -153,10 +153,15 @@ export default function SettingsPage() {
               <div className="space-y-5">
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Informations de l'établissement</h3>
                 <p className="text-xs text-muted-foreground -mt-3">Réellement utilisées sur les documents officiels générés (attestations, bulletins, contrats...).</p>
+                {nomEtablissementParDefaut(etablissement) && (
+                  <p className="text-sm rounded-xl border border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200 px-3 py-2" data-testid="etab-nom-par-defaut">
+                    Le nom de l&apos;établissement n&apos;a pas encore été renseigné : les reçus, attestations et procès-verbaux portent « {NOM_ETABLISSEMENT_PAR_DEFAUT} ».
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom de l'établissement *</label>
-                    <input value={etabForm.nom} onChange={(e) => { setEtabForm((f) => ({ ...f, nom: e.target.value })); }} placeholder="Institut Supérieur EduManage" className={inputClass} data-testid="etab-nom" />
+                    <input value={etabForm.nom} onChange={(e) => { setEtabForm((f) => ({ ...f, nom: e.target.value })); }} placeholder="ex : Université Catholique de l'Afrique de l'Ouest" className={inputClass} data-testid="etab-nom" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>

@@ -21,6 +21,7 @@ import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, formatCFA, cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const ACTION_IMPRESSION: Record<AttestationType, string> = {
   scolarite: "impression_certificat_scolarite",
@@ -48,7 +49,7 @@ export function buildAttestationHtml(entry: AttestationRecord) {
     corps = `
       <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
       <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
-      <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${entry.moyenneConstatee?.toFixed(2) ?? "—"}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
+      <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${formatNote(entry.moyenneConstatee)}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
       <p>En foi de quoi, la présente attestation de réussite est délivrée pour servir et valoir ce que de droit.</p>
     `;
   } else if (entry.type === "inscription") {
@@ -251,7 +252,7 @@ export default function AttestationsPage() {
               data-testid="attestation-eligibilite-reussite"
             >
               {eligibiliteReussite.eligible ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
-              <span>{eligibiliteReussite.eligible ? `Éligible — Admis, moyenne ${eligibiliteReussite.moyenne?.toFixed(2)}/20.` : eligibiliteReussite.motif}</span>
+              <span>{eligibiliteReussite.eligible ? `Éligible — Admis, moyenne ${formatNote(eligibiliteReussite.moyenne)}/20.` : eligibiliteReussite.motif}</span>
             </div>
           )}
 
@@ -300,7 +301,7 @@ export default function AttestationsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {a.typeLabel}
-                      {a.type === "reussite" && a.semestreLabel && <div className="text-[10px] text-muted-foreground flex items-center gap-1"><GraduationCap size={10} /> {a.semestreLabel} · {a.moyenneConstatee?.toFixed(2)}/20</div>}
+                      {a.type === "reussite" && a.semestreLabel && <div className="text-[10px] text-muted-foreground flex items-center gap-1"><GraduationCap size={10} /> {a.semestreLabel} · {formatNote(a.moyenneConstatee)}/20</div>}
                     </td>
                     <td className="px-4 py-3"><span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", st.cls)}>{st.label}</span></td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(a.dateGeneration)}</td>

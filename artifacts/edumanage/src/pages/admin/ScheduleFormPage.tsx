@@ -199,7 +199,7 @@ export default function ScheduleFormPage() {
             <ul className="list-disc pl-5 space-y-1">{conflicts.map((c) => <li key={c}>{c}</li>)}</ul>
           </div>
         )}
-        <form onSubmit={onSubmit} className="lg:col-span-2 space-y-5">
+        <form noValidate onSubmit={onSubmit} className="lg:col-span-2 space-y-5">
           <section className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
               <BookOpen size={18} className="text-primary" /> Cours & promotion

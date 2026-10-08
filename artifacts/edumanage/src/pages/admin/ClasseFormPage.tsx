@@ -100,7 +100,7 @@ export default function ClasseFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="rounded-xl border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 px-4 py-3 text-xs text-blue-800 dark:text-blue-200">
             Classe pédagogique = cohortes d'étudiants. La salle (local physique) se choisit à l'EDT ou en salle par défaut ci-dessous.
           </div>
@@ -128,7 +128,8 @@ export default function ClasseFormPage({ id }: Props) {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité max *</label>
-              <input {...register("max", { required: true, valueAsNumber: true, min: 1 })} type="number" min={1} max={200} className={inputClass} />
+              <input {...register("max", { required: "Capacité requise", valueAsNumber: true, min: { value: 1, message: "Entre 1 et 200 étudiants" }, max: { value: 200, message: "Entre 1 et 200 étudiants" } })} type="number" min={1} max={200} className={inputClass} />
+              {errors.max && <p className="text-xs text-red-500 mt-1">{errors.max.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique *</label>

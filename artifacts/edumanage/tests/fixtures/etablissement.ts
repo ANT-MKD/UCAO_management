@@ -10,6 +10,8 @@ export async function preparerEtablissement() {
     prenom: "Awa", nom: "Ndiaye", identifier: "ADM-TEST", email: "scolarite@test.sn", password: MOT_DE_PASSE_ADMIN,
     annee: { libelle: ANNEE_TEST, dateDebut: "2025-11-03", dateFin: "2026-07-31" },
   });
+  const { definirIdentiteEtablissement } = await import("@/data/etablissementStore");
+  definirIdentiteEtablissement("Université Catholique de l'Afrique de l'Ouest", "Dakar, Sénégal", admin.id);
   const { genererDonneesAcademiques } = await import("./socleAcademique");
   genererDonneesAcademiques(admin.id);
   const St = await import("@/data/structureStore");

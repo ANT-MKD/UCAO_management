@@ -147,7 +147,7 @@ export default function BulletinEtudiantPage() {
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted transition-colors"
                   data-testid={`bulletin-etudiant-suggestion-${e.id}`}
                 >
-                  {e.matricule} - {e.prenom} {e.nom} ({e.telephone})
+                  {e.matricule} - {e.prenom} {e.nom}{e.telephone ? ` (${e.telephone})` : ""}
                 </button>
               ))}
             </div>

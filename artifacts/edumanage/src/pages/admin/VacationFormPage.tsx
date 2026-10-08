@@ -128,7 +128,7 @@ export default function VacationFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -174,15 +174,17 @@ export default function VacationFormPage({ id }: Props) {
               )}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de CM</label>
-                <input {...register("heuresCm", { valueAsNumber: true, min: 0 })} type="number" min={0} step={0.5} className={inputClass} />
+                <input {...register("heuresCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
+                {errors.heuresCm && <p className="text-xs text-red-500 mt-1">{errors.heuresCm.message}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de TD / TP</label>
-                <input {...register("heuresTd", { valueAsNumber: true, min: 0 })} type="number" min={0} step={0.5} className={inputClass} />
+                <input {...register("heuresTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
+                {errors.heuresTd && <p className="text-xs text-red-500 mt-1">{errors.heuresTd.message}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
-                <input {...register("tauxHoraire", { required: "Taux requis", valueAsNumber: true, min: 0 })} type="number" min={0} className={inputClass} />
+                <input {...register("tauxHoraire", { required: "Taux requis", valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
                 {errors.tauxHoraire && <p className="text-xs text-red-500 mt-1">{errors.tauxHoraire.message}</p>}
               </div>
               <div>

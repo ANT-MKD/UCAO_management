@@ -10,7 +10,7 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useFilieres } from "@/hooks/useFiliereStore";
 import { type FiliereRecord } from "@/data/filiereStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
+import { useAnneeActuelle, useStudentStore } from "@/hooks/useStudentStore";
 import { downloadFiliereTemplate, parseFiliereExcel, importFiliereRows, exportFilieresToExcel } from "@/lib/filiereImportExport";
 import { verifierSuppressionFiliere, supprimerFiliere } from "@/data/suppressionReferentiel";
 import { confirmerSuppression } from "@/lib/suppression";
@@ -23,6 +23,7 @@ export default function FilieresPage() {
   const filieres = useFilieres();
   const classes = useClasses();
   const etudiants = useStudentStore();
+  const anneeActuelle = useAnneeActuelle();
   const actives = filieres.filter((f) => f.statut === "actif").length;
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,7 +117,7 @@ export default function FilieresPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Filières" }]}
         title="Filières"
-        subtitle={`${filieres.length} filières configurées pour l'année 2025-2026`}
+        subtitle={`${filieres.length} filière${filieres.length > 1 ? "s" : ""} configurée${filieres.length > 1 ? "s" : ""} pour l'année ${anneeActuelle}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={downloadFiliereTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">

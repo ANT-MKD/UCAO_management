@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Plus, Eye, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { usePECsMasse } from "@/hooks/usePECMasseStore";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 interface ColFilters {
   reference: string;
@@ -118,7 +118,7 @@ export default function PECMassePage() {
                   <td className="px-4 py-3">
                     {r.classe} <span className="text-xs text-muted-foreground">({r.filiere} / {r.annee})</span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{r.emisLe}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(r.emisLe)}</td>
                   <td className="px-4 py-3 text-center">{r.priseEnChargeIds.length}</td>
                   <td className="px-4 py-3 text-right">
                     <button

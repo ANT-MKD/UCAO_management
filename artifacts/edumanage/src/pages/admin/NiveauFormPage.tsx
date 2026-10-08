@@ -89,7 +89,7 @@ export default function NiveauFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du niveau *</label>
@@ -124,10 +124,11 @@ export default function NiveauFormPage({ id }: Props) {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits cumulés requis pour intégrer ce niveau</label>
               <input
-                type="number" min={0} step={1} {...register("creditsRequisEntree")}
+                type="number" min={0} step={1} {...register("creditsRequisEntree", { min: { value: 0, message: "Saisissez un nombre positif." } })}
                 placeholder="ex: 120 pour L3 — laisser vide si aucun contrôle"
                 className={inputClass}
               />
+              {errors.creditsRequisEntree && <p className="text-xs text-red-500 mt-1">{errors.creditsRequisEntree.message}</p>}
               <p className="text-[11px] text-muted-foreground mt-1">Si renseigné, l&apos;inscription à ce niveau est bloquée tant que l&apos;étudiant n&apos;a pas ce total de crédits validés sur son parcours (toutes années confondues).</p>
             </div>
             <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
@@ -140,7 +141,8 @@ export default function NiveauFormPage({ id }: Props) {
             {passageConditionnelAutorise && (
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour passer avec dette (0 = jamais pour ce niveau)</label>
-                <input type="number" min={0} step={1} {...register("creditDetteMin")} placeholder="ex: 42 sur 60" className={inputClass} />
+                <input type="number" min={0} step={1} {...register("creditDetteMin", { min: { value: 0, message: "Saisissez un nombre positif." } })} placeholder="ex: 42 sur 60" className={inputClass} />
+                {errors.creditDetteMin && <p className="text-xs text-red-500 mt-1">{errors.creditDetteMin.message}</p>}
                 <p className="text-[11px] text-muted-foreground mt-1">En dessous de ce seuil, l&apos;étudiant redouble ce niveau plutôt que de monter avec dette.</p>
               </div>
             )}

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ShieldCheck, CalendarRange, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, CalendarRange, AlertTriangle, CheckCircle2, Building2 } from "lucide-react";
 import { champConnexion, etiquetteChamp, boutonPrincipal } from "@/components/site/CadreConnexion";
 import { DISPLAY, MONO } from "@/components/site/Decor";
 import { installerEtablissement } from "@/data/studentStore";
+import { definirIdentiteEtablissement, getEtablissement, nomEtablissementParDefaut } from "@/data/etablissementStore";
 
 const inputClass = champConnexion;
 const labelClass = etiquetteChamp;
@@ -14,10 +15,13 @@ function anneeProposee(): string {
   return `${y}-${y + 1}`;
 }
 
-/** Écran de toute première ouverture : aucun compte n'existe encore. On crée ici le premier super
- * administrateur (qui choisit lui-même son mot de passe) et l'année académique en cours avec ses
- * dates réelles — il n'y a plus ni compte ni mot de passe livrés par défaut. */
+/** Écran de toute première ouverture : aucun compte n'existe encore. On saisit ici le nom de
+ * l'établissement (imprimé sur tous les documents officiels), on crée le premier administrateur
+ * principal (qui choisit lui-même son mot de passe) et l'année académique en cours avec ses dates
+ * réelles — il n'y a plus ni compte ni mot de passe livrés par défaut. */
 export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier: string, password: string) => void }) {
+  const [nomEtablissement, setNomEtablissement] = useState(() => (nomEtablissementParDefaut() ? "" : getEtablissement().nom));
+  const [adresse, setAdresse] = useState(() => getEtablissement().adresse);
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [identifier, setIdentifier] = useState("");
@@ -31,9 +35,11 @@ export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier
 
   const valider = () => {
     setErreur("");
+    if (!nomEtablissement.trim()) { setErreur("Indiquez le nom de l'établissement : il figure sur les reçus, attestations et procès-verbaux."); return; }
     if (password !== confirmation) { setErreur("Les deux mots de passe ne correspondent pas."); return; }
     try {
-      installerEtablissement({ prenom, nom, identifier, email, password, annee: { libelle: libelle.trim(), dateDebut, dateFin } });
+      const admin = installerEtablissement({ prenom, nom, identifier, email, password, annee: { libelle: libelle.trim(), dateDebut, dateFin } });
+      definirIdentiteEtablissement(nomEtablissement, adresse, admin.id);
       onInstalled(identifier.trim().toUpperCase(), password);
     } catch (err) {
       setErreur(err instanceof Error ? err.message : "Installation impossible.");
@@ -44,10 +50,20 @@ export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier
     <div data-testid="installation">
       <h2 className="text-2xl font-extrabold tracking-tight mb-1.5" style={DISPLAY}>Installation d&apos;EduManage</h2>
       <p className="text-sm text-[#5d5a7a] dark:text-[#a3a6c2] mb-6">
-        Créez le compte de l&apos;administrateur principal et l&apos;année académique en cours.
+        Indiquez votre établissement, puis créez le compte de l&apos;administrateur principal et l&apos;année académique en cours.
       </p>
 
       <div className="space-y-6">
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[#4f46e5] dark:text-[#a5b4fc]" style={MONO}><Building2 size={15} className="text-[#4f46e5]" /> Établissement</h3>
+          <div>
+            <label htmlFor="inst-etab-nom" className={labelClass}>Nom de l&apos;établissement</label>
+            <input id="inst-etab-nom" value={nomEtablissement} onChange={(e) => setNomEtablissement(e.target.value)} placeholder="ex : Université Catholique de l'Afrique de l'Ouest" className={inputClass} data-testid="inst-etab-nom" aria-describedby="inst-etab-aide" />
+            <p id="inst-etab-aide" className="text-[12px] text-[#5d5a7a] dark:text-[#a3a6c2] mt-1">Il figure sur les reçus, attestations et procès-verbaux. Logo et coordonnées se complètent ensuite dans les Paramètres.</p>
+          </div>
+          <div><label htmlFor="inst-etab-adresse" className={labelClass}>Ville et pays</label><input id="inst-etab-adresse" value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="Dakar, Sénégal" className={inputClass} data-testid="inst-etab-adresse" /></div>
+        </section>
+
         <section className="space-y-3">
           <h3 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[#4f46e5] dark:text-[#a5b4fc]" style={MONO}><ShieldCheck size={15} className="text-[#4f46e5]" /> Administrateur principal</h3>
           <div className="grid sm:grid-cols-2 gap-3">

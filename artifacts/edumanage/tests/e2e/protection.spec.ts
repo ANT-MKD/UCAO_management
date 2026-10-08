@@ -41,7 +41,7 @@ test.describe("protection des données", () => {
     await page.getByTestId("note-etudiant-recherche").fill("SECK");
     await page.getByTestId(`note-etudiant-suggestion-${d.etudiantId}`).click();
     await page.locator('[data-testid^="note-etudiant-supprimer-"]').first().click();
-    await expect(page.getByTestId("note-suppression-modal")).toContainText("12.60 (publiée)");
+    await expect(page.getByTestId("note-suppression-modal")).toContainText("12,60 (publiée)");
     await expect(page.getByTestId("note-suppression-confirmer")).toBeDisabled();
     await page.getByTestId("note-suppression-motif").fill("Note saisie pour la mauvaise étudiante");
     await page.getByTestId("note-suppression-confirmer").click();

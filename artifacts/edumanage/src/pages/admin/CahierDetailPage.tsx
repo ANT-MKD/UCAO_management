@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier, getCahierStatsForEc } from "@/data/studentStore";
-import { cn, formatShortDate } from "@/lib/utils";
+import { cn, formatDate, formatShortDate } from "@/lib/utils";
 import { LIBELLE_ETAT_SEANCE, LIBELLE_STATUT_CAHIER } from "@/lib/cahierLibelles";
 
 const STATUT_CLS: Record<string, string> = {
@@ -88,7 +88,7 @@ export default function CahierDetailPage({ id }: { id: string }) {
             ["Enseignant", c.prof],
             ["Salle", c.salle || "—"],
             ["Classe", c.classe],
-            ["Date", c.date],
+            ["Date", formatDate(c.date)],
             ["Horaire", `${c.heureDebut || "—"} – ${c.heureFin || "—"}`],
             ["Type", c.typeSeance],
             ["État séance", LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance],

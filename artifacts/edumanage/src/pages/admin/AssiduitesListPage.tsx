@@ -49,7 +49,7 @@ export default function AssiduitesListPage() {
 
   const columns: Column<AssiduiteRow>[] = [
     {
-      key: "etudiant", header: "Etudiant",
+      key: "etudiant", header: "Étudiant",
       render: (r) => (
         <div>
           <p className="font-medium text-foreground">{r.matricule} - {r.etudiant}</p>

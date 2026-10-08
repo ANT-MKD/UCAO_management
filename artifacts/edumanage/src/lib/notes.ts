@@ -6,10 +6,11 @@ export function tronquer(n: number, decimales = 2): number {
   return Math.floor(n * f + 1e-9) / f;
 }
 
-/** Affichage d'une note ou d'une moyenne, coupée (jamais arrondie) ; « — » si absente. */
+/** Affichage d'une note ou d'une moyenne, coupée (jamais arrondie), avec la virgule décimale
+ * française (12,60) ; « — » si absente. */
 export function formatNote(n: number | undefined | null, decimales = 2): string {
   if (n === undefined || n === null || !Number.isFinite(n)) return "—";
-  return tronquer(n, decimales).toFixed(decimales);
+  return tronquer(n, decimales).toFixed(decimales).replace(".", ",");
 }
 
 /** Comparaison à un seuil (10, 12…) sans être piégé par la virgule flottante : une moyenne qui
