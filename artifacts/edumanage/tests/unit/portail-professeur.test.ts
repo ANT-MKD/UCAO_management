@@ -81,7 +81,10 @@ describe("notes officielles : verrou et demande de correction", () => {
     expect(corrigee).toMatchObject({ note: 15, statut: "publie" });
     const journal = e.S.getAuditLogs().find((l) => l.action === "correction_note" && l.targetId === note.id)!;
     expect(journal.meta).toMatch(/14 → 15 — motif : Erreur de report : 15 sur la copie \(demande de Mamadou KANE\)/);
-    expect(messages(e, e.compteAwa.id).some((m) => /^Note corrigée — .* : 14 → 15\.$/.test(m))).toBe(true);
+    const notifAwa = messages(e, e.compteAwa.id).find((m) => /^Note corrigée — .* : 14 → 15\.$/.test(m));
+    expect(notifAwa).toBeDefined();
+    const { lienNotificationEtudiant } = await import("@/lib/notificationsEtudiant");
+    expect(lienNotificationEtudiant(notifAwa!)).toBe("/student/notes");
     expect(messages(e, e.compteKane.id).some((m) => /demande de correction a été acceptée/.test(m))).toBe(true);
     expect(() => C.traiterDemandeCorrection(demande.id, "refuser", e.admin.id, "Trop tard")).toThrow(/déjà été traitée/);
   });

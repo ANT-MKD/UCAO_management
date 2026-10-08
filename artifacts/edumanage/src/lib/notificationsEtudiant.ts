@@ -5,7 +5,7 @@ export function categoriserNotificationEtudiant(message: string): string {
   if (/nouveau document disponible|votre pièce/i.test(message)) return "documents";
   if (/votre demande/i.test(message)) return "demandes";
   if (/nouveau message/i.test(message)) return "messagerie";
-  if (/nouvelles? notes? publiées?|relevé de notes/i.test(message)) return "notes";
+  if (/nouvelles? notes? publiées?|note corrigée|relevé de notes/i.test(message)) return "notes";
   if (/nouvelle ressource/i.test(message)) return "academique";
   if (/absence constatée/i.test(message)) return "absences";
   if (/nouveaux? créneaux?|edt mis à jour|^emploi du temps|séance (modifiée|annulée)|cours (modifié|annulé|déplacé)|créneau déplacé/i.test(message)) return "emploi_du_temps";
