@@ -11,6 +11,17 @@ describe("installation et connexion", () => {
     expect(e.S.authenticateUser("ADM-TEST", "mauvais")).toBeNull();
   });
 
+  it("le compte créé à l'installation est l'« Administrateur principal » (ancien libellé converti)", async () => {
+    const e = await preparerEtablissement();
+    expect(e.S.getUserAccounts().find((u) => u.id === e.admin.id)?.fonction).toBe("Administrateur principal");
+    const brut = JSON.parse(localStorage.getItem("edumanage-app-store-v2")!);
+    brut.users = brut.users.map((u: { id: string; fonction?: string }) => (u.id === e.admin.id ? { ...u, fonction: "Super administrateur" } : u));
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify(brut));
+    vi.resetModules();
+    const S = await import("@/data/studentStore");
+    expect(S.getUserAccounts().find((u) => u.id === e.admin.id)?.fonction).toBe("Administrateur principal");
+  });
+
   it("ancien administrateur resté sur demo123 : une seule entrée, pour changer son mot de passe", async () => {
     const { hashPassword } = await import("@/lib/passwordHash");
     localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [

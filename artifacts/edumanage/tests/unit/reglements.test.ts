@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ANNEE_TEST, preparerEtablissement } from "../fixtures/etablissement";
 
 /** Règlements de calcul par année, résultats figés à la clôture du jury, comparaison avant/après. */
@@ -72,5 +72,64 @@ describe("comparaison avant/après", () => {
     // La note de matière 40/60 change la moyenne d'Awa.
     const c2 = comparerReglement({ annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: master });
     expect(c2.changements.some((x) => x.etudiantId === awa.id && x.quoi === "Moyenne")).toBe(true);
+  });
+});
+
+describe("historique des règlements", () => {
+  const moitie = { noteEc: "DEVOIR × 0,5 + EXAMEN_RETENU × 0,5" };
+
+  it("chaque enregistrement ajoute une version avec ce qui a changé ; un enregistrement identique n'en ajoute pas", async () => {
+    const { e, R, master } = await etablissement();
+    const payload = { nom: "LMD", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: master };
+    const id = R.enregistrerReglement(payload, undefined, "Awa NDIAYE").reglement!.id;
+    R.enregistrerReglement({ ...payload, formules: moitie }, id, "Moussa FALL");
+    R.enregistrerReglement({ ...payload, formules: moitie }, id, "Moussa FALL");
+    const versions = R.getHistoriqueReglement(id);
+    expect(versions.map((v) => [v.numero, v.action, v.par])).toEqual([[2, "modification", "Moussa FALL"], [1, "creation", "Awa NDIAYE"]]);
+    const d = R.differencesVersions(versions[1], versions[0]);
+    expect(d.formules).toEqual([{ cle: "noteEc", titre: expect.any(String), avant: master.noteEc, apres: moitie.noteEc }]);
+    expect(d.nom).toBeUndefined();
+    expect(d.filieresAjoutees).toEqual([]);
+    // L'historique est conservé d'une ouverture à l'autre.
+    vi.resetModules();
+    const R2 = await import("@/data/reglementCalculStore");
+    expect(R2.getHistoriqueReglement(id)).toHaveLength(2);
+  });
+
+  it("revenir à une ancienne version remet son calcul et ajoute une version « retour »", async () => {
+    const { e, R, noteEc1, master } = await etablissement();
+    const payload = { nom: "LMD", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: master };
+    const id = R.enregistrerReglement(payload, undefined, "Test").reglement!.id;
+    R.enregistrerReglement({ ...payload, formules: moitie }, id, "Test");
+    expect(noteEc1()).toBeCloseTo(13, 9);
+    const v1 = R.getHistoriqueReglement(id).find((v) => v.numero === 1)!;
+    expect(R.enregistrerReglement({ nom: v1.nom, annee: v1.annee, filiereIds: v1.filiereIds, formules: v1.formules }, id, "Test", { depuisVersion: 1 }).ok).toBe(true);
+    expect(noteEc1()).toBeCloseTo(12.8, 9);
+    const [v3] = R.getHistoriqueReglement(id);
+    expect([v3.numero, v3.action, v3.depuisVersion]).toEqual([3, "retour", 1]);
+  });
+
+  it("un règlement supprimé reste dans l'historique et peut être recréé à partir d'une version", async () => {
+    const { e, R, noteEc1, master } = await etablissement();
+    const id = R.enregistrerReglement({ nom: "LMD", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: master }, undefined, "Test").reglement!.id;
+    expect(R.supprimerReglement(id, "Test").ok).toBe(true);
+    expect(noteEc1()).toBeCloseTo(12.6, 9);
+    expect(R.getReglementsSupprimes(ANNEE_TEST).map((v) => [v.reglementId, v.numero, v.action])).toEqual([[id, 2, "suppression"]]);
+    const v1 = R.getHistoriqueReglement(id).find((v) => v.numero === 1)!;
+    const res = R.enregistrerReglement({ nom: v1.nom, annee: v1.annee, filiereIds: v1.filiereIds, formules: v1.formules }, id, "Test", { depuisVersion: 1 });
+    expect(res.reglement?.id).toBe(id);
+    expect(noteEc1()).toBeCloseTo(12.8, 9);
+    expect(R.getReglementsSupprimes(ANNEE_TEST)).toEqual([]);
+    expect(R.getHistoriqueReglement(id).map((v) => v.action)).toEqual(["retour", "suppression", "creation"]);
+  });
+
+  it("un règlement créé avant l'historique reçoit une version de départ", async () => {
+    const { e, R, master } = await etablissement();
+    const id = R.enregistrerReglement({ nom: "Ancien", annee: ANNEE_TEST, filiereIds: [e.classe.filiereId], formules: master }, undefined, "Awa NDIAYE").reglement!.id;
+    localStorage.removeItem("edumanage-reglements-historique-v1");
+    vi.resetModules();
+    const R2 = await import("@/data/reglementCalculStore");
+    const versions = R2.getHistoriqueReglement(id);
+    expect(versions.map((v) => [v.numero, v.action, v.par, v.formules.noteEc])).toEqual([[1, "reprise", "Awa NDIAYE", master.noteEc]]);
   });
 });

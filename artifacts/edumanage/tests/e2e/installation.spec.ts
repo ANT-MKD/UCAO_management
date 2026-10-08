@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { viderNavigateur } from "./outils";
 
-test("première ouverture : installation puis connexion du super administrateur", async ({ page }) => {
+test("première ouverture : installation puis connexion de l'administrateur principal", async ({ page }) => {
   await viderNavigateur(page);
   await expect(page.getByTestId("installation")).toBeVisible();
   await page.getByTestId("inst-prenom").fill("Awa");

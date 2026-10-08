@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSearch } from "wouter";
-import { Save, Plus, Pencil, Trash2, Copy, Info, ChevronDown, ChevronRight, Lock, GitCompareArrows, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Save, Plus, Pencil, Trash2, Copy, Info, ChevronDown, ChevronRight, Lock, GitCompareArrows, ArrowLeft, CheckCircle2, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { CarteEtape } from "@/components/admin/CarteFormule";
@@ -10,7 +10,8 @@ import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { useReglesValidation } from "@/hooks/useReglesValidationStore";
 import {
   getReglements, subscribeReglements, enregistrerReglement, supprimerReglement, copierReglements, verifierReglement,
-  type ReglementCalcul,
+  getHistorique, getReglementsSupprimes, differencesVersions,
+  type ReglementCalcul, type VersionReglement,
 } from "@/data/reglementCalculStore";
 import { comparerReglement, type ComparaisonReglement } from "@/data/comparaisonReglement";
 import { ETAPES_FORMULES, validerFormule, type CleFormule, type FormulesCalcul } from "@/data/formulesCalcul";
@@ -25,7 +26,11 @@ interface Brouillon {
   nom: string;
   filiereIds: string[];
   formules: FormulesCalcul;
+  /** Retour en arrière : la version dont on repart. */
+  depuis?: { numero: number; le: string };
 }
+
+const quand = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /** Règlements de calcul — un ensemble de formules nommé, valable pour une année académique et
  * appliqué à une ou plusieurs filières. Avant tout enregistrement, l'écran montre quels étudiants
@@ -36,12 +41,14 @@ export default function FormulesCalculPage() {
   const configs = useScolariteConfigs();
   useReglesValidation();
   const reglements = useSyncExternalStore(subscribeReglements, getReglements, getReglements);
+  const historique = useSyncExternalStore(subscribeReglements, getHistorique, getHistorique);
   const params = new URLSearchParams(useSearch());
   const anneeActuelle = annees.find((a) => a.actuelle)?.libelle ?? annees[0]?.libelle ?? "";
   const [annee, setAnnee] = useState(anneeActuelle);
   const [brouillon, setBrouillon] = useState<Brouillon | null>(null);
   const [comparaison, setComparaison] = useState<{ cle: string; resultat: ComparaisonReglement } | null>(null);
   const [aideOuverte, setAideOuverte] = useState(false);
+  const [historiqueDe, setHistoriqueDe] = useState<string | null>(null);
   const peutModifier = currentUser?.role === "admin" && !currentUser.roleId;
   const anneeRecord = annees.find((a) => a.libelle === annee);
   const anneeFermee = !!anneeRecord?.cloturee;
@@ -55,6 +62,15 @@ export default function FormulesCalculPage() {
     return triees[triees.indexOf(annee) - 1];
   }, [annees, annee]);
   const aCopier = anneePrecedente ? reglements.filter((r) => r.annee === anneePrecedente) : [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recalculé quand l'historique change
+  const supprimes = useMemo(() => getReglementsSupprimes(annee), [annee, historique, reglements]);
+  const nbVersions = (id: string) => historique.filter((v) => v.reglementId === id).length;
+
+  const reprendre = (v: VersionReglement) => {
+    setComparaison(null);
+    setHistoriqueDe(null);
+    setBrouillon({ id: v.reglementId, nom: v.nom, filiereIds: [...v.filiereIds], formules: { ...v.formules }, depuis: { numero: v.numero, le: v.le } });
+  };
 
   // Bouton Σ de Paramétrage scolarité : ouvre le règlement de la filière, ou en prépare un.
   useEffect(() => {
@@ -88,7 +104,7 @@ export default function FormulesCalculPage() {
         breadcrumb={[{ label: "Admin" }, { label: "Scolarité" }, { label: "Règlements de calcul" }]}
         title="Règlements de calcul"
         subtitle="Des formules écrites comme dans Excel, valables pour une année et une ou plusieurs filières. Sans règlement, une filière suit ses réglages."
-        actions={!brouillon && modifiable ? (
+        actions={!brouillon && !historiqueDe && modifiable ? (
           <button onClick={() => ouvrir()} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90" data-testid="reglement-nouveau">
             <Plus size={14} /> Nouveau règlement
           </button>
@@ -114,6 +130,15 @@ export default function FormulesCalculPage() {
           modifiable={modifiable}
           auteur={currentUser?.name ?? "Administration"}
           onFermer={() => { setBrouillon(null); setComparaison(null); }}
+        />
+      ) : historiqueDe ? (
+        <HistoriqueReglement
+          versions={historique.filter((v) => v.reglementId === historiqueDe).sort((a, b) => b.numero - a.numero)}
+          enVigueur={reglements.some((r) => r.id === historiqueDe)}
+          nomFiliere={nomFiliere}
+          modifiable={modifiable}
+          onReprendre={reprendre}
+          onFermer={() => setHistoriqueDe(null)}
         />
       ) : (
         <>
@@ -168,9 +193,30 @@ export default function FormulesCalculPage() {
                   <ul className="mt-3 space-y-0.5 text-[11px] text-muted-foreground">
                     {ETAPES_FORMULES.filter((e) => r.formules[e.cle]).map((e) => <li key={e.cle}><strong className="text-foreground">{e.titre} :</strong> <code>{r.formules[e.cle]}</code></li>)}
                   </ul>
-                  <p className="mt-3 text-[11px] text-muted-foreground">{r.modifiePar ? `Modifié par ${r.modifiePar} le ${formatDate(r.modifieLe!)}` : `Créé par ${r.creePar} le ${formatDate(r.creeLe)}`}</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">{r.modifiePar ? `Modifié par ${r.modifiePar} le ${formatDate(r.modifieLe!)}` : `Créé par ${r.creePar} le ${formatDate(r.creeLe)}`}</p>
+                    <button onClick={() => setHistoriqueDe(r.id)} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline" data-testid={`reglement-historique-${r.id}`}>
+                      <History size={13} /> Historique · version {nbVersions(r.id)}
+                    </button>
+                  </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {supprimes.length > 0 && (
+            <div className="mt-4 bg-card border border-border rounded-2xl p-4" data-testid="reglements-supprimes">
+              <h2 className="text-sm font-bold text-foreground mb-2">Règlements supprimés en {annee}</h2>
+              <ul className="space-y-1.5">
+                {supprimes.map((v) => (
+                  <li key={v.reglementId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span><strong className="text-foreground">{v.nom}</strong> <span className="text-xs text-muted-foreground">— supprimé le {quand(v.le)} par {v.par}</span></span>
+                    <button onClick={() => setHistoriqueDe(v.reglementId)} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline" data-testid={`historique-supprime-${v.reglementId}`}>
+                      <History size={13} /> Historique
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -227,7 +273,7 @@ function EditeurReglement({ annee, brouillon, setBrouillon, comparaison, setComp
 
   const comparer = () => setComparaison({ cle, resultat: comparerReglement(payload) });
   const enregistrer = () => {
-    const res = enregistrerReglement(payload, brouillon.id, auteur);
+    const res = enregistrerReglement(payload, brouillon.id, auteur, { depuisVersion: brouillon.depuis?.numero });
     if (!res.ok) { toast.error(res.reason); return; }
     toast.success(`Règlement « ${res.reglement!.nom} » enregistré pour ${annee}`);
     onFermer();
@@ -236,6 +282,16 @@ function EditeurReglement({ annee, brouillon, setBrouillon, comparaison, setComp
   return (
     <div className="space-y-4">
       <button onClick={onFermer} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground" data-testid="reglement-retour"><ArrowLeft size={14} /> Retour aux règlements de {annee}</button>
+
+      {brouillon.depuis && (
+        <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200 text-sm" data-testid="reglement-depuis-version">
+          <RotateCcw size={15} className="mt-0.5 flex-shrink-0" />
+          <span>
+            Vous repartez de la <strong>version {brouillon.depuis.numero}</strong> du {quand(brouillon.depuis.le)}. Vérifiez les formules, comparez les résultats puis enregistrez :
+            une nouvelle version sera ajoutée à l&apos;historique (les anciennes sont conservées).
+          </span>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-2xl p-5 grid md:grid-cols-2 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
@@ -345,6 +401,91 @@ function TableauComparaison({ c }: { c: ComparaisonReglement }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+const LIBELLE_ACTION: Record<VersionReglement["action"], string> = {
+  creation: "Création",
+  modification: "Modification",
+  retour: "Retour en arrière",
+  suppression: "Suppression",
+  reprise: "Version de départ",
+};
+
+/** Historique d'un règlement : chaque version avec ce qui a changé par rapport à la précédente.
+ * « Revenir à cette version » rouvre l'éditeur avec l'ancien contenu (la comparaison des
+ * résultats reste obligatoire avant d'enregistrer). */
+function HistoriqueReglement({ versions, enVigueur, nomFiliere, modifiable, onReprendre, onFermer }: {
+  versions: VersionReglement[];
+  enVigueur: boolean;
+  nomFiliere: (id: string) => string;
+  modifiable: boolean;
+  onReprendre: (v: VersionReglement) => void;
+  onFermer: () => void;
+}) {
+  const derniere = versions[0];
+  const formule = (texte?: string) => texte ? <code className="text-[11px] break-all">{texte}</code> : <em className="text-muted-foreground">vide (réglages de la filière)</em>;
+  return (
+    <div className="space-y-4" data-testid="historique-reglement">
+      <button onClick={onFermer} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground" data-testid="historique-retour-liste"><ArrowLeft size={14} /> Retour aux règlements</button>
+      <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <h2 className="font-bold text-foreground flex items-center gap-2"><History size={16} className="text-primary" /> Historique de « {derniere?.nom} »</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          {derniere?.annee} · {versions.length} version(s). Chaque enregistrement crée une version : on voit qui a changé quoi et quand, et l&apos;on peut revenir à une ancienne version.
+        </p>
+      </div>
+      {versions.map((v, i) => {
+        const precedente = versions[i + 1];
+        const d = differencesVersions(precedente, v);
+        const enCours = i === 0 && enVigueur;
+        const peutReprendre = modifiable && v.action !== "suppression" && !enCours;
+        return (
+          <div key={v.id} className={cn("bg-card border rounded-2xl p-5", enCours ? "border-primary/40" : "border-border")} style={{ boxShadow: "var(--shadow-sm)" }} data-testid={`historique-version-${v.numero}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-bold text-foreground flex flex-wrap items-center gap-2">
+                  Version {v.numero}
+                  <span className={cn("text-[11px] px-2 py-0.5 rounded-full font-semibold", v.action === "suppression" ? "bg-red-50 text-red-700" : v.action === "retour" ? "bg-amber-50 text-amber-700" : "bg-muted text-muted-foreground")}>{LIBELLE_ACTION[v.action]}</span>
+                  {enCours && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700" data-testid="historique-en-vigueur">En vigueur</span>}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Le {quand(v.le)} par <strong className="text-foreground">{v.par}</strong></p>
+              </div>
+              {peutReprendre && (
+                <button onClick={() => onReprendre(v)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-xl text-xs font-semibold hover:bg-muted" data-testid={`historique-reprendre-${v.numero}`}>
+                  <RotateCcw size={13} /> {enVigueur ? "Revenir à cette version" : "Recréer à partir de cette version"}
+                </button>
+              )}
+            </div>
+            <div className="mt-3 text-sm space-y-1.5" data-testid={`historique-changements-${v.numero}`}>
+              {v.action === "suppression" ? (
+                <p className="text-red-700 dark:text-red-400">Règlement supprimé : ses filières suivent à nouveau leurs réglages.</p>
+              ) : (
+                <>
+                  {v.action === "retour" && v.depuisVersion && <p className="text-amber-700 dark:text-amber-400">Retour au contenu de la version {v.depuisVersion}.</p>}
+                  {!precedente && <p className="text-muted-foreground">Contenu de départ :</p>}
+                  {d.nom && <p>Nom : « {d.nom.avant} » → « <strong>{d.nom.apres}</strong> »</p>}
+                  {d.filieresAjoutees.length > 0 && <p>{precedente ? "Filières ajoutées" : "Filières"} : <strong>{d.filieresAjoutees.map(nomFiliere).join(", ")}</strong></p>}
+                  {d.filieresRetirees.length > 0 && <p>Filières retirées : <strong>{d.filieresRetirees.map(nomFiliere).join(", ")}</strong></p>}
+                  {d.formules.map((f) => (
+                    <div key={f.cle} className="rounded-xl bg-muted/50 px-3 py-2">
+                      <p className="text-xs font-semibold text-foreground">{f.titre}</p>
+                      {precedente ? (
+                        <p className="text-xs mt-0.5"><span className="text-muted-foreground">Avant :</span> {formule(f.avant)}<br /><span className="text-muted-foreground">Après :</span> {formule(f.apres)}</p>
+                      ) : (
+                        <p className="text-xs mt-0.5">{formule(f.apres)}</p>
+                      )}
+                    </div>
+                  ))}
+                  {precedente && !d.nom && d.filieresAjoutees.length === 0 && d.filieresRetirees.length === 0 && d.formules.length === 0 && (
+                    <p className="text-muted-foreground">Même contenu que la version {precedente.numero}.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

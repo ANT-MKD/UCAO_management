@@ -407,7 +407,7 @@ function parseMatriculeYear(matricule: string): number {
   return m ? Number(m[1]) : new Date().getFullYear();
 }
 
-/** Aucun compte n'est livré avec l'application : le premier super administrateur est créé à
+/** Aucun compte n'est livré avec l'application : l'administrateur principal est créé à
  * l'installation (installerEtablissement), avec le mot de passe qu'il choisit lui-même. Il n'existe
  * donc aucun identifiant ni mot de passe connu à l'avance. */
 /** Hash d'un mot de passe aléatoire que personne ne connaît : un compte créé sans mot de passe
@@ -436,6 +436,10 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
 
   return users;
 }
+
+/** Fonction affichée pour le compte créé à l'installation (accès complet, comme tout compte
+ * d'administration sans rôle). */
+export const FONCTION_ADMIN_PRINCIPAL = "Administrateur principal";
 
 function mergeUsersWithSeed(existing: UserAccountRecord[], seed: UserAccountRecord[]): UserAccountRecord[] {
   const byEmail = new Map(seed.map((u) => [u.email.toLowerCase(), u]));
@@ -495,7 +499,8 @@ function loadStore(): StoreData {
           notes: parsed.notes ?? fresh.notes,
           seances: parsed.seances ?? fresh.seances,
           releves: parsed.releves ?? fresh.releves,
-          users: mergeUsersWithSeed(parsed.users ?? [], fresh.users),
+          // L'ancien libellé « Super administrateur » devient « Administrateur principal ».
+          users: mergeUsersWithSeed(parsed.users ?? [], fresh.users).map((u) => (u.fonction === "Super administrateur" ? { ...u, fonction: FONCTION_ADMIN_PRINCIPAL } : u)),
           requests: parsed.requests ?? fresh.requests,
           messages: parsed.messages ?? fresh.messages,
           notifications: parsed.notifications ?? fresh.notifications,
@@ -712,7 +717,7 @@ export interface InstallationPayload {
   annee: { libelle: string; dateDebut: string; dateFin: string };
 }
 
-/** Première ouverture de l'application : crée le premier super administrateur (mot de passe choisi
+/** Première ouverture de l'application : crée l'administrateur principal (mot de passe choisi
  * par lui-même, jamais un mot de passe par défaut) et l'année académique en cours avec ses dates.
  * Refusé dès qu'un administrateur existe. */
 export function installerEtablissement(payload: InstallationPayload): UserAccountRecord {
@@ -722,7 +727,7 @@ export function installerEtablissement(payload: InstallationPayload): UserAccoun
   const identifiant = payload.identifier.trim().toUpperCase();
   const email = payload.email.trim().toLowerCase();
   if (!identifiant || !email || !payload.prenom.trim() || !payload.nom.trim()) throw new Error("Renseignez tous les champs.");
-  if (payload.password.length < 8) throw new Error("Le mot de passe du super administrateur doit contenir au moins 8 caractères.");
+  if (payload.password.length < 8) throw new Error("Le mot de passe de l'administrateur principal doit contenir au moins 8 caractères.");
   if (store.users.some((u) => u.identifier.toUpperCase() === identifiant || u.email.toLowerCase() === email)) {
     throw new Error("Cet identifiant ou cet e-mail est déjà utilisé.");
   }
@@ -742,7 +747,7 @@ export function installerEtablissement(payload: InstallationPayload): UserAccoun
     password: hashPassword(payload.password),
     identifier: identifiant,
     displayName: `${payload.prenom.trim()} ${payload.nom.trim().toUpperCase()}`,
-    fonction: "Super administrateur",
+    fonction: FONCTION_ADMIN_PRINCIPAL,
     actif: true,
     doitChangerMotDePasse: false,
     passwordUpdatedAt: new Date().toISOString(),

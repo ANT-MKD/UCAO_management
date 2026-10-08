@@ -45,12 +45,12 @@ export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier
         Installation d&apos;EduManage
       </h1>
       <p className="text-sm text-[#64748b] mb-6">
-        Première ouverture : créez le compte du super administrateur et l&apos;année académique en cours. Cet écran n&apos;apparaît qu&apos;une seule fois.
+        Première ouverture : créez le compte de l&apos;administrateur principal et l&apos;année académique en cours. Cet écran n&apos;apparaît qu&apos;une seule fois.
       </p>
 
       <div className="space-y-6">
         <section className="space-y-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9]"><ShieldCheck size={15} className="text-[#4f46e5]" /> Super administrateur</h2>
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9]"><ShieldCheck size={15} className="text-[#4f46e5]" /> Administrateur principal</h2>
           <div className="grid grid-cols-2 gap-3">
             <div><label htmlFor="inst-prenom" className={labelClass}>Prénom</label><input id="inst-prenom" value={prenom} onChange={(e) => setPrenom(e.target.value)} className={inputClass} data-testid="inst-prenom" /></div>
             <div><label htmlFor="inst-nom" className={labelClass}>Nom</label><input id="inst-nom" value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="inst-nom" /></div>
