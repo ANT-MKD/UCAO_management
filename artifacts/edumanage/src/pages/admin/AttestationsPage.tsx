@@ -178,7 +178,7 @@ export default function AttestationsPage() {
 
           <div className="relative mb-3">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <input aria-label="Nom, prénom ou matricule"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setSelectedEtudiantId(""); }}
               placeholder="Nom, prénom ou matricule..."
@@ -216,7 +216,7 @@ export default function AttestationsPage() {
                   <div className="text-sm font-semibold truncate">{selectedEtudiant.prenom} {selectedEtudiant.nom}</div>
                   <div className="text-[11px] text-muted-foreground font-mono">{selectedEtudiant.matricule} · {selectedEtudiant.filiere} — {selectedEtudiant.classe}</div>
                 </div>
-                <button onClick={() => { setSelectedEtudiantId(""); setSearch(""); }} className="p-1 rounded-lg hover:bg-muted"><X size={14} /></button>
+                <button aria-label="Fermer" title="Fermer" onClick={() => { setSelectedEtudiantId(""); setSearch(""); }} className="p-1 rounded-lg hover:bg-muted"><X size={14} /></button>
               </div>
               {selectedEtudiant.soldeDu > 0 && (
                 <div className="flex items-center gap-1.5 mt-2 text-[11px] text-amber-700 dark:text-amber-400" data-testid="attestation-avertissement-solde">
@@ -227,16 +227,16 @@ export default function AttestationsPage() {
           )}
 
           <div className="mb-3">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de document</label>
-            <select value={type} onChange={(e) => { setType(e.target.value as AttestationType); setSemestreId(""); }} className={inputClass} data-testid="attestation-type">
+            <label htmlFor="attestations-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de document</label>
+            <select id="attestations-champ-1" value={type} onChange={(e) => { setType(e.target.value as AttestationType); setSemestreId(""); }} className={inputClass} data-testid="attestation-type">
               {TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
 
           {type === "reussite" && selectedEtudiant && (
             <div className="mb-3">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre à certifier</label>
-              <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} className={inputClass} data-testid="attestation-semestre">
+              <label htmlFor="attestations-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre à certifier</label>
+              <select id="attestations-champ-2" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} className={inputClass} data-testid="attestation-semestre">
                 <option value="">Sélectionner</option>
                 {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
@@ -268,11 +268,11 @@ export default function AttestationsPage() {
 
         <div className="lg:col-span-2 bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex flex-wrap gap-3 p-4 border-b border-border">
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputClass + " max-w-[220px]"}>
+            <select aria-label="Tous les types" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputClass + " max-w-[220px]"}>
               <option value="">Tous les types</option>
               {TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-            <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass + " max-w-[160px]"}>
+            <select aria-label="Tous les statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass + " max-w-[160px]"}>
               <option value="">Tous les statuts</option>
               <option value="genere">Générée</option>
               <option value="envoyee">Envoyée</option>
@@ -327,7 +327,7 @@ export default function AttestationsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b shrink-0">
               <h3 className="font-bold flex items-center gap-2 text-gray-900"><FileText size={18} /> Aperçu — {preview.typeLabel}</h3>
-              <button onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
             </div>
             <iframe title="Aperçu attestation" srcDoc={buildAttestationHtml(preview)} className="flex-1 w-full" data-testid="attestation-preview-iframe" />
             <div className="p-4 flex gap-2 justify-end border-t shrink-0">

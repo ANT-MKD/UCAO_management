@@ -183,12 +183,12 @@ function MethodesCalculTab() {
       <FormModal open={!!editing} onClose={() => setEditing(null)} title={editing ? `Modifier — ${editing.intitule}` : ""} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
-            <input value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} className={inputClass} data-testid="methode-intitule" />
+            <label htmlFor="parametrage-bulletin-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
+            <input id="parametrage-bulletin-champ-1" value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} className={inputClass} data-testid="methode-intitule" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className={cn(inputClass, "resize-none")} data-testid="methode-description" />
+            <label htmlFor="parametrage-bulletin-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
+            <textarea id="parametrage-bulletin-champ-2" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className={cn(inputClass, "resize-none")} data-testid="methode-description" />
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={form.actif} onChange={(e) => setForm((f) => ({ ...f, actif: e.target.checked }))} className="rounded" data-testid="methode-actif" />
@@ -279,7 +279,7 @@ function MethodesProgrammeTab({ auteur }: { auteur: () => string }) {
             return (
               <div key={niveau}>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Méthode de calcul {NIVEAU_LABELS[niveau]}</label>
-                <select
+                <select aria-label={`Méthode de calcul ${NIVEAU_LABELS[niveau]}`}
                   value={form[field] ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value || undefined }))}
                   className={inputClass}
@@ -398,15 +398,15 @@ function ReglesValidationTab({ auteur }: { auteur: () => string }) {
       <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Modifier — ${editing.filiere} · ${TYPE_LABELS[editing.type]}` : "Nouvelle règle de validation"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme</label>
-            <select value={form.filiereId} onChange={(e) => setForm((f) => ({ ...f, filiereId: e.target.value }))} className={inputClass} data-testid="regle-filiere">
+            <label htmlFor="parametrage-bulletin-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme</label>
+            <select id="parametrage-bulletin-champ-3" value={form.filiereId} onChange={(e) => setForm((f) => ({ ...f, filiereId: e.target.value }))} className={inputClass} data-testid="regle-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
-            <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TypeRegleValidation }))} className={inputClass} data-testid="regle-type">
+            <label htmlFor="parametrage-bulletin-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
+            <select id="parametrage-bulletin-champ-4" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TypeRegleValidation }))} className={inputClass} data-testid="regle-type">
               {(Object.entries(TYPE_LABELS) as [TypeRegleValidation, string][]).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           </div>
@@ -422,19 +422,19 @@ function ReglesValidationTab({ auteur }: { auteur: () => string }) {
           </div>
           {form.validationParCredit && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">C.P — Crédits de passage requis</label>
-              <input type="number" min={0} value={form.creditPassage} onChange={(e) => setForm((f) => ({ ...f, creditPassage: Number(e.target.value) }))} className={inputClass} data-testid="regle-credit-passage" />
+              <label htmlFor="parametrage-bulletin-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">C.P — Crédits de passage requis</label>
+              <input id="parametrage-bulletin-champ-5" type="number" min={0} value={form.creditPassage} onChange={(e) => setForm((f) => ({ ...f, creditPassage: Number(e.target.value) }))} className={inputClass} data-testid="regle-credit-passage" />
             </div>
           )}
           {form.validationParMoyenne && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">M.P — Moyenne de passage requise</label>
-              <input type="number" min={0} step={0.5} value={form.moyennePassage} onChange={(e) => setForm((f) => ({ ...f, moyennePassage: Number(e.target.value) }))} className={inputClass} data-testid="regle-moyenne-passage" />
+              <label htmlFor="parametrage-bulletin-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">M.P — Moyenne de passage requise</label>
+              <input id="parametrage-bulletin-champ-6" type="number" min={0} step={0.5} value={form.moyennePassage} onChange={(e) => setForm((f) => ({ ...f, moyennePassage: Number(e.target.value) }))} className={inputClass} data-testid="regle-moyenne-passage" />
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
-            <input type="number" min={0} step={0.5} value={form.moyenneEliminatoire} onChange={(e) => setForm((f) => ({ ...f, moyenneEliminatoire: Number(e.target.value) }))} className={inputClass} data-testid="regle-moyenne-eliminatoire" />
+            <label htmlFor="parametrage-bulletin-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
+            <input id="parametrage-bulletin-champ-7" type="number" min={0} step={0.5} value={form.moyenneEliminatoire} onChange={(e) => setForm((f) => ({ ...f, moyenneEliminatoire: Number(e.target.value) }))} className={inputClass} data-testid="regle-moyenne-eliminatoire" />
             <p className="text-[11px] text-muted-foreground mt-1">0 = désactivée. Prioritaire sur les autres critères : sous ce seuil, l'étudiant est automatiquement exclu.</p>
           </div>
           <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="regle-sauvegarder">
@@ -517,32 +517,32 @@ function MentionsTab() {
       <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Modifier — ${editing.mention}` : "Nouvelle mention"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-            <select value={form.niveau} onChange={(e) => setForm((f) => ({ ...f, niveau: e.target.value as NiveauMethodeCalcul }))} className={inputClass} data-testid="mention-niveau">
+            <label htmlFor="parametrage-bulletin-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+            <select id="parametrage-bulletin-champ-8" value={form.niveau} onChange={(e) => setForm((f) => ({ ...f, niveau: e.target.value as NiveauMethodeCalcul }))} className={inputClass} data-testid="mention-niveau">
               {NIVEAUX_ORDRE.map((n) => <option key={n} value={n}>{NIVEAU_LABELS[n]}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Valeur min</label>
-              <input type="number" min={0} max={20} step={0.5} value={form.valeurMin} onChange={(e) => setForm((f) => ({ ...f, valeurMin: Number(e.target.value) }))} className={inputClass} data-testid="mention-valeur-min" />
+              <label htmlFor="parametrage-bulletin-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Valeur min</label>
+              <input id="parametrage-bulletin-champ-9" type="number" min={0} max={20} step={0.5} value={form.valeurMin} onChange={(e) => setForm((f) => ({ ...f, valeurMin: Number(e.target.value) }))} className={inputClass} data-testid="mention-valeur-min" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Valeur max</label>
-              <input type="number" min={0} max={20} step={0.5} value={form.valeurMax} onChange={(e) => setForm((f) => ({ ...f, valeurMax: Number(e.target.value) }))} className={inputClass} data-testid="mention-valeur-max" />
+              <label htmlFor="parametrage-bulletin-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Valeur max</label>
+              <input id="parametrage-bulletin-champ-10" type="number" min={0} max={20} step={0.5} value={form.valeurMax} onChange={(e) => setForm((f) => ({ ...f, valeurMax: Number(e.target.value) }))} className={inputClass} data-testid="mention-valeur-max" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mention</label>
-            <input value={form.mention} onChange={(e) => setForm((f) => ({ ...f, mention: e.target.value }))} placeholder="ex: Très Bien" className={inputClass} data-testid="mention-libelle" />
+            <label htmlFor="parametrage-bulletin-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">Mention</label>
+            <input id="parametrage-bulletin-champ-11" value={form.mention} onChange={(e) => setForm((f) => ({ ...f, mention: e.target.value }))} placeholder="ex: Très Bien" className={inputClass} data-testid="mention-libelle" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Appréciation par — en cas de succès</label>
-            <textarea value={form.appreciationSucces} onChange={(e) => setForm((f) => ({ ...f, appreciationSucces: e.target.value }))} rows={2} className={cn(inputClass, "resize-none")} data-testid="mention-appreciation-succes" />
+            <label htmlFor="parametrage-bulletin-champ-12" className="block text-xs font-medium text-muted-foreground mb-1.5">Appréciation par — en cas de succès</label>
+            <textarea id="parametrage-bulletin-champ-12" value={form.appreciationSucces} onChange={(e) => setForm((f) => ({ ...f, appreciationSucces: e.target.value }))} rows={2} className={cn(inputClass, "resize-none")} data-testid="mention-appreciation-succes" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Appréciation par — en cas d'échec</label>
-            <textarea value={form.appreciationEchec} onChange={(e) => setForm((f) => ({ ...f, appreciationEchec: e.target.value }))} rows={2} className={cn(inputClass, "resize-none")} data-testid="mention-appreciation-echec" />
+            <label htmlFor="parametrage-bulletin-champ-13" className="block text-xs font-medium text-muted-foreground mb-1.5">Appréciation par — en cas d'échec</label>
+            <textarea id="parametrage-bulletin-champ-13" value={form.appreciationEchec} onChange={(e) => setForm((f) => ({ ...f, appreciationEchec: e.target.value }))} rows={2} className={cn(inputClass, "resize-none")} data-testid="mention-appreciation-echec" />
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={form.actif} onChange={(e) => setForm((f) => ({ ...f, actif: e.target.checked }))} className="rounded" data-testid="mention-actif" />
@@ -624,12 +624,12 @@ function TypesEvaluationTab() {
       <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Modifier — ${editing.intitule}` : "Nouveau type d'évaluation"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code</label>
-            <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: TP" className={cn(inputClass, "uppercase font-mono")} data-testid="type-eval-code" />
+            <label htmlFor="parametrage-bulletin-champ-14" className="block text-xs font-medium text-muted-foreground mb-1.5">Code</label>
+            <input id="parametrage-bulletin-champ-14" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: TP" className={cn(inputClass, "uppercase font-mono")} data-testid="type-eval-code" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
-            <input value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} placeholder="ex: Travaux pratiques" className={inputClass} data-testid="type-eval-intitule" />
+            <label htmlFor="parametrage-bulletin-champ-15" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
+            <input id="parametrage-bulletin-champ-15" value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} placeholder="ex: Travaux pratiques" className={inputClass} data-testid="type-eval-intitule" />
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={form.actif} onChange={(e) => setForm((f) => ({ ...f, actif: e.target.checked }))} className="rounded" data-testid="type-eval-actif" />
@@ -733,17 +733,17 @@ function RegroupementDevoirTab() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code</label>
-              <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className={cn(inputClass, "font-mono")} data-testid="regroupement-code" />
+              <label htmlFor="parametrage-bulletin-champ-16" className="block text-xs font-medium text-muted-foreground mb-1.5">Code</label>
+              <input id="parametrage-bulletin-champ-16" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className={cn(inputClass, "font-mono")} data-testid="regroupement-code" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
-              <input value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} className={inputClass} data-testid="regroupement-intitule" />
+              <label htmlFor="parametrage-bulletin-champ-17" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé</label>
+              <input id="parametrage-bulletin-champ-17" value={form.intitule} onChange={(e) => setForm((f) => ({ ...f, intitule: e.target.value }))} className={inputClass} data-testid="regroupement-intitule" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle dans le calcul de l'EC</label>
-            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as RoleRegroupement }))} className={inputClass} data-testid="regroupement-role">
+            <label htmlFor="parametrage-bulletin-champ-18" className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle dans le calcul de l'EC</label>
+            <select id="parametrage-bulletin-champ-18" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as RoleRegroupement }))} className={inputClass} data-testid="regroupement-role">
               {(Object.entries(ROLE_LABELS) as [RoleRegroupement, string][]).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           </div>
@@ -864,23 +864,23 @@ function DeclassementParametreTab() {
       <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Modifier le paramètre de déclassement" : "Nouveau paramètre de déclassement"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-            <select value={form.filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="declassement-filiere">
+            <label htmlFor="parametrage-bulletin-champ-19" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+            <select id="parametrage-bulletin-champ-19" value={form.filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="declassement-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
-              <select value={form.annee} onChange={(e) => setForm((f) => ({ ...f, annee: e.target.value }))} className={inputClass} data-testid="declassement-annee">
+              <label htmlFor="parametrage-bulletin-champ-20" className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
+              <select id="parametrage-bulletin-champ-20" value={form.annee} onChange={(e) => setForm((f) => ({ ...f, annee: e.target.value }))} className={inputClass} data-testid="declassement-annee">
                 <option value="">Sélectionner</option>
                 {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau programme *</label>
-              <select value={NIVEAUX.find((n) => n.alias === form.niveau && n.filiereId === form.filiereId)?.id ?? ""} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!form.filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-niveau">
+              <label htmlFor="parametrage-bulletin-champ-21" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau programme *</label>
+              <select id="parametrage-bulletin-champ-21" value={NIVEAUX.find((n) => n.alias === form.niveau && n.filiereId === form.filiereId)?.id ?? ""} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!form.filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-niveau">
                 <option value="">Sélectionner</option>
                 {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom}</option>)}
               </select>
@@ -888,15 +888,15 @@ function DeclassementParametreTab() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir</label>
-              <select value={form.typeEvaluationId} onChange={(e) => handleTypeChange(e.target.value)} className={inputClass} data-testid="declassement-type-devoir">
+              <label htmlFor="parametrage-bulletin-champ-22" className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir</label>
+              <select id="parametrage-bulletin-champ-22" value={form.typeEvaluationId} onChange={(e) => handleTypeChange(e.target.value)} className={inputClass} data-testid="declassement-type-devoir">
                 <option value="">Sélectionner</option>
                 {typesEvaluation.filter((t) => t.actif).map((t) => <option key={t.id} value={t.id}>{t.intitule}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nbre notes requis *</label>
-              <input type="number" min={1} value={form.nbNotesRequis} onChange={(e) => setForm((f) => ({ ...f, nbNotesRequis: Number(e.target.value) || 1 }))} className={inputClass} data-testid="declassement-nb-notes" />
+              <label htmlFor="parametrage-bulletin-champ-23" className="block text-xs font-medium text-muted-foreground mb-1.5">Nbre notes requis *</label>
+              <input id="parametrage-bulletin-champ-23" type="number" min={1} value={form.nbNotesRequis} onChange={(e) => setForm((f) => ({ ...f, nbNotesRequis: Number(e.target.value) || 1 }))} className={inputClass} data-testid="declassement-nb-notes" />
             </div>
           </div>
           <button onClick={handleSave} className="w-full px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="declassement-sauvegarder">

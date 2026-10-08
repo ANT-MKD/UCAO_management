@@ -346,22 +346,22 @@ export default function TeacherProfilePage() {
       <FormModal open={showEditModal} onClose={() => setShowEditModal(false)} title="Modifier mes informations">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Photo</label>
+            <label htmlFor="teacher-profile-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Photo</label>
             <div className="flex items-center gap-3">
               <UserAvatar name={`${teacher.prenom} ${teacher.nom}`} src={photoDataUrl} size="md" />
               <label className="px-3 py-2 rounded-xl border border-border text-xs font-medium cursor-pointer hover:bg-muted">
                 Choisir une photo
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="profil-photo-input" />
+                <input id="teacher-profile-champ-1" type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="profil-photo-input" />
               </label>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-            <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="profil-telephone" />
+            <label htmlFor="teacher-profile-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input id="teacher-profile-champ-2" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="profil-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-            <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="profil-adresse" />
+            <label htmlFor="teacher-profile-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+            <input id="teacher-profile-champ-3" value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="profil-adresse" />
           </div>
           <button onClick={handleSaveInfos} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="profil-enregistrer">
             Enregistrer
@@ -372,16 +372,16 @@ export default function TeacherProfilePage() {
       <FormModal open={showPasswordModal} onClose={() => setShowPasswordModal(false)} title="Changer mon mot de passe">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe actuel</label>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} data-testid="mdp-actuel" />
+            <label htmlFor="teacher-profile-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe actuel</label>
+            <input id="teacher-profile-champ-4" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} data-testid="mdp-actuel" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nouveau mot de passe</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} data-testid="mdp-nouveau" />
+            <label htmlFor="teacher-profile-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Nouveau mot de passe</label>
+            <input id="teacher-profile-champ-5" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} data-testid="mdp-nouveau" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
+            <label htmlFor="teacher-profile-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
+            <input id="teacher-profile-champ-6" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
           </div>
           <button onClick={handleChangePassword} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="mdp-enregistrer">
             Changer le mot de passe

@@ -176,7 +176,7 @@ export default function TeacherContractFormPage() {
               Professeur <span className="text-red-500">*</span>
             </label>
             <Search size={15} className="absolute left-3 top-[38px] text-muted-foreground z-10" />
-            <input
+            <input aria-label="Veuillez saisir le code, le prénom, le nom ou le numéro de téléphone du professeur"
               type="search"
               value={query}
               onChange={(e) => {
@@ -209,22 +209,22 @@ export default function TeacherContractFormPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="teacher-contract-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Début contrat <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} />
+            <input id="teacher-contract-form-champ-1" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="teacher-contract-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Fin contrat <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} />
+            <input id="teacher-contract-form-champ-2" type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="teacher-contract-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Année <span className="text-red-500">*</span>
             </label>
-            <select value={anneeScolaire} onChange={(e) => setAnneeScolaire(e.target.value)} className={inputClass}>
+            <select id="teacher-contract-form-champ-3" value={anneeScolaire} onChange={(e) => setAnneeScolaire(e.target.value)} className={inputClass}>
               {anneeOptions.map((a) => (
                 <option key={a} value={a}>
                   {a}

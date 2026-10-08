@@ -34,9 +34,12 @@ export function KPICard({
       className={cn(
         "relative bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200",
         "hover:-translate-y-1 hover:shadow-xl",
-        onClick && "cursor-pointer"
+        onClick && "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
       )}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       style={{ boxShadow: "var(--shadow-sm)" }}
       data-testid="kpi-card"
     >

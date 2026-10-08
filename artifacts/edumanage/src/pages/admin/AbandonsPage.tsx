@@ -110,7 +110,7 @@ export default function AbandonsPage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4" style={{ background: "linear-gradient(135deg,#7c3aed,#a855f7)" }}>
               <h3 className="text-base font-bold text-white flex items-center gap-2"><Eye size={16} /> Consultation Abandon étudiant</h3>
-              <button onClick={() => setPreviewId(null)} className="text-white/80 hover:text-white transition-colors">
+              <button aria-label="Fermer" title="Fermer" onClick={() => setPreviewId(null)} className="text-white/80 hover:text-white transition-colors">
                 <X size={16} />
               </button>
             </div>

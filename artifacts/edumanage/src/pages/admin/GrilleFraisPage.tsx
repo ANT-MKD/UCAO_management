@@ -336,7 +336,7 @@ export default function GrilleFraisPage() {
               </tr>
               <tr className="border-b border-border bg-card">
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.filiereId} onChange={(e) => patchOverviewFilter({ filiereId: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Filière" value={overviewFilters.filiereId} onChange={(e) => patchOverviewFilter({ filiereId: e.target.value })} className={filterInputClass}>
                     <option value="">Toutes</option>
                     {FILIERES.map((f) => (
                       <option key={f.id} value={f.id}>{f.code}</option>
@@ -344,7 +344,7 @@ export default function GrilleFraisPage() {
                   </select>
                 </th>
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.niveau} onChange={(e) => patchOverviewFilter({ niveau: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Niveau" value={overviewFilters.niveau} onChange={(e) => patchOverviewFilter({ niveau: e.target.value })} className={filterInputClass}>
                     <option value="">Tous</option>
                     {[...new Set(grillesFrais.map((g) => g.niveau))].map((n) => (
                       <option key={n} value={n}>{niveauLabel(n)}</option>
@@ -352,7 +352,7 @@ export default function GrilleFraisPage() {
                   </select>
                 </th>
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.annee} onChange={(e) => patchOverviewFilter({ annee: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Année" value={overviewFilters.annee} onChange={(e) => patchOverviewFilter({ annee: e.target.value })} className={filterInputClass}>
                     <option value="">Toutes</option>
                     {anneeOptions.map((a) => (
                       <option key={a} value={a}>{a}</option>
@@ -360,7 +360,7 @@ export default function GrilleFraisPage() {
                   </select>
                 </th>
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.modeleFraisId} onChange={(e) => patchOverviewFilter({ modeleFraisId: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Modèle de frais" value={overviewFilters.modeleFraisId} onChange={(e) => patchOverviewFilter({ modeleFraisId: e.target.value })} className={filterInputClass}>
                     <option value="">Tous</option>
                     {modelesFrais.map((m) => (
                       <option key={m.id} value={m.id}>{m.intitule}</option>
@@ -412,10 +412,10 @@ export default function GrilleFraisPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Filière <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="grille-frais-champ-1"
             value={filiereId}
             onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); }}
             className={inputClass}
@@ -428,10 +428,10 @@ export default function GrilleFraisPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Niveau <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="grille-frais-champ-2"
             value={niveau}
             onChange={(e) => setNiveau(e.target.value)}
             className={inputClass}
@@ -445,20 +445,20 @@ export default function GrilleFraisPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Année scolaire <span className="text-red-500">*</span>
           </label>
-          <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-annee">
+          <select id="grille-frais-champ-3" value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-annee">
             {anneeOptions.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Modèle de frais <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="grille-frais-champ-4"
             value={modeleFraisId}
             onChange={(e) => setModeleFraisId(e.target.value)}
             className={inputClass}
@@ -675,7 +675,7 @@ export default function GrilleFraisPage() {
                                     className={`${inputClass} max-w-[170px]`}
                                     data-testid={`grille-ligne-eperso-date-${l.id}-${idx}`}
                                   />
-                                  <input
+                                  <input aria-label="Montant"
                                     type="number"
                                     min={0}
                                     value={e.montant || ""}
@@ -782,32 +782,32 @@ export default function GrilleFraisPage() {
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-                <select value={dupFiliereId} onChange={(e) => { setDupFiliereId(e.target.value); setDupNiveau(""); }} className={inputClass} data-testid="grille-frais-dupliquer-filiere">
+                <label htmlFor="grille-frais-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+                <select id="grille-frais-champ-5" value={dupFiliereId} onChange={(e) => { setDupFiliereId(e.target.value); setDupNiveau(""); }} className={inputClass} data-testid="grille-frais-dupliquer-filiere">
                   {FILIERES.map((f) => (
                     <option key={f.id} value={f.id}>{f.code}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-                <select value={dupNiveau} onChange={(e) => setDupNiveau(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-niveau">
+                <label htmlFor="grille-frais-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+                <select id="grille-frais-champ-6" value={dupNiveau} onChange={(e) => setDupNiveau(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-niveau">
                   {dupNiveauxDisponibles.map((n) => (
                     <option key={n.id} value={n.alias}>{n.nom}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire</label>
-                <select value={dupAnnee} onChange={(e) => setDupAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
+                <label htmlFor="grille-frais-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire</label>
+                <select id="grille-frais-champ-7" value={dupAnnee} onChange={(e) => setDupAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
                   {anneeOptions.map((a) => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
-                <select value={dupModeleFraisId} onChange={(e) => setDupModeleFraisId(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-modele">
+                <label htmlFor="grille-frais-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
+                <select id="grille-frais-champ-8" value={dupModeleFraisId} onChange={(e) => setDupModeleFraisId(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-modele">
                   {modelesFrais.map((m) => (
                     <option key={m.id} value={m.id}>{m.intitule}</option>
                   ))}

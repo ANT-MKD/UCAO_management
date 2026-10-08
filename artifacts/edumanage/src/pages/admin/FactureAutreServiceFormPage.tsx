@@ -152,41 +152,41 @@ export default function FactureAutreServiceFormPage() {
           <div className="bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="facture-autre-service-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Bénéficiaire <span className="text-red-500">*</span>
                 </label>
-                <input value={beneficiaire} onChange={(e) => setBeneficiaire(e.target.value)} className={inputClass} data-testid="fas-beneficiaire" placeholder="Nom du bénéficiaire" />
+                <input id="facture-autre-service-form-champ-1" value={beneficiaire} onChange={(e) => setBeneficiaire(e.target.value)} className={inputClass} data-testid="fas-beneficiaire" placeholder="Nom du bénéficiaire" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone mobile</label>
+                <label htmlFor="facture-autre-service-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone mobile</label>
                 <div className="flex gap-2">
                   <span className="flex items-center px-3 py-2.5 text-sm border border-border rounded-xl bg-muted/40 text-muted-foreground">🇸🇳 +221</span>
-                  <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="fas-telephone" placeholder="77 XXX XX XX" />
+                  <input id="facture-autre-service-form-champ-2" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="fas-telephone" placeholder="77 XXX XX XX" />
                 </div>
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
-                <input value={referenceExterne} onChange={(e) => setReferenceExterne(e.target.value)} className={inputClass} data-testid="fas-reference" />
+                <label htmlFor="facture-autre-service-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
+                <input id="facture-autre-service-form-champ-3" value={referenceExterne} onChange={(e) => setReferenceExterne(e.target.value)} className={inputClass} data-testid="fas-reference" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-                <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="fas-adresse" />
+                <label htmlFor="facture-autre-service-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+                <input id="facture-autre-service-form-champ-4" value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="fas-adresse" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="facture-autre-service-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Remarque <span className="text-red-500">*</span>
               </label>
-              <textarea value={remarque} onChange={(e) => setRemarque(e.target.value)} rows={3} className={inputClass} data-testid="fas-remarque" />
+              <textarea id="facture-autre-service-form-champ-5" value={remarque} onChange={(e) => setRemarque(e.target.value)} rows={3} className={inputClass} data-testid="fas-remarque" />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Ajouter un article</label>
-              <select
+              <label htmlFor="facture-autre-service-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Ajouter un article</label>
+              <select id="facture-autre-service-form-champ-6"
                 value={selectedArticleId}
                 onChange={(e) => handleAddArticle(e.target.value)}
                 className={inputClass}
@@ -287,8 +287,8 @@ export default function FactureAutreServiceFormPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA)</label>
-                <input
+                <label htmlFor="facture-autre-service-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA)</label>
+                <input id="facture-autre-service-form-champ-7"
                   type="number"
                   min={0}
                   max={totalFacture}
@@ -303,8 +303,8 @@ export default function FactureAutreServiceFormPage() {
                 {Number(montantVerse) === 0 && <p className="text-[11px] text-muted-foreground mt-1">Aucun versement — facture émise en Impayé.</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération</label>
-                <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className={inputClass} />
+                <label htmlFor="facture-autre-service-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération</label>
+                <input id="facture-autre-service-form-champ-8" type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className={inputClass} />
               </div>
             </div>
 
@@ -335,8 +335,8 @@ export default function FactureAutreServiceFormPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence bancaire / N° reçu</label>
-                  <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} placeholder="Auto si vide" />
+                  <label htmlFor="facture-autre-service-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence bancaire / N° reçu</label>
+                  <input id="facture-autre-service-form-champ-9" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} placeholder="Auto si vide" />
                 </div>
               </>
             )}

@@ -156,8 +156,8 @@ export default function NouvelleEvaluationPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-3xl" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-          <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="eval-filiere">
+          <label htmlFor="nouvelle-evaluation-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+          <select id="nouvelle-evaluation-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="eval-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
@@ -165,15 +165,15 @@ export default function NouvelleEvaluationPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-            <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-annee">
+            <label htmlFor="nouvelle-evaluation-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+            <select id="nouvelle-evaluation-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-niveau">
+            <label htmlFor="nouvelle-evaluation-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="nouvelle-evaluation-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
@@ -182,8 +182,8 @@ export default function NouvelleEvaluationPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-            <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-classe">
+            <label htmlFor="nouvelle-evaluation-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+            <select id="nouvelle-evaluation-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom} ({c.inscrits} étudiants)</option>)}
             </select>
@@ -192,8 +192,8 @@ export default function NouvelleEvaluationPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-            <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-semestre">
+            <label htmlFor="nouvelle-evaluation-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+            <select id="nouvelle-evaluation-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-semestre">
               <option value="">Sélectionner</option>
               {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
             </select>
@@ -201,8 +201,8 @@ export default function NouvelleEvaluationPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-          <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-cours">
+          <label htmlFor="nouvelle-evaluation-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
+          <select id="nouvelle-evaluation-champ-6" value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-cours">
             <option value="">Sélectionner</option>
             {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
           </select>
@@ -213,8 +213,8 @@ export default function NouvelleEvaluationPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
-            <select value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-professeur">
+            <label htmlFor="nouvelle-evaluation-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
+            <select id="nouvelle-evaluation-champ-7" value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-professeur">
               <option value="">Sélectionner</option>
               {ENSEIGNANTS.map((en) => <option key={en.id} value={en.id}>{en.prenom} {en.nom} — {en.specialite}</option>)}
             </select>
@@ -223,8 +223,8 @@ export default function NouvelleEvaluationPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type évaluation *</label>
-            <select value={type} onChange={(e) => handleTypeChange(e.target.value as "" | EvaluationRecord["type"])} disabled={!professeurId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-type">
+            <label htmlFor="nouvelle-evaluation-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Type évaluation *</label>
+            <select id="nouvelle-evaluation-champ-8" value={type} onChange={(e) => handleTypeChange(e.target.value as "" | EvaluationRecord["type"])} disabled={!professeurId} className={cn(inputClass, "disabled:opacity-50")} data-testid="eval-type">
               <option value="">Sélectionner</option>
               <option value="devoir">Devoir</option>
               <option value="examen">Examen</option>
@@ -234,8 +234,8 @@ export default function NouvelleEvaluationPage() {
 
         {type && (
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir (optionnel)</label>
-            <select value={typeEvaluationId} onChange={(e) => setTypeEvaluationId(e.target.value)} className={inputClass} data-testid="eval-type-devoir">
+            <label htmlFor="nouvelle-evaluation-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir (optionnel)</label>
+            <select id="nouvelle-evaluation-champ-9" value={typeEvaluationId} onChange={(e) => setTypeEvaluationId(e.target.value)} className={inputClass} data-testid="eval-type-devoir">
               <option value="">Non précisé (compte simplement comme {type === "devoir" ? "Devoir" : "Examen"})</option>
               {typesEvaluation.filter((t) => t.actif).map((t) => <option key={t.id} value={t.id}>{t.intitule}</option>)}
             </select>
@@ -248,8 +248,8 @@ export default function NouvelleEvaluationPage() {
 
         {type && (
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Poids (%) *</label>
-            <input
+            <label htmlFor="nouvelle-evaluation-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Poids (%) *</label>
+            <input id="nouvelle-evaluation-champ-10"
               type="number"
               min={1}
               max={100}

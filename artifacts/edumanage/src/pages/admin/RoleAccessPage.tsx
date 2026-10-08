@@ -130,7 +130,7 @@ export default function RoleAccessPage({ id }: { id: string }) {
             <div key={section.id} className="border-b border-border last:border-b-0">
               <div className="flex items-center gap-2 py-2.5 px-2">
                 {hasChildren ? (
-                  <button onClick={() => toggleExpand(section.id)} className="p-0.5 text-muted-foreground" data-testid={`access-expand-${section.id}`}>
+                  <button onClick={() => toggleExpand(section.id)} className="p-0.5 text-muted-foreground" aria-expanded={isOpen} aria-label={`${isOpen ? "Replier" : "Déplier"} ${section.label}`} data-testid={`access-expand-${section.id}`}>
                     {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </button>
                 ) : (
@@ -199,7 +199,7 @@ function RecursiveNode({ node, depth, selected, expanded, onToggleSelect, onTogg
   return (
     <div>
       <div className="flex items-center gap-2 py-1.5" style={{ paddingLeft: 8 + depth * 20, paddingRight: 8 }}>
-        <button onClick={() => onToggleExpand(node.id)} className="p-0.5 text-muted-foreground" data-testid={`access-expand-${node.id}`}>
+        <button onClick={() => onToggleExpand(node.id)} className="p-0.5 text-muted-foreground" aria-expanded={isOpen} aria-label={`${isOpen ? "Replier" : "Déplier"} ${node.label}`} data-testid={`access-expand-${node.id}`}>
           {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </button>
         <label className="flex items-center gap-2.5 flex-1 cursor-pointer">

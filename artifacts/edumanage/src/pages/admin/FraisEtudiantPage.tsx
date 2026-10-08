@@ -140,10 +140,10 @@ export default function FraisEtudiantPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="relative">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
+          <label htmlFor="frais-etudiant-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="frais-etudiant-champ-1"
               type="search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSelectedStudent(null); }}
@@ -201,8 +201,8 @@ export default function FraisEtudiantPage() {
       <FormModal open={anneeModalOpen} onClose={() => setAnneeModalOpen(false)} title="Année scolaire" size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire</label>
-            <select
+            <label htmlFor="frais-etudiant-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire</label>
+            <select id="frais-etudiant-champ-2"
               value={modalAnneeChoice}
               onChange={(e) => setModalAnneeChoice(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

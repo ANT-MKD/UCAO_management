@@ -203,7 +203,7 @@ export default function DevisConvertirPage({ id }: { id: string }) {
               <>
                 <div className="relative">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                  <input aria-label="Nom, prénom ou matricule"
                     type="search"
                     placeholder="Nom, prénom ou matricule..."
                     value={searchQuery}
@@ -235,35 +235,35 @@ export default function DevisConvertirPage({ id }: { id: string }) {
             <div className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom <span className="text-red-500">*</span></label>
-                  <input value={prenom} onChange={(e) => setPrenom(e.target.value)} className={inputClass} data-testid="devis-convertir-prenom" />
+                  <label htmlFor="devis-convertir-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom <span className="text-red-500">*</span></label>
+                  <input id="devis-convertir-champ-1" value={prenom} onChange={(e) => setPrenom(e.target.value)} className={inputClass} data-testid="devis-convertir-prenom" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom <span className="text-red-500">*</span></label>
-                  <input value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="devis-convertir-nom" />
+                  <label htmlFor="devis-convertir-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom <span className="text-red-500">*</span></label>
+                  <input id="devis-convertir-champ-2" value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="devis-convertir-nom" />
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Sexe <span className="text-red-500">*</span></label>
-                  <select value={sexe} onChange={(e) => setSexe(e.target.value as "M" | "F")} className={inputClass}>
+                  <label htmlFor="devis-convertir-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Sexe <span className="text-red-500">*</span></label>
+                  <select id="devis-convertir-champ-3" value={sexe} onChange={(e) => setSexe(e.target.value as "M" | "F")} className={inputClass}>
                     <option value="F">Féminin</option>
                     <option value="M">Masculin</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de naissance <span className="text-red-500">*</span></label>
-                  <input type="date" value={dateNaissance} onChange={(e) => setDateNaissance(e.target.value)} className={inputClass} data-testid="devis-convertir-date-naissance" />
+                  <label htmlFor="devis-convertir-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de naissance <span className="text-red-500">*</span></label>
+                  <input id="devis-convertir-champ-4" type="date" value={dateNaissance} onChange={(e) => setDateNaissance(e.target.value)} className={inputClass} data-testid="devis-convertir-date-naissance" />
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-                  <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} />
+                  <label htmlFor="devis-convertir-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+                  <input id="devis-convertir-champ-5" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+                  <label htmlFor="devis-convertir-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+                  <input id="devis-convertir-champ-6" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
                 </div>
               </div>
             </div>

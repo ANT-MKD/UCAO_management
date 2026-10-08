@@ -259,7 +259,7 @@ export default function AnneesAcademiquesPage() {
           <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-foreground">Créer une année académique</h3>
-              <button onClick={fermerCreation}><X size={18} /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={fermerCreation}><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -293,7 +293,7 @@ export default function AnneesAcademiquesPage() {
           <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-foreground">Dates de l&apos;année {editing.libelle}</h3>
-              <button onClick={() => setEditing(null)}><X size={18} /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={() => setEditing(null)}><X size={18} /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

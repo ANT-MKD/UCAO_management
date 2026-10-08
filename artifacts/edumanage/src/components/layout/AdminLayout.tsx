@@ -233,17 +233,17 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             {searchOpen ? (
               <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
                 <Search size={15} className="text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher"
                   autoFocus
                   className="bg-transparent text-sm outline-none w-28 sm:w-40 placeholder:text-muted-foreground"
                   placeholder="Rechercher..."
                 />
-                <button type="button" onClick={() => setSearchOpen(false)}>
+                <button aria-label="Fermer" title="Fermer" type="button" onClick={() => setSearchOpen(false)}>
                   <X size={14} className="text-muted-foreground" />
                 </button>
               </div>
             ) : (
-              <button
+              <button aria-label="Rechercher" title="Rechercher"
                 type="button"
                 onClick={() => setSearchOpen(true)}
                 className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
@@ -259,6 +259,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => { setNotifOpen((o) => !o); setAvatarOpen(false); }}
               className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              aria-label={unreadCount > 0 ? `Alertes à traiter : ${unreadCount}` : "Alertes à traiter"}
+              aria-expanded={notifOpen}
+              title="Alertes à traiter"
               data-testid="topbar-notifications"
             >
               <Bell size={18} />
@@ -303,6 +306,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+            aria-label={theme === "dark" ? "Passer au thème clair" : "Passer au thème sombre"}
+            title={theme === "dark" ? "Thème clair" : "Thème sombre"}
             data-testid="topbar-theme-toggle"
           >
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
@@ -380,7 +385,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   data-testid={`sidebar-${section.id}`}
                 >
                   <Icon size={20} className="flex-shrink-0" />
-                  <span className="leading-tight text-center line-clamp-2 px-0.5">{section.label}</span>
+                  <span className="leading-snug pt-px text-center line-clamp-2 px-0.5">{section.label}</span>
                 </button>
               );
             })}
@@ -444,7 +449,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   Navigation
                 </span>
               )}
-              <button type="button" onClick={closeMobile} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
+              <button aria-label="Fermer" title="Fermer" type="button" onClick={closeMobile} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
                 <X size={18} />
               </button>
             </div>

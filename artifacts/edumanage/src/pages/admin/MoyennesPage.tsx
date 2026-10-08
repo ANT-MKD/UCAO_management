@@ -106,32 +106,32 @@ export default function MoyennesPage() {
       {/* Filters */}
       <div className="bg-card border border-border rounded-xl p-4 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap gap-3">
-          <select value={selectedAnnee} onChange={(e) => { setSelectedAnnee(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
+          <select aria-label="Année académique" value={selectedAnnee} onChange={(e) => { setSelectedAnnee(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
             {anneesAcademiques.filter((a) => !a.archivee || a.libelle === selectedAnnee).map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
           </select>
-          <select value={selectedFiliere} onChange={(e) => { setSelectedFiliere(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
+          <select aria-label="Toutes les filières" value={selectedFiliere} onChange={(e) => { setSelectedFiliere(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
             <option value="">Toutes les filières</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
           </select>
-          <select value={selectedClasse} onChange={(e) => { setSelectedClasse(e.target.value); setSelectedSemestreId(""); }} className={inputClass} data-testid="moyennes-classe">
+          <select aria-label="Sélectionner une classe" value={selectedClasse} onChange={(e) => { setSelectedClasse(e.target.value); setSelectedSemestreId(""); }} className={inputClass} data-testid="moyennes-classe">
             <option value="">Sélectionner une classe</option>
             {filteredClasses.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
-          <select value={selectedSemestreId} onChange={(e) => setSelectedSemestreId(e.target.value)} disabled={!classeObj} className={cn(inputClass, "disabled:opacity-50")} data-testid="moyennes-session">
+          <select aria-label="Sélectionner une session" value={selectedSemestreId} onChange={(e) => setSelectedSemestreId(e.target.value)} disabled={!classeObj} className={cn(inputClass, "disabled:opacity-50")} data-testid="moyennes-session">
             <option value="">Sélectionner une session</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
-          <select value={mentionFilter} onChange={(e) => setMentionFilter(e.target.value)} className={inputClass}>
+          <select aria-label="Toutes mentions" value={mentionFilter} onChange={(e) => setMentionFilter(e.target.value)} className={inputClass}>
             <option value="">Toutes mentions</option>
             {["Très Bien", "Bien", "Assez Bien", "Passable", "Ajourné"].map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
-          <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
+          <select aria-label="Tous statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
             <option value="">Tous statuts</option>
             <option value="Admis">Admis</option>
             <option value="Ajourné">Ajourné</option>
           </select>
-          <input type="number" min={0} max={20} step={0.5} value={moyenneMin} onChange={(e) => setMoyenneMin(e.target.value)} placeholder="Moy. min" className={inputClass + " w-28"} />
-          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher étudiant…" className={inputClass + " min-w-[180px]"} />
+          <input aria-label="Moy. min" type="number" min={0} max={20} step={0.5} value={moyenneMin} onChange={(e) => setMoyenneMin(e.target.value)} placeholder="Moy. min" className={inputClass + " w-28"} />
+          <input aria-label="Rechercher étudiant" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher étudiant…" className={inputClass + " min-w-[180px]"} />
           {(mentionFilter || statutFilter || moyenneMin || searchQuery) && (
             <button onClick={() => { setMentionFilter(""); setStatutFilter(""); setMoyenneMin(""); setSearchQuery(""); }} className="flex items-center gap-1 px-3 py-2 text-xs text-muted-foreground hover:text-foreground border border-border rounded-xl">
               <X size={12} /> Effacer

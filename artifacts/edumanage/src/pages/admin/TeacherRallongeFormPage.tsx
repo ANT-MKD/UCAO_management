@@ -161,12 +161,12 @@ export default function TeacherRallongeFormPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="teacher-rallonge-form-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="teacher-rallonge-form-champ-1"
               type="search"
               value={query}
               onChange={(e) => {
@@ -236,10 +236,10 @@ export default function TeacherRallongeFormPage() {
           ) : (
             <div className="bg-card border border-border border-t-0 rounded-b-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
               <div className="relative">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="teacher-rallonge-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Cours <span className="text-red-500">*</span>
                 </label>
-                <input
+                <input id="teacher-rallonge-form-champ-2"
                   type="search"
                   value={courseQuery}
                   onChange={(e) => {
@@ -284,10 +284,10 @@ export default function TeacherRallongeFormPage() {
                         <p className="font-semibold text-lg">{vhActuel} h</p>
                       </div>
                       <div>
-                        <label className="block text-xs text-muted-foreground mb-1">
+                        <label htmlFor="teacher-rallonge-form-champ-3" className="block text-xs text-muted-foreground mb-1">
                           Heures supplémentaires <span className="text-red-500">*</span>
                         </label>
-                        <input
+                        <input id="teacher-rallonge-form-champ-3"
                           type="number"
                           min={0.5}
                           step={0.5}
@@ -307,10 +307,10 @@ export default function TeacherRallongeFormPage() {
                   </section>
 
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    <label htmlFor="teacher-rallonge-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
                       Motif <span className="text-red-500">*</span>
                     </label>
-                    <textarea
+                    <textarea id="teacher-rallonge-form-champ-4"
                       value={motif}
                       onChange={(e) => setMotif(e.target.value)}
                       rows={3}

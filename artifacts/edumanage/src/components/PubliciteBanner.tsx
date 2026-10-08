@@ -49,10 +49,10 @@ export function PubliciteBanner({ profil }: { profil: UserRole }) {
       <div className="flex items-center gap-1 flex-shrink-0">
         {visibles.length > 1 && (
           <>
-            <button onClick={() => setIndex((i) => (i - 1 + visibles.length) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-precedent">
+            <button aria-label="Précédent" title="Précédent" onClick={() => setIndex((i) => (i - 1 + visibles.length) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-precedent">
               <ChevronLeft size={14} />
             </button>
-            <button onClick={() => setIndex((i) => (i + 1) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-suivant">
+            <button aria-label="Suivant" title="Suivant" onClick={() => setIndex((i) => (i + 1) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-suivant">
               <ChevronRight size={14} />
             </button>
           </>

@@ -125,12 +125,12 @@ export default function TeacherAbsenceFormPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="teacher-absence-form-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="teacher-absence-form-champ-1"
               type="search"
               value={query}
               onChange={(e) => {
@@ -172,10 +172,10 @@ export default function TeacherAbsenceFormPage() {
         <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="teacher-absence-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Date <span className="text-red-500">*</span>
               </label>
-              <input
+              <input id="teacher-absence-form-champ-2"
                 type="date"
                 value={date}
                 onChange={(e) => {
@@ -187,10 +187,10 @@ export default function TeacherAbsenceFormPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="teacher-absence-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Séance concernée <span className="text-red-500">*</span>
               </label>
-              <select value={seanceId} onChange={(e) => setSeanceId(e.target.value)} className={inputClass} required>
+              <select id="teacher-absence-form-champ-3" value={seanceId} onChange={(e) => setSeanceId(e.target.value)} className={inputClass} required>
                 <option value="">— Sélectionner —</option>
                 {matchingSeances.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -236,10 +236,10 @@ export default function TeacherAbsenceFormPage() {
 
           {type === "retard" && (
             <div className="max-w-[220px]">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="teacher-absence-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Durée du retard (minutes) <span className="text-red-500">*</span>
               </label>
-              <input
+              <input id="teacher-absence-form-champ-4"
                 type="number"
                 min={1}
                 step={5}
@@ -252,10 +252,10 @@ export default function TeacherAbsenceFormPage() {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="teacher-absence-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Motif <span className="text-red-500">*</span>
             </label>
-            <textarea
+            <textarea id="teacher-absence-form-champ-5"
               value={motif}
               onChange={(e) => setMotif(e.target.value)}
               rows={3}

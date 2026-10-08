@@ -166,7 +166,7 @@ export default function EnvoiIdentifiantPage() {
       />
 
       <div className="flex items-center gap-3 mb-4">
-        <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value as typeof roleFilter); setSelected(new Set()); }} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background w-auto min-w-[180px] focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="envoi-filtre-role">
+        <select aria-label="Tous les portails" value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value as typeof roleFilter); setSelected(new Set()); }} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background w-auto min-w-[180px] focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="envoi-filtre-role">
           <option value="">Tous les portails</option>
           <option value="admin">{PORTAL_LABELS.admin}</option>
           <option value="teacher">{PORTAL_LABELS.teacher}</option>

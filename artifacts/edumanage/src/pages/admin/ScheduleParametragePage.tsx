@@ -168,23 +168,23 @@ function JoursFeriesSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier le jour férié" : "Nouveau jour férié"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="schedule-parametrage-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} placeholder="Ex : Fête de l'indépendance" className={inputClass} data-testid="jour-ferie-intitule" />
+            <input id="schedule-parametrage-champ-1" value={intitule} onChange={(e) => setIntitule(e.target.value)} placeholder="Ex : Fête de l'indépendance" className={inputClass} data-testid="jour-ferie-intitule" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="schedule-parametrage-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Date début <span className="text-red-500">*</span>
               </label>
-              <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} data-testid="jour-ferie-date-debut" />
+              <input id="schedule-parametrage-champ-2" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} data-testid="jour-ferie-date-debut" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="schedule-parametrage-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Date fin <span className="text-red-500">*</span>
               </label>
-              <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} data-testid="jour-ferie-date-fin" />
+              <input id="schedule-parametrage-champ-3" type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} data-testid="jour-ferie-date-fin" />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -322,25 +322,25 @@ function TypeSeanceSection() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="schedule-parametrage-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Code <span className="text-red-500">*</span>
               </label>
-              <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} data-testid="type-seance-code" />
+              <input id="schedule-parametrage-champ-4" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} data-testid="type-seance-code" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Couleur</label>
-              <input type="color" value={couleur} onChange={(e) => setCouleur(e.target.value)} className={`${inputClass} h-[42px] p-1`} data-testid="type-seance-couleur" />
+              <label htmlFor="schedule-parametrage-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Couleur</label>
+              <input id="schedule-parametrage-champ-5" type="color" value={couleur} onChange={(e) => setCouleur(e.target.value)} className={`${inputClass} h-[42px] p-1`} data-testid="type-seance-couleur" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="schedule-parametrage-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} data-testid="type-seance-intitule" />
+            <input id="schedule-parametrage-champ-6" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} data-testid="type-seance-intitule" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
-            <select value={categorie} onChange={(e) => setCategorie(e.target.value as TypeSeanceRecord["categorie"])} className={inputClass} data-testid="type-seance-categorie">
+            <label htmlFor="schedule-parametrage-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
+            <select id="schedule-parametrage-champ-7" value={categorie} onChange={(e) => setCategorie(e.target.value as TypeSeanceRecord["categorie"])} className={inputClass} data-testid="type-seance-categorie">
               <option value="emploi_du_temps">Emploi du temps</option>
               <option value="evenement">Évènement</option>
             </select>

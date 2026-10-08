@@ -186,7 +186,7 @@ export default function TeacherMessagesPage() {
             </div>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher une conversation"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher une conversation..."
@@ -312,7 +312,7 @@ export default function TeacherMessagesPage() {
               </div>
 
               <div className="p-3 border-t border-border flex items-end gap-2 flex-shrink-0">
-                <textarea
+                <textarea aria-label="Écrire un message"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
@@ -326,7 +326,7 @@ export default function TeacherMessagesPage() {
                   className="flex-1 px-3.5 py-2.5 text-sm border border-border rounded-xl bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
                   data-testid="messagerie-saisie"
                 />
-                <button
+                <button aria-label="Envoyer" title="Envoyer"
                   type="button"
                   onClick={handleReply}
                   disabled={!draft.trim()}
@@ -380,8 +380,8 @@ export default function TeacherMessagesPage() {
       <FormModal open={showNewMessage} onClose={() => setShowNewMessage(false)} title="Nouveau message" subtitle="Contactez l'administration ou un étudiant de vos classes">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataire <span className="text-red-500">*</span></label>
-            <select
+            <label htmlFor="teacher-messages-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataire <span className="text-red-500">*</span></label>
+            <select id="teacher-messages-champ-1"
               value={newContactId}
               onChange={(e) => setNewContactId(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -405,8 +405,8 @@ export default function TeacherMessagesPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>
-            <input
+            <label htmlFor="teacher-messages-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>
+            <input id="teacher-messages-champ-2"
               value={newSubject}
               onChange={(e) => setNewSubject(e.target.value)}
               placeholder="Objet de votre message"
@@ -415,8 +415,8 @@ export default function TeacherMessagesPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Message <span className="text-red-500">*</span></label>
-            <textarea
+            <label htmlFor="teacher-messages-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Message <span className="text-red-500">*</span></label>
+            <textarea id="teacher-messages-champ-3"
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
               placeholder="Votre message..."

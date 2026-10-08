@@ -142,7 +142,7 @@ export default function DeliberationAnnuellePage() {
       render: (row) => {
         const d = row as unknown as DeliberationAnnuelleRecord;
         return (
-          <button onClick={() => open(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors">
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={() => open(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors">
             <Eye size={14} />
           </button>
         );
@@ -172,7 +172,7 @@ export default function DeliberationAnnuellePage() {
       {mode === "liste" && (
         <>
           <div className="mb-4 max-w-sm">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, utilisateur..." className={inputClass} />
+            <input aria-label="Classe, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, utilisateur..." className={inputClass} />
           </div>
           <DataTable columns={columns} data={filtered as unknown as Record<string, unknown>[]} emptyMessage="Aucune délibération annuelle — lancez-en une nouvelle." />
         </>
@@ -276,31 +276,31 @@ function NouvelleDeliberationAnnuelleForm({ annees, classes, niveaux, etudiants,
     <div className="max-w-3xl bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
       <h3 className="text-sm font-bold text-foreground">Délibération annuelle</h3>
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-        <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); }} className={inputClass}>
+        <label htmlFor="deliberation-annuelle-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+        <select id="deliberation-annuelle-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); }} className={inputClass}>
           <option value="">Sélectionner</option>
           {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
         </select>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-          <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")}>
+          <label htmlFor="deliberation-annuelle-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+          <select id="deliberation-annuelle-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")}>
             <option value="">Sélectionner</option>
             {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-          <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")}>
+          <label htmlFor="deliberation-annuelle-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+          <select id="deliberation-annuelle-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")}>
             <option value="">Sélectionner</option>
             {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
           </select>
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-        <select value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")}>
+        <label htmlFor="deliberation-annuelle-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+        <select id="deliberation-annuelle-champ-4" value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")}>
           <option value="">Sélectionner</option>
           {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
         </select>
@@ -449,7 +449,7 @@ function DetailDeliberationAnnuelle({
             <Scale size={16} className="text-primary" />
             <h3 className="text-sm font-bold text-foreground">Bilan annuel des étudiants</h3>
           </div>
-          <select value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background">
+          <select aria-label="Statut" value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background">
             <option value="">Statut</option>
             <option value="admis">Admis</option>
             <option value="admis_avec_dette">Admis avec dette</option>
@@ -551,7 +551,7 @@ function DrillDownEtudiantAnnuel({ deliberationId, etudiantId, onClose }: { deli
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h3 className="text-base font-bold text-foreground">Bilan annuel — {ligne?.etudiant ?? ""}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6 space-y-4">
           {!ligne ? (

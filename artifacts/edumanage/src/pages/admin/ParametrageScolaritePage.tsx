@@ -305,8 +305,8 @@ export default function ParametrageScolaritePage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
+            <input id="parametrage-scolarite-champ-1"
               type="number" min={0} value={form.noteBareme}
               onChange={(e) => setForm((f) => ({ ...f, noteBareme: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-config-bareme"
@@ -321,16 +321,16 @@ export default function ParametrageScolaritePage() {
             Cumul des crédits entre semestres
           </label>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
+            <input id="parametrage-scolarite-champ-2"
               type="number" min={0} step={0.5} value={form.moyennePassage}
               onChange={(e) => setForm((f) => ({ ...f, moyennePassage: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-config-moyenne-passage"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
+            <input id="parametrage-scolarite-champ-3"
               type="number" min={0} step={0.5} value={form.moyenneEliminatoire}
               onChange={(e) => setForm((f) => ({ ...f, moyenneEliminatoire: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-config-moyenne-eliminatoire"
@@ -369,8 +369,8 @@ export default function ParametrageScolaritePage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
+            <input id="parametrage-scolarite-champ-4"
               type="number" min={0} value={defautForm.noteBareme}
               onChange={(e) => setDefautForm((f) => ({ ...f, noteBareme: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-defaut-bareme"
@@ -385,16 +385,16 @@ export default function ParametrageScolaritePage() {
             Cumul des crédits entre semestres
           </label>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
+            <input id="parametrage-scolarite-champ-5"
               type="number" min={0} step={0.5} value={defautForm.moyennePassage}
               onChange={(e) => setDefautForm((f) => ({ ...f, moyennePassage: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-defaut-moyenne-passage"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
+            <input id="parametrage-scolarite-champ-6"
               type="number" min={0} step={0.5} value={defautForm.moyenneEliminatoire}
               onChange={(e) => setDefautForm((f) => ({ ...f, moyenneEliminatoire: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-defaut-moyenne-eliminatoire"

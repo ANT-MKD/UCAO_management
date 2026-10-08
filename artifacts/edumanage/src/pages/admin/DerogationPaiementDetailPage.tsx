@@ -119,7 +119,7 @@ export default function DerogationPaiementDetailPage({ id }: { id: string }) {
             <p className="text-xs text-muted-foreground mb-3">
               L&apos;étudiant redeviendra soumis aux règles normales pour cette portée. Action irréversible.
             </p>
-            <textarea
+            <textarea aria-label="Motif de révocation (obligatoire)"
               value={motifRevocation}
               onChange={(e) => setMotifRevocation(e.target.value)}
               rows={2}

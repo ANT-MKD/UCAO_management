@@ -384,8 +384,8 @@ export default function ReinscriptionPage() {
           </h3>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-            <select {...form3.register("filiereId", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+            <select id="reinscription-champ-1" {...form3.register("filiereId", { required: true })} className={inputClass}>
               <option value="">— Choisir —</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                 <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>
@@ -394,8 +394,8 @@ export default function ReinscriptionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-            <select {...form3.register("niveauId", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+            <select id="reinscription-champ-2" {...form3.register("niveauId", { required: true })} className={inputClass}>
               <option value="">— Choisir —</option>
               {niveauxFiliere.map((n) => (
                 <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>
@@ -404,8 +404,8 @@ export default function ReinscriptionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-            <select {...form3.register("classeId", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+            <select id="reinscription-champ-3" {...form3.register("classeId", { required: true })} className={inputClass}>
               <option value="">— Choisir —</option>
               {classesDispo.map((c) => (
                 <option key={c.id} value={c.id}>{c.nom} ({c.inscrits}/{c.max})</option>
@@ -414,8 +414,8 @@ export default function ReinscriptionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut inscription</label>
-            <select {...form3.register("statut", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut inscription</label>
+            <select id="reinscription-champ-4" {...form3.register("statut", { required: true })} className={inputClass}>
               {STATUTS_INSCRIPTION.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
@@ -444,8 +444,8 @@ export default function ReinscriptionPage() {
           </p>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mode scolarité</label>
-            <select {...form4.register("modeScolarite")} className={inputClass}>
+            <label htmlFor="reinscription-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Mode scolarité</label>
+            <select id="reinscription-champ-5" {...form4.register("modeScolarite")} className={inputClass}>
               {MODES_SCOLARITE.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
@@ -459,22 +459,22 @@ export default function ReinscriptionPage() {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé</label>
-            <input type="number" {...form4.register("montant", { valueAsNumber: true })} className={inputClass} />
+            <label htmlFor="reinscription-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé</label>
+            <input id="reinscription-champ-6" type="number" {...form4.register("montant", { valueAsNumber: true })} className={inputClass} />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen</label>
-              <select {...form4.register("moyenPaiement")} className={inputClass}>
+              <label htmlFor="reinscription-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen</label>
+              <select id="reinscription-champ-7" {...form4.register("moyenPaiement")} className={inputClass}>
                 {modesPaiement.map((m) => (
                   <option key={m.id} value={m.intitule}>{m.intitule}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-              <select {...form4.register("statutPaiement")} className={inputClass}>
+              <label htmlFor="reinscription-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+              <select id="reinscription-champ-8" {...form4.register("statutPaiement")} className={inputClass}>
                 {STATUTS_PAIEMENT.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}

@@ -206,24 +206,24 @@ export default function ScheduleFormPage() {
             </h3>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Élément constitutif (EC) *</label>
-                <select {...form.register("ecId", { required: true })} className={cn(inputClass, seanceEditee && "bg-muted/50 cursor-not-allowed")} disabled={!!seanceEditee}>
+                <label htmlFor="schedule-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Élément constitutif (EC) *</label>
+                <select id="schedule-form-champ-1" {...form.register("ecId", { required: true })} className={cn(inputClass, seanceEditee && "bg-muted/50 cursor-not-allowed")} disabled={!!seanceEditee}>
                   {ECS.map((e) => (
                     <option key={e.id} value={e.id}>{e.code} — {e.libelle}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-                <select {...form.register("classeId", { required: true })} className={cn(inputClass, seanceEditee && "bg-muted/50 cursor-not-allowed")} disabled={!!seanceEditee}>
+                <label htmlFor="schedule-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+                <select id="schedule-form-champ-2" {...form.register("classeId", { required: true })} className={cn(inputClass, seanceEditee && "bg-muted/50 cursor-not-allowed")} disabled={!!seanceEditee}>
                   {CLASSES.map((c) => (
                     <option key={c.id} value={c.id}>{c.nom} ({c.inscrits}/{c.max})</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de séance *</label>
-                <select {...form.register("type")} className={inputClass}>
+                <label htmlFor="schedule-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de séance *</label>
+                <select id="schedule-form-champ-3" {...form.register("type")} className={inputClass}>
                   {TYPES_SEANCE.map((t) => <option key={t.id} value={t.code}>{t.code} — {t.intitule}</option>)}
                 </select>
               </div>
@@ -236,24 +236,24 @@ export default function ScheduleFormPage() {
             </h3>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date (semaine du {formatShortDate(mondayOf(values.date || prochainLundi()))}) *</label>
-                <input type="date" {...form.register("date", { required: true })} className={inputClass} />
+                <label htmlFor="schedule-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Date (semaine du {formatShortDate(mondayOf(values.date || prochainLundi()))}) *</label>
+                <input id="schedule-form-champ-4" type="date" {...form.register("date", { required: true })} className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Salle *</label>
-                <select {...form.register("salleId", { required: true })} className={inputClass}>
+                <label htmlFor="schedule-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Salle *</label>
+                <select id="schedule-form-champ-5" {...form.register("salleId", { required: true })} className={inputClass}>
                   {SALLES.map((s) => (
                     <option key={s.id} value={s.id}>{s.nom} — {s.batiment} ({s.capacite} pl.)</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heure début *</label>
-                <input type="time" {...form.register("heureDebut", { required: true })} className={inputClass} />
+                <label htmlFor="schedule-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Heure début *</label>
+                <input id="schedule-form-champ-6" type="time" {...form.register("heureDebut", { required: true })} className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heure fin *</label>
-                <input type="time" {...form.register("heureFin", { required: true })} className={inputClass} />
+                <label htmlFor="schedule-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Heure fin *</label>
+                <input id="schedule-form-champ-7" type="time" {...form.register("heureFin", { required: true })} className={inputClass} />
               </div>
             </div>
           </section>
@@ -264,16 +264,16 @@ export default function ScheduleFormPage() {
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant responsable *</label>
-                <select {...form.register("prof", { required: true })} className={inputClass}>
+                <label htmlFor="schedule-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant responsable *</label>
+                <select id="schedule-form-champ-8" {...form.register("prof", { required: true })} className={inputClass}>
                   {ENSEIGNANTS.map((e) => (
                     <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Notes internes (optionnel)</label>
-                <textarea {...form.register("notes")} rows={3} placeholder="Ex: Séance de rattrapage, examen blanc…" className={inputClass} />
+                <label htmlFor="schedule-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Notes internes (optionnel)</label>
+                <textarea id="schedule-form-champ-9" {...form.register("notes")} rows={3} placeholder="Ex: Séance de rattrapage, examen blanc…" className={inputClass} />
               </div>
             </div>
           </section>
@@ -291,7 +291,7 @@ export default function ScheduleFormPage() {
             <section className="bg-card border border-red-200 dark:border-red-900 rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
               <h3 className="font-bold text-red-600 mb-1 flex items-center gap-2"><Ban size={18} /> Annuler ce cours</h3>
               <p className="text-xs text-muted-foreground mb-3">La séance est retirée de l&apos;emploi du temps ; les étudiants de {seanceEditee.classe} et l&apos;enseignant reçoivent une notification avec le motif.</p>
-              <input
+              <input aria-label="Motif communiqué (ex : enseignant en mission, salle indisponible)"
                 value={motifAnnulation}
                 onChange={(e) => setMotifAnnulation(e.target.value)}
                 placeholder="Motif communiqué (ex : enseignant en mission, salle indisponible)"

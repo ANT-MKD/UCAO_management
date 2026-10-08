@@ -132,8 +132,8 @@ export default function VacationFormPage({ id }: Props) {
           <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant *</label>
-                <select {...register("enseignantId", { required: "Enseignant requis" })} className={inputClass}>
+                <label htmlFor="vacation-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant *</label>
+                <select id="vacation-form-champ-1" {...register("enseignantId", { required: "Enseignant requis" })} className={inputClass}>
                   <option value="">Sélectionner un enseignant</option>
                   {enseignants.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite} ({e.grade})</option>)}
                 </select>
@@ -152,8 +152,8 @@ export default function VacationFormPage({ id }: Props) {
                 </div>
               )}
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mois de la vacation *</label>
-                <select {...register("mois", { required: "Mois requis" })} className={inputClass}>
+                <label htmlFor="vacation-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Mois de la vacation *</label>
+                <select id="vacation-form-champ-2" {...register("mois", { required: "Mois requis" })} className={inputClass}>
                   <option value="">Sélectionner le mois</option>
                   {moisHorsListe && <option value={moisHorsListe}>{moisHorsListe}</option>}
                   {moisParAnnee.map((g) => (
@@ -173,31 +173,31 @@ export default function VacationFormPage({ id }: Props) {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de CM</label>
-                <input {...register("heuresCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
+                <label htmlFor="vacation-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de CM</label>
+                <input id="vacation-form-champ-3" {...register("heuresCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
                 {errors.heuresCm && <p className="text-xs text-red-500 mt-1">{errors.heuresCm.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de TD / TP</label>
-                <input {...register("heuresTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
+                <label htmlFor="vacation-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de TD / TP</label>
+                <input id="vacation-form-champ-4" {...register("heuresTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
                 {errors.heuresTd && <p className="text-xs text-red-500 mt-1">{errors.heuresTd.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
-                <input {...register("tauxHoraire", { required: "Taux requis", valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                <label htmlFor="vacation-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
+                <input id="vacation-form-champ-5" {...register("tauxHoraire", { required: "Taux requis", valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
                 {errors.tauxHoraire && <p className="text-xs text-red-500 mt-1">{errors.tauxHoraire.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-                <select {...register("statut")} className={inputClass}>
+                <label htmlFor="vacation-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+                <select id="vacation-form-champ-6" {...register("statut")} className={inputClass}>
                   <option value="brouillon">Brouillon</option>
                   <option value="valide">Validé</option>
                   <option value="paye">Payé</option>
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Observations</label>
-                <textarea {...register("observations")} rows={2} placeholder="Remarques éventuelles..." className={`${inputClass} resize-none`} />
+                <label htmlFor="vacation-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Observations</label>
+                <textarea id="vacation-form-champ-7" {...register("observations")} rows={2} placeholder="Remarques éventuelles..." className={`${inputClass} resize-none`} />
               </div>
             </div>
           </div>

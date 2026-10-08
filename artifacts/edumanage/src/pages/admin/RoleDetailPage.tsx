@@ -178,12 +178,12 @@ export default function RoleDetailPage({ id }: { id: string }) {
       <FormModal open={editOpen} onClose={() => setEditOpen(false)} title="Éditer le rôle" size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code du rôle *</label>
-            <input value={editForm.code} onChange={(e) => setEditForm((f) => ({ ...f, code: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-code" />
+            <label htmlFor="role-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Code du rôle *</label>
+            <input id="role-detail-champ-1" value={editForm.code} onChange={(e) => setEditForm((f) => ({ ...f, code: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-code" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
-            <textarea value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-description" />
+            <label htmlFor="role-detail-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
+            <textarea id="role-detail-champ-2" value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-description" />
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}

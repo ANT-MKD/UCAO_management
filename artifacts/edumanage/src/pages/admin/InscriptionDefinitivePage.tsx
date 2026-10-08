@@ -128,31 +128,31 @@ export default function InscriptionDefinitivePage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="inscription-definitive-filiere">
+          <label htmlFor="inscription-definitive-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+          <select id="inscription-definitive-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="inscription-definitive-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
-            <select value={annee} onChange={(e) => { setAnnee(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="inscription-definitive-annee">
+            <label htmlFor="inscription-definitive-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
+            <select id="inscription-definitive-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="inscription-definitive-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSelectedIds(new Set()); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="inscription-definitive-niveau">
+            <label htmlFor="inscription-definitive-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="inscription-definitive-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSelectedIds(new Set()); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="inscription-definitive-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité *</label>
-          <input value={specialite} onChange={(e) => setSpecialite(e.target.value)} placeholder="Obligatoire pour la confirmation définitive" className={inputClass} data-testid="inscription-definitive-specialite" />
+          <label htmlFor="inscription-definitive-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité *</label>
+          <input id="inscription-definitive-champ-4" value={specialite} onChange={(e) => setSpecialite(e.target.value)} placeholder="Obligatoire pour la confirmation définitive" className={inputClass} data-testid="inscription-definitive-specialite" />
         </div>
       </div>
 

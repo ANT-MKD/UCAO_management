@@ -96,7 +96,7 @@ export default function AvoirDepotFormPage() {
             <>
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Nom, prénom ou matricule"
                   autoFocus
                   type="search"
                   placeholder="Nom, prénom ou matricule..."
@@ -130,30 +130,30 @@ export default function AvoirDepotFormPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="avoir-depot-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Montant à créditer (FCFA) <span className="text-red-500">*</span>
             </label>
-            <input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={cn(inputClass, "font-mono")} data-testid="depot-avoir-montant" />
+            <input id="avoir-depot-form-champ-1" type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={cn(inputClass, "font-mono")} data-testid="depot-avoir-montant" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+            <label htmlFor="avoir-depot-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
+            <input id="avoir-depot-form-champ-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="avoir-depot-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Motif <span className="text-red-500">*</span>
           </label>
-          <textarea value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={inputClass} placeholder="ex. trop-perçu conservé en avoir, cours annulé, etc." data-testid="depot-avoir-motif" />
+          <textarea id="avoir-depot-form-champ-3" value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={inputClass} placeholder="ex. trop-perçu conservé en avoir, cours annulé, etc." data-testid="depot-avoir-motif" />
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="avoir-depot-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Choisir un mode de règlement <span className="text-red-500">*</span>
             </label>
-            <select value={moyenOrigine} onChange={(e) => setMoyenOrigine(e.target.value)} className={inputClass} data-testid="depot-avoir-origine">
+            <select id="avoir-depot-form-champ-4" value={moyenOrigine} onChange={(e) => setMoyenOrigine(e.target.value)} className={inputClass} data-testid="depot-avoir-origine">
               <option value="">Sélectionner…</option>
               {originesDisponibles.map((m) => (
                 <option key={m.id} value={m.intitule}>{m.intitule}</option>
@@ -161,8 +161,8 @@ export default function AvoirDepotFormPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
-            <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
+            <label htmlFor="avoir-depot-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
+            <input id="avoir-depot-form-champ-5" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
           </div>
         </div>
 

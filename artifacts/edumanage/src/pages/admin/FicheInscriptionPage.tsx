@@ -135,23 +135,23 @@ export default function FicheInscriptionPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="fiche-inscription-filiere">
+          <label htmlFor="fiche-inscription-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+          <select id="fiche-inscription-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="fiche-inscription-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
-            <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="fiche-inscription-annee">
+            <label htmlFor="fiche-inscription-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire *</label>
+            <select id="fiche-inscription-champ-2" value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="fiche-inscription-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => setNiveauId(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="fiche-inscription-niveau">
+            <label htmlFor="fiche-inscription-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="fiche-inscription-champ-3" value={niveauId} onChange={(e) => setNiveauId(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="fiche-inscription-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
@@ -159,12 +159,12 @@ export default function FicheInscriptionPage() {
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
-            <input value={specialite} onChange={(e) => setSpecialite(e.target.value)} placeholder="Optionnel" className={inputClass} data-testid="fiche-inscription-specialite" />
+            <label htmlFor="fiche-inscription-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
+            <input id="fiche-inscription-champ-4" value={specialite} onChange={(e) => setSpecialite(e.target.value)} placeholder="Optionnel" className={inputClass} data-testid="fiche-inscription-specialite" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
-            <select value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="fiche-inscription-modele-frais">
+            <label htmlFor="fiche-inscription-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
+            <select id="fiche-inscription-champ-5" value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="fiche-inscription-modele-frais">
               <option value="">Sélectionner</option>
               {modelesFrais.map((m) => <option key={m.id} value={m.id}>{m.code} — {m.intitule}</option>)}
             </select>
@@ -183,7 +183,7 @@ export default function FicheInscriptionPage() {
           </h3>
           <div className="relative w-72 max-w-full">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <input aria-label="Rechercher un étudiant"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Rechercher un étudiant..."

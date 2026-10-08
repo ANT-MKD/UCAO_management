@@ -153,37 +153,37 @@ export default function PublicitesPage() {
       <FormModal open={open} onClose={() => setOpen(false)} title="Nouvelle publicité et actualité" size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de contenu *</label>
-            <select value={form.typeContenu} onChange={(e) => setForm((f) => ({ ...f, typeContenu: e.target.value as TypeContenuPublicite, imageDataUrl: "", lienExterne: "" }))} className={inputClass} data-testid="publicite-type">
+            <label htmlFor="publicites-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de contenu *</label>
+            <select id="publicites-champ-1" value={form.typeContenu} onChange={(e) => setForm((f) => ({ ...f, typeContenu: e.target.value as TypeContenuPublicite, imageDataUrl: "", lienExterne: "" }))} className={inputClass} data-testid="publicite-type">
               {(Object.keys(TYPE_CONTENU_LABELS) as TypeContenuPublicite[]).map((t) => <option key={t} value={t}>{TYPE_CONTENU_LABELS[t]}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Profil cible *</label>
-            <select value={form.profilCible} onChange={(e) => setForm((f) => ({ ...f, profilCible: e.target.value as ProfilCiblePublicite }))} className={inputClass} data-testid="publicite-profil">
+            <label htmlFor="publicites-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Profil cible *</label>
+            <select id="publicites-champ-2" value={form.profilCible} onChange={(e) => setForm((f) => ({ ...f, profilCible: e.target.value as ProfilCiblePublicite }))} className={inputClass} data-testid="publicite-profil">
               {(Object.keys(PROFIL_CIBLE_LABELS) as ProfilCiblePublicite[]).map((p) => <option key={p} value={p}>{PROFIL_CIBLE_LABELS[p]}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Titre *</label>
-            <input value={form.titre} onChange={(e) => setForm((f) => ({ ...f, titre: e.target.value }))} className={inputClass} data-testid="publicite-titre" />
+            <label htmlFor="publicites-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Titre *</label>
+            <input id="publicites-champ-3" value={form.titre} onChange={(e) => setForm((f) => ({ ...f, titre: e.target.value }))} className={inputClass} data-testid="publicite-titre" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={inputClass + " min-h-[80px]"} data-testid="publicite-description" />
+            <label htmlFor="publicites-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
+            <textarea id="publicites-champ-4" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={inputClass + " min-h-[80px]"} data-testid="publicite-description" />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Ordre *</label>
-              <input type="number" min={1} value={form.ordre} onChange={(e) => setForm((f) => ({ ...f, ordre: Number(e.target.value) }))} className={inputClass} data-testid="publicite-ordre" />
+              <label htmlFor="publicites-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Ordre *</label>
+              <input id="publicites-champ-5" type="number" min={1} value={form.ordre} onChange={(e) => setForm((f) => ({ ...f, ordre: Number(e.target.value) }))} className={inputClass} data-testid="publicite-ordre" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date début *</label>
-              <input type="date" value={form.dateDebut} onChange={(e) => setForm((f) => ({ ...f, dateDebut: e.target.value }))} className={inputClass} data-testid="publicite-date-debut" />
+              <label htmlFor="publicites-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Date début *</label>
+              <input id="publicites-champ-6" type="date" value={form.dateDebut} onChange={(e) => setForm((f) => ({ ...f, dateDebut: e.target.value }))} className={inputClass} data-testid="publicite-date-debut" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date fin *</label>
-              <input type="date" value={form.dateFin} onChange={(e) => setForm((f) => ({ ...f, dateFin: e.target.value }))} className={inputClass} data-testid="publicite-date-fin" />
+              <label htmlFor="publicites-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Date fin *</label>
+              <input id="publicites-champ-7" type="date" value={form.dateFin} onChange={(e) => setForm((f) => ({ ...f, dateFin: e.target.value }))} className={inputClass} data-testid="publicite-date-fin" />
             </div>
           </div>
           {estImage ? (
@@ -201,10 +201,10 @@ export default function PublicitesPage() {
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lien externe *</label>
+              <label htmlFor="publicites-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Lien externe *</label>
               <div className="relative">
                 <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input id="publicites-champ-8"
                   value={form.lienExterne}
                   onChange={(e) => setForm((f) => ({ ...f, lienExterne: e.target.value }))}
                   placeholder={LIEN_PLACEHOLDER[form.typeContenu]}

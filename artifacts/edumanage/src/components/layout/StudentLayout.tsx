@@ -318,6 +318,8 @@ export function StudentLayout({ children }: StudentLayoutProps) {
               type="button"
               onClick={handleOpenNotif}
               className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              aria-label="Notifications"
+              title="Notifications"
               data-testid="student-topbar-notifications"
             >
               <Bell size={18} />

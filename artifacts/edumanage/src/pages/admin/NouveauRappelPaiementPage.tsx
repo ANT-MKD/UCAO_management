@@ -119,30 +119,30 @@ export default function NouveauRappelPaiementPage() {
       {step === 1 && (
         <div className="bg-card border border-border rounded-xl p-6 max-w-2xl space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-            <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="rappel-filiere">
+            <label htmlFor="nouveau-rappel-paiement-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+            <select id="nouveau-rappel-paiement-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="rappel-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
             </select>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-              <select value={niveauId} onChange={(e) => setNiveauId(e.target.value)} className={inputClass} disabled={!filiereId} data-testid="rappel-niveau">
+              <label htmlFor="nouveau-rappel-paiement-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+              <select id="nouveau-rappel-paiement-champ-2" value={niveauId} onChange={(e) => setNiveauId(e.target.value)} className={inputClass} disabled={!filiereId} data-testid="rappel-niveau">
                 <option value="">Tous les niveaux</option>
                 {filteredNiveaux.map((n) => <option key={n.id} value={n.id}>{n.nom}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année Académique *</label>
-              <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="rappel-annee">
+              <label htmlFor="nouveau-rappel-paiement-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Année Académique *</label>
+              <select id="nouveau-rappel-paiement-champ-3" value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="rappel-annee">
                 {anneeOptions.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Frais échus avant *</label>
-            <input type="date" value={fraisEchusAvant} onChange={(e) => setFraisEchusAvant(e.target.value)} className={inputClass} data-testid="rappel-frais-echus-avant" />
+            <label htmlFor="nouveau-rappel-paiement-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Frais échus avant *</label>
+            <input id="nouveau-rappel-paiement-champ-4" type="date" value={fraisEchusAvant} onChange={(e) => setFraisEchusAvant(e.target.value)} className={inputClass} data-testid="rappel-frais-echus-avant" />
           </div>
           <div className="flex gap-3 pt-4 border-t border-border">
             <button onClick={handleSuivant} className="px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="rappel-suivant">
@@ -207,8 +207,8 @@ export default function NouveauRappelPaiementPage() {
             )}
 
             <div className="max-w-sm">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nouvelle échéance (optionnel)</label>
-              <input type="date" value={nouvelleEcheance} onChange={(e) => setNouvelleEcheance(e.target.value)} className={inputClass} data-testid="rappel-nouvelle-echeance" />
+              <label htmlFor="nouveau-rappel-paiement-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Nouvelle échéance (optionnel)</label>
+              <input id="nouveau-rappel-paiement-champ-5" type="date" value={nouvelleEcheance} onChange={(e) => setNouvelleEcheance(e.target.value)} className={inputClass} data-testid="rappel-nouvelle-echeance" />
               <p className="text-[10px] text-muted-foreground mt-1">Si renseignée, s'applique à toutes les quittances ci-dessus en plus de l'envoi du rappel.</p>
             </div>
           </div>

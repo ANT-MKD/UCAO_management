@@ -241,23 +241,23 @@ export default function RattrapagePage() {
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <h3 className="font-semibold text-foreground text-sm">Cours à rattraper</h3>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="rattrapage-filiere">
+            <label htmlFor="rattrapage-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+            <select id="rattrapage-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="rattrapage-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-annee">
+              <label htmlFor="rattrapage-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+              <select id="rattrapage-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-annee">
                 <option value="">Sélectionner</option>
                 {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-niveau">
+              <label htmlFor="rattrapage-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+              <select id="rattrapage-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-niveau">
                 <option value="">Sélectionner</option>
                 {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
               </select>
@@ -265,23 +265,23 @@ export default function RattrapagePage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-              <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-classe">
+              <label htmlFor="rattrapage-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+              <select id="rattrapage-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-classe">
                 <option value="">Sélectionner</option>
                 {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-              <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-semestre">
+              <label htmlFor="rattrapage-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+              <select id="rattrapage-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-semestre">
                 <option value="">Sélectionner</option>
                 {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-            <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-cours">
+            <label htmlFor="rattrapage-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
+            <select id="rattrapage-champ-6" value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-cours">
               <option value="">Sélectionner</option>
               {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
             </select>
@@ -320,12 +320,12 @@ export default function RattrapagePage() {
                 <span className="font-mono text-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{evaluationRattrapage.code}</span>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
-                <input type="date" value={evaluationRattrapage.dateCreation} onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })} className={inputClass} data-testid="rattrapage-date-effective" />
+                <label htmlFor="rattrapage-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
+                <input id="rattrapage-champ-7" type="date" value={evaluationRattrapage.dateCreation} onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })} className={inputClass} data-testid="rattrapage-date-effective" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-                <textarea value={evaluationRattrapage.description ?? ""} onChange={(e) => handleUpdateDetails({ description: e.target.value })} rows={3} className={inputClass} data-testid="rattrapage-description" />
+                <label htmlFor="rattrapage-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
+                <textarea id="rattrapage-champ-8" value={evaluationRattrapage.description ?? ""} onChange={(e) => handleUpdateDetails({ description: e.target.value })} rows={3} className={inputClass} data-testid="rattrapage-description" />
               </div>
               <div className="flex items-center justify-between text-sm pt-2 border-t border-border">
                 <span className="text-muted-foreground">Noté sur</span>
@@ -397,7 +397,7 @@ export default function RattrapagePage() {
                 <p className="text-xs text-muted-foreground">{ajournes.length} étudiant(s) dont l&apos;UE {ueDuCours ? `« ${ueDuCours.libelle} »` : ""} n&apos;est pas acquise</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
+                <input aria-label="Rechercher un étudiant" value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
                 {saved && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
                     <CheckCircle size={14} /> Enregistré

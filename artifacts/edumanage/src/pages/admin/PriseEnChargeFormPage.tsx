@@ -209,16 +209,16 @@ export default function PriseEnChargeFormPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="prise-en-charge-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Date saisie <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={dateSaisie} onChange={(e) => setDateSaisie(e.target.value)} className={inputClass} />
+            <input id="prise-en-charge-form-champ-1" type="date" value={dateSaisie} onChange={(e) => setDateSaisie(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="prise-en-charge-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Organisme <span className="text-red-500">*</span>
             </label>
-            <select value={organismeId} onChange={(e) => setOrganismeId(e.target.value)} className={inputClass} data-testid="pec-organisme">
+            <select id="prise-en-charge-form-champ-2" value={organismeId} onChange={(e) => setOrganismeId(e.target.value)} className={inputClass} data-testid="pec-organisme">
               <option value="">Sélectionner…</option>
               {organismes.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -230,12 +230,12 @@ export default function PriseEnChargeFormPage() {
         </div>
 
         <div className="relative">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="prise-en-charge-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Étudiant <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="prise-en-charge-form-champ-3"
               type="search"
               value={searchQuery}
               onChange={(e) => {
@@ -269,23 +269,23 @@ export default function PriseEnChargeFormPage() {
 
         {selectedStudent && (
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-            <input readOnly value={`${selectedStudent.filiere} — ${selectedStudent.classe} (${selectedStudent.annee})`} className={cn(inputClass, "bg-muted/40 text-muted-foreground")} />
+            <label htmlFor="prise-en-charge-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+            <input id="prise-en-charge-form-champ-4" readOnly value={`${selectedStudent.filiere} — ${selectedStudent.classe} (${selectedStudent.annee})`} className={cn(inputClass, "bg-muted/40 text-muted-foreground")} />
           </div>
         )}
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="prise-en-charge-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Début <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={debut} onChange={(e) => setDebut(e.target.value)} className={inputClass} />
+            <input id="prise-en-charge-form-champ-5" type="date" value={debut} onChange={(e) => setDebut(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="prise-en-charge-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Fin <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={fin} onChange={(e) => setFin(e.target.value)} className={inputClass} />
+            <input id="prise-en-charge-form-champ-6" type="date" value={fin} onChange={(e) => setFin(e.target.value)} className={inputClass} />
           </div>
         </div>
 
@@ -301,10 +301,10 @@ export default function PriseEnChargeFormPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="prise-en-charge-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Date limite P.E.C <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className={inputClass} />
+            <input id="prise-en-charge-form-champ-7" type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className={inputClass} />
           </div>
         </div>
 
@@ -318,8 +318,8 @@ export default function PriseEnChargeFormPage() {
             </label>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence externe</label>
-            <input value={referenceExterne} onChange={(e) => setReferenceExterne(e.target.value)} placeholder="Référence du dossier chez l'organisme" className={cn(inputClass, "font-mono")} />
+            <label htmlFor="prise-en-charge-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence externe</label>
+            <input id="prise-en-charge-form-champ-8" value={referenceExterne} onChange={(e) => setReferenceExterne(e.target.value)} placeholder="Référence du dossier chez l'organisme" className={cn(inputClass, "font-mono")} />
           </div>
         </div>
 
@@ -357,7 +357,7 @@ export default function PriseEnChargeFormPage() {
               {fraisImpayes.length > 3 && (
                 <div className="relative mb-2">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                  <input aria-label="Filtrer les frais (ex. scolarité)"
                     value={filtreFrais}
                     onChange={(e) => setFiltreFrais(e.target.value)}
                     placeholder="Filtrer les frais (ex. scolarité)…"

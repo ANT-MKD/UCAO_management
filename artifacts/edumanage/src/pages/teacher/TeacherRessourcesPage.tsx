@@ -196,7 +196,7 @@ export default function TeacherRessourcesPage() {
               <h3 className="font-bold text-sm text-foreground leading-tight truncate">{r.titre}</h3>
               <p className="text-[11px] text-muted-foreground truncate">{r.classe}{r.ec && ` — ${r.ec}`}</p>
             </div>
-            <button
+            <button aria-label="Supprimer" title="Supprimer"
               type="button"
               onClick={() => handleDelete(r.id)}
               className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0"
@@ -239,15 +239,15 @@ export default function TeacherRessourcesPage() {
         <span className="text-[11px] text-muted-foreground flex-shrink-0 hidden sm:block">{formatDate(r.ajouteLe.slice(0, 10))}</span>
         <span className="text-[11px] text-muted-foreground flex-shrink-0 w-16 text-right hidden sm:block">{r.url ? "Lien" : formatTailleRessource(r.tailleOctets || 0)}</span>
         {r.url ? (
-          <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-ouvrir-${r.id}`}>
+          <a aria-label="Ouvrir" title="Ouvrir" href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-ouvrir-${r.id}`}>
             <ExternalLink size={14} />
           </a>
         ) : (
-          <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-telecharger-${r.id}`}>
+          <a aria-label="Télécharger" title="Télécharger" href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-telecharger-${r.id}`}>
             <Download size={14} />
           </a>
         )}
-        <button type="button" onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`teacher-ressource-supprimer-${r.id}`}>
+        <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`teacher-ressource-supprimer-${r.id}`}>
           <Trash2 size={14} />
         </button>
       </div>
@@ -322,7 +322,7 @@ export default function TeacherRessourcesPage() {
                 <div className="flex flex-wrap gap-3">
                   <div className="relative flex-1 min-w-[200px]">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
+                    <input aria-label="Rechercher une ressource, un cours"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Rechercher une ressource, un cours…"
@@ -415,8 +415,8 @@ export default function TeacherRessourcesPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Classe <span className="text-red-500">*</span></label>
-            <select
+            <label htmlFor="teacher-ressources-champ-1" className={labelClass}>Classe <span className="text-red-500">*</span></label>
+            <select id="teacher-ressources-champ-1"
               value={formClasseId}
               onChange={(e) => { setFormClasseId(e.target.value); setFormEcId(""); }}
               className={inputClass}
@@ -429,8 +429,8 @@ export default function TeacherRessourcesPage() {
             </select>
           </div>
           <div>
-            <label className={labelClass}>Module (EC) — optionnel</label>
-            <select
+            <label htmlFor="teacher-ressources-champ-2" className={labelClass}>Module (EC) — optionnel</label>
+            <select id="teacher-ressources-champ-2"
               value={formEcId}
               onChange={(e) => setFormEcId(e.target.value)}
               disabled={!formClasseId}
@@ -444,8 +444,8 @@ export default function TeacherRessourcesPage() {
             </select>
           </div>
           <div>
-            <label className={labelClass}>Titre <span className="text-red-500">*</span></label>
-            <input
+            <label htmlFor="teacher-ressources-champ-3" className={labelClass}>Titre <span className="text-red-500">*</span></label>
+            <input id="teacher-ressources-champ-3"
               value={formTitre}
               onChange={(e) => setFormTitre(e.target.value)}
               placeholder="ex: Polycopié Chapitre 3"
@@ -454,8 +454,8 @@ export default function TeacherRessourcesPage() {
             />
           </div>
           <div>
-            <label className={labelClass}>Description</label>
-            <input
+            <label htmlFor="teacher-ressources-champ-4" className={labelClass}>Description</label>
+            <input id="teacher-ressources-champ-4"
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               placeholder="Optionnel"
@@ -487,8 +487,8 @@ export default function TeacherRessourcesPage() {
             </div>
           ) : (
             <div>
-              <label className={labelClass}>URL <span className="text-red-500">*</span></label>
-              <input
+              <label htmlFor="teacher-ressources-champ-5" className={labelClass}>URL <span className="text-red-500">*</span></label>
+              <input id="teacher-ressources-champ-5"
                 value={formUrl}
                 onChange={(e) => setFormUrl(e.target.value)}
                 placeholder="https://…"

@@ -133,7 +133,7 @@ export default function DecomptePaiementFormPage() {
             <>
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Matricule, prénom, nom ou téléphone"
                   autoFocus
                   type="search"
                   placeholder="Matricule, prénom, nom ou téléphone…"
@@ -204,27 +204,27 @@ export default function DecomptePaiementFormPage() {
           <>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="decompte-paiement-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Montant à régler (FCFA) <span className="text-red-500">*</span>
                 </label>
-                <input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={cn(inputClass, "font-mono")} data-testid="decompte-paiement-montant" />
+                <input id="decompte-paiement-form-champ-1" type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={cn(inputClass, "font-mono")} data-testid="decompte-paiement-montant" />
                 <p className={cn("text-[11px] mt-1", montantDepasse ? "text-red-600 font-medium" : "text-muted-foreground")}>
                   Reste à payer : {formatCFA(resteAPayer)}
                   {montantDepasse && " — dépasse le reste à payer"}
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+                <label htmlFor="decompte-paiement-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
+                <input id="decompte-paiement-form-champ-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="decompte-paiement-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Choisir un mode de règlement <span className="text-red-500">*</span>
                 </label>
-                <select value={moyen} onChange={(e) => setMoyen(e.target.value)} className={inputClass} data-testid="decompte-paiement-mode">
+                <select id="decompte-paiement-form-champ-3" value={moyen} onChange={(e) => setMoyen(e.target.value)} className={inputClass} data-testid="decompte-paiement-mode">
                   <option value="">Sélectionner…</option>
                   {modesDisponibles.map((m) => (
                     <option key={m.id} value={m.intitule}>{m.intitule}</option>
@@ -232,8 +232,8 @@ export default function DecomptePaiementFormPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
-                <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
+                <label htmlFor="decompte-paiement-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
+                <input id="decompte-paiement-form-champ-4" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
               </div>
             </div>
           </>

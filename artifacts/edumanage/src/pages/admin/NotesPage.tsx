@@ -308,23 +308,23 @@ export default function NotesPage() {
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <h3 className="font-semibold text-foreground text-sm">Évaluation</h3>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="saisie-filiere">
+            <label htmlFor="notes-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+            <select id="notes-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="saisie-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-annee">
+              <label htmlFor="notes-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+              <select id="notes-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-annee">
                 <option value="">Sélectionner</option>
                 {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-niveau">
+              <label htmlFor="notes-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+              <select id="notes-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-niveau">
                 <option value="">Sélectionner</option>
                 {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
               </select>
@@ -332,30 +332,30 @@ export default function NotesPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-              <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-classe">
+              <label htmlFor="notes-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+              <select id="notes-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-classe">
                 <option value="">Sélectionner</option>
                 {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-              <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-semestre">
+              <label htmlFor="notes-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+              <select id="notes-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-semestre">
                 <option value="">Sélectionner</option>
                 {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-            <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-cours">
+            <label htmlFor="notes-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
+            <select id="notes-champ-6" value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-cours">
               <option value="">Sélectionner</option>
               {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
-            <select value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-professeur">
+            <label htmlFor="notes-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
+            <select id="notes-champ-7" value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-professeur">
               <option value="">Sélectionner</option>
               {professeurOptions.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
@@ -364,8 +364,8 @@ export default function NotesPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Évaluation *</label>
-            <select value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!professeurId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-evaluation">
+            <label htmlFor="notes-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Évaluation *</label>
+            <select id="notes-champ-8" value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!professeurId} className={cn(inputClass, "disabled:opacity-50")} data-testid="saisie-evaluation">
               <option value="">Sélectionner</option>
               {evaluationsDuProf.map((ev) => {
                 const typeLabel = ev.typeEvaluationId ? typesEvaluation.find((t) => t.id === ev.typeEvaluationId)?.intitule : undefined;
@@ -399,8 +399,8 @@ export default function NotesPage() {
                 <span className="font-mono text-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{evaluationChoisie.code}</span>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
-                <input
+                <label htmlFor="notes-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
+                <input id="notes-champ-9"
                   type="date"
                   value={evaluationChoisie.dateCreation}
                   onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })}
@@ -409,8 +409,8 @@ export default function NotesPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-                <textarea
+                <label htmlFor="notes-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
+                <textarea id="notes-champ-10"
                   value={evaluationChoisie.description ?? ""}
                   onChange={(e) => handleUpdateDetails({ description: e.target.value })}
                   rows={3}
@@ -478,8 +478,8 @@ export default function NotesPage() {
                 <p className="text-xs text-muted-foreground">{classeStudents.length} étudiants dans la liste</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
-                <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <input aria-label="Rechercher un étudiant" value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
+                <select aria-label="Tous statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="">Tous statuts</option>
                   <option value="brouillon_prof">Brouillon</option>
                   <option value="publie">Publié</option>

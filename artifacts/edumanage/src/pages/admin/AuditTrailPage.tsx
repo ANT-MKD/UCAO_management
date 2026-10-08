@@ -243,7 +243,6 @@ export default function AuditTrailPage() {
         return (
           <div>
             <span className="font-medium text-foreground">{r.actionLabel}</span>
-            <div className="text-[10px] text-muted-foreground font-mono">{r.actionRaw}</div>
           </div>
         );
       },
@@ -316,19 +315,19 @@ export default function AuditTrailPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <select value={targetTypeFilter} onChange={(e) => setTargetTypeFilter(e.target.value)} className={selectClass} data-testid="audit-filtre-type">
+        <select aria-label="Tous les types de cible" value={targetTypeFilter} onChange={(e) => setTargetTypeFilter(e.target.value)} className={selectClass} data-testid="audit-filtre-type">
           <option value="">Tous les types de cible</option>
           {targetTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <select value={actorFilter} onChange={(e) => setActorFilter(e.target.value)} className={selectClass} data-testid="audit-filtre-acteur">
+        <select aria-label="Tous les acteurs" value={actorFilter} onChange={(e) => setActorFilter(e.target.value)} className={selectClass} data-testid="audit-filtre-acteur">
           <option value="">Tous les acteurs</option>
           {actorOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <span>Du</span>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={selectClass} data-testid="audit-filtre-date-debut" />
+          <input type="date" aria-label="Date de début" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={selectClass} data-testid="audit-filtre-date-debut" />
           <span>au</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={selectClass} data-testid="audit-filtre-date-fin" />
+          <input type="date" aria-label="Date de fin" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={selectClass} data-testid="audit-filtre-date-fin" />
         </div>
       </div>
 

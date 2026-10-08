@@ -89,7 +89,7 @@ export default function FilieresPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button
+          <button aria-label="Modifier" title="Modifier"
             onClick={(e) => { e.stopPropagation(); setLocation(`/admin/filieres/${r.id}/edit`); }}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
             data-testid={`btn-edit-${r.id}`}

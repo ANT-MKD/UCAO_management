@@ -148,59 +148,59 @@ export default function NouvelleAssiduitePage() {
       <div className="bg-card border border-border rounded-xl p-5 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="assiduite-filiere">
+            <label htmlFor="nouvelle-assiduite-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+            <select id="nouvelle-assiduite-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="assiduite-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-            <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-annee">
+            <label htmlFor="nouvelle-assiduite-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+            <select id="nouvelle-assiduite-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-niveau">
+            <label htmlFor="nouvelle-assiduite-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="nouvelle-assiduite-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-            <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-classe">
+            <label htmlFor="nouvelle-assiduite-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+            <select id="nouvelle-assiduite-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-            <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-semestre">
+            <label htmlFor="nouvelle-assiduite-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+            <select id="nouvelle-assiduite-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-semestre">
               <option value="">Sélectionner</option>
               {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-            <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-cours">
+            <label htmlFor="nouvelle-assiduite-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
+            <select id="nouvelle-assiduite-champ-6" value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-cours">
               <option value="">Sélectionner</option>
               {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
             </select>
           </div>
           {seancesDisponibles.length > 1 && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Séance *</label>
-              <select value={seanceId} onChange={(e) => { setSeanceId(e.target.value); setEdits({}); setModeSecours(false); }} className={inputClass} data-testid="assiduite-seance">
+              <label htmlFor="nouvelle-assiduite-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Séance *</label>
+              <select id="nouvelle-assiduite-champ-7" value={seanceId} onChange={(e) => { setSeanceId(e.target.value); setEdits({}); setModeSecours(false); }} className={inputClass} data-testid="assiduite-seance">
                 <option value="">Sélectionner</option>
                 {seancesDisponibles.map((s) => <option key={s.id} value={s.id}>{["", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"][s.jour]} {s.heureDebut}–{s.heureFin} ({s.salle})</option>)}
               </select>
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date *</label>
-            <input type="date" value={date} onChange={(e) => handleDateChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-date" />
+            <label htmlFor="nouvelle-assiduite-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Date *</label>
+            <input id="nouvelle-assiduite-champ-8" type="date" value={date} onChange={(e) => handleDateChange(e.target.value)} disabled={!ecId} className={cn(inputClass, "disabled:opacity-50")} data-testid="assiduite-date" />
           </div>
         </div>
       </div>
@@ -252,7 +252,7 @@ export default function NouvelleAssiduitePage() {
                           />
                         </td>
                         <td className="px-4 py-2.5">
-                          <input
+                          <input aria-label="Ex. certificat médical remis le"
                             value={edits[p.etudiantId] ? edit.justificatif : (p.justification ?? "")}
                             onChange={(e) => setEdits((prev) => ({ ...prev, [p.etudiantId]: { justifie: prev[p.etudiantId]?.justifie ?? !!p.justification, justificatif: e.target.value } }))}
                             placeholder="Ex. certificat médical remis le..."

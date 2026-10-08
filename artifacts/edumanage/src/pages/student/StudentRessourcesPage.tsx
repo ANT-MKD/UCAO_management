@@ -134,11 +134,11 @@ export default function StudentRessourcesPage() {
         <span className="text-[11px] text-muted-foreground flex-shrink-0 hidden sm:block">{formatDate(r.ajouteLe.slice(0, 10))}</span>
         <span className="text-[11px] text-muted-foreground flex-shrink-0 w-14 text-right hidden sm:block">{r.url ? "Lien" : formatTailleRessource(r.tailleOctets || 0)}</span>
         {r.url ? (
-          <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-ouvrir-${r.id}`}>
+          <a aria-label="Ouvrir" title="Ouvrir" href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-ouvrir-${r.id}`}>
             <ExternalLink size={14} />
           </a>
         ) : (
-          <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-telecharger-${r.id}`}>
+          <a aria-label="Télécharger" title="Télécharger" href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-telecharger-${r.id}`}>
             <Download size={14} />
           </a>
         )}
@@ -211,7 +211,7 @@ export default function StudentRessourcesPage() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-[200px]">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher un document, un cours"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Rechercher un document, un cours…"

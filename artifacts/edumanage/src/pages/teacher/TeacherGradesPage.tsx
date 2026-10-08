@@ -240,15 +240,15 @@ export default function TeacherGradesPage() {
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <h3 className="font-semibold text-foreground text-sm">Évaluation</h3>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mon cours *</label>
-            <select value={courseId} onChange={(e) => handleCourseChange(e.target.value)} className={inputClass} data-testid="notes-cours">
+            <label htmlFor="teacher-grades-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Mon cours *</label>
+            <select id="teacher-grades-champ-1" value={courseId} onChange={(e) => handleCourseChange(e.target.value)} className={inputClass} data-testid="notes-cours">
               <option value="">Sélectionner</option>
               {mesCours.map((c) => <option key={c.id} value={c.id}>{c.coursLabel} — {c.detailsLabel}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type d&apos;évaluation *</label>
-            <select value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!course} className={cn(inputClass, "disabled:opacity-50")} data-testid="notes-evaluation">
+            <label htmlFor="teacher-grades-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Type d&apos;évaluation *</label>
+            <select id="teacher-grades-champ-2" value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!course} className={cn(inputClass, "disabled:opacity-50")} data-testid="notes-evaluation">
               <option value="">Sélectionner</option>
               {evaluationsDuCours.map((ev) => {
                 const typeLabel = ev.typeEvaluationId ? typesEvaluation.find((t) => t.id === ev.typeEvaluationId)?.intitule : undefined;
@@ -338,8 +338,8 @@ export default function TeacherGradesPage() {
                   <p className="text-xs text-muted-foreground">{classeStudents.length} étudiants dans la liste</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44" />
-                  <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <input aria-label="Rechercher un étudiant" value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44" />
+                  <select aria-label="Tous les statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Tous les statuts</option>
                     <option value="brouillon_prof">Brouillon</option>
                     <option value="soumis_admin">Soumis</option>

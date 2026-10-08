@@ -97,10 +97,10 @@ export default function DataResetPage() {
           </AvisAccesComplet>
         ) : (
         <div className="bg-card border border-border rounded-xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="data-reset-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Tapez <span className="font-mono font-bold text-foreground">{PHRASE_CONFIRMATION}</span> pour confirmer
           </label>
-          <input
+          <input id="data-reset-champ-1"
             value={phrase}
             onChange={(e) => setPhrase(e.target.value)}
             placeholder={PHRASE_CONFIRMATION}

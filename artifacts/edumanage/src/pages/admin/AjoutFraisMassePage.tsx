@@ -132,37 +132,37 @@ export default function AjoutFraisMassePage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-          <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="masse-ajout-filiere">
+          <label htmlFor="ajout-frais-masse-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+          <select id="ajout-frais-masse-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="masse-ajout-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
           </select>
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-            <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="masse-ajout-annee">
+            <label htmlFor="ajout-frais-masse-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+            <select id="ajout-frais-masse-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="masse-ajout-annee">
               {anneeOptions.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} className={inputClass} disabled={!filiereId} data-testid="masse-ajout-niveau">
+            <label htmlFor="ajout-frais-masse-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="ajout-frais-masse-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} className={inputClass} disabled={!filiereId} data-testid="masse-ajout-niveau">
               <option value="">Sélectionner</option>
               {filteredNiveaux.map((n) => <option key={n.id} value={n.id}>{n.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-            <select value={classeId} onChange={(e) => { setClasseId(e.target.value); setEtudiantId(""); }} className={inputClass} disabled={!niveauId} data-testid="masse-ajout-classe">
+            <label htmlFor="ajout-frais-masse-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+            <select id="ajout-frais-masse-champ-4" value={classeId} onChange={(e) => { setClasseId(e.target.value); setEtudiantId(""); }} className={inputClass} disabled={!niveauId} data-testid="masse-ajout-classe">
               <option value="">Toutes les classes</option>
               {filteredClasses.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
-          <select value={etudiantId} onChange={(e) => setEtudiantId(e.target.value)} className={inputClass} disabled={cohorte.length === 0} data-testid="masse-ajout-etudiant">
+          <label htmlFor="ajout-frais-masse-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
+          <select id="ajout-frais-masse-champ-5" value={etudiantId} onChange={(e) => setEtudiantId(e.target.value)} className={inputClass} disabled={cohorte.length === 0} data-testid="masse-ajout-etudiant">
             <option value="">Tous les étudiants de cette sélection ({cohorte.length})</option>
             {cohorte.map((e) => <option key={e.id} value={e.id}>{e.matricule} - {e.prenom} {e.nom}</option>)}
           </select>

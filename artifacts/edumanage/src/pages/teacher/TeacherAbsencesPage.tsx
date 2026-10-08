@@ -130,7 +130,7 @@ export default function TeacherAbsencesPage() {
               <div className="flex flex-wrap gap-3">
                 <div className="relative flex-1 min-w-[200px]">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                  <input aria-label="Rechercher un cours, un motif"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Rechercher un cours, un motif…"
@@ -138,7 +138,7 @@ export default function TeacherAbsencesPage() {
                     data-testid="teacher-absences-recherche"
                   />
                 </div>
-                <select
+                <select aria-label="Tous les types"
                   value={typeFiltre}
                   onChange={(e) => setTypeFiltre(e.target.value)}
                   className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -173,7 +173,7 @@ export default function TeacherAbsencesPage() {
 
               {filtresAvancesOuverts && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-border">
-                  <select
+                  <select aria-label="Tous les cours"
                     value={ecFiltre}
                     onChange={(e) => setEcFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -185,7 +185,7 @@ export default function TeacherAbsencesPage() {
                       return <option key={id} value={id}>{ec ? `${ec.code} — ${ec.libelle}` : id}</option>;
                     })}
                   </select>
-                  <select
+                  <select aria-label="Toutes les classes"
                     value={classeFiltre}
                     onChange={(e) => setClasseFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -198,6 +198,7 @@ export default function TeacherAbsencesPage() {
                     })}
                   </select>
                   <select
+                    aria-label="Filtrer par justification"
                     value={justifieFiltre}
                     onChange={(e) => setJustifieFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -207,7 +208,7 @@ export default function TeacherAbsencesPage() {
                     <option value="oui">Justifiées uniquement</option>
                     <option value="non">En attente uniquement</option>
                   </select>
-                  <select
+                  <select aria-label="Toutes les périodes"
                     value={periodeFiltre}
                     onChange={(e) => setPeriodeFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -218,8 +219,8 @@ export default function TeacherAbsencesPage() {
                     <option value="annee">Cette année académique</option>
                   </select>
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">Du</label>
-                    <input
+                    <label htmlFor="teacher-absences-champ-1" className="block text-[11px] text-muted-foreground mb-1">Du</label>
+                    <input id="teacher-absences-champ-1"
                       type="date"
                       value={dateDebut}
                       onChange={(e) => setDateDebut(e.target.value)}
@@ -228,8 +229,8 @@ export default function TeacherAbsencesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">Au</label>
-                    <input
+                    <label htmlFor="teacher-absences-champ-2" className="block text-[11px] text-muted-foreground mb-1">Au</label>
+                    <input id="teacher-absences-champ-2"
                       type="date"
                       value={dateFin}
                       onChange={(e) => setDateFin(e.target.value)}

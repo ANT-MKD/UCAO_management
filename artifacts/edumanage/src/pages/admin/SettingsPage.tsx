@@ -160,38 +160,38 @@ export default function SettingsPage() {
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom de l'établissement *</label>
-                    <input value={etabForm.nom} onChange={(e) => { setEtabForm((f) => ({ ...f, nom: e.target.value })); }} placeholder="ex : Université Catholique de l'Afrique de l'Ouest" className={inputClass} data-testid="etab-nom" />
+                    <label htmlFor="settings-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom de l'établissement *</label>
+                    <input id="settings-champ-1" value={etabForm.nom} onChange={(e) => { setEtabForm((f) => ({ ...f, nom: e.target.value })); }} placeholder="ex : Université Catholique de l'Afrique de l'Ouest" className={inputClass} data-testid="etab-nom" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-                    <input value={etabForm.adresse} onChange={(e) => { setEtabForm((f) => ({ ...f, adresse: e.target.value })); }} placeholder="Dakar, Sénégal" className={inputClass} data-testid="etab-adresse" />
+                    <label htmlFor="settings-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+                    <input id="settings-champ-2" value={etabForm.adresse} onChange={(e) => { setEtabForm((f) => ({ ...f, adresse: e.target.value })); }} placeholder="Dakar, Sénégal" className={inputClass} data-testid="etab-adresse" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-                    <input value={etabForm.telephone} onChange={(e) => { setEtabForm((f) => ({ ...f, telephone: e.target.value })); }} placeholder="+221 33 XXX XX XX" className={inputClass} data-testid="etab-telephone" />
+                    <label htmlFor="settings-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+                    <input id="settings-champ-3" value={etabForm.telephone} onChange={(e) => { setEtabForm((f) => ({ ...f, telephone: e.target.value })); }} placeholder="+221 33 XXX XX XX" className={inputClass} data-testid="etab-telephone" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email officiel</label>
-                    <input value={etabForm.email} onChange={(e) => { setEtabForm((f) => ({ ...f, email: e.target.value })); }} placeholder="contact@etablissement.sn" className={inputClass} data-testid="etab-email" />
+                    <label htmlFor="settings-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Email officiel</label>
+                    <input id="settings-champ-4" value={etabForm.email} onChange={(e) => { setEtabForm((f) => ({ ...f, email: e.target.value })); }} placeholder="contact@etablissement.sn" className={inputClass} data-testid="etab-email" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Site web</label>
-                    <input value={etabForm.siteWeb} onChange={(e) => { setEtabForm((f) => ({ ...f, siteWeb: e.target.value })); }} placeholder="https://www.etablissement.sn" className={inputClass} data-testid="etab-siteweb" />
+                    <label htmlFor="settings-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Site web</label>
+                    <input id="settings-champ-5" value={etabForm.siteWeb} onChange={(e) => { setEtabForm((f) => ({ ...f, siteWeb: e.target.value })); }} placeholder="https://www.etablissement.sn" className={inputClass} data-testid="etab-siteweb" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° d'agrément</label>
-                    <input value={etabForm.agrement} onChange={(e) => { setEtabForm((f) => ({ ...f, agrement: e.target.value })); }} placeholder="Agrément Ministère de l'Enseignement Supérieur n°..." className={inputClass} data-testid="etab-agrement" />
+                    <label htmlFor="settings-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">N° d'agrément</label>
+                    <input id="settings-champ-6" value={etabForm.agrement} onChange={(e) => { setEtabForm((f) => ({ ...f, agrement: e.target.value })); }} placeholder="Agrément Ministère de l'Enseignement Supérieur n°..." className={inputClass} data-testid="etab-agrement" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Logo de l'établissement</label>
+                    <label htmlFor="settings-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Logo de l'établissement</label>
                     <div className="flex items-center gap-4">
                       {etabForm.logoDataUrl && <img src={etabForm.logoDataUrl} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-border" data-testid="etab-logo-apercu" />}
                       <label className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary transition-colors cursor-pointer flex-1">
                         <ImageIcon size={24} className="mx-auto text-muted-foreground mb-1.5" />
                         <p className="text-sm text-muted-foreground">Glisser le logo ici ou <span className="text-primary font-medium">parcourir</span></p>
                         <p className="text-xs text-muted-foreground mt-1">PNG, JPG (max {Math.round(TAILLE_MAX_IMAGE_OCTETS / 1024)} Ko)</p>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) readImageAsDataUrl(f, (url) => { setEtabForm((prev) => ({ ...prev, logoDataUrl: url })); }); }} data-testid="etab-logo-input" />
+                        <input id="settings-champ-7" type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) readImageAsDataUrl(f, (url) => { setEtabForm((prev) => ({ ...prev, logoDataUrl: url })); }); }} data-testid="etab-logo-input" />
                       </label>
                     </div>
                   </div>
@@ -226,8 +226,8 @@ export default function SettingsPage() {
                           <div className="text-[11px] text-muted-foreground font-mono">{m.code} · {m.actionsInterdites.length} action(s) interdite(s)</div>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openMotifEdit(m)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" data-testid={`motif-editer-${m.id}`}><Pencil size={14} /></button>
-                          <button onClick={() => handleDeleteMotif(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600" data-testid={`motif-supprimer-${m.id}`}><Trash2 size={14} /></button>
+                          <button aria-label="Modifier" title="Modifier" onClick={() => openMotifEdit(m)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" data-testid={`motif-editer-${m.id}`}><Pencil size={14} /></button>
+                          <button aria-label="Supprimer" title="Supprimer" onClick={() => handleDeleteMotif(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600" data-testid={`motif-supprimer-${m.id}`}><Trash2 size={14} /></button>
                         </div>
                       </div>
                     ))}
@@ -258,11 +258,11 @@ export default function SettingsPage() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du signataire</label>
-                            <input value={cfg.signataireNom} onChange={(e) => setSigForms((f) => ({ ...f, [docType]: { ...f[docType], signataireNom: e.target.value } }))} className={inputClass} data-testid={`signature-nom-${docType}`} />
+                            <input aria-label={`Nom du signataire`} value={cfg.signataireNom} onChange={(e) => setSigForms((f) => ({ ...f, [docType]: { ...f[docType], signataireNom: e.target.value } }))} className={inputClass} data-testid={`signature-nom-${docType}`} />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Qualité</label>
-                            <input value={cfg.signataireQualite} onChange={(e) => setSigForms((f) => ({ ...f, [docType]: { ...f[docType], signataireQualite: e.target.value } }))} placeholder="Le Directeur" className={inputClass} data-testid={`signature-qualite-${docType}`} />
+                            <input aria-label={`Qualité`} value={cfg.signataireQualite} onChange={(e) => setSigForms((f) => ({ ...f, [docType]: { ...f[docType], signataireQualite: e.target.value } }))} placeholder="Le Directeur" className={inputClass} data-testid={`signature-qualite-${docType}`} />
                           </div>
                           <div className="col-span-2 flex items-center gap-3">
                             {cfg.imageDataUrl && <img src={cfg.imageDataUrl} alt="Signature" className="h-12 border border-border rounded-lg bg-white px-2" />}
@@ -300,7 +300,7 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-muted-foreground mb-1.5">Clé API</label>
-                        <input type="password" placeholder={api.placeholder} disabled className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background font-mono" />
+                        <input aria-label={`Clé API`} type="password" placeholder={api.placeholder} disabled className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background font-mono" />
                       </div>
                     </div>
                   ))}
@@ -315,12 +315,12 @@ export default function SettingsPage() {
       <FormModal open={motifModalOpen} onClose={() => setMotifModalOpen(false)} title={motifEditId ? "Éditer le motif" : "Nouveau motif de blocage"} size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code *</label>
-            <input value={motifForm.code} onChange={(e) => setMotifForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: 0001" className={inputClass} data-testid="motif-code" />
+            <label htmlFor="settings-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Code *</label>
+            <input id="settings-champ-8" value={motifForm.code} onChange={(e) => setMotifForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: 0001" className={inputClass} data-testid="motif-code" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé *</label>
-            <input value={motifForm.intitule} onChange={(e) => setMotifForm((f) => ({ ...f, intitule: e.target.value }))} placeholder="ex: Frais mensuels impayés" className={inputClass} data-testid="motif-intitule" />
+            <label htmlFor="settings-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé *</label>
+            <input id="settings-champ-9" value={motifForm.intitule} onChange={(e) => setMotifForm((f) => ({ ...f, intitule: e.target.value }))} placeholder="ex: Frais mensuels impayés" className={inputClass} data-testid="motif-intitule" />
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Actions à interdire</label>

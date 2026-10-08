@@ -155,7 +155,7 @@ export default function RequestsPage() {
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="relative w-64">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input aria-label="Étudiant, objet"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Étudiant, objet..."
@@ -163,13 +163,13 @@ export default function RequestsPage() {
             data-testid="requete-recherche"
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[140px]")} data-testid="requete-filtre-statut">
+        <select aria-label="Tous statuts" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[140px]")} data-testid="requete-filtre-statut">
           <option value="">Tous statuts</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="requete-filtre-type">
+        <select aria-label="Tous types" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="requete-filtre-type">
           <option value="">Tous types</option>
           {Object.entries(TYPE_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
@@ -329,10 +329,10 @@ export default function RequestsPage() {
                     ) : (
                       <>
                         <div className="mb-4">
-                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                          <label htmlFor="requests-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
                             Réponse / commentaire interne
                           </label>
-                          <textarea
+                          <textarea id="requests-champ-1"
                             value={resolution}
                             onChange={(e) => setResolution(e.target.value)}
                             placeholder="Motif de validation ou de rejet..."

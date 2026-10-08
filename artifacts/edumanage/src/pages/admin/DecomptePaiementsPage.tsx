@@ -139,24 +139,24 @@ export default function DecomptePaiementsPage() {
       {advancedOpen && (
         <div className="bg-card border border-border rounded-xl p-4 mb-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
-            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de début</label>
-            <input type="date" value={dateDebut} onChange={(e) => { setDateDebut(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-date-debut" />
+            <label htmlFor="decompte-paiements-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de début</label>
+            <input id="decompte-paiements-champ-1" type="date" value={dateDebut} onChange={(e) => { setDateDebut(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-date-debut" />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de fin</label>
-            <input type="date" value={dateFin} onChange={(e) => { setDateFin(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-date-fin" />
+            <label htmlFor="decompte-paiements-champ-2" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date de fin</label>
+            <input id="decompte-paiements-champ-2" type="date" value={dateFin} onChange={(e) => { setDateFin(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-date-fin" />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant min</label>
-            <input type="number" value={montantMin} onChange={(e) => { setMontantMin(e.target.value); setPage(1); }} className={filterInputClass} placeholder="0" data-testid="filter-montant-min" />
+            <label htmlFor="decompte-paiements-champ-3" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant min</label>
+            <input id="decompte-paiements-champ-3" type="number" value={montantMin} onChange={(e) => { setMontantMin(e.target.value); setPage(1); }} className={filterInputClass} placeholder="0" data-testid="filter-montant-min" />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant max</label>
-            <input type="number" value={montantMax} onChange={(e) => { setMontantMax(e.target.value); setPage(1); }} className={filterInputClass} placeholder="Sans limite" data-testid="filter-montant-max" />
+            <label htmlFor="decompte-paiements-champ-4" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Montant max</label>
+            <input id="decompte-paiements-champ-4" type="number" value={montantMax} onChange={(e) => { setMontantMax(e.target.value); setPage(1); }} className={filterInputClass} placeholder="Sans limite" data-testid="filter-montant-max" />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Mode de règlement</label>
-            <select value={moyenFilter} onChange={(e) => { setMoyenFilter(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-moyen">
+            <label htmlFor="decompte-paiements-champ-5" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Mode de règlement</label>
+            <select id="decompte-paiements-champ-5" value={moyenFilter} onChange={(e) => { setMoyenFilter(e.target.value); setPage(1); }} className={filterInputClass} data-testid="filter-moyen">
               <option value="">Tous</option>
               {modesPaiement.map((m) => (
                 <option key={m.id} value={m.intitule}>{m.intitule}</option>
@@ -190,16 +190,16 @@ export default function DecomptePaiementsPage() {
             </tr>
             <tr className="border-b border-border bg-card">
               <th className="px-3 py-2">
-                <input value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : N° Opération" value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2" />
               <th className="px-3 py-2">
-                <input value={filters.professeur} onChange={(e) => patchFilter({ professeur: e.target.value })} className={filterInputClass} placeholder="Matricule, nom du professeur…" />
+                <input aria-label="Filtrer : Professeur" value={filters.professeur} onChange={(e) => patchFilter({ professeur: e.target.value })} className={filterInputClass} placeholder="Matricule, nom du professeur…" />
               </th>
               <th className="px-3 py-2" />
               <th className="px-3 py-2" />
               <th className="px-3 py-2">
-                <select value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass}>
+                <select aria-label="Filtrer : Statut" value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass}>
                   <option value="">Statut</option>
                   <option value="Validé">Validé</option>
                   <option value="Annulé">Annulé</option>
@@ -271,7 +271,7 @@ export default function DecomptePaiementsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Afficher</span>
-            <select
+            <select aria-label="Nombre de lignes par page"
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
               className="px-2 py-1 border border-border rounded-lg bg-background text-xs"
@@ -287,16 +287,16 @@ export default function DecomptePaiementsPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Page {currentPage} sur {totalPages}</span>
             <div className="flex gap-1">
-              <button onClick={() => setPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Première page" title="Première page" onClick={() => setPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronsLeft size={14} />
               </button>
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Précédent" title="Précédent" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronLeft size={14} />
               </button>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Suivant" title="Suivant" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronRight size={14} />
               </button>
-              <button onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Dernière page" title="Dernière page" onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronsRight size={14} />
               </button>
             </div>

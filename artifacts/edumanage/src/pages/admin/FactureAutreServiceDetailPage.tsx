@@ -241,22 +241,22 @@ export default function FactureAutreServiceDetailPage({ id }: { id: string }) {
           {showEncaisser && (
             <div className="mt-4 pt-4 border-t border-border grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA)</label>
-                <input type="number" min={0} max={resteAPayer} value={montantVerse} onChange={(e) => setMontantVerse(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background font-mono" data-testid="fas-enc-montant" />
+                <label htmlFor="facture-autre-service-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA)</label>
+                <input id="facture-autre-service-detail-champ-1" type="number" min={0} max={resteAPayer} value={montantVerse} onChange={(e) => setMontantVerse(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background font-mono" data-testid="fas-enc-montant" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mode de paiement</label>
-                <select value={selectedMoyen} onChange={(e) => setSelectedMoyen(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background" data-testid="fas-enc-moyen">
+                <label htmlFor="facture-autre-service-detail-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Mode de paiement</label>
+                <select id="facture-autre-service-detail-champ-2" value={selectedMoyen} onChange={(e) => setSelectedMoyen(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background" data-testid="fas-enc-moyen">
                   {modesPaiement.map((m) => <option key={m.id} value={m.intitule}>{m.intitule}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
-                <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background font-mono" />
+                <label htmlFor="facture-autre-service-detail-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
+                <input id="facture-autre-service-detail-champ-3" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background font-mono" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
-                <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background" />
+                <label htmlFor="facture-autre-service-detail-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
+                <input id="facture-autre-service-detail-champ-4" type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background" />
               </div>
               <div className="sm:col-span-2 flex gap-2 justify-end">
                 <button onClick={() => setShowEncaisser(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">Annuler</button>

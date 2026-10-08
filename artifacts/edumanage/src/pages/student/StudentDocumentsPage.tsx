@@ -143,7 +143,7 @@ export default function StudentDocumentsPage() {
             </div>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher un document"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher un document..."
@@ -277,7 +277,7 @@ export default function StudentDocumentsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
               <h3 className="font-bold flex items-center gap-2 text-gray-900"><FileText size={18} /> Aperçu — {preview.typeLabel}</h3>
-              <button type="button" onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
+              <button aria-label="Fermer" title="Fermer" type="button" onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
             </div>
             <iframe title="Aperçu attestation" srcDoc={buildAttestationHtml(preview)} className="flex-1 w-full" data-testid="document-preview-iframe" />
             <div className="p-4 flex gap-2 justify-end border-t flex-shrink-0">

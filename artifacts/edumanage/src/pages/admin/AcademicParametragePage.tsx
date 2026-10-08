@@ -144,16 +144,16 @@ function CycleSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier le cycle" : "Nouveau cycle"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code <span className="text-red-500">*</span></label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Code <span className="text-red-500">*</span></label>
+            <input id="academic-parametrage-champ-1" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé <span className="text-red-500">*</span></label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé <span className="text-red-500">*</span></label>
+            <input id="academic-parametrage-champ-2" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Séquence</label>
-            <input type="number" value={ordre} onChange={(e) => setOrdre(Number(e.target.value))} className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Séquence</label>
+            <input id="academic-parametrage-champ-3" type="number" value={ordre} onChange={(e) => setOrdre(Number(e.target.value))} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">Annuler</button>
@@ -239,12 +239,12 @@ function CategorieCoursSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier la catégorie" : "Nouvelle catégorie de cours"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code <span className="text-red-500">*</span></label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Code <span className="text-red-500">*</span></label>
+            <input id="academic-parametrage-champ-4" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé <span className="text-red-500">*</span></label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé <span className="text-red-500">*</span></label>
+            <input id="academic-parametrage-champ-5" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">Annuler</button>
@@ -330,12 +330,12 @@ function EntitesSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier l'entité" : "Nouvelle entité"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code <span className="text-red-500">*</span></label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Code <span className="text-red-500">*</span></label>
+            <input id="academic-parametrage-champ-6" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé <span className="text-red-500">*</span></label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} placeholder="ex : Institut Supérieur d'Administration des Entreprises de Thiès" className={inputClass} />
+            <label htmlFor="academic-parametrage-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé <span className="text-red-500">*</span></label>
+            <input id="academic-parametrage-champ-7" value={intitule} onChange={(e) => setIntitule(e.target.value)} placeholder="ex : Institut Supérieur d'Administration des Entreprises de Thiès" className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">Annuler</button>

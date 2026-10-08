@@ -68,10 +68,10 @@ export function DocumentsPanel({ entiteType, entiteId }: Props) {
                 <div className="text-sm font-medium text-foreground truncate">{d.nom}</div>
                 <div className="text-[10px] text-muted-foreground">{formatTaille(d.tailleOctets)} · {formatDate(d.ajouteLe.slice(0, 10))} · {d.ajoutePar}</div>
               </div>
-              <a href={d.dataUrl} download={d.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`document-telecharger-${d.id}`}>
+              <a aria-label="Télécharger" title="Télécharger" href={d.dataUrl} download={d.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`document-telecharger-${d.id}`}>
                 <Download size={14} />
               </a>
-              <button onClick={() => handleDelete(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`document-supprimer-${d.id}`}>
+              <button aria-label="Supprimer" title="Supprimer" onClick={() => handleDelete(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`document-supprimer-${d.id}`}>
                 <Trash2 size={14} />
               </button>
             </div>

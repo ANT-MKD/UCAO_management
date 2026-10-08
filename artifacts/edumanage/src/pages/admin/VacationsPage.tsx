@@ -92,7 +92,7 @@ export default function VacationsPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/vacations/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/vacations/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
           {r.statut === "valide" && (
             <button onClick={(e) => { e.stopPropagation(); openPaiement(r); }} className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-muted-foreground hover:text-emerald-600 transition-colors" title="Marquer payé" data-testid={`vacation-marquer-paye-${r.id}`}><Check size={14} /></button>
           )}
@@ -132,8 +132,8 @@ export default function VacationsPage() {
               {paiementCible.enseignant} — {paiementCible.mois} — <span className="font-bold text-primary">{formatCFA(paiementCible.montantTotal)}</span>
             </p>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement</label>
-              <select value={moyenChoisi} onChange={(e) => setMoyenChoisi(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="vacation-paiement-moyen">
+              <label htmlFor="vacations-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement</label>
+              <select id="vacations-champ-1" value={moyenChoisi} onChange={(e) => setMoyenChoisi(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="vacation-paiement-moyen">
                 {modesPaiement.map((m) => <option key={m.id} value={m.intitule}>{m.intitule}</option>)}
               </select>
             </div>

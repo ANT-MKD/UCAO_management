@@ -129,10 +129,10 @@ export default function ReglementMasseFormPage() {
       <div className="bg-card border border-border rounded-xl p-6 space-y-5 max-w-4xl" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="reglement-masse-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Entité <span className="text-red-500">*</span>
             </label>
-            <select
+            <select id="reglement-masse-form-champ-1"
               value={organismeId}
               onChange={(e) => {
                 setOrganismeId(e.target.value);
@@ -150,10 +150,10 @@ export default function ReglementMasseFormPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="reglement-masse-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Année référence <span className="text-red-500">*</span>
             </label>
-            <select
+            <select id="reglement-masse-form-champ-2"
               value={annee}
               onChange={(e) => {
                 setAnnee(e.target.value);
@@ -171,10 +171,10 @@ export default function ReglementMasseFormPage() {
           </div>
           <div className="flex gap-2">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="reglement-masse-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Montant global règlement <span className="text-red-500">*</span>
               </label>
-              <input
+              <input id="reglement-masse-form-champ-3"
                 type="number"
                 min={0}
                 value={montantGlobal}
@@ -240,16 +240,16 @@ export default function ReglementMasseFormPage() {
 
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="reglement-masse-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Date d&apos;encaissement <span className="text-red-500">*</span>
                 </label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+                <input id="reglement-masse-form-champ-4" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="reglement-masse-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Mode de paiement <span className="text-red-500">*</span>
                 </label>
-                <select value={modePaiement} onChange={(e) => setModePaiement(e.target.value)} className={inputClass} data-testid="regm-mode">
+                <select id="reglement-masse-form-champ-5" value={modePaiement} onChange={(e) => setModePaiement(e.target.value)} className={inputClass} data-testid="regm-mode">
                   <option value="">Sélectionner…</option>
                   {modesPaiement.map((m) => (
                     <option key={m.id} value={m.intitule}>
@@ -259,8 +259,8 @@ export default function ReglementMasseFormPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence bancaire / N° chèque</label>
-                <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
+                <label htmlFor="reglement-masse-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence bancaire / N° chèque</label>
+                <input id="reglement-masse-form-champ-6" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
               </div>
             </div>
 

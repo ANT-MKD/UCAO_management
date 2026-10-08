@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ interface FormModalProps {
 }
 
 export function FormModal({ open, onClose, title, subtitle, children, size = "md" }: FormModalProps) {
+  const titreId = useId();
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -48,11 +49,12 @@ export function FormModal({ open, onClose, title, subtitle, children, size = "md
         style={{ animation: "slideUp 0.2s ease-out" }}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titreId}
       >
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>{title}</h2>
+            <h2 id={titreId} className="text-base font-semibold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>{title}</h2>
             {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
           </div>
           <button

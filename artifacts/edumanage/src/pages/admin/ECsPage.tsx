@@ -95,7 +95,7 @@ export default function ECsPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ecs/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ecs/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -129,19 +129,19 @@ export default function ECsPage() {
         }
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <select className={selectClass} value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setSemestre(""); setUeId(""); }}>
+        <select aria-label="Toutes les filières" className={selectClass} value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setSemestre(""); setUeId(""); }}>
           <option value="">Toutes les filières</option>
           {filieres.map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
         </select>
-        <select className={selectClass} value={niveau} onChange={(e) => { setNiveau(e.target.value); setSemestre(""); setUeId(""); }}>
+        <select aria-label="Tous les niveaux" className={selectClass} value={niveau} onChange={(e) => { setNiveau(e.target.value); setSemestre(""); setUeId(""); }}>
           <option value="">Tous les niveaux</option>
           {niveaux.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <select className={selectClass} value={semestre} onChange={(e) => { setSemestre(e.target.value); setUeId(""); }}>
+        <select aria-label="Tous les semestres" className={selectClass} value={semestre} onChange={(e) => { setSemestre(e.target.value); setUeId(""); }}>
           <option value="">Tous les semestres</option>
           {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select className={selectClass} value={ueId} onChange={(e) => setUeId(e.target.value)}>
+        <select aria-label="Toutes les UE" className={selectClass} value={ueId} onChange={(e) => setUeId(e.target.value)}>
           <option value="">Toutes les UE</option>
           {filteredUes.map((u) => <option key={u.id} value={u.id}>{u.code} — {u.libelle}</option>)}
         </select>

@@ -76,18 +76,18 @@ export default function SemestreFormPage({ id }: Props) {
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-              <input {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: Semestre 1" className={inputClass} />
+              <label htmlFor="semestre-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+              <input id="semestre-form-champ-1" {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: Semestre 1" className={inputClass} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Alias *</label>
-              <input {...register("alias", { required: "Alias requis" })} placeholder="ex: S1" className={`${inputClass} uppercase font-mono`} />
+              <label htmlFor="semestre-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Alias *</label>
+              <input id="semestre-form-champ-2" {...register("alias", { required: "Alias requis" })} placeholder="ex: S1" className={`${inputClass} uppercase font-mono`} />
               {errors.alias && <p className="text-xs text-red-500 mt-1">{errors.alias.message}</p>}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select {...register("niveauId", { required: "Niveau requis" })} className={inputClass}>
+              <label htmlFor="semestre-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+              <select id="semestre-form-champ-3" {...register("niveauId", { required: "Niveau requis" })} className={inputClass}>
                 <option value="">Sélectionner un niveau</option>
                 {niveaux.map((n) => {
                   const f = FILIERES.find((f) => f.id === n.filiereId);
@@ -97,8 +97,8 @@ export default function SemestreFormPage({ id }: Props) {
               {errors.niveauId && <p className="text-xs text-red-500 mt-1">{errors.niveauId.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
-              <select {...register("statut")} className={inputClass}>
+              <label htmlFor="semestre-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
+              <select id="semestre-form-champ-4" {...register("statut")} className={inputClass}>
                 <option value="futur">À venir</option>
                 <option value="actif">Actif</option>
                 <option value="clos">Clôturé</option>

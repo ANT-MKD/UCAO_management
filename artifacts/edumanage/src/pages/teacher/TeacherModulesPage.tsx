@@ -158,24 +158,24 @@ export default function TeacherModulesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher un cours, un module"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Rechercher un cours, un module…"
                 className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
-            <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <select aria-label="Toutes les filières" value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Toutes les filières</option>
               {filieresDisponibles.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
-            <select value={niveauFilter} onChange={(e) => setNiveauFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <select aria-label="Tous les niveaux" value={niveauFilter} onChange={(e) => setNiveauFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Tous les niveaux</option>
               {niveauxDisponibles.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <div className="flex border border-border rounded-xl overflow-hidden">
-              <button type="button" onClick={() => setViewMode("grille")} className={cn("p-2.5", viewMode === "grille" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><LayoutGrid size={15} /></button>
-              <button type="button" onClick={() => setViewMode("liste")} className={cn("p-2.5", viewMode === "liste" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><List size={15} /></button>
+              <button type="button" aria-label="Affichage en grille" aria-pressed={viewMode === "grille"} onClick={() => setViewMode("grille")} className={cn("p-2.5", viewMode === "grille" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><LayoutGrid size={15} /></button>
+              <button type="button" aria-label="Affichage en liste" aria-pressed={viewMode === "liste"} onClick={() => setViewMode("liste")} className={cn("p-2.5", viewMode === "liste" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><List size={15} /></button>
             </div>
           </div>
 

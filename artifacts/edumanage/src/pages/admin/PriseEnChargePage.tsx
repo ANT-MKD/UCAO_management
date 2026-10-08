@@ -153,16 +153,16 @@ export default function PriseEnChargePage() {
             </tr>
             <tr className="border-b border-border bg-card">
               <th className="px-3 py-2">
-                <input value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Référence" value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.organisme} onChange={(e) => patchFilter({ organisme: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Organisme" value={filters.organisme} onChange={(e) => patchFilter({ organisme: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.etudiant} onChange={(e) => patchFilter({ etudiant: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Étudiant" value={filters.etudiant} onChange={(e) => patchFilter({ etudiant: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass} placeholder="Statut" />
+                <input aria-label="Filtrer : Statut" value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass} placeholder="Statut" />
               </th>
               <th className="px-3 py-2">
                 {Object.values(filters).some(Boolean) && (
@@ -233,14 +233,14 @@ export default function PriseEnChargePage() {
               Page {currentPage} / {totalPages} — {filtered.length} prise(s) en charge
             </span>
             <div className="flex gap-1">
-              <button
+              <button aria-label="Précédent" title="Précédent"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
               >
                 <ChevronLeft size={14} />
               </button>
-              <button
+              <button aria-label="Suivant" title="Suivant"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"

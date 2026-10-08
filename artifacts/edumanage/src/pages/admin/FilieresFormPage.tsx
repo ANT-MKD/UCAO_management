@@ -104,46 +104,46 @@ export default function FilieresFormPage({ id }: FilieresFormPageProps) {
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet de la filière *</label>
-              <input {...register("nom", { required: "Nom requis", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Licence en Informatique de Gestion" className={inputClass} />
+              <label htmlFor="filieres-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet de la filière *</label>
+              <input id="filieres-form-champ-1" {...register("nom", { required: "Nom requis", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Licence en Informatique de Gestion" className={inputClass} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code / Sigle *</label>
-              <input {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: LPIG" className={`${inputClass} uppercase font-mono`} />
+              <label htmlFor="filieres-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Code / Sigle *</label>
+              <input id="filieres-form-champ-2" {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: LPIG" className={`${inputClass} uppercase font-mono`} />
               {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
-              <select {...register("statut")} className={inputClass}>
+              <label htmlFor="filieres-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
+              <select id="filieres-form-champ-3" {...register("statut")} className={inputClass}>
                 <option value="actif">Actif</option>
                 <option value="inactif">Inactif</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle</label>
-              <select {...register("cycleId")} className={inputClass}>
+              <label htmlFor="filieres-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle</label>
+              <select id="filieres-form-champ-4" {...register("cycleId")} className={inputClass}>
                 <option value="">— Non défini —</option>
                 {cycles.map((c) => <option key={c.id} value={c.id}>{c.intitule}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de programme</label>
-              <select {...register("typeProgramme")} className={inputClass}>
+              <label htmlFor="filieres-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de programme</label>
+              <select id="filieres-form-champ-5" {...register("typeProgramme")} className={inputClass}>
                 <option value="semestriel">Semestriel</option>
                 <option value="annuel">Annuel</option>
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Entité de rattachement</label>
-              <select {...register("entiteId")} className={inputClass}>
+              <label htmlFor="filieres-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Entité de rattachement</label>
+              <select id="filieres-form-champ-6" {...register("entiteId")} className={inputClass}>
                 <option value="">— Non rattachée —</option>
                 {entites.map((e) => <option key={e.id} value={e.id}>{e.intitule}</option>)}
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Responsable pédagogique *</label>
-              <select {...register("responsableId", { required: "Responsable requis" })} className={inputClass}>
+              <label htmlFor="filieres-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Responsable pédagogique *</label>
+              <select id="filieres-form-champ-7" {...register("responsableId", { required: "Responsable requis" })} className={inputClass}>
                 <option value="">Sélectionner un responsable</option>
                 {ENSEIGNANTS.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite}</option>)}
               </select>
@@ -168,12 +168,12 @@ export default function FilieresFormPage({ id }: FilieresFormPageProps) {
               </div>
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité (optionnel)</label>
-              <input {...register("specialite")} placeholder="Laisser vide si aucune spécialité définie" className={inputClass} />
+              <label htmlFor="filieres-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité (optionnel)</label>
+              <input id="filieres-form-champ-8" {...register("specialite")} placeholder="Laisser vide si aucune spécialité définie" className={inputClass} />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Informations complémentaires</label>
-              <textarea {...register("informationsComplementaires")} rows={3} placeholder="Objectifs de la filière, débouchés..." className={`${inputClass} resize-none`} />
+              <label htmlFor="filieres-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Informations complémentaires</label>
+              <textarea id="filieres-form-champ-9" {...register("informationsComplementaires")} rows={3} placeholder="Objectifs de la filière, débouchés..." className={`${inputClass} resize-none`} />
             </div>
           </div>
           <div className="flex gap-3 pt-2 border-t border-border">

@@ -128,10 +128,10 @@ export default function EncaissementPECFormPage() {
       <div className="bg-card border border-border rounded-xl p-6 space-y-5 max-w-4xl" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="encaissement-p-e-c-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Organisme <span className="text-red-500">*</span>
             </label>
-            <select value={organismeId} onChange={(e) => handleOrganismeChange(e.target.value)} className={inputClass} data-testid="enc-pec-organisme">
+            <select id="encaissement-p-e-c-form-champ-1" value={organismeId} onChange={(e) => handleOrganismeChange(e.target.value)} className={inputClass} data-testid="enc-pec-organisme">
               <option value="">Sélectionner…</option>
               {organismes.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -141,19 +141,19 @@ export default function EncaissementPECFormPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="encaissement-p-e-c-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Date d&apos;encaissement <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+            <input id="encaissement-p-e-c-form-champ-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="encaissement-p-e-c-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Mode de paiement <span className="text-red-500">*</span>
             </label>
-            <select value={modePaiement} onChange={(e) => setModePaiement(e.target.value)} className={inputClass} data-testid="enc-pec-mode">
+            <select id="encaissement-p-e-c-form-champ-3" value={modePaiement} onChange={(e) => setModePaiement(e.target.value)} className={inputClass} data-testid="enc-pec-mode">
               <option value="">Sélectionner…</option>
               {modesPaiement.map((m) => (
                 <option key={m.id} value={m.intitule}>
@@ -163,16 +163,16 @@ export default function EncaissementPECFormPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence bancaire / N° chèque</label>
-            <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
+            <label htmlFor="encaissement-p-e-c-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence bancaire / N° chèque</label>
+            <input id="encaissement-p-e-c-form-champ-4" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="encaissement-p-e-c-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Montant encaissé (FCFA) <span className="text-red-500">*</span>
           </label>
-          <input type="number" min={0} value={montantTotal} onChange={(e) => setMontantTotal(e.target.value)} className={inputClass} data-testid="enc-pec-montant" />
+          <input id="encaissement-p-e-c-form-champ-5" type="number" min={0} value={montantTotal} onChange={(e) => setMontantTotal(e.target.value)} className={inputClass} data-testid="enc-pec-montant" />
         </div>
 
         <div className="border-t border-border pt-4">

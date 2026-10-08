@@ -98,8 +98,8 @@ export default function AbsencePeriodeListPage() {
 
       {showFilters && (
         <div className="bg-card border border-border rounded-xl mb-5 p-4" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
-          <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="w-full max-w-xs px-3 py-2 text-sm border border-border rounded-lg bg-background">
+          <label htmlFor="absence-periode-list-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
+          <select id="absence-periode-list-champ-1" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="w-full max-w-xs px-3 py-2 text-sm border border-border rounded-lg bg-background">
             <option value="">Tous</option>
             <option value="justifie">Justifié</option>
             <option value="non_justifie">Non justifié</option>

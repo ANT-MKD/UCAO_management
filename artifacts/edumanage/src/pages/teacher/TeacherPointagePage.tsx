@@ -169,7 +169,7 @@ export default function TeacherPointagePage() {
               <div className="flex flex-wrap gap-3">
                 <div className="relative flex-1 min-w-[200px]">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                  <input aria-label="Rechercher un cours, une classe, une salle"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Rechercher un cours, une classe, une salle…"
@@ -177,7 +177,7 @@ export default function TeacherPointagePage() {
                     data-testid="teacher-pointage-recherche"
                   />
                 </div>
-                <select
+                <select aria-label="Tous les statuts"
                   value={statutFiltre}
                   onChange={(e) => setStatutFiltre(e.target.value)}
                   className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -213,7 +213,7 @@ export default function TeacherPointagePage() {
 
               {filtresAvancesOuverts && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-border">
-                  <select
+                  <select aria-label="Tous les cours"
                     value={ecFiltre}
                     onChange={(e) => setEcFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -225,7 +225,7 @@ export default function TeacherPointagePage() {
                       return <option key={id} value={id}>{ec ? `${ec.code} — ${ec.libelle}` : id}</option>;
                     })}
                   </select>
-                  <select
+                  <select aria-label="Toutes les classes"
                     value={classeFiltre}
                     onChange={(e) => setClasseFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -237,7 +237,7 @@ export default function TeacherPointagePage() {
                       return <option key={id} value={id}>{classe?.nom ?? id}</option>;
                     })}
                   </select>
-                  <select
+                  <select aria-label="Tous les types de séance"
                     value={typeSeanceFiltre}
                     onChange={(e) => setTypeSeanceFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -248,7 +248,7 @@ export default function TeacherPointagePage() {
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
-                  <select
+                  <select aria-label="Toutes les salles"
                     value={salleFiltre}
                     onChange={(e) => setSalleFiltre(e.target.value)}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -261,8 +261,8 @@ export default function TeacherPointagePage() {
                     })}
                   </select>
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">Du</label>
-                    <input
+                    <label htmlFor="teacher-pointage-champ-1" className="block text-[11px] text-muted-foreground mb-1">Du</label>
+                    <input id="teacher-pointage-champ-1"
                       type="date"
                       value={dateDebut}
                       onChange={(e) => setDateDebut(e.target.value)}
@@ -271,8 +271,8 @@ export default function TeacherPointagePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">Au</label>
-                    <input
+                    <label htmlFor="teacher-pointage-champ-2" className="block text-[11px] text-muted-foreground mb-1">Au</label>
+                    <input id="teacher-pointage-champ-2"
                       type="date"
                       value={dateFin}
                       onChange={(e) => setDateFin(e.target.value)}

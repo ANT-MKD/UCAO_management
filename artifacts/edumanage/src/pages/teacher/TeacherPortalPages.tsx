@@ -387,11 +387,11 @@ export function TeacherSchedulePage() {
       <div className="rounded-2xl border border-border bg-card p-5 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold" style={{ fontFamily: "Outfit, sans-serif" }}>Mon emploi du temps</h2>
         <div className="flex items-center gap-1 flex-wrap">
-          <button type="button" data-testid="mon-edt-week-prev" onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
+          <button aria-label="Précédent" title="Précédent" type="button" data-testid="mon-edt-week-prev" onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
             <ChevronLeft size={16} />
           </button>
           <span className="text-sm font-medium px-2">Sem. du {weekLabel}</span>
-          <button type="button" data-testid="mon-edt-week-next" onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
+          <button aria-label="Suivant" title="Suivant" type="button" data-testid="mon-edt-week-next" onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors">
             <ChevronRight size={16} />
           </button>
           <button type="button" data-testid="mon-edt-week-today" onClick={() => setWeekOffset(0)} className="px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors">
@@ -609,7 +609,7 @@ export function TeacherRallongePage() {
             ) : (
               <>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <select
+                  <select aria-label="Sélectionner un cours"
                     className="rounded-xl border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
                     value={courseId}
                     onChange={(e) => setCourseId(e.target.value)}
@@ -622,7 +622,7 @@ export function TeacherRallongePage() {
                       </option>
                     ))}
                   </select>
-                  <select
+                  <select aria-label="Sélectionner un motif"
                     className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
                     value={motifCategorie}
                     onChange={(e) => setMotifCategorie(e.target.value)}
@@ -631,7 +631,7 @@ export function TeacherRallongePage() {
                     <option value="">Sélectionner un motif</option>
                     {RALLONGE_MOTIF_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
-                  <input
+                  <input aria-label="Nombre d'heures demandées"
                     type="number"
                     min={0.5}
                     step={0.5}
@@ -675,7 +675,7 @@ export function TeacherRallongePage() {
               <div className="flex flex-wrap gap-2">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                  <input aria-label="Rechercher un cours, un motif"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Rechercher un cours, un motif…"
@@ -683,7 +683,7 @@ export function TeacherRallongePage() {
                     data-testid="teacher-rallonge-recherche"
                   />
                 </div>
-                <select
+                <select aria-label="Tous les statuts"
                   value={statutFiltre}
                   onChange={(e) => setStatutFiltre(e.target.value as "" | RallongeStatut)}
                   className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

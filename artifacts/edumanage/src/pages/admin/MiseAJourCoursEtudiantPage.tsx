@@ -170,43 +170,43 @@ export default function MiseAJourCoursEtudiantPage() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="portefeuille-filiere">
+            <label htmlFor="mise-a-jour-cours-etudiant-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+            <select id="mise-a-jour-cours-etudiant-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="portefeuille-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-            <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-annee">
+            <label htmlFor="mise-a-jour-cours-etudiant-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+            <select id="mise-a-jour-cours-etudiant-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-niveau">
+            <label htmlFor="mise-a-jour-cours-etudiant-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="mise-a-jour-cours-etudiant-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-            <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-classe">
+            <label htmlFor="mise-a-jour-cours-etudiant-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+            <select id="mise-a-jour-cours-etudiant-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-            <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-semestre">
+            <label htmlFor="mise-a-jour-cours-etudiant-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+            <select id="mise-a-jour-cours-etudiant-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="portefeuille-semestre">
               <option value="">Sélectionner</option>
               {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
-            <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ex. équivalence, redoublement partiel…" className={inputClass} data-testid="portefeuille-motif" />
+            <label htmlFor="mise-a-jour-cours-etudiant-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
+            <input id="mise-a-jour-cours-etudiant-champ-6" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ex. équivalence, redoublement partiel…" className={inputClass} data-testid="portefeuille-motif" />
           </div>
         </div>
 
@@ -260,7 +260,7 @@ export default function MiseAJourCoursEtudiantPage() {
                   <input type="checkbox" checked={studentsList.length > 0 && selectedEtudiantIds.size === studentsList.length} onChange={toggleAllEtudiants} className="w-4 h-4 accent-primary" />
                   Les étudiants ({studentsList.length})
                 </label>
-                <input
+                <input aria-label="Rechercher n'importe quel étudiant (ex. redoublant d'une autre classe)"
                   value={searchStudent}
                   onChange={(e) => setSearchStudent(e.target.value)}
                   placeholder="Rechercher n'importe quel étudiant (ex. redoublant d'une autre classe)…"
@@ -352,7 +352,7 @@ export default function MiseAJourCoursEtudiantPage() {
                     <td className="px-4 py-2.5 text-muted-foreground">{formatShortDate(r.dateAction)}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{r.effectuePar}</td>
                     <td className="px-4 py-2.5 text-center">
-                      <button onClick={() => handleSupprimerHistorique(r.id)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`portefeuille-supprimer-${r.id}`}>
+                      <button aria-label="Supprimer" title="Supprimer" onClick={() => handleSupprimerHistorique(r.id)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`portefeuille-supprimer-${r.id}`}>
                         <Trash2 size={12} />
                       </button>
                     </td>

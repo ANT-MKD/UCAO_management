@@ -180,12 +180,12 @@ export default function TeacherCourseStatusPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="teacher-course-status-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="teacher-course-status-champ-1"
               type="search"
               value={query}
               onChange={(e) => {

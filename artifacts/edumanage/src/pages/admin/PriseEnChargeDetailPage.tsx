@@ -433,16 +433,16 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
             <div className="border-t border-border pt-4 space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  <label htmlFor="prise-en-charge-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
                     Nouvelle date de fin <span className="text-red-500">*</span>
                   </label>
-                  <input type="date" value={nouvelleFin} onChange={(e) => setNouvelleFin(e.target.value)} min={record.fin} className={inputClass} data-testid="pec-nouvelle-fin" />
+                  <input id="prise-en-charge-detail-champ-1" type="date" value={nouvelleFin} onChange={(e) => setNouvelleFin(e.target.value)} min={record.fin} className={inputClass} data-testid="pec-nouvelle-fin" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  <label htmlFor="prise-en-charge-detail-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                     Nouvelle date limite <span className="text-red-500">*</span>
                   </label>
-                  <input type="date" value={nouvelleDateLimite} onChange={(e) => setNouvelleDateLimite(e.target.value)} className={inputClass} data-testid="pec-nouvelle-limite" />
+                  <input id="prise-en-charge-detail-champ-2" type="date" value={nouvelleDateLimite} onChange={(e) => setNouvelleDateLimite(e.target.value)} className={inputClass} data-testid="pec-nouvelle-limite" />
                 </div>
               </div>
 
@@ -464,7 +464,7 @@ export default function PriseEnChargeDetailPage({ id }: { id: string }) {
                 {fraisEligibles.length > 3 && (
                   <div className="relative mb-2">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
+                    <input aria-label="Filtrer les frais (ex. scolarité)"
                       value={filtreFrais}
                       onChange={(e) => setFiltreFrais(e.target.value)}
                       placeholder="Filtrer les frais (ex. scolarité)…"

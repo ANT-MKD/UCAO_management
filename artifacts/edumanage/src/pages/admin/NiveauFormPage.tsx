@@ -92,26 +92,26 @@ export default function NiveauFormPage({ id }: Props) {
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du niveau *</label>
-              <input {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: Licence 1" className={inputClass} />
+              <label htmlFor="niveau-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du niveau *</label>
+              <input id="niveau-form-champ-1" {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: Licence 1" className={inputClass} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Alias *</label>
-              <input {...register("alias", { required: "Alias requis", maxLength: { value: 8, message: "Maximum 8 caractères" } })} placeholder="ex: L1" className={`${inputClass} uppercase font-mono`} />
+              <label htmlFor="niveau-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Alias *</label>
+              <input id="niveau-form-champ-2" {...register("alias", { required: "Alias requis", maxLength: { value: 8, message: "Maximum 8 caractères" } })} placeholder="ex: L1" className={`${inputClass} uppercase font-mono`} />
               {errors.alias && <p className="text-xs text-red-500 mt-1">{errors.alias.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle LMD *</label>
-              <select {...register("cycleId", { required: "Cycle requis" })} className={inputClass}>
+              <label htmlFor="niveau-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle LMD *</label>
+              <select id="niveau-form-champ-3" {...register("cycleId", { required: "Cycle requis" })} className={inputClass}>
                 <option value="">Sélectionner un cycle</option>
                 {cycles.map((c) => <option key={c.id} value={c.id}>{c.intitule}</option>)}
               </select>
               {errors.cycleId && <p className="text-xs text-red-500 mt-1">{errors.cycleId.message}</p>}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-              <select {...register("filiereId", { required: "Filière requise" })} className={inputClass}>
+              <label htmlFor="niveau-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+              <select id="niveau-form-champ-4" {...register("filiereId", { required: "Filière requise" })} className={inputClass}>
                 <option value="">Sélectionner une filière</option>
                 {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
               </select>
@@ -122,8 +122,8 @@ export default function NiveauFormPage({ id }: Props) {
           <div className="pt-4 border-t border-border space-y-4">
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Passage vers le niveau supérieur</h3>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits cumulés requis pour intégrer ce niveau</label>
-              <input
+              <label htmlFor="niveau-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits cumulés requis pour intégrer ce niveau</label>
+              <input id="niveau-form-champ-5"
                 type="number" min={0} step={1} {...register("creditsRequisEntree", { min: { value: 0, message: "Saisissez un nombre positif." } })}
                 placeholder="ex: 120 pour L3 — laisser vide si aucun contrôle"
                 className={inputClass}
@@ -140,8 +140,8 @@ export default function NiveauFormPage({ id }: Props) {
             )}
             {passageConditionnelAutorise && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour passer avec dette (0 = jamais pour ce niveau)</label>
-                <input type="number" min={0} step={1} {...register("creditDetteMin", { min: { value: 0, message: "Saisissez un nombre positif." } })} placeholder="ex: 42 sur 60" className={inputClass} />
+                <label htmlFor="niveau-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour passer avec dette (0 = jamais pour ce niveau)</label>
+                <input id="niveau-form-champ-6" type="number" min={0} step={1} {...register("creditDetteMin", { min: { value: 0, message: "Saisissez un nombre positif." } })} placeholder="ex: 42 sur 60" className={inputClass} />
                 {errors.creditDetteMin && <p className="text-xs text-red-500 mt-1">{errors.creditDetteMin.message}</p>}
                 <p className="text-[11px] text-muted-foreground mt-1">En dessous de ce seuil, l&apos;étudiant redouble ce niveau plutôt que de monter avec dette.</p>
               </div>

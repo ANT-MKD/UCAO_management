@@ -125,10 +125,10 @@ export default function MessagesPage() {
 
         <div className="grid lg:grid-cols-2 gap-5">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataires *</label>
+            <label htmlFor="messages-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataires *</label>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input id="messages-champ-1"
                 value={destSearch}
                 onChange={(e) => setDestSearch(e.target.value)}
                 placeholder="Groupe externe, interne, personnalisé, compte..."
@@ -155,7 +155,7 @@ export default function MessagesPage() {
                 {selections.map((s) => (
                   <span key={`${s.type}-${s.id}`} className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full">
                     {s.label}
-                    <button onClick={() => handleRemoveSelection(s)} className="hover:text-red-500"><X size={11} /></button>
+                    <button aria-label="Fermer" title="Fermer" onClick={() => handleRemoveSelection(s)} className="hover:text-red-500"><X size={11} /></button>
                   </span>
                 ))}
               </div>
@@ -166,8 +166,8 @@ export default function MessagesPage() {
               </p>
             )}
 
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Emails supplémentaires</label>
-            <input
+            <label htmlFor="messages-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Emails supplémentaires</label>
+            <input id="messages-champ-2"
               value={emailsSupp}
               onChange={(e) => setEmailsSupp(e.target.value)}
               placeholder="séparés par des virgules"
@@ -176,11 +176,11 @@ export default function MessagesPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet *</label>
-            <input value={objet} onChange={(e) => setObjet(e.target.value)} className={inputClass} data-testid="envoi-objet" />
+            <label htmlFor="messages-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet *</label>
+            <input id="messages-champ-3" value={objet} onChange={(e) => setObjet(e.target.value)} className={inputClass} data-testid="envoi-objet" />
 
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Message *</label>
-            <textarea
+            <label htmlFor="messages-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Message *</label>
+            <textarea id="messages-champ-4"
               value={corpsMail}
               onChange={(e) => setCorpsMail(e.target.value)}
               className={inputClass + " min-h-[140px]"}
@@ -237,12 +237,12 @@ export default function MessagesPage() {
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Répondre à un compte</h4>
             <div className="space-y-3">
-              <select value={toUserId} onChange={(e) => setToUserId(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-border bg-background">
+              <select aria-label="Destinataire" value={toUserId} onChange={(e) => setToUserId(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-border bg-background">
                 <option value="">Destinataire</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.displayName} ({profil(u.role)})</option>)}
               </select>
-              <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet" className="w-full px-3 py-2 rounded-xl border border-border bg-background" />
-              <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Message..." className="w-full min-h-[120px] px-3 py-2 rounded-xl border border-border bg-background" />
+              <input aria-label="Objet" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet" className="w-full px-3 py-2 rounded-xl border border-border bg-background" />
+              <textarea aria-label="Message" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Message..." className="w-full min-h-[120px] px-3 py-2 rounded-xl border border-border bg-background" />
               <button onClick={handleSend} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm">
                 <Send size={14} /> Envoyer
               </button>

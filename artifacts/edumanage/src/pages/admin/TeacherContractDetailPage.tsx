@@ -227,7 +227,7 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
           <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
             <h2 className="text-base font-semibold mb-1">Résilier le contrat {contract.id}</h2>
             <p className="text-xs text-muted-foreground mb-4">Cette action est définitive.</p>
-            <textarea
+            <textarea aria-label="Motif de la résiliation"
               value={motifResiliation}
               onChange={(e) => setMotifResiliation(e.target.value)}
               rows={3}

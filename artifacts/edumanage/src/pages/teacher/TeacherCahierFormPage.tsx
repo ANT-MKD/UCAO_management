@@ -297,8 +297,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
         <>
           <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
             <div>
-              <label className={labelClass}>Date de la séance (l&apos;emploi du temps est propre à chaque semaine)</label>
-              <input
+              <label htmlFor="teacher-cahier-form-champ-1" className={labelClass}>Date de la séance (l&apos;emploi du temps est propre à chaque semaine)</label>
+              <input id="teacher-cahier-form-champ-1"
                 type="date"
                 className={inputClass}
                 value={date}
@@ -311,8 +311,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
             </div>
 
             <div>
-              <label className={labelClass}>Séance de la semaine du {formatShortDate(mondayOf(date))}</label>
-              <select
+              <label htmlFor="teacher-cahier-form-champ-2" className={labelClass}>Séance de la semaine du {formatShortDate(mondayOf(date))}</label>
+              <select id="teacher-cahier-form-champ-2"
                 className={inputClass}
                 value={seanceId}
                 onChange={(e) => {
@@ -374,8 +374,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                 <h3 className="font-bold text-sm">Contenu de la séance</h3>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>État de la séance</label>
-                    <select className={inputClass} value={etatSeance} onChange={(e) => setEtatSeance(e.target.value as typeof etatSeance)}>
+                    <label htmlFor="teacher-cahier-form-champ-3" className={labelClass}>État de la séance</label>
+                    <select id="teacher-cahier-form-champ-3" className={inputClass} value={etatSeance} onChange={(e) => setEtatSeance(e.target.value as typeof etatSeance)}>
                       <option value="preparee">Séance préparée</option>
                       <option value="realisee">Séance réalisée</option>
                       <option value="annulee">Séance annulée</option>
@@ -384,22 +384,22 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                 </div>
                 {etatSeance === "annulee" ? (
                   <div>
-                    <label className={labelClass}>Motif de l&apos;annulation</label>
-                    <textarea className={`${inputClass} min-h-[80px]`} value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)} />
+                    <label htmlFor="teacher-cahier-form-champ-4" className={labelClass}>Motif de l&apos;annulation</label>
+                    <textarea id="teacher-cahier-form-champ-4" className={`${inputClass} min-h-[80px]`} value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)} />
                   </div>
                 ) : (
                   <>
                     <div>
-                      <label className={labelClass}>Sujet *</label>
-                      <input className={inputClass} value={sujet} onChange={(e) => setSujet(e.target.value)} placeholder="Titre / thème du cours" />
+                      <label htmlFor="teacher-cahier-form-champ-5" className={labelClass}>Sujet *</label>
+                      <input id="teacher-cahier-form-champ-5" className={inputClass} value={sujet} onChange={(e) => setSujet(e.target.value)} placeholder="Titre / thème du cours" />
                     </div>
                     <div>
-                      <label className={labelClass}>Résumé du cours *</label>
-                      <textarea className={`${inputClass} min-h-[100px]`} value={resume} onChange={(e) => setResume(e.target.value)} />
+                      <label htmlFor="teacher-cahier-form-champ-6" className={labelClass}>Résumé du cours *</label>
+                      <textarea id="teacher-cahier-form-champ-6" className={`${inputClass} min-h-[100px]`} value={resume} onChange={(e) => setResume(e.target.value)} />
                     </div>
                     <div>
-                      <label className={labelClass}>Compétences visées</label>
-                      <textarea className={`${inputClass} min-h-[60px]`} value={competences} onChange={(e) => setCompetences(e.target.value)} />
+                      <label htmlFor="teacher-cahier-form-champ-7" className={labelClass}>Compétences visées</label>
+                      <textarea id="teacher-cahier-form-champ-7" className={`${inputClass} min-h-[60px]`} value={competences} onChange={(e) => setCompetences(e.target.value)} />
                     </div>
                   </>
                 )}
@@ -410,8 +410,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                   <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
                     <h3 className="font-bold text-sm">Documents & médias</h3>
                     <div>
-                      <label className={labelClass}>Joindre un fichier (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko)</label>
-                      <input type="file" className="text-sm" onChange={(e) => { addPiece(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                      <label htmlFor="teacher-cahier-form-champ-8" className={labelClass}>Joindre un fichier (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko)</label>
+                      <input id="teacher-cahier-form-champ-8" type="file" className="text-sm" onChange={(e) => { addPiece(e.target.files?.[0] ?? null); e.target.value = ""; }} />
                       {pieces.length > 0 && (
                         <ul className="mt-2 space-y-1">
                           {pieces.map((p) => (
@@ -430,18 +430,18 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                       )}
                     </div>
                     <div>
-                      <label className={labelClass}>Liens externes (un par ligne)</label>
-                      <textarea className={`${inputClass} min-h-[60px]`} value={liens} onChange={(e) => setLiens(e.target.value)} placeholder="https://…" />
+                      <label htmlFor="teacher-cahier-form-champ-9" className={labelClass}>Liens externes (un par ligne)</label>
+                      <textarea id="teacher-cahier-form-champ-9" className={`${inputClass} min-h-[60px]`} value={liens} onChange={(e) => setLiens(e.target.value)} placeholder="https://…" />
                     </div>
                     <div>
-                      <label className={labelClass}>Photos du tableau (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko chacune)</label>
-                      <input type="file" accept="image/*" className="text-sm" onChange={(e) => { addPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                      <label htmlFor="teacher-cahier-form-champ-10" className={labelClass}>Photos du tableau (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko chacune)</label>
+                      <input id="teacher-cahier-form-champ-10" type="file" accept="image/*" className="text-sm" onChange={(e) => { addPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} />
                       {photos.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {photos.map((src, i) => (
                             <div key={i} className="relative">
                               <img src={src} alt={`Photo du tableau ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-border" />
-                              <button
+                              <button aria-label="Fermer" title="Fermer"
                                 type="button"
                                 onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
                                 className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center"
@@ -495,7 +495,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                             </button>
                           ))}
                           {p.statut === "absent" && (
-                            <input
+                            <input aria-label="Justification d'absence"
                               className="flex-1 min-w-[160px] text-xs rounded-lg border border-border px-2 py-1 bg-background"
                               placeholder="Justification d'absence"
                               value={p.justification || ""}
@@ -503,7 +503,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                             />
                           )}
                           {p.statut === "retard" && (
-                            <input
+                            <input aria-label="Durée (min)"
                               type="number"
                               min={1}
                               className="w-28 text-xs rounded-lg border border-border px-2 py-1 bg-background"
@@ -520,15 +520,15 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
                   <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
                     <h3 className="font-bold text-sm">Travaux</h3>
-                    <input className={inputClass} placeholder="Devoir donné" value={devoirDonne} onChange={(e) => setDevoirDonne(e.target.value)} />
+                    <input aria-label="Devoir donné" className={inputClass} placeholder="Devoir donné" value={devoirDonne} onChange={(e) => setDevoirDonne(e.target.value)} />
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div>
-                        <label className={labelClass}>Date limite</label>
-                        <input type="date" className={inputClass} value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} />
+                        <label htmlFor="teacher-cahier-form-champ-11" className={labelClass}>Date limite</label>
+                        <input id="teacher-cahier-form-champ-11" type="date" className={inputClass} value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} />
                       </div>
                       <div>
-                        <label className={labelClass}>Statut des remises</label>
-                        <select className={inputClass} value={statutRemises} onChange={(e) => setStatutRemises(e.target.value as typeof statutRemises)}>
+                        <label htmlFor="teacher-cahier-form-champ-12" className={labelClass}>Statut des remises</label>
+                        <select id="teacher-cahier-form-champ-12" className={inputClass} value={statutRemises} onChange={(e) => setStatutRemises(e.target.value as typeof statutRemises)}>
                           <option value="non_ouvert">Non ouvert</option>
                           <option value="ouvert">Ouvert</option>
                           <option value="partiel">Partiel</option>
@@ -536,8 +536,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                         </select>
                       </div>
                     </div>
-                    <input className={inputClass} placeholder="Fichier à remettre (ex. devoir.pdf)" value={fichierRemise} onChange={(e) => setFichierRemise(e.target.value)} />
-                    <input className={inputClass} placeholder="Barème" value={bareme} onChange={(e) => setBareme(e.target.value)} />
+                    <input aria-label="Fichier à remettre (ex. devoir.pdf)" className={inputClass} placeholder="Fichier à remettre (ex. devoir.pdf)" value={fichierRemise} onChange={(e) => setFichierRemise(e.target.value)} />
+                    <input aria-label="Barème" className={inputClass} placeholder="Barème" value={bareme} onChange={(e) => setBareme(e.target.value)} />
                   </div>
 
                   <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
@@ -560,7 +560,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                         </button>
                       ))}
                     </div>
-                    <textarea className={`${inputClass} min-h-[60px]`} placeholder="Détail de l'évaluation…" value={evalDetail} onChange={(e) => setEvalDetail(e.target.value)} />
+                    <textarea aria-label="Détail de l'évaluation" className={`${inputClass} min-h-[60px]`} placeholder="Détail de l'évaluation…" value={evalDetail} onChange={(e) => setEvalDetail(e.target.value)} />
                   </div>
                 </>
               )}

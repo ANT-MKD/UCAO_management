@@ -141,8 +141,8 @@ function GroupesExternesTab() {
         const g = row as unknown as GroupeExterneRecord;
         return (
           <div className="flex items-center gap-1">
-            <button onClick={(e) => { e.stopPropagation(); openEdit(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" data-testid={`groupe-externe-editer-${g.id}`}><Pencil size={14} /></button>
-            <button onClick={(e) => { e.stopPropagation(); handleDelete(g); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" data-testid={`groupe-externe-supprimer-${g.id}`}><Trash2 size={14} /></button>
+            <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); openEdit(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" data-testid={`groupe-externe-editer-${g.id}`}><Pencil size={14} /></button>
+            <button aria-label="Supprimer" title="Supprimer" onClick={(e) => { e.stopPropagation(); handleDelete(g); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" data-testid={`groupe-externe-supprimer-${g.id}`}><Trash2 size={14} /></button>
           </div>
         );
       },
@@ -162,12 +162,12 @@ function GroupesExternesTab() {
         <div className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-              <input value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="groupe-externe-nom" />
+              <label htmlFor="parametrage-communication-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+              <input id="parametrage-communication-champ-1" value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="groupe-externe-nom" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code *</label>
-              <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} data-testid="groupe-externe-code" />
+              <label htmlFor="parametrage-communication-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Code *</label>
+              <input id="parametrage-communication-champ-2" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} data-testid="groupe-externe-code" />
             </div>
           </div>
           <div>
@@ -175,10 +175,10 @@ function GroupesExternesTab() {
             <div className="space-y-2">
               {contacts.map((c, i) => (
                 <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
-                  <input value={c.intitule} onChange={(e) => setContacts((prev) => prev.map((p, j) => j === i ? { ...p, intitule: e.target.value } : p))} placeholder="Intitulé" className={inputClass} data-testid={`groupe-externe-contact-intitule-${i}`} />
-                  <input value={c.telephone} onChange={(e) => setContacts((prev) => prev.map((p, j) => j === i ? { ...p, telephone: e.target.value } : p))} placeholder="Téléphone" className={inputClass} data-testid={`groupe-externe-contact-telephone-${i}`} />
-                  <input value={c.email} onChange={(e) => setContacts((prev) => prev.map((p, j) => j === i ? { ...p, email: e.target.value } : p))} placeholder="Email" className={inputClass} data-testid={`groupe-externe-contact-email-${i}`} />
-                  <button onClick={() => setContacts((prev) => prev.filter((_, j) => j !== i))} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600"><X size={14} /></button>
+                  <input aria-label="Intitulé" value={c.intitule} onChange={(e) => setContacts((prev) => prev.map((p, j) => j === i ? { ...p, intitule: e.target.value } : p))} placeholder="Intitulé" className={inputClass} data-testid={`groupe-externe-contact-intitule-${i}`} />
+                  <input aria-label="Téléphone" value={c.telephone} onChange={(e) => setContacts((prev) => prev.map((p, j) => j === i ? { ...p, telephone: e.target.value } : p))} placeholder="Téléphone" className={inputClass} data-testid={`groupe-externe-contact-telephone-${i}`} />
+                  <input aria-label="Email" value={c.email} onChange={(e) => setContacts((prev) => prev.map((p, j) => j === i ? { ...p, email: e.target.value } : p))} placeholder="Email" className={inputClass} data-testid={`groupe-externe-contact-email-${i}`} />
+                  <button aria-label="Fermer" title="Fermer" onClick={() => setContacts((prev) => prev.filter((_, j) => j !== i))} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600"><X size={14} /></button>
                 </div>
               ))}
             </div>
@@ -229,8 +229,8 @@ function GroupesInternesTab() {
         <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-4">Génération Groupes Internes</p>
         <div className="flex flex-wrap items-end gap-4">
           <div className="min-w-52">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique *</label>
-            <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="groupe-interne-annee">
+            <label htmlFor="parametrage-communication-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique *</label>
+            <select id="parametrage-communication-champ-3" value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="groupe-interne-annee">
               <option value="">Sélectionner</option>
               {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
@@ -328,7 +328,7 @@ function RegleValeurInput({ regle, onChange, classes }: { regle: RegleGroupePers
       </select>
     );
   }
-  return <input type="number" value={regle.valeur} onChange={(e) => onChange(e.target.value)} className={inputClass} placeholder="Montant (FCFA)" />;
+  return <input aria-label="Montant (FCFA)" type="number" value={regle.valeur} onChange={(e) => onChange(e.target.value)} className={inputClass} placeholder="Montant (FCFA)" />;
 }
 
 const EMPTY_REGLE: RegleGroupePersonnalise = { champ: "filiereId", operateur: "egal", valeur: "" };
@@ -376,8 +376,8 @@ function GroupesPersonnalisesTab() {
         const g = row as unknown as GroupePersonnaliseRecord;
         return (
           <div className="flex items-center gap-1">
-            <button onClick={(e) => { e.stopPropagation(); openEdit(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" data-testid={`groupe-perso-editer-${g.id}`}><Pencil size={14} /></button>
-            <button onClick={(e) => { e.stopPropagation(); handleDelete(g); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" data-testid={`groupe-perso-supprimer-${g.id}`}><Trash2 size={14} /></button>
+            <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); openEdit(g); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" data-testid={`groupe-perso-editer-${g.id}`}><Pencil size={14} /></button>
+            <button aria-label="Supprimer" title="Supprimer" onClick={(e) => { e.stopPropagation(); handleDelete(g); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" data-testid={`groupe-perso-supprimer-${g.id}`}><Trash2 size={14} /></button>
           </div>
         );
       },
@@ -399,12 +399,12 @@ function GroupesPersonnalisesTab() {
       <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Modifier le groupe personnalisé" : "Création groupe personnalisé"} size="lg">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-            <input value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="groupe-perso-nom" />
+            <label htmlFor="parametrage-communication-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+            <input id="parametrage-communication-champ-4" value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} data-testid="groupe-perso-nom" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className={cn(inputClass, "min-h-[70px]")} data-testid="groupe-perso-description" />
+            <label htmlFor="parametrage-communication-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
+            <textarea id="parametrage-communication-champ-5" value={description} onChange={(e) => setDescription(e.target.value)} className={cn(inputClass, "min-h-[70px]")} data-testid="groupe-perso-description" />
           </div>
           <div>
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-2">Règles (toutes doivent être vraies)</p>
@@ -422,7 +422,7 @@ function GroupesPersonnalisesTab() {
                   <div data-testid={`groupe-perso-regle-valeur-${i}`}>
                     <RegleValeurInput regle={r} onChange={(v) => setRegles((prev) => prev.map((p, j) => j === i ? { ...p, valeur: v } : p))} classes={classes} />
                   </div>
-                  <button onClick={() => setRegles((prev) => prev.filter((_, j) => j !== i))} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600"><X size={14} /></button>
+                  <button aria-label="Fermer" title="Fermer" onClick={() => setRegles((prev) => prev.filter((_, j) => j !== i))} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600"><X size={14} /></button>
                 </div>
               ))}
             </div>
@@ -469,8 +469,8 @@ function UrlApiComTab() {
       {editing ? (
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">URL</label>
-            <input value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} data-testid="api-com-url-input" />
+            <label htmlFor="parametrage-communication-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">URL</label>
+            <input id="parametrage-communication-champ-6" value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} data-testid="api-com-url-input" />
           </div>
           <button onClick={handleSave} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors" data-testid="api-com-sauvegarder">Sauvegarder</button>
           <button onClick={() => setEditing(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
@@ -526,7 +526,7 @@ function RoleCommunicationTab({ role, titre, colonneLabel, testIdPrefix, avecAct
     {
       key: "actions", header: "",
       render: (row) => (
-        <button onClick={(e) => { e.stopPropagation(); handleDelete(row.id as string); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" data-testid={`${testIdPrefix}-supprimer-${row.id}`}>
+        <button aria-label="Supprimer" title="Supprimer" onClick={(e) => { e.stopPropagation(); handleDelete(row.id as string); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition-colors" data-testid={`${testIdPrefix}-supprimer-${row.id}`}>
           <Trash2 size={14} />
         </button>
       ),
@@ -546,15 +546,15 @@ function RoleCommunicationTab({ role, titre, colonneLabel, testIdPrefix, avecAct
       <FormModal open={modalOpen} onClose={() => setModalOpen(false)} title={avecAction ? "Nouveau destinataire alert" : "Nouveau validateur"}>
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">{avecAction ? "Destinataire" : "Validateur"} *</label>
-            <select value={userId} onChange={(e) => setUserId(e.target.value)} className={inputClass} data-testid={`${testIdPrefix}-compte`}>
+            <label htmlFor="parametrage-communication-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">{avecAction ? "Destinataire" : "Validateur"} *</label>
+            <select id="parametrage-communication-champ-7" value={userId} onChange={(e) => setUserId(e.target.value)} className={inputClass} data-testid={`${testIdPrefix}-compte`}>
               <option value="">Sélectionner</option>
               {comptes.map((c) => <option key={c.id} value={c.id}>{c.identifier} - {c.displayName} - {c.role === "admin" ? "ADM" : "ENS"}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">{avecAction ? "Action" : "Remarques"}</label>
-            <textarea value={remarque} onChange={(e) => setRemarque(e.target.value)} className={cn(inputClass, "min-h-[70px]")} data-testid={`${testIdPrefix}-remarque`} />
+            <label htmlFor="parametrage-communication-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">{avecAction ? "Action" : "Remarques"}</label>
+            <textarea id="parametrage-communication-champ-8" value={remarque} onChange={(e) => setRemarque(e.target.value)} className={cn(inputClass, "min-h-[70px]")} data-testid={`${testIdPrefix}-remarque`} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Annuler</button>
@@ -603,7 +603,7 @@ function NotificationsEvenementiellesTab() {
       render: (row) => {
         const n = row as unknown as NotificationEvenementielleRecord;
         return (
-          <button onClick={(e) => { e.stopPropagation(); openEdit(n); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" data-testid={`notif-evt-editer-${n.id}`}>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); openEdit(n); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors" data-testid={`notif-evt-editer-${n.id}`}>
             <Pencil size={14} />
           </button>
         );
@@ -624,8 +624,8 @@ function NotificationsEvenementiellesTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code *</label>
-              <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} className={cn(inputClass, "font-mono")} disabled={!!editing?.brancheReellement} data-testid="notif-evt-code" />
+              <label htmlFor="parametrage-communication-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Code *</label>
+              <input id="parametrage-communication-champ-9" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} className={cn(inputClass, "font-mono")} disabled={!!editing?.brancheReellement} data-testid="notif-evt-code" />
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Activé ?</label>
@@ -633,8 +633,8 @@ function NotificationsEvenementiellesTab() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={cn(inputClass, "min-h-[60px]")} data-testid="notif-evt-description" />
+            <label htmlFor="parametrage-communication-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
+            <textarea id="parametrage-communication-champ-10" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={cn(inputClass, "min-h-[60px]")} data-testid="notif-evt-description" />
           </div>
           {editing?.brancheReellement === false && editing && (
             <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 rounded-lg px-3 py-2">

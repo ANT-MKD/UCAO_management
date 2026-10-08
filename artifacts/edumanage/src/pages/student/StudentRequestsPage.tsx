@@ -295,7 +295,7 @@ export default function StudentRequestsPage() {
               </div>
               <div className="relative sm:max-w-[280px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher une demande"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Rechercher une demande..."
@@ -452,15 +452,15 @@ export default function StudentRequestsPage() {
       <FormModal open={showNewRequest} onClose={() => setShowNewRequest(false)} title="Nouvelle demande" subtitle="Déposez une demande au secrétariat">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de demande</label>
-            <select value={type} onChange={(e) => setType(e.target.value as ReqType)} className={inputClass} data-testid="requete-type">
+            <label htmlFor="student-requests-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de demande</label>
+            <select id="student-requests-champ-1" value={type} onChange={(e) => setType(e.target.value as ReqType)} className={inputClass} data-testid="requete-type">
               {REQUEST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           {type === "attestation" && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Document souhaité</label>
-              <select value={attestationType} onChange={(e) => setAttestationType(e.target.value as "scolarite" | "inscription")} className={inputClass} data-testid="requete-attestation-type">
+              <label htmlFor="student-requests-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Document souhaité</label>
+              <select id="student-requests-champ-2" value={attestationType} onChange={(e) => setAttestationType(e.target.value as "scolarite" | "inscription")} className={inputClass} data-testid="requete-attestation-type">
                 <option value="scolarite">Certificat de scolarité</option>
                 <option value="inscription">Attestation d&apos;inscription</option>
               </select>
@@ -472,7 +472,7 @@ export default function StudentRequestsPage() {
               {absencesNonJustifiees.length === 0 ? (
                 <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">Aucune absence non justifiée à votre dossier.</p>
               ) : (
-                <select value={absenceCahierId} onChange={(e) => setAbsenceCahierId(e.target.value)} className={inputClass} data-testid="requete-absence">
+                <select aria-label="Choisir l&apos;absence" value={absenceCahierId} onChange={(e) => setAbsenceCahierId(e.target.value)} className={inputClass} data-testid="requete-absence">
                   <option value="">Choisir l&apos;absence…</option>
                   {absencesNonJustifiees.map((r) => <option key={r.id} value={r.cahierId}>{libelleAbsence(r)}</option>)}
                 </select>
@@ -485,7 +485,7 @@ export default function StudentRequestsPage() {
               {notesPubliees.length === 0 ? (
                 <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">Aucune note publiée à votre dossier.</p>
               ) : (
-                <select value={noteId} onChange={(e) => setNoteId(e.target.value)} className={inputClass} data-testid="requete-note">
+                <select aria-label="Choisir la note" value={noteId} onChange={(e) => setNoteId(e.target.value)} className={inputClass} data-testid="requete-note">
                   <option value="">Choisir la note…</option>
                   {notesPubliees.map((n) => <option key={n.id} value={n.id}>{libelleNote(n)}</option>)}
                 </select>
@@ -493,8 +493,8 @@ export default function StudentRequestsPage() {
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
-            <input
+            <label htmlFor="student-requests-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
+            <input id="student-requests-champ-3"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Ex: Justificatif absence du 12/01"
@@ -503,8 +503,8 @@ export default function StudentRequestsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Message</label>
-            <textarea
+            <label htmlFor="student-requests-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Message</label>
+            <textarea id="student-requests-champ-4"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Décrivez votre demande..."
@@ -528,14 +528,14 @@ export default function StudentRequestsPage() {
           {estRallonge && (
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Portée souhaitée</label>
-                <select value={porteeRallonge} onChange={(e) => setPorteeRallonge(e.target.value as PorteeDerogation)} className={inputClass} data-testid="requete-portee">
+                <label htmlFor="student-requests-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Portée souhaitée</label>
+                <select id="student-requests-champ-5" value={porteeRallonge} onChange={(e) => setPorteeRallonge(e.target.value as PorteeDerogation)} className={inputClass} data-testid="requete-portee">
                   {Object.entries(PORTEE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin souhaitée</label>
-                <input type="date" value={dateFinSouhaitee} onChange={(e) => setDateFinSouhaitee(e.target.value)} className={inputClass} data-testid="requete-date-fin" />
+                <label htmlFor="student-requests-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin souhaitée</label>
+                <input id="student-requests-champ-6" type="date" value={dateFinSouhaitee} onChange={(e) => setDateFinSouhaitee(e.target.value)} className={inputClass} data-testid="requete-date-fin" />
               </div>
             </div>
           )}

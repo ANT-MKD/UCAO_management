@@ -205,10 +205,10 @@ export default function PECMasseFormPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="p-e-c-masse-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Organisme <span className="text-red-500">*</span>
           </label>
-          <select value={organismeId} onChange={(e) => setOrganismeId(e.target.value)} className={inputClass} data-testid="pecm-organisme">
+          <select id="p-e-c-masse-form-champ-1" value={organismeId} onChange={(e) => setOrganismeId(e.target.value)} className={inputClass} data-testid="pecm-organisme">
             <option value="">Sélectionner…</option>
             {organismes.map((o) => (
               <option key={o.id} value={o.id}>
@@ -220,10 +220,10 @@ export default function PECMasseFormPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="p-e-c-masse-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Filière <span className="text-red-500">*</span>
             </label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="pecm-filiere">
+            <select id="p-e-c-masse-form-champ-2" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="pecm-filiere">
               <option value="">Sélectionner…</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                 <option key={f.id} value={f.id}>
@@ -234,10 +234,10 @@ export default function PECMasseFormPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="p-e-c-masse-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Année <span className="text-red-500">*</span>
               </label>
-              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="pecm-annee">
+              <select id="p-e-c-masse-form-champ-3" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="pecm-annee">
                 {anneeOptions.map((a) => (
                   <option key={a.id} value={a.libelle}>
                     {a.libelle}
@@ -246,10 +246,10 @@ export default function PECMasseFormPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="p-e-c-masse-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Niveau <span className="text-red-500">*</span>
               </label>
-              <select
+              <select id="p-e-c-masse-form-champ-4"
                 value={niveauId}
                 onChange={(e) => handleNiveauChange(e.target.value)}
                 className={inputClass}
@@ -268,10 +268,10 @@ export default function PECMasseFormPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="p-e-c-masse-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Classe <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="p-e-c-masse-form-champ-5"
             value={classeId}
             onChange={(e) => setClasseId(e.target.value)}
             className={inputClass}
@@ -330,10 +330,10 @@ export default function PECMasseFormPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Frais concernés (optionnel)</label>
+                <label htmlFor="p-e-c-masse-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Frais concernés (optionnel)</label>
                 <div className="relative">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                  <input id="p-e-c-masse-form-champ-6"
                     value={filtreFrais}
                     onChange={(e) => setFiltreFrais(e.target.value)}
                     placeholder="ex. scolarité — vide = tous les frais impayés"
@@ -383,22 +383,22 @@ export default function PECMasseFormPage() {
 
         <div className="grid sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="p-e-c-masse-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Début <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={debut} onChange={(e) => setDebut(e.target.value)} className={inputClass} />
+            <input id="p-e-c-masse-form-champ-7" type="date" value={debut} onChange={(e) => setDebut(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="p-e-c-masse-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Fin <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={fin} onChange={(e) => setFin(e.target.value)} className={inputClass} />
+            <input id="p-e-c-masse-form-champ-8" type="date" value={fin} onChange={(e) => setFin(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="p-e-c-masse-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Date limite <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className={inputClass} />
+            <input id="p-e-c-masse-form-champ-9" type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className={inputClass} />
           </div>
         </div>
 

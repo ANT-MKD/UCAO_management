@@ -123,55 +123,55 @@ export default function UEFormPage({ id }: Props) {
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code UE *</label>
-              <input {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" }, onChange: () => setCodeManuel(true) })} placeholder="Choisissez filière, niveau et semestre" className={`${inputClass} uppercase font-mono`} data-testid="ue-code" />
+              <label htmlFor="u-e-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Code UE *</label>
+              <input id="u-e-form-champ-1" {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" }, onChange: () => setCodeManuel(true) })} placeholder="Choisissez filière, niveau et semestre" className={`${inputClass} uppercase font-mono`} data-testid="ue-code" />
               {!codeManuel && <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1"><Wand2 size={11} /> Proposé d&apos;après la filière et le semestre — modifiable</p>}
               {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits ECTS *</label>
-              <input {...register("credits", { required: "Crédits requis", valueAsNumber: true, min: { value: 1, message: "Minimum 1" }, max: { value: 30, message: "Maximum 30" } })} type="number" min={1} max={30} className={inputClass} />
+              <label htmlFor="u-e-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits ECTS *</label>
+              <input id="u-e-form-champ-2" {...register("credits", { required: "Crédits requis", valueAsNumber: true, min: { value: 1, message: "Minimum 1" }, max: { value: 30, message: "Maximum 30" } })} type="number" min={1} max={30} className={inputClass} />
               {errors.credits && <p className="text-xs text-red-500 mt-1">{errors.credits.message}</p>}
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Unité d'enseignement *</label>
-              <input {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Génie logiciel 5" className={inputClass} />
+              <label htmlFor="u-e-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Unité d'enseignement *</label>
+              <input id="u-e-form-champ-3" {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" } })} placeholder="ex: Génie logiciel 5" className={inputClass} />
               {errors.libelle && <p className="text-xs text-red-500 mt-1">{errors.libelle.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-              <select {...register("filiereId", { required: "Filière requise" })} onChange={(e) => { setValue("filiereId", e.target.value); setValue("niveauId", ""); setValue("semestreId", ""); }} className={inputClass}>
+              <label htmlFor="u-e-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+              <select id="u-e-form-champ-4" {...register("filiereId", { required: "Filière requise" })} onChange={(e) => { setValue("filiereId", e.target.value); setValue("niveauId", ""); setValue("semestreId", ""); }} className={inputClass}>
                 <option value="">Sélectionner</option>
                 {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
               </select>
               {errors.filiereId && <p className="text-xs text-red-500 mt-1">{errors.filiereId.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Caractère *</label>
-              <select {...register("type", { required: "Caractère requis" })} className={inputClass}>
+              <label htmlFor="u-e-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Caractère *</label>
+              <select id="u-e-form-champ-5" {...register("type", { required: "Caractère requis" })} className={inputClass}>
                 {categories.map((c) => <option key={c.id} value={c.intitule}>{c.intitule}</option>)}
               </select>
               {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select {...register("niveauId", { required: "Niveau requis" })} onChange={(e) => { setValue("niveauId", e.target.value); setValue("semestreId", ""); }} className={inputClass}>
+              <label htmlFor="u-e-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+              <select id="u-e-form-champ-6" {...register("niveauId", { required: "Niveau requis" })} onChange={(e) => { setValue("niveauId", e.target.value); setValue("semestreId", ""); }} className={inputClass}>
                 <option value="">Sélectionner</option>
                 {filteredNiveaux.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
               </select>
               {errors.niveauId && <p className="text-xs text-red-500 mt-1">{errors.niveauId.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre *</label>
-              <select {...register("semestreId", { required: "Semestre requis", onChange: (e) => proposerCode(e.target.value) })} className={inputClass} data-testid="ue-semestre">
+              <label htmlFor="u-e-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre *</label>
+              <select id="u-e-form-champ-7" {...register("semestreId", { required: "Semestre requis", onChange: (e) => proposerCode(e.target.value) })} className={inputClass} data-testid="ue-semestre">
                 <option value="">Sélectionner</option>
                 {filteredSemestres.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
               {errors.semestreId && <p className="text-xs text-red-500 mt-1">{errors.semestreId.message}</p>}
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description (optionnel)</label>
-              <textarea {...register("description")} rows={3} placeholder="Objectifs pédagogiques..." className={`${inputClass} resize-none`} />
+              <label htmlFor="u-e-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Description (optionnel)</label>
+              <textarea id="u-e-form-champ-8" {...register("description")} rows={3} placeholder="Objectifs pédagogiques..." className={`${inputClass} resize-none`} />
             </div>
           </div>
           <div className="flex gap-3 pt-2 border-t border-border">

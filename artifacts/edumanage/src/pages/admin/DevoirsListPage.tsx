@@ -107,8 +107,8 @@ export default function DevoirsListPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-          <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="devoir-filiere">
+          <label htmlFor="devoirs-list-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+          <select id="devoirs-list-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="devoir-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
@@ -116,15 +116,15 @@ export default function DevoirsListPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-            <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-annee">
+            <label htmlFor="devoirs-list-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+            <select id="devoirs-list-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-niveau">
+            <label htmlFor="devoirs-list-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="devoirs-list-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
@@ -133,15 +133,15 @@ export default function DevoirsListPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-            <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-classe">
+            <label htmlFor="devoirs-list-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+            <select id="devoirs-list-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom} ({c.inscrits} étudiants)</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-            <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-semestre">
+            <label htmlFor="devoirs-list-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+            <select id="devoirs-list-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-semestre">
               <option value="">Sélectionner</option>
               {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
             </select>
@@ -150,16 +150,16 @@ export default function DevoirsListPage() {
 
         <div className="grid sm:grid-cols-2 gap-4 items-end">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours</label>
-            <select value={ecId} onChange={(e) => { setEcId(e.target.value); setSearched(false); }} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-cours">
+            <label htmlFor="devoirs-list-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours</label>
+            <select id="devoirs-list-champ-6" value={ecId} onChange={(e) => { setEcId(e.target.value); setSearched(false); }} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-cours">
               <option value="">Tous</option>
               {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
             </select>
           </div>
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type évaluation</label>
-              <select value={type} onChange={(e) => { setType(e.target.value as "" | EvaluationRecord["type"]); setSearched(false); }} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-type">
+              <label htmlFor="devoirs-list-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Type évaluation</label>
+              <select id="devoirs-list-champ-7" value={type} onChange={(e) => { setType(e.target.value as "" | EvaluationRecord["type"]); setSearched(false); }} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="devoir-type">
                 <option value="">Tous</option>
                 <option value="devoir">Devoir</option>
                 <option value="examen">Examen</option>
@@ -214,7 +214,7 @@ export default function DevoirsListPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{ev.semestre}</td>
                       <td className="px-4 py-3">
-                        <button
+                        <button aria-label="Voir le détail" title="Voir le détail"
                           onClick={() => setLocation(`/admin/evaluation/devoir/${ev.id}`)}
                           className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors"
                           data-testid={`devoir-voir-${ev.id}`}

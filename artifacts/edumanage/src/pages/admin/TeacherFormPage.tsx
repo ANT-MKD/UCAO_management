@@ -199,13 +199,13 @@ export default function TeacherFormPage({ id }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
-                <input {...register("prenom", { required: "Prénom requis" })} placeholder="Cheikh" className={inputClass} />
+                <label htmlFor="teacher-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
+                <input id="teacher-form-champ-1" {...register("prenom", { required: "Prénom requis" })} placeholder="Cheikh" className={inputClass} />
                 {errors.prenom && <p className="text-xs text-red-500 mt-1">{errors.prenom.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-                <input {...register("nom", { required: "Nom requis" })} placeholder="FALL" className={`${inputClass} uppercase`} />
+                <label htmlFor="teacher-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+                <input id="teacher-form-champ-2" {...register("nom", { required: "Nom requis" })} placeholder="FALL" className={`${inputClass} uppercase`} />
                 {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
               </div>
               <div>
@@ -220,9 +220,9 @@ export default function TeacherFormPage({ id }: Props) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (auto)</label>
+                <label htmlFor="teacher-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (auto)</label>
                 <div className="flex gap-2">
-                  <input type="text" readOnly value={matricule} className={`${inputClass} bg-muted/50 font-mono cursor-not-allowed flex-1`} style={{ fontFamily: "JetBrains Mono, monospace" }} />
+                  <input id="teacher-form-champ-3" type="text" readOnly value={matricule} className={`${inputClass} bg-muted/50 font-mono cursor-not-allowed flex-1`} style={{ fontFamily: "JetBrains Mono, monospace" }} />
                   {!isEdit && (
                     <button type="button" onClick={() => setMatricule(generateMatriculeEnseignant())} className="p-2.5 border border-border rounded-xl hover:bg-muted" title="Régénérer">
                       <RefreshCw size={14} />
@@ -231,32 +231,32 @@ export default function TeacherFormPage({ id }: Props) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de naissance *</label>
-                <input {...register("dateNaissance", { required: "Date requise" })} type="date" className={inputClass} />
+                <label htmlFor="teacher-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de naissance *</label>
+                <input id="teacher-form-champ-4" {...register("dateNaissance", { required: "Date requise" })} type="date" className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Pays de naissance *</label>
-                <select {...register("paysNaissance", { required: true })} className={inputClass}>
+                <label htmlFor="teacher-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Pays de naissance *</label>
+                <select id="teacher-form-champ-5" {...register("paysNaissance", { required: true })} className={inputClass}>
                   {["Sénégal", "Mali", "Côte d'Ivoire", "Guinée", "Mauritanie", "France", "Autre"].map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lieu de naissance *</label>
-                <input {...register("lieuNaissance", { required: "Lieu requis" })} placeholder="Dakar" className={inputClass} />
+                <label htmlFor="teacher-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Lieu de naissance *</label>
+                <input id="teacher-form-champ-6" {...register("lieuNaissance", { required: "Lieu requis" })} placeholder="Dakar" className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nationalité *</label>
-                <input {...register("nationalite", { required: "Nationalité requise" })} placeholder="Sénégalaise" className={inputClass} />
+                <label htmlFor="teacher-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Nationalité *</label>
+                <input id="teacher-form-champ-7" {...register("nationalite", { required: "Nationalité requise" })} placeholder="Sénégalaise" className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° CNI / Passeport</label>
-                <input {...register("cni")} placeholder="1234567890123" className={inputClass} />
+                <label htmlFor="teacher-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">N° CNI / Passeport</label>
+                <input id="teacher-form-champ-8" {...register("cni")} placeholder="1234567890123" className={inputClass} />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-                <input {...register("adresse")} placeholder="Quartier, ville" className={inputClass} />
+                <label htmlFor="teacher-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+                <input id="teacher-form-champ-9" {...register("adresse")} placeholder="Quartier, ville" className={inputClass} />
               </div>
             </div>
           </div>
@@ -265,13 +265,13 @@ export default function TeacherFormPage({ id }: Props) {
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Contact</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email professionnel *</label>
-                <input {...register("email", { required: "Email requis", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email invalide" } })} type="email" className={inputClass} />
+                <label htmlFor="teacher-form-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Email professionnel *</label>
+                <input id="teacher-form-champ-10" {...register("email", { required: "Email requis", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email invalide" } })} type="email" className={inputClass} />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone *</label>
-                <input {...register("telephone", { required: "Téléphone requis" })} placeholder="77 123 45 67" className={inputClass} />
+                <label htmlFor="teacher-form-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone *</label>
+                <input id="teacher-form-champ-11" {...register("telephone", { required: "Téléphone requis" })} placeholder="77 123 45 67" className={inputClass} />
               </div>
             </div>
           </div>
@@ -280,14 +280,14 @@ export default function TeacherFormPage({ id }: Props) {
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Profil académique</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau d'étude *</label>
-                <select {...register("niveauEtude", { required: true })} className={inputClass}>
+                <label htmlFor="teacher-form-champ-12" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau d'étude *</label>
+                <select id="teacher-form-champ-12" {...register("niveauEtude", { required: true })} className={inputClass}>
                   {NIVEAUX_ETUDE.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
-                <select {...register("grade")} className={inputClass}>
+                <label htmlFor="teacher-form-champ-13" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
+                <select id="teacher-form-champ-13" {...register("grade")} className={inputClass}>
                   <option value="Permanent">Permanent</option>
                   <option value="Vacataire">Vacataire</option>
                   <option value="Contractuel">Contractuel</option>
@@ -312,7 +312,7 @@ export default function TeacherFormPage({ id }: Props) {
                   <div key={i} className="flex gap-2">
                     <input value={d} onChange={(e) => updateListItem(setDiplomes, i, e.target.value)} placeholder="ex: Master en Informatique" className={inputClass} />
                     {diplomes.length > 1 && (
-                      <button type="button" onClick={() => removeListItem(setDiplomes, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
+                      <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => removeListItem(setDiplomes, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
                         <Trash2 size={14} />
                       </button>
                     )}
@@ -339,7 +339,7 @@ export default function TeacherFormPage({ id }: Props) {
                       required={i === 0}
                     />
                     {specialites.length > 1 && (
-                      <button type="button" onClick={() => removeListItem(setSpecialites, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
+                      <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => removeListItem(setSpecialites, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
                         <Trash2 size={14} />
                       </button>
                     )}

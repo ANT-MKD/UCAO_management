@@ -78,13 +78,13 @@ export default function PECMassePage() {
             </tr>
             <tr className="border-b border-border bg-card">
               <th className="px-3 py-2">
-                <input value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Référence" value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.organisme} onChange={(e) => patchFilter({ organisme: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Organisme" value={filters.organisme} onChange={(e) => patchFilter({ organisme: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.classe} onChange={(e) => patchFilter({ classe: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Classe" value={filters.classe} onChange={(e) => patchFilter({ classe: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2" colSpan={3}>
                 {Object.values(filters).some(Boolean) && (
@@ -142,7 +142,7 @@ export default function PECMassePage() {
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Afficher</span>
-            <select
+            <select aria-label="Nombre de lignes par page"
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
               className="px-2 py-1 border border-border rounded-lg bg-background text-xs"
@@ -158,16 +158,16 @@ export default function PECMassePage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Page {currentPage} sur {totalPages}</span>
             <div className="flex gap-1">
-              <button onClick={() => setPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Première page" title="Première page" onClick={() => setPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronsLeft size={14} />
               </button>
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Précédent" title="Précédent" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronLeft size={14} />
               </button>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Suivant" title="Suivant" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronRight size={14} />
               </button>
-              <button onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
+              <button aria-label="Dernière page" title="Dernière page" onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors">
                 <ChevronsRight size={14} />
               </button>
             </div>

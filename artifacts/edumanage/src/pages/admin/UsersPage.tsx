@@ -233,7 +233,7 @@ export default function UsersPage() {
       />
 
       <div className="flex items-center gap-3 mb-4">
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="user-filtre-profil">
+        <select aria-label="Tous les profils" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={cn(inputClass, "w-auto min-w-[180px]")} data-testid="user-filtre-profil">
           <option value="">Tous les profils</option>
           <option value="admin">{PORTAL_LABELS.admin}</option>
           <option value="teacher">{PORTAL_LABELS.teacher}</option>
@@ -262,8 +262,8 @@ export default function UsersPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Profil *</label>
-            <select
+            <label htmlFor="users-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Profil *</label>
+            <select id="users-champ-1"
               value={form.role}
               onChange={(e) => {
                 const role = e.target.value as "admin" | "teacher";
@@ -286,7 +286,7 @@ export default function UsersPage() {
                   <Link href="/admin/teachers/new" className="text-primary hover:underline font-medium">Créer une fiche enseignant</Link>.
                 </p>
               ) : (
-                <select
+                <select aria-label="Sélectionner une fiche"
                   value={form.teacherId}
                   onChange={(e) => {
                     const t = teachersDisponibles.find((x) => x.id === e.target.value);
@@ -306,33 +306,33 @@ export default function UsersPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
-              <input value={form.prenom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-prenom" />
+              <label htmlFor="users-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
+              <input id="users-champ-2" value={form.prenom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, prenom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-prenom" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-              <input value={form.nom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-nom" />
+              <label htmlFor="users-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+              <input id="users-champ-3" value={form.nom} disabled={form.role === "teacher"} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={cn(inputClass, form.role === "teacher" && "opacity-60 cursor-not-allowed")} data-testid="user-nom" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Identifiant *</label>
-            <input value={form.identifier} onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))} placeholder="ex: ENS-0042" className={inputClass} data-testid="user-identifiant" />
+            <label htmlFor="users-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Identifiant *</label>
+            <input id="users-champ-4" value={form.identifier} onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))} placeholder="ex: ENS-0042" className={inputClass} data-testid="user-identifiant" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
-            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="nom@edumanage.com" className={inputClass} data-testid="user-email" />
+            <label htmlFor="users-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
+            <input id="users-champ-5" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="nom@edumanage.com" className={inputClass} data-testid="user-email" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-            <input value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} className={inputClass} data-testid="user-telephone" />
+            <label htmlFor="users-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input id="users-champ-6" value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} className={inputClass} data-testid="user-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
-            <input value={form.fonction} onChange={(e) => setForm((f) => ({ ...f, fonction: e.target.value }))} placeholder="ex: Secrétariat, Gestion des professeurs..." className={inputClass} data-testid="user-fonction" />
+            <label htmlFor="users-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
+            <input id="users-champ-7" value={form.fonction} onChange={(e) => setForm((f) => ({ ...f, fonction: e.target.value }))} placeholder="ex: Secrétariat, Gestion des professeurs..." className={inputClass} data-testid="user-fonction" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
-            <select value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))} className={inputClass} data-testid="user-role-select">
+            <label htmlFor="users-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
+            <select id="users-champ-8" value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))} className={inputClass} data-testid="user-role-select">
               <option value="" disabled={roleRequis}>{roleRequis ? "Choisissez un rôle" : "Aucun — accès complet"}</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
             </select>
@@ -343,8 +343,8 @@ export default function UsersPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>
-            <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Communicable via Envoi identifiant" className={inputClass} data-testid="user-password" />
+            <label htmlFor="users-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>
+            <input id="users-champ-9" type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Communicable via Envoi identifiant" className={inputClass} data-testid="user-password" />
             <p className={cn("text-[11px] mt-1", form.password && !isPasswordValid(form.password) ? "text-red-600" : "text-muted-foreground")}>{PASSWORD_HINT}</p>
           </div>
 

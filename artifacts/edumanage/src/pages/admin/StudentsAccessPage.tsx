@@ -142,7 +142,7 @@ export default function StudentsAccessPage() {
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
           <div className="relative w-64 max-w-full">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <input aria-label="Matricule, nom, prénom, programme"
               type="search"
               placeholder="Matricule, nom, prénom, programme..."
               value={search}
@@ -150,7 +150,7 @@ export default function StudentsAccessPage() {
               className="w-full pl-9 pr-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
-          <select
+          <select aria-label="Tous les accès"
             value={accessFilter}
             onChange={(e) => { setAccessFilter(e.target.value as typeof accessFilter); setPage(1); }}
             className={cn(inputClass, "w-auto min-w-[160px]")}
@@ -323,17 +323,17 @@ export default function StudentsAccessPage() {
               ))}
             </select>
             <div className="flex items-center gap-1">
-              <button type="button" disabled={safePage <= 1} onClick={() => setPage(1)} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
+              <button aria-label="Première page" title="Première page" type="button" disabled={safePage <= 1} onClick={() => setPage(1)} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
                 <ChevronsLeft size={14} />
               </button>
-              <button type="button" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
+              <button aria-label="Précédent" title="Précédent" type="button" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
                 <ChevronLeft size={14} />
               </button>
               <span className="px-2 font-medium text-foreground">{safePage} / {totalPages}</span>
-              <button type="button" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
+              <button aria-label="Suivant" title="Suivant" type="button" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
                 <ChevronRight size={14} />
               </button>
-              <button type="button" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
+              <button aria-label="Dernière page" title="Dernière page" type="button" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)} className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40">
                 <ChevronsRight size={14} />
               </button>
             </div>
@@ -347,8 +347,8 @@ export default function StudentsAccessPage() {
             {relanceCibles.length} étudiant(s) recevront un mail les invitant à régulariser leur impayé. Si le solde n'est toujours pas réglé à l'échéance, leur accès au portail étudiant sera automatiquement bloqué.
           </p>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Délai avant blocage (jours)</label>
-            <input type="number" min={1} value={delaiJours} onChange={(e) => setDelaiJours(Math.max(1, Number(e.target.value)))} className={inputClass} data-testid="relance-delai" />
+            <label htmlFor="students-access-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Délai avant blocage (jours)</label>
+            <input id="students-access-champ-2" type="number" min={1} value={delaiJours} onChange={(e) => setDelaiJours(Math.max(1, Number(e.target.value)))} className={inputClass} data-testid="relance-delai" />
           </div>
           <button onClick={confirmerRelance} className="w-full px-4 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors" data-testid="relance-confirmer">
             Envoyer la relance

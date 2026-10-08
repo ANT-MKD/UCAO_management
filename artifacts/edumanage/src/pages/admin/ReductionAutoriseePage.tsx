@@ -268,8 +268,8 @@ export default function ReductionAutoriseePage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Utilisateur *</label>
-            <select
+            <label htmlFor="reduction-autorisee-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Utilisateur *</label>
+            <select id="reduction-autorisee-champ-1"
               value={form.personnelId}
               onChange={(e) => setForm((f) => ({ ...f, personnelId: e.target.value }))}
               className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -282,9 +282,9 @@ export default function ReductionAutoriseePage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux maximum *</label>
+            <label htmlFor="reduction-autorisee-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Taux maximum *</label>
             <div className="flex items-center gap-2">
-              <input
+              <input id="reduction-autorisee-champ-2"
                 type="number"
                 min={0}
                 max={100}
@@ -300,8 +300,8 @@ export default function ReductionAutoriseePage() {
           <p className="text-xs font-semibold text-primary uppercase tracking-wide pt-2 border-t border-border">Gestion de plafond</p>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant plafond *</label>
-            <input
+            <label htmlFor="reduction-autorisee-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant plafond *</label>
+            <input id="reduction-autorisee-champ-3"
               type="number"
               min={0}
               value={form.montantPlafond}
@@ -312,8 +312,8 @@ export default function ReductionAutoriseePage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date début *</label>
-              <input
+              <label htmlFor="reduction-autorisee-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Date début *</label>
+              <input id="reduction-autorisee-champ-4"
                 type="date"
                 value={form.dateDebut}
                 onChange={(e) => setForm((f) => ({ ...f, dateDebut: e.target.value }))}
@@ -322,8 +322,8 @@ export default function ReductionAutoriseePage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date fin *</label>
-              <input
+              <label htmlFor="reduction-autorisee-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Date fin *</label>
+              <input id="reduction-autorisee-champ-5"
                 type="date"
                 value={form.dateFin}
                 onChange={(e) => setForm((f) => ({ ...f, dateFin: e.target.value }))}

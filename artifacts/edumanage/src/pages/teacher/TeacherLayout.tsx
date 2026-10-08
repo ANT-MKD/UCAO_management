@@ -166,7 +166,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
               <span className="font-bold text-sm truncate" style={{ fontFamily: "Outfit, sans-serif" }}>
                 Espace enseignant
               </span>
-              <button type="button" onClick={() => setMobileOpen(false)} className="p-2 rounded-lg hover:bg-muted" data-testid="teacher-mobile-nav-close">
+              <button aria-label="Fermer" title="Fermer" type="button" onClick={() => setMobileOpen(false)} className="p-2 rounded-lg hover:bg-muted" data-testid="teacher-mobile-nav-close">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -208,7 +208,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 overflow-auto flex flex-col">
         <header className="h-14 border-b border-border bg-card px-4 md:px-6 flex items-center justify-between shrink-0">
-          <button type="button" onClick={() => setMobileOpen(true)} className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="teacher-mobile-nav-open">
+          <button aria-label="Ouvrir le menu" title="Ouvrir le menu" type="button" onClick={() => setMobileOpen(true)} className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="teacher-mobile-nav-open">
             <Menu size={20} />
           </button>
           <div className="relative ml-auto">
@@ -216,6 +216,8 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => setNotifOpen((o) => !o)}
               className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              aria-label="Notifications"
+              title="Notifications"
               data-testid="teacher-topbar-notifications"
             >
               <Bell size={18} />

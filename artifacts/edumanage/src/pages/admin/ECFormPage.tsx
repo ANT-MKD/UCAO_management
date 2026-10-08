@@ -144,31 +144,31 @@ export default function ECFormPage({ id }: Props) {
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code EC *</label>
-              <input {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" }, onChange: () => setCodeManuel(true) })} placeholder="ex: LPIG3511" className={`${inputClass} uppercase font-mono`} data-testid="ec-code" />
+              <label htmlFor="e-c-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Code EC *</label>
+              <input id="e-c-form-champ-1" {...register("code", { required: "Code requis", minLength: { value: 2, message: "Minimum 2 caractères" }, onChange: () => setCodeManuel(true) })} placeholder="ex: LPIG3511" className={`${inputClass} uppercase font-mono`} data-testid="ec-code" />
               {!codeManuel && ue && <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1"><Wand2 size={11} /> Proposé d&apos;après l&apos;UE — modifiable</p>}
               {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">UE Parente *</label>
+              <label htmlFor="ec-form-ue" className="block text-xs font-medium text-muted-foreground mb-1.5">UE Parente *</label>
               <Controller
                 name="ueId"
                 control={control}
                 rules={{ required: "UE parente requise" }}
                 render={({ field }) => (
-                  <RechercheSelect options={optionsUe} value={field.value} onChange={choisirUe} placeholder="Tapez un code, un intitulé ou une filière…" invalide={!!errors.ueId} testId="ec-ue" />
+                  <RechercheSelect options={optionsUe} value={field.value} onChange={choisirUe} placeholder="Tapez un code, un intitulé ou une filière…" invalide={!!errors.ueId} testId="ec-ue" id="ec-form-ue" />
                 )}
               />
               {errors.ueId && <p className="text-xs text-red-500 mt-1">{errors.ueId.message}</p>}
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Élément constitutif *</label>
-              <input {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" }, onChange: (e) => { if (!abregeManuel) setValue("abrege", abregerIntitule(e.target.value)); } })} placeholder="ex: Concepts et fondamentaux de la POO Java" className={inputClass} data-testid="ec-libelle" />
+              <label htmlFor="e-c-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Élément constitutif *</label>
+              <input id="e-c-form-champ-2" {...register("libelle", { required: "Libellé requis", minLength: { value: 3, message: "Minimum 3 caractères" }, onChange: (e) => { if (!abregeManuel) setValue("abrege", abregerIntitule(e.target.value)); } })} placeholder="ex: Concepts et fondamentaux de la POO Java" className={inputClass} data-testid="ec-libelle" />
               {errors.libelle && <p className="text-xs text-red-500 mt-1">{errors.libelle.message}</p>}
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé abrégé</label>
-              <input {...register("abrege", { onChange: () => setAbregeManuel(true) })} placeholder="ex: ICPT" className={`${inputClass} uppercase font-mono`} data-testid="ec-abrege" />
+              <label htmlFor="e-c-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Intitulé abrégé</label>
+              <input id="e-c-form-champ-3" {...register("abrege", { onChange: () => setAbregeManuel(true) })} placeholder="ex: ICPT" className={`${inputClass} uppercase font-mono`} data-testid="ec-abrege" />
               {!abregeManuel && <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1"><Wand2 size={11} /> Proposé d&apos;après l&apos;intitulé — modifiable</p>}
             </div>
 
@@ -176,23 +176,23 @@ export default function ECFormPage({ id }: Props) {
               <p className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wide">Enseignements (heures)</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">CM</label>
-                  <input {...register("volCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  <label htmlFor="e-c-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">CM</label>
+                  <input id="e-c-form-champ-4" {...register("volCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
                   {errors.volCm && <p className="text-xs text-red-500 mt-1">{errors.volCm.message}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">TD</label>
-                  <input {...register("volTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  <label htmlFor="e-c-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">TD</label>
+                  <input id="e-c-form-champ-5" {...register("volTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
                   {errors.volTd && <p className="text-xs text-red-500 mt-1">{errors.volTd.message}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">TP</label>
-                  <input {...register("volTp", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  <label htmlFor="e-c-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">TP</label>
+                  <input id="e-c-form-champ-6" {...register("volTp", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
                   {errors.volTp && <p className="text-xs text-red-500 mt-1">{errors.volTp.message}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">TPE</label>
-                  <input {...register("volTpe", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                  <label htmlFor="e-c-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">TPE</label>
+                  <input id="e-c-form-champ-7" {...register("volTpe", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
                   {errors.volTpe && <p className="text-xs text-red-500 mt-1">{errors.volTpe.message}</p>}
                 </div>
               </div>
@@ -204,8 +204,8 @@ export default function ECFormPage({ id }: Props) {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits de l&apos;EC</label>
-              <input {...register("credits", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} data-testid="ec-credits" />
+              <label htmlFor="e-c-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits de l&apos;EC</label>
+              <input id="e-c-form-champ-8" {...register("credits", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} data-testid="ec-credits" />
               {errors.credits && <p className="text-xs text-red-500 mt-1">{errors.credits.message}</p>}
               {ue && (
                 <p className={cn("text-[11px] mt-1", sommeCredits > ue.credits ? "text-amber-700" : "text-muted-foreground")} data-testid="ec-controle-credits">
@@ -215,12 +215,12 @@ export default function ECFormPage({ id }: Props) {
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant responsable</label>
+              <label htmlFor="ec-form-enseignant" className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant responsable</label>
               <Controller
                 name="responsableId"
                 control={control}
                 render={({ field }) => (
-                  <RechercheSelect options={optionsEnseignants} value={field.value} onChange={field.onChange} placeholder="Tapez un nom, un matricule ou une spécialité…" aucunLabel="Non assigné" testId="ec-enseignant" />
+                  <RechercheSelect options={optionsEnseignants} value={field.value} onChange={field.onChange} placeholder="Tapez un nom, un matricule ou une spécialité…" aucunLabel="Non assigné" testId="ec-enseignant" id="ec-form-enseignant" />
                 )}
               />
             </div>

@@ -224,7 +224,7 @@ export default function TeacherAbsencePage() {
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input aria-label="Rechercher un professeur (nom, matricule)"
             type="search"
             value={quickSearch}
             onChange={(e) => setQuickSearch(e.target.value)}
@@ -406,8 +406,8 @@ export default function TeacherAbsencePage() {
           </div>
           {editType === "retard" && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Durée du retard (minutes)</label>
-              <input
+              <label htmlFor="teacher-absence-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Durée du retard (minutes)</label>
+              <input id="teacher-absence-champ-1"
                 type="number"
                 min={1}
                 step={5}
@@ -418,8 +418,8 @@ export default function TeacherAbsencePage() {
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
-            <textarea
+            <label htmlFor="teacher-absence-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
+            <textarea id="teacher-absence-champ-2"
               value={editMotif}
               onChange={(e) => setEditMotif(e.target.value)}
               rows={3}
@@ -539,8 +539,8 @@ function AdvancedSearchModal({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-              <select
+              <label htmlFor="teacher-absence-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+              <select id="teacher-absence-champ-3"
                 value={draft.filiereId}
                 onChange={(e) =>
                   patch({ filiereId: e.target.value, niveauId: "", classeId: "", semestreId: "" })
@@ -556,8 +556,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique</label>
-              <select
+              <label htmlFor="teacher-absence-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique</label>
+              <select id="teacher-absence-champ-4"
                 value={draft.annee}
                 onChange={(e) => patch({ annee: e.target.value, classeId: "" })}
                 className={inputClass}
@@ -571,8 +571,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveaux</label>
-              <select
+              <label htmlFor="teacher-absence-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveaux</label>
+              <select id="teacher-absence-champ-5"
                 value={draft.niveauId}
                 onChange={(e) => patch({ niveauId: e.target.value, classeId: "" })}
                 className={inputClass}
@@ -587,8 +587,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-              <select
+              <label htmlFor="teacher-absence-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+              <select id="teacher-absence-champ-6"
                 value={draft.classeId}
                 onChange={(e) => patch({ classeId: e.target.value })}
                 className={inputClass}
@@ -603,8 +603,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
-              <select
+              <label htmlFor="teacher-absence-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
+              <select id="teacher-absence-champ-7"
                 value={draft.semestreId}
                 onChange={(e) => patch({ semestreId: e.target.value })}
                 className={inputClass}
@@ -619,8 +619,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Justifié</label>
-              <select
+              <label htmlFor="teacher-absence-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Justifié</label>
+              <select id="teacher-absence-champ-8"
                 value={draft.justifie}
                 onChange={(e) => patch({ justifie: e.target.value as JustifieFilter })}
                 className={inputClass}
@@ -631,8 +631,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début</label>
-              <input
+              <label htmlFor="teacher-absence-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début</label>
+              <input id="teacher-absence-champ-9"
                 type="date"
                 value={draft.dateDebut}
                 onChange={(e) => patch({ dateDebut: e.target.value })}
@@ -640,8 +640,8 @@ function AdvancedSearchModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin</label>
-              <input
+              <label htmlFor="teacher-absence-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin</label>
+              <input id="teacher-absence-champ-10"
                 type="date"
                 value={draft.dateFin}
                 onChange={(e) => patch({ dateFin: e.target.value })}
@@ -651,10 +651,10 @@ function AdvancedSearchModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
+            <label htmlFor="teacher-absence-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-              <input
+              <input id="teacher-absence-champ-11"
                 type="search"
                 value={teacherQuery}
                 onChange={(e) => {

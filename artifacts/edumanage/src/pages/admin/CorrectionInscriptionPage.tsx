@@ -130,7 +130,7 @@ export default function CorrectionInscriptionPage() {
             <>
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher par nom ou matricule"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Rechercher par nom ou matricule…"
@@ -166,23 +166,23 @@ export default function CorrectionInscriptionPage() {
             <div className="bg-card border border-border rounded-xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Nouvelle fiche d&apos;inscription</p>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-                <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="correction-inscription-filiere">
+                <label htmlFor="correction-inscription-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+                <select id="correction-inscription-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); }} className={inputClass} data-testid="correction-inscription-filiere">
                   <option value="">Sélectionner</option>
                   {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
                 </select>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-                  <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="correction-inscription-annee">
+                  <label htmlFor="correction-inscription-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+                  <select id="correction-inscription-champ-2" value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="correction-inscription-annee">
                     <option value="">Sélectionner</option>
                     {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-                  <select value={niveauId} onChange={(e) => setNiveauId(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="correction-inscription-niveau">
+                  <label htmlFor="correction-inscription-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+                  <select id="correction-inscription-champ-3" value={niveauId} onChange={(e) => setNiveauId(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="correction-inscription-niveau">
                     <option value="">Sélectionner</option>
                     {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
                   </select>
@@ -190,20 +190,20 @@ export default function CorrectionInscriptionPage() {
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
-                  <input value={specialite} onChange={(e) => setSpecialite(e.target.value)} placeholder="Optionnel" className={inputClass} data-testid="correction-inscription-specialite" />
+                  <label htmlFor="correction-inscription-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
+                  <input id="correction-inscription-champ-4" value={specialite} onChange={(e) => setSpecialite(e.target.value)} placeholder="Optionnel" className={inputClass} data-testid="correction-inscription-specialite" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
-                  <select value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="correction-inscription-modele-frais">
+                  <label htmlFor="correction-inscription-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
+                  <select id="correction-inscription-champ-5" value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="correction-inscription-modele-frais">
                     <option value="">Sélectionner</option>
                     {modelesFrais.map((m) => <option key={m.id} value={m.id}>{m.code} — {m.intitule}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
-                <textarea
+                <label htmlFor="correction-inscription-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
+                <textarea id="correction-inscription-champ-6"
                   value={motif}
                   onChange={(e) => setMotif(e.target.value)}
                   rows={3}

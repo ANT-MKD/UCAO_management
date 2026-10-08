@@ -254,24 +254,24 @@ export default function UserDetailPage({ id }: { id: string }) {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
-            <input value={editForm.displayName} onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-nom" />
+            <label htmlFor="user-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
+            <input id="user-detail-champ-1" value={editForm.displayName} onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-nom" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
-            <input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-email" />
+            <label htmlFor="user-detail-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
+            <input id="user-detail-champ-2" type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-email" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-            <input value={editForm.telephone} onChange={(e) => setEditForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-telephone" />
+            <label htmlFor="user-detail-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input id="user-detail-champ-3" value={editForm.telephone} onChange={(e) => setEditForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
-            <input value={editForm.fonction} onChange={(e) => setEditForm((f) => ({ ...f, fonction: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-fonction" />
+            <label htmlFor="user-detail-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
+            <input id="user-detail-champ-4" value={editForm.fonction} onChange={(e) => setEditForm((f) => ({ ...f, fonction: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-fonction" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
-            <select value={editForm.roleId} onChange={(e) => setEditForm((f) => ({ ...f, roleId: e.target.value }))} disabled={!peutChangerRole} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60" data-testid="user-edit-role-select">
+            <label htmlFor="user-detail-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
+            <select id="user-detail-champ-5" value={editForm.roleId} onChange={(e) => setEditForm((f) => ({ ...f, roleId: e.target.value }))} disabled={!peutChangerRole} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60" data-testid="user-edit-role-select">
               <option value="" disabled={!acteurAccesComplet && compte.role === "admin"}>Aucun — accès complet</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
             </select>

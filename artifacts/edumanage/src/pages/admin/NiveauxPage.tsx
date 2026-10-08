@@ -74,7 +74,7 @@ export default function NiveauxPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/niveaux/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/niveaux/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
           <button
             onClick={(e) => {
               e.stopPropagation();

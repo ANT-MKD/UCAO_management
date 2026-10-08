@@ -106,9 +106,9 @@ export function StudentSchedulePage() {
           <p className="text-sm text-muted-foreground mt-1">{student?.classe} · {student?.filiere}</p>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
-          <button onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors" data-testid="edt-etudiant-week-prev"><ChevronLeft size={16} /></button>
+          <button aria-label="Précédent" title="Précédent" onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors" data-testid="edt-etudiant-week-prev"><ChevronLeft size={16} /></button>
           <span className="text-sm font-medium text-foreground px-2">Sem. du {weekLabel}</span>
-          <button onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors" data-testid="edt-etudiant-week-next"><ChevronRight size={16} /></button>
+          <button aria-label="Suivant" title="Suivant" onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors" data-testid="edt-etudiant-week-next"><ChevronRight size={16} /></button>
           <button onClick={() => setWeekOffset(0)} className="px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors">Aujourd&apos;hui</button>
           {(["semaine", "jour"] as const).map((mode) => (
             <button
@@ -903,7 +903,7 @@ export function StudentFraisPayePage() {
       <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[180px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input aria-label="Rechercher une rubrique"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher une rubrique..."
@@ -912,7 +912,7 @@ export function StudentFraisPayePage() {
           />
         </div>
         {moyens.length > 0 && (
-          <select
+          <select aria-label="Tous les moyens"
             value={moyenFiltre}
             onChange={(e) => setMoyenFiltre(e.target.value)}
             className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -1311,8 +1311,8 @@ export function StudentPayerFacturesPage() {
               ) : (
                 <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Facture à régler <span className="text-red-500">*</span></label>
-                    <select
+                    <label htmlFor="student-portal-pages-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Facture à régler <span className="text-red-500">*</span></label>
+                    <select id="student-portal-pages-champ-1"
                       value={selectedId}
                       onChange={(e) => selectQuittance(e.target.value)}
                       className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -1329,8 +1329,8 @@ export function StudentPayerFacturesPage() {
                     <>
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant à payer (max {formatCFA(resteSelected)}) <span className="text-red-500">*</span></label>
-                          <input
+                          <label htmlFor="student-portal-pages-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant à payer (max {formatCFA(resteSelected)}) <span className="text-red-500">*</span></label>
+                          <input id="student-portal-pages-champ-2"
                             type="number"
                             min={1}
                             max={resteSelected}
@@ -1341,8 +1341,8 @@ export function StudentPayerFacturesPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement <span className="text-red-500">*</span></label>
-                          <select
+                          <label htmlFor="student-portal-pages-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen de paiement <span className="text-red-500">*</span></label>
+                          <select id="student-portal-pages-champ-3"
                             value={moyen}
                             onChange={(e) => setMoyen(e.target.value)}
                             className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -1358,8 +1358,8 @@ export function StudentPayerFacturesPage() {
                       <div>
                         <div className="grid sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone utilisé <span className="text-red-500">*</span></label>
-                            <input
+                            <label htmlFor="student-portal-pages-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone utilisé <span className="text-red-500">*</span></label>
+                            <input id="student-portal-pages-champ-4"
                               value={numero}
                               onChange={(e) => setNumero(e.target.value)}
                               placeholder="ex: 77 000 00 00"
@@ -1368,8 +1368,8 @@ export function StudentPayerFacturesPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence de la transaction <span className="text-red-500">*</span></label>
-                            <input
+                            <label htmlFor="student-portal-pages-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence de la transaction <span className="text-red-500">*</span></label>
+                            <input id="student-portal-pages-champ-5"
                               value={referenceTx}
                               onChange={(e) => setReferenceTx(e.target.value)}
                               placeholder="ex: CI240917.1532.A12345"
@@ -1672,7 +1672,7 @@ export function StudentCoursPage() {
         <div className="flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-[220px]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <input aria-label="Rechercher un cours, un professeur"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Rechercher un cours, un professeur…"
@@ -1680,7 +1680,7 @@ export function StudentCoursPage() {
               data-testid="cours-recherche"
             />
           </div>
-          <select
+          <select aria-label="Tous les semestres"
             value={semestreFiltre}
             onChange={(e) => setSemestreFiltre(e.target.value)}
             className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -1724,7 +1724,7 @@ export function StudentCoursPage() {
 
         {showFiltresAvances && (
           <div className="pt-3 border-t border-border grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <select
+            <select aria-label="Tous les professeurs"
               value={profFiltre}
               onChange={(e) => setProfFiltre(e.target.value)}
               className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -1733,7 +1733,7 @@ export function StudentCoursPage() {
               <option value="">Tous les professeurs</option>
               {profsDisponibles.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
-            <select
+            <select aria-label="Toute progression"
               value={progressionFiltre}
               onChange={(e) => setProgressionFiltre(e.target.value as "" | ProgressionBucket)}
               className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -2144,7 +2144,7 @@ export function StudentAbsencesPage() {
           {onglet === "historique" && (
             <>
               {matieres.length > 0 && (
-                <select
+                <select aria-label="Toutes les matières"
                   value={matiereFiltre}
                   onChange={(e) => setMatiereFiltre(e.target.value)}
                   className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

@@ -94,8 +94,8 @@ export function CurriculumImportButton({ className }: Props) {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="block text-[11px] text-muted-foreground mb-1">Filière par défaut</label>
-                <select
+                <label htmlFor="curriculum-import-button-champ-1" className="block text-[11px] text-muted-foreground mb-1">Filière par défaut</label>
+                <select id="curriculum-import-button-champ-1"
                   value={filiereId}
                   onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSemestreId(""); }}
                   className="w-full px-2.5 py-2 text-sm border border-border rounded-xl bg-background"
@@ -105,8 +105,8 @@ export function CurriculumImportButton({ className }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] text-muted-foreground mb-1">Niveau</label>
-                <select
+                <label htmlFor="curriculum-import-button-champ-2" className="block text-[11px] text-muted-foreground mb-1">Niveau</label>
+                <select id="curriculum-import-button-champ-2"
                   value={niveauId}
                   onChange={(e) => { setNiveauId(e.target.value); setSemestreId(""); }}
                   className="w-full px-2.5 py-2 text-sm border border-border rounded-xl bg-background"
@@ -116,8 +116,8 @@ export function CurriculumImportButton({ className }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] text-muted-foreground mb-1">Semestre</label>
-                <select
+                <label htmlFor="curriculum-import-button-champ-3" className="block text-[11px] text-muted-foreground mb-1">Semestre</label>
+                <select id="curriculum-import-button-champ-3"
                   value={semestreId}
                   onChange={(e) => setSemestreId(e.target.value)}
                   className="w-full px-2.5 py-2 text-sm border border-border rounded-xl bg-background"

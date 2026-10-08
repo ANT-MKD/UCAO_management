@@ -431,7 +431,7 @@ export default function DashboardPage() {
             <select value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
               {anneeOptions.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
-            <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>
+            <select aria-label="Toutes les filières" value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>
               <option value="">Toutes les filières</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                 <option key={f.id} value={f.code}>{f.code}</option>

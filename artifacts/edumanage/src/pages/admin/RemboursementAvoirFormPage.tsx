@@ -108,7 +108,7 @@ export default function RemboursementAvoirFormPage() {
             <>
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Nom, prénom ou matricule"
                   autoFocus
                   type="search"
                   placeholder="Nom, prénom ou matricule..."
@@ -142,10 +142,10 @@ export default function RemboursementAvoirFormPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="remboursement-avoir-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Montant à rembourser (FCFA) <span className="text-red-500">*</span>
             </label>
-            <input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={cn(inputClass, "font-mono")} data-testid="remb-avoir-montant" />
+            <input id="remboursement-avoir-form-champ-1" type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={cn(inputClass, "font-mono")} data-testid="remb-avoir-montant" />
             {selectedStudent && (
               <p className={cn("text-[11px] mt-1", montantInsuffisant ? "text-red-600 font-medium" : "text-muted-foreground")}>
                 Solde avoir disponible : {formatCFA(soldeAvoirDisponible)}
@@ -154,24 +154,24 @@ export default function RemboursementAvoirFormPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+            <label htmlFor="remboursement-avoir-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date</label>
+            <input id="remboursement-avoir-form-champ-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="remboursement-avoir-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Motif <span className="text-red-500">*</span>
           </label>
-          <textarea value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={inputClass} placeholder="ex. l'étudiant préfère être remboursé plutôt que garder le crédit" data-testid="remb-avoir-motif" />
+          <textarea id="remboursement-avoir-form-champ-3" value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={inputClass} placeholder="ex. l'étudiant préfère être remboursé plutôt que garder le crédit" data-testid="remb-avoir-motif" />
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="remboursement-avoir-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Choisir un mode de règlement <span className="text-red-500">*</span>
             </label>
-            <select value={moyenRemboursement} onChange={(e) => setMoyenRemboursement(e.target.value)} className={inputClass} data-testid="remb-avoir-mode">
+            <select id="remboursement-avoir-form-champ-4" value={moyenRemboursement} onChange={(e) => setMoyenRemboursement(e.target.value)} className={inputClass} data-testid="remb-avoir-mode">
               <option value="">Sélectionner…</option>
               {modesDisponibles.map((m) => (
                 <option key={m.id} value={m.intitule}>{m.intitule}</option>
@@ -179,8 +179,8 @@ export default function RemboursementAvoirFormPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
-            <input value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
+            <label htmlFor="remboursement-avoir-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Référence</label>
+            <input id="remboursement-avoir-form-champ-5" value={referenceBancaire} onChange={(e) => setReferenceBancaire(e.target.value)} className={cn(inputClass, "font-mono")} />
           </div>
         </div>
 

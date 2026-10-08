@@ -56,36 +56,36 @@ export default function DeclassementPage() {
         <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-4">Sélection</p>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-40">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-            <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSemestreId(""); setClasseId(""); setCharge(false); }} className={inputClass} data-testid="declassement-eleves-filiere">
+            <label htmlFor="declassement-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+            <select id="declassement-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSemestreId(""); setClasseId(""); setCharge(false); }} className={inputClass} data-testid="declassement-eleves-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
             </select>
           </div>
           <div className="flex-1 min-w-40">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année</label>
-            <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); setCharge(false); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-annee">
+            <label htmlFor="declassement-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année</label>
+            <select id="declassement-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); setCharge(false); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-annee">
               <option value="">Sélectionner</option>
               {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div className="flex-1 min-w-40">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-            <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSemestreId(""); setClasseId(""); setCharge(false); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-niveau">
+            <label htmlFor="declassement-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+            <select id="declassement-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSemestreId(""); setClasseId(""); setCharge(false); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-niveau">
               <option value="">Sélectionner</option>
               {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
           </div>
           <div className="flex-1 min-w-40">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
-            <select value={semestreId} onChange={(e) => { setSemestreId(e.target.value); setCharge(false); }} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-semestre">
+            <label htmlFor="declassement-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
+            <select id="declassement-champ-4" value={semestreId} onChange={(e) => { setSemestreId(e.target.value); setCharge(false); }} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-semestre">
               <option value="">Sélectionner</option>
               {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
             </select>
           </div>
           <div className="flex-1 min-w-40">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-            <select value={classeId} onChange={(e) => { setClasseId(e.target.value); setCharge(false); }} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-classe">
+            <label htmlFor="declassement-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+            <select id="declassement-champ-5" value={classeId} onChange={(e) => { setClasseId(e.target.value); setCharge(false); }} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="declassement-eleves-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>

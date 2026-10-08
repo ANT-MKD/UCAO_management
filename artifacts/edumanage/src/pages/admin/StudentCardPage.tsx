@@ -114,7 +114,7 @@ export default function StudentCardPage() {
       <div className="mb-5 max-w-md">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input aria-label="Rechercher par matricule, nom, prénom ou filière"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -162,7 +162,7 @@ export default function StudentCardPage() {
               ))}
             </select>
             <div className="flex items-center gap-1">
-              <button
+              <button aria-label="Première page" title="Première page"
                 type="button"
                 disabled={safePage <= 1}
                 onClick={() => setPage(1)}
@@ -170,7 +170,7 @@ export default function StudentCardPage() {
               >
                 <ChevronsLeft size={14} />
               </button>
-              <button
+              <button aria-label="Précédent" title="Précédent"
                 type="button"
                 disabled={safePage <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -181,7 +181,7 @@ export default function StudentCardPage() {
               <span className="px-2 font-medium text-foreground">
                 {safePage} / {totalPages}
               </span>
-              <button
+              <button aria-label="Suivant" title="Suivant"
                 type="button"
                 disabled={safePage >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -189,7 +189,7 @@ export default function StudentCardPage() {
               >
                 <ChevronRight size={14} />
               </button>
-              <button
+              <button aria-label="Dernière page" title="Dernière page"
                 type="button"
                 disabled={safePage >= totalPages}
                 onClick={() => setPage(totalPages)}

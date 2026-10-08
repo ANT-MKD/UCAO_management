@@ -315,12 +315,12 @@ export default function TeacherPointageFormPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="teacher-pointage-form-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="teacher-pointage-form-champ-1"
               type="search"
               value={query}
               onChange={(e) => {
@@ -397,10 +397,10 @@ export default function TeacherPointageFormPage() {
               )}
 
               <div className="relative">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="teacher-pointage-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Cours <span className="text-red-500">*</span>
                 </label>
-                <input
+                <input id="teacher-pointage-form-champ-2"
                   type="search"
                   value={courseQuery}
                   onChange={(e) => {
@@ -440,15 +440,15 @@ export default function TeacherPointageFormPage() {
               {selectedCourse && (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
-                    <input readOnly value={objet} className={`${inputClass} bg-muted/50`} />
+                    <label htmlFor="teacher-pointage-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
+                    <input id="teacher-pointage-form-champ-3" readOnly value={objet} className={`${inputClass} bg-muted/50`} />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    <label htmlFor="teacher-pointage-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
                       Séance planifiée (EDT) — optionnel
                     </label>
-                    <select
+                    <select id="teacher-pointage-form-champ-4"
                       value={seanceId}
                       onChange={(e) => applySeance(e.target.value)}
                       className={inputClass}
@@ -469,10 +469,10 @@ export default function TeacherPointageFormPage() {
 
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      <label htmlFor="teacher-pointage-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
                         Date <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <input id="teacher-pointage-form-champ-5"
                         type="date"
                         value={date}
                         onChange={(e) => {
@@ -484,10 +484,10 @@ export default function TeacherPointageFormPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      <label htmlFor="teacher-pointage-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
                         Type <span className="text-red-500">*</span>
                       </label>
-                      <select value={type} onChange={(e) => setType(e.target.value as (typeof TYPES)[number])} className={inputClass}>
+                      <select id="teacher-pointage-form-champ-6" value={type} onChange={(e) => setType(e.target.value as (typeof TYPES)[number])} className={inputClass}>
                         {TYPES.map((t) => (
                           <option key={t} value={t}>
                             {t}
@@ -498,10 +498,10 @@ export default function TeacherPointageFormPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    <label htmlFor="teacher-pointage-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">
                       Salle de classe <span className="text-red-500">*</span>
                     </label>
-                    <select
+                    <select id="teacher-pointage-form-champ-7"
                       value={salleId}
                       onChange={(e) => setSalleId(e.target.value)}
                       className={inputClass}
@@ -518,10 +518,10 @@ export default function TeacherPointageFormPage() {
 
                   <div className="grid sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      <label htmlFor="teacher-pointage-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">
                         H. début <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <input id="teacher-pointage-form-champ-8"
                         type="time"
                         value={heureDebut}
                         onChange={(e) => {
@@ -533,10 +533,10 @@ export default function TeacherPointageFormPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      <label htmlFor="teacher-pointage-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">
                         H. fin <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <input id="teacher-pointage-form-champ-9"
                         type="time"
                         value={heureFin}
                         onChange={(e) => {
@@ -548,10 +548,10 @@ export default function TeacherPointageFormPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      <label htmlFor="teacher-pointage-form-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">
                         Volume pointé (h) <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <input id="teacher-pointage-form-champ-10"
                         type="number"
                         min={0.5}
                         step={0.5}
@@ -598,8 +598,8 @@ export default function TeacherPointageFormPage() {
                   </section>
 
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Remarque</label>
-                    <textarea
+                    <label htmlFor="teacher-pointage-form-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">Remarque</label>
+                    <textarea id="teacher-pointage-form-champ-11"
                       value={remarque}
                       onChange={(e) => setRemarque(e.target.value)}
                       rows={3}

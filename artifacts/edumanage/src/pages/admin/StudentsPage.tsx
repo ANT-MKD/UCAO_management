@@ -35,7 +35,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   return (
     <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
       {label}
-      <button onClick={onRemove} className="hover:text-red-500 transition-colors ml-0.5">
+      <button aria-label="Fermer" title="Fermer" onClick={onRemove} className="hover:text-red-500 transition-colors ml-0.5">
         <X size={10} />
       </button>
     </span>
@@ -222,8 +222,8 @@ export default function StudentsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         {/* Filière */}
         <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Filière</label>
-          <select
+          <label htmlFor="students-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Filière</label>
+          <select id="students-champ-1"
             value={filiereFilter}
             onChange={(e) => { setFiliereFilter(e.target.value); setClasseFilter(""); }}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -236,8 +236,8 @@ export default function StudentsPage() {
 
         {/* Statut */}
         <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
-          <select
+          <label htmlFor="students-champ-2" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
+          <select id="students-champ-2"
             value={statutFilter}
             onChange={(e) => setStatutFilter(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -249,8 +249,8 @@ export default function StudentsPage() {
 
         {/* Sexe */}
         <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Sexe</label>
-          <select
+          <label htmlFor="students-champ-3" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Sexe</label>
+          <select id="students-champ-3"
             value={sexeFilter}
             onChange={(e) => setSexeFilter(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -264,8 +264,8 @@ export default function StudentsPage() {
 
         {/* Année */}
         <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Année académ.</label>
-          <select
+          <label htmlFor="students-champ-4" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Année académ.</label>
+          <select id="students-champ-4"
             value={anneeFilter}
             onChange={(e) => setAnneeFilter(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -277,8 +277,8 @@ export default function StudentsPage() {
 
         {/* Niveau */}
         <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Niveau</label>
-          <select
+          <label htmlFor="students-champ-5" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Niveau</label>
+          <select id="students-champ-5"
             value={niveauFilter}
             onChange={(e) => setNiveauFilter(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -291,8 +291,8 @@ export default function StudentsPage() {
 
         {/* Classe */}
         <div>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Classe</label>
-          <select
+          <label htmlFor="students-champ-6" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Classe</label>
+          <select id="students-champ-6"
             value={classeFilter}
             onChange={(e) => setClasseFilter(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

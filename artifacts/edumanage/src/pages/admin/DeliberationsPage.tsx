@@ -168,7 +168,7 @@ export default function DeliberationsPage() {
       render: (row) => {
         const d = row as unknown as DeliberationRecord;
         return (
-          <button onClick={() => openDeliberation(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`deliberation-ouvrir-${d.id}`}>
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={() => openDeliberation(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`deliberation-ouvrir-${d.id}`}>
             <Eye size={14} />
           </button>
         );
@@ -198,7 +198,7 @@ export default function DeliberationsPage() {
       {mode === "liste" && (
         <>
           <div className="mb-4 max-w-sm">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, session, utilisateur..." className={inputClass} data-testid="deliberation-recherche" />
+            <input aria-label="Classe, session, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, session, utilisateur..." className={inputClass} data-testid="deliberation-recherche" />
           </div>
           <DataTable
             columns={columns}
@@ -335,23 +335,23 @@ function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation
     <div className="max-w-3xl bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
       <h3 className="text-sm font-bold text-foreground">Délibération</h3>
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-        <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); setSemestreId(""); }} className={inputClass} data-testid="deliberation-filiere">
+        <label htmlFor="deliberations-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+        <select id="deliberations-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); setSemestreId(""); }} className={inputClass} data-testid="deliberation-filiere">
           <option value="">Sélectionner</option>
           {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
         </select>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-          <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-annee">
+          <label htmlFor="deliberations-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+          <select id="deliberations-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-annee">
             <option value="">Sélectionner</option>
             {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-          <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); setSemestreId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-niveau">
+          <label htmlFor="deliberations-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+          <select id="deliberations-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); setSemestreId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-niveau">
             <option value="">Sélectionner</option>
             {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
           </select>
@@ -359,15 +359,15 @@ function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-          <select value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-classe">
+          <label htmlFor="deliberations-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+          <select id="deliberations-champ-4" value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-classe">
             <option value="">Sélectionner</option>
             {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-          <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-semestre">
+          <label htmlFor="deliberations-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+          <select id="deliberations-champ-5" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-semestre">
             <option value="">Sélectionner</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
@@ -527,7 +527,7 @@ function DetailDeliberation({
             <h3 className="text-sm font-bold text-foreground">Liste des bulletins de note</h3>
           </div>
           <div className="flex items-center gap-3">
-            <select value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background" data-testid="deliberation-filtre-statut">
+            <select aria-label="Statut" value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background" data-testid="deliberation-filtre-statut">
               <option value="">Statut</option>
               <option value="admis">Semestre validé</option>
               <option value="ajourne">Semestre non validé</option>
@@ -797,7 +797,7 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h3 className="text-base font-bold text-foreground">Consultation bulletin étudiant — {ligne?.etudiant ?? ""}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6">
           {ligne && (
@@ -890,7 +890,7 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
               <p className="text-xs text-muted-foreground">
                 Moyenne de l&apos;UE : {formatNote(repechageUe.moyenne)} · absences non justifiées : {ligne?.absences ?? 0} h. L&apos;UE sera acquise avec ses {repechageUe.credits} crédits ; sa vraie moyenne reste sur le relevé, avec la mention « acquise par décision du jury ».
               </p>
-              <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif de la décision du jury (ex. étudiant assidu, aucune absence)" className="w-full px-3 py-2 text-sm border border-border rounded-xl bg-background" data-testid="deliberation-repechage-motif" />
+              <input aria-label="Motif de la décision du jury (ex. étudiant assidu, aucune absence)" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif de la décision du jury (ex. étudiant assidu, aucune absence)" className="w-full px-3 py-2 text-sm border border-border rounded-xl bg-background" data-testid="deliberation-repechage-motif" />
               <div className="flex justify-end gap-2">
                 <button onClick={() => setRepechageUe(null)} className="px-3 py-1.5 border border-border rounded-xl text-xs hover:bg-muted">Annuler</button>
                 <button onClick={confirmerRepechage} className="px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary/90" data-testid="deliberation-repechage-confirmer">Repêcher l&apos;UE</button>
@@ -936,7 +936,7 @@ function NotesEtudiantModal({
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 bg-primary text-white rounded-t-2xl">
           <h3 className="text-base font-bold">Les notes de l'étudiant</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><X size={16} /></button>
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6">
           {evaluations.length === 0 ? (

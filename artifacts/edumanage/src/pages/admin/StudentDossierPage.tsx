@@ -814,7 +814,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                               <div className="text-[11px] text-muted-foreground truncate">{[c.telephone, c.email, c.adresse].filter(Boolean).join(" · ") || "—"}</div>
                             </div>
                           </div>
-                          <button onClick={() => handleDeleteContact(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0">
+                          <button aria-label="Supprimer" title="Supprimer" onClick={() => handleDeleteContact(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0">
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -875,27 +875,27 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
       <FormModal open={!!contactModalRole} onClose={() => setContactModalRole(null)} title={contactModalRole ? `Ajouter — ${CONTACT_ROLE_LABELS[contactModalRole]}` : ""} size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
-            <input value={contactForm.nomComplet} onChange={(e) => setContactForm((f) => ({ ...f, nomComplet: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="contact-nom" />
+            <label htmlFor="student-dossier-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
+            <input id="student-dossier-champ-1" value={contactForm.nomComplet} onChange={(e) => setContactForm((f) => ({ ...f, nomComplet: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="contact-nom" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-              <input value={contactForm.telephone} onChange={(e) => setContactForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <label htmlFor="student-dossier-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+              <input id="student-dossier-champ-2" value={contactForm.telephone} onChange={(e) => setContactForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
-              <input value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <label htmlFor="student-dossier-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+              <input id="student-dossier-champ-3" value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-            <input value={contactForm.adresse} onChange={(e) => setContactForm((f) => ({ ...f, adresse: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <label htmlFor="student-dossier-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+            <input id="student-dossier-champ-4" value={contactForm.adresse} onChange={(e) => setContactForm((f) => ({ ...f, adresse: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
           {contactModalRole === "autre" && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lien de parenté</label>
-              <input value={contactForm.lien} onChange={(e) => setContactForm((f) => ({ ...f, lien: e.target.value }))} placeholder="ex: Grand frère" className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <label htmlFor="student-dossier-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Lien de parenté</label>
+              <input id="student-dossier-champ-5" value={contactForm.lien} onChange={(e) => setContactForm((f) => ({ ...f, lien: e.target.value }))} placeholder="ex: Grand frère" className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
           )}
           <button onClick={handleSaveContact} disabled={!contactForm.nomComplet.trim()} className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors" data-testid="contact-sauvegarder">
@@ -910,8 +910,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
             Restreint des actions précises (accès portail, impression de documents) pour cet étudiant, sans désactiver son dossier.
           </p>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
-            <select value={motifChoisi} onChange={(e) => setMotifChoisi(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="student-motif-select">
+            <label htmlFor="student-dossier-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
+            <select id="student-dossier-champ-6" value={motifChoisi} onChange={(e) => setMotifChoisi(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="student-motif-select">
               <option value="">Aucun — aucune restriction</option>
               {motifsBlocage.map((m) => <option key={m.id} value={m.id}>{m.intitule}</option>)}
             </select>

@@ -87,16 +87,16 @@ export default function AssiduitesListPage() {
   const filterPanel = (
     <div className="p-4 grid grid-cols-2 gap-3">
       <div>
-        <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Type</label>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+        <label htmlFor="assiduites-list-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Type</label>
+        <select id="assiduites-list-champ-1" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
           <option value="">Tous</option>
           <option value="absence">Absence</option>
           <option value="retard">Retard</option>
         </select>
       </div>
       <div>
-        <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
-        <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+        <label htmlFor="assiduites-list-champ-2" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
+        <select id="assiduites-list-champ-2" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
           <option value="">Tous</option>
           <option value="justifie">Justifié</option>
           <option value="non_justifie">Non justifié</option>
@@ -147,7 +147,7 @@ export default function AssiduitesListPage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
               <h3 className="text-base font-bold text-gray-900 dark:text-white">Consultation assiduité de l&apos;étudiant</h3>
-              <button onClick={() => setPreviewId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><X size={16} className="text-gray-500" /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={() => setPreviewId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><X size={16} className="text-gray-500" /></button>
             </div>
             <div className="p-6 space-y-3">
               <div className="flex items-center gap-3">

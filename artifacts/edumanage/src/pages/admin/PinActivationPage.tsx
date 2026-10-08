@@ -181,7 +181,7 @@ export default function PinActivationPage() {
         <div className="max-w-md">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <input aria-label="Nom, matricule ou email du compte"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setSelected(null); }}
               placeholder="Nom, matricule ou email du compte..."
@@ -214,7 +214,7 @@ export default function PinActivationPage() {
                 <div className="font-medium truncate">{selected.displayName}</div>
                 <div className="text-muted-foreground truncate">{selected.email}</div>
               </div>
-              <button onClick={() => { setSelected(null); setSearch(""); }} className="p-1 rounded-lg hover:bg-muted"><X size={12} /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={() => { setSelected(null); setSearch(""); }} className="p-1 rounded-lg hover:bg-muted"><X size={12} /></button>
             </div>
           )}
         </div>

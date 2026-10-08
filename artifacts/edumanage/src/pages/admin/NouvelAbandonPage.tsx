@@ -128,9 +128,9 @@ export default function NouvelAbandonPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-5 max-w-2xl" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant *</label>
+          <label htmlFor="nouvel-abandon-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant *</label>
           <div className="relative">
-            <input
+            <input id="nouvel-abandon-champ-1"
               value={searchQuery}
               onChange={(e) => handleQueryChange(e.target.value)}
               onFocus={() => setShowSuggestions(true)}
@@ -211,18 +211,18 @@ export default function NouvelAbandonPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date abandon *</label>
-                <input type="date" value={dateAbandon} onChange={(e) => setDateAbandon(e.target.value)} className={inputClass} data-testid="abandon-date" />
+                <label htmlFor="nouvel-abandon-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date abandon *</label>
+                <input id="nouvel-abandon-champ-2" type="date" value={dateAbandon} onChange={(e) => setDateAbandon(e.target.value)} className={inputClass} data-testid="abandon-date" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Validé par</label>
-                <input value={currentUser?.name ?? "Administration"} disabled className={cn(inputClass, "disabled:opacity-70")} />
+                <label htmlFor="nouvel-abandon-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Validé par</label>
+                <input id="nouvel-abandon-champ-3" value={currentUser?.name ?? "Administration"} disabled className={cn(inputClass, "disabled:opacity-70")} />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif abandon *</label>
-              <textarea
+              <label htmlFor="nouvel-abandon-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif abandon *</label>
+              <textarea id="nouvel-abandon-champ-4"
                 value={motif}
                 onChange={(e) => setMotif(e.target.value)}
                 rows={3}

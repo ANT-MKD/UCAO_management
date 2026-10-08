@@ -156,7 +156,7 @@ export default function NouvelleReprisFraisPage() {
                           {matched ? (
                             <span className="text-xs text-emerald-700">{matched.matricule} - {matched.prenom} {matched.nom}</span>
                           ) : (
-                            <select
+                            <select aria-label="Associer un étudiant"
                               className="px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                               defaultValue=""
                               onChange={(e) => updateAssociation(l.key, e.target.value)}

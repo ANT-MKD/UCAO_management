@@ -104,7 +104,7 @@ export default function NouvelleDerogationPage() {
             <>
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher par nom ou matricule"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Rechercher par nom ou matricule…"
@@ -167,7 +167,7 @@ export default function NouvelleDerogationPage() {
 
         <div className="bg-card border border-border rounded-xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Motif *</p>
-          <textarea
+          <textarea aria-label="Justification de la dérogation (obligatoire)"
             value={motif}
             onChange={(e) => setMotif(e.target.value)}
             rows={3}
@@ -191,12 +191,12 @@ export default function NouvelleDerogationPage() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Valable à partir du *</label>
-              <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} data-testid="derogation-date-debut" />
+              <label htmlFor="nouvelle-derogation-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Valable à partir du *</label>
+              <input id="nouvelle-derogation-champ-1" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} data-testid="derogation-date-debut" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Jusqu&apos;au *</label>
-              <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} data-testid="derogation-date-fin" />
+              <label htmlFor="nouvelle-derogation-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Jusqu&apos;au *</label>
+              <input id="nouvelle-derogation-champ-2" type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} data-testid="derogation-date-fin" />
               {dateFin < dateDebut && <p className="text-[11px] text-red-600 mt-1">La date de fin doit être postérieure à la date de début.</p>}
             </div>
           </div>

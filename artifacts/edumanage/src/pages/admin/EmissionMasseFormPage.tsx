@@ -169,10 +169,10 @@ export default function EmissionMasseFormPage() {
       <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="emission-masse-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Filière <span className="text-red-500">*</span>
             </label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="emm-filiere">
+            <select id="emission-masse-form-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="emm-filiere">
               <option value="">Sélectionner…</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                 <option key={f.id} value={f.id}>
@@ -183,10 +183,10 @@ export default function EmissionMasseFormPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="emission-masse-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Année <span className="text-red-500">*</span>
               </label>
-              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="emm-annee">
+              <select id="emission-masse-form-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="emm-annee">
                 {anneeOptions.map((a) => (
                   <option key={a.id} value={a.libelle}>
                     {a.libelle}
@@ -195,10 +195,10 @@ export default function EmissionMasseFormPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="emission-masse-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Niveau <span className="text-red-500">*</span>
               </label>
-              <select
+              <select id="emission-masse-form-champ-3"
                 value={niveauId}
                 onChange={(e) => handleNiveauChange(e.target.value)}
                 className={inputClass}
@@ -217,10 +217,10 @@ export default function EmissionMasseFormPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="emission-masse-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Classe <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="emission-masse-form-champ-4"
             value={classeId}
             onChange={(e) => setClasseId(e.target.value)}
             className={inputClass}
@@ -253,10 +253,10 @@ export default function EmissionMasseFormPage() {
         {selectedClasse && (
           <>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="emission-masse-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Modèle de frais <span className="text-red-500">*</span>
               </label>
-              <select value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="emm-modele-frais">
+              <select id="emission-masse-form-champ-5" value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="emm-modele-frais">
                 <option value="">Sélectionner…</option>
                 {modelesDisponibles.map((m) => (
                   <option key={m.id} value={m.id}>{m.intitule}</option>
@@ -331,18 +331,18 @@ export default function EmissionMasseFormPage() {
         )}
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="emission-masse-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Date de facturation <span className="text-red-500">*</span>
           </label>
-          <input type="date" value={dateFacturation} onChange={(e) => setDateFacturation(e.target.value)} className={inputClass} />
+          <input id="emission-masse-form-champ-6" type="date" value={dateFacturation} onChange={(e) => setDateFacturation(e.target.value)} className={inputClass} />
           <p className="text-[11px] text-muted-foreground mt-1">
             Date de la quittance des lignes « avant inscription ». Les lignes « échéances » sont facturées à leurs propres dates, définies dans la grille tarifaire.
           </p>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Commentaire</label>
-          <textarea
+          <label htmlFor="emission-masse-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Commentaire</label>
+          <textarea id="emission-masse-form-champ-7"
             value={commentaire}
             onChange={(e) => setCommentaire(e.target.value)}
             rows={3}

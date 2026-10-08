@@ -279,7 +279,7 @@ export default function AddPaiementPage() {
             <h3 className="font-bold text-foreground text-lg mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Rechercher l&apos;étudiant</h3>
             <div className="relative mb-4">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Nom, prénom ou matricule"
                 autoFocus
                 type="search"
                 placeholder="Nom, prénom ou matricule..."
@@ -394,8 +394,8 @@ export default function AddPaiementPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
-                <input
+                <label htmlFor="add-paiement-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
+                <input id="add-paiement-champ-1"
                   type="number"
                   value={montantVerse}
                   onChange={(e) => setMontantVerse(e.target.value)}
@@ -408,8 +408,8 @@ export default function AddPaiementPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
-                <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <label htmlFor="add-paiement-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
+                <input id="add-paiement-champ-2" type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
             </div>
 
@@ -445,8 +445,8 @@ export default function AddPaiementPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° reçu / Référence</label>
-              <input
+              <label htmlFor="add-paiement-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">N° reçu / Référence</label>
+              <input id="add-paiement-champ-3"
                 type="text"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
@@ -481,8 +481,8 @@ export default function AddPaiementPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais *</label>
-              <select
+              <label htmlFor="add-paiement-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais *</label>
+              <select id="add-paiement-champ-4"
                 value={modeleFraisId}
                 onChange={(e) => { setModeleFraisId(e.target.value); setSelectedItemIds([]); }}
                 className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -540,8 +540,8 @@ export default function AddPaiementPage() {
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
-                <input
+                <label htmlFor="add-paiement-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé (FCFA) *</label>
+                <input id="add-paiement-champ-5"
                   type="number"
                   value={montantVerse}
                   onChange={(e) => setMontantVerse(e.target.value)}
@@ -554,18 +554,18 @@ export default function AddPaiementPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
-                <input type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <label htmlFor="add-paiement-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Date d&apos;opération *</label>
+                <input id="add-paiement-champ-6" type="date" value={dateOperation} onChange={(e) => setDateOperation(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date limite</label>
-                <input type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <label htmlFor="add-paiement-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Date limite</label>
+                <input id="add-paiement-champ-7" type="date" value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut du paiement *</label>
-              <select value={statutPaiement} onChange={(e) => setStatutPaiement(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <label htmlFor="add-paiement-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut du paiement *</label>
+              <select id="add-paiement-champ-8" value={statutPaiement} onChange={(e) => setStatutPaiement(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {STATUTS_PAIEMENT.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
@@ -601,8 +601,8 @@ export default function AddPaiementPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° reçu / Référence</label>
-              <input
+              <label htmlFor="add-paiement-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">N° reçu / Référence</label>
+              <input id="add-paiement-champ-9"
                 type="text"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
@@ -613,10 +613,10 @@ export default function AddPaiementPage() {
 
             {statutPaiement === "paye" && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="add-paiement-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Affecter à une classe {needsClasse ? "*" : "(optionnel)"}
                 </label>
-                <select
+                <select id="add-paiement-champ-10"
                   value={classeId}
                   onChange={(e) => setClasseId(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

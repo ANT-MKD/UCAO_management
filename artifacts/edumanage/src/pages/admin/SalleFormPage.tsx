@@ -95,34 +95,34 @@ export default function SalleFormPage({ id }: Props) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom / code de la salle *</label>
-              <input {...register("nom", { required: "Nom requis" })} placeholder="ex: RDC 1A, Amphi A, Labo Info 1" className={inputClass} />
+              <label htmlFor="salle-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom / code de la salle *</label>
+              <input id="salle-form-champ-1" {...register("nom", { required: "Nom requis" })} placeholder="ex: RDC 1A, Amphi A, Labo Info 1" className={inputClass} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type *</label>
-              <select {...register("type")} className={inputClass}>
+              <label htmlFor="salle-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Type *</label>
+              <select id="salle-form-champ-2" {...register("type")} className={inputClass}>
                 {TYPES_SALLE.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité *</label>
-              <input {...register("capacite", { required: "Capacité requise", valueAsNumber: true, min: { value: 1, message: "Au moins 1 place" } })} type="number" min={1} className={inputClass} />
+              <label htmlFor="salle-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité *</label>
+              <input id="salle-form-champ-3" {...register("capacite", { required: "Capacité requise", valueAsNumber: true, min: { value: 1, message: "Au moins 1 place" } })} type="number" min={1} className={inputClass} />
               {errors.capacite && <p className="text-xs text-red-500 mt-1">{errors.capacite.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Bâtiment *</label>
-              <select {...register("batiment")} className={inputClass}>
+              <label htmlFor="salle-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Bâtiment *</label>
+              <select id="salle-form-champ-4" {...register("batiment")} className={inputClass}>
                 {BATIMENTS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étage</label>
-              <input {...register("etage")} placeholder="ex: RDC, 1er, 2ème" className={inputClass} />
+              <label htmlFor="salle-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Étage</label>
+              <input id="salle-form-champ-5" {...register("etage")} placeholder="ex: RDC, 1er, 2ème" className={inputClass} />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
-              <select {...register("statut")} className={inputClass}>
+              <label htmlFor="salle-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
+              <select id="salle-form-champ-6" {...register("statut")} className={inputClass}>
                 <option value="actif">Disponible</option>
                 <option value="en_maintenance">En maintenance</option>
                 <option value="inactif">Hors service</option>

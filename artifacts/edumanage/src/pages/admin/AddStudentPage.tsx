@@ -402,7 +402,7 @@ export default function AddStudentPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <InputField label="Prénom *" error={form1.formState.errors.prenom?.message}>
-                <input {...form1.register("prenom", { required: "Prénom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} className={inputClass} placeholder="Moussa" data-testid="input-prenom" />
+                <input aria-label="Moussa" {...form1.register("prenom", { required: "Prénom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} className={inputClass} placeholder="Moussa" data-testid="input-prenom" />
               </InputField>
               <InputField label="Nom *" error={form1.formState.errors.nom?.message}>
                 <input {...form1.register("nom", { required: "Nom requis" })} className={inputClass + " uppercase"} placeholder="SY" />
@@ -421,7 +421,7 @@ export default function AddStudentPage() {
                 <input {...form1.register("dateNaissance", { required: "Date requise" })} type="date" className={inputClass} />
               </InputField>
               <InputField label="Lieu de naissance *" error={form1.formState.errors.lieuNaissance?.message}>
-                <input {...form1.register("lieuNaissance", { required: "Lieu requis" })} className={inputClass} placeholder="Dakar" />
+                <input aria-label="Dakar" {...form1.register("lieuNaissance", { required: "Lieu requis" })} className={inputClass} placeholder="Dakar" />
               </InputField>
               <InputField label="Pays *">
                 <select {...form1.register("pays", { required: true })} className={inputClass}>
@@ -431,7 +431,7 @@ export default function AddStudentPage() {
                 </select>
               </InputField>
               <InputField label="Nationalité *">
-                <input {...form1.register("nationalite", { required: "Nationalité requise" })} className={inputClass} placeholder="Sénégalaise" />
+                <input aria-label="Sénégalaise" {...form1.register("nationalite", { required: "Nationalité requise" })} className={inputClass} placeholder="Sénégalaise" />
               </InputField>
               <InputField label="N° CNI / Passeport">
                 <input {...form1.register("cni")} className={inputClass} placeholder="1 23456789" />
@@ -448,10 +448,10 @@ export default function AddStudentPage() {
                   <input {...form1.register("telephone")} className={inputClass} placeholder="77 XXX XX XX" />
                 </InputField>
                 <InputField label="Adresse">
-                  <input {...form1.register("adresse")} className={inputClass} placeholder="Quartier, Ville" />
+                  <input aria-label="Quartier, Ville" {...form1.register("adresse")} className={inputClass} placeholder="Quartier, Ville" />
                 </InputField>
                 <InputField label="Nom du tuteur">
-                  <input {...form1.register("nomTuteur")} className={inputClass} placeholder="Mamadou SY" />
+                  <input aria-label="Mamadou SY" {...form1.register("nomTuteur")} className={inputClass} placeholder="Mamadou SY" />
                 </InputField>
                 <InputField label="Tél. tuteur">
                   <input {...form1.register("telTuteur")} className={inputClass} placeholder="77 XXX XX XX" />
@@ -503,10 +503,10 @@ export default function AddStudentPage() {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <InputField label="Université d'origine *">
-                  <input {...form2.register("universiteOrigine", { required: "Université requise" })} className={inputClass} placeholder="UCAD, Dakar" />
+                  <input aria-label="UCAD, Dakar" {...form2.register("universiteOrigine", { required: "Université requise" })} className={inputClass} placeholder="UCAD, Dakar" />
                 </InputField>
                 <InputField label="Filière précédente *">
-                  <input {...form2.register("filiereOrigine", { required: "Filière requise" })} className={inputClass} placeholder="Licence Informatique" />
+                  <input aria-label="Licence Informatique" {...form2.register("filiereOrigine", { required: "Filière requise" })} className={inputClass} placeholder="Licence Informatique" />
                 </InputField>
                 <InputField label="Niveau atteint *">
                   <input {...form2.register("niveauAtteint", { required: "Niveau requis" })} className={inputClass} placeholder="Licence 2" />
@@ -537,7 +537,7 @@ export default function AddStudentPage() {
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Inscription Académique</h3>
 
             <InputField label="Filière *" error={form3.formState.errors.filiereId?.message}>
-              <select {...form3.register("filiereId", { required: "Filière requise" })} className={inputClass} onChange={(e) => { form3.setValue("filiereId", e.target.value); setMatricule(""); }}>
+              <select aria-label="Sélectionner une filière" {...form3.register("filiereId", { required: "Filière requise" })} className={inputClass} onChange={(e) => { form3.setValue("filiereId", e.target.value); setMatricule(""); }}>
                 <option value="">Sélectionner une filière</option>
                 {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                   <option key={f.id} value={f.id}>{f.code} – {f.nom}</option>
@@ -572,8 +572,8 @@ export default function AddStudentPage() {
             </InputField>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (généré automatiquement)</label>
-              <input
+              <label htmlFor="add-student-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (généré automatiquement)</label>
+              <input id="add-student-champ-1"
                 type="text"
                 readOnly
                 value={selectedFiliere ? peekNextMatricule(FILIERES.find((f) => f.id === selectedFiliere)?.code ?? "XXX", anneeSaisie) : "—"}
@@ -760,13 +760,13 @@ export default function AddStudentPage() {
                 </select>
               </InputField>
               <InputField label="N° reçu / Référence">
-                <input {...form5.register("numeroRecu")} className={inputClass + " font-mono"} placeholder="Auto si vide" style={{ fontFamily: "JetBrains Mono, monospace" }} />
+                <input aria-label="Auto si vide" {...form5.register("numeroRecu")} className={inputClass + " font-mono"} placeholder="Auto si vide" style={{ fontFamily: "JetBrains Mono, monospace" }} />
               </InputField>
             </div>
 
             {statutPaiementWatch === "paye" && (
               <InputField label="Affecter à une classe (après paiement) *">
-                <select {...form5.register("classeIdApresPaiement", { required: statutPaiementWatch === "paye" })} className={inputClass}>
+                <select aria-label="Choisir la classe pédagogique" {...form5.register("classeIdApresPaiement", { required: statutPaiementWatch === "paye" })} className={inputClass}>
                   <option value="">Choisir la classe pédagogique</option>
                   {filteredClasses.map((c) => (
                     <option key={c.id} value={c.id}>{c.nom} ({c.inscrits}/{c.max})</option>

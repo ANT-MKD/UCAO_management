@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
-      {label}<button onClick={onRemove} className="hover:text-red-500 ml-0.5"><X size={10} /></button>
+      {label}<button aria-label="Fermer" title="Fermer" onClick={onRemove} className="hover:text-red-500 ml-0.5"><X size={10} /></button>
     </span>
   );
 }
@@ -122,7 +122,7 @@ export default function ClassesPage() {
               <Lock size={14} />
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/classes/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/classes/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
           <button onClick={(e) => { e.stopPropagation(); confirmerSuppression(verifierSuppressionClasse(r.id), `Supprimer la classe ${r.nom} ?`, () => supprimerClasse(r.id, acteur), "Classe supprimée"); }} aria-label={`Supprimer la classe ${r.nom}`} data-testid={`classe-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
         </div>
       ),
@@ -168,29 +168,29 @@ export default function ClassesPage() {
         filterPanel={
           <div className="grid grid-cols-4 gap-4 p-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-              <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="classes-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+              <select id="classes-champ-1" value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>
                 <option value="">Toutes</option>
                 {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-              <select value={niveauFilter} onChange={(e) => setNiveauFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="classes-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+              <select id="classes-champ-2" value={niveauFilter} onChange={(e) => setNiveauFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 {niveaux.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année</label>
-              <select value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="classes-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Année</label>
+              <select id="classes-champ-3" value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
                 <option value="">Toutes</option>
                 {annees.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-              <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="classes-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+              <select id="classes-champ-4" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 <option value="ouverte">Ouverte</option>
                 <option value="cloturee">Clôturée</option>

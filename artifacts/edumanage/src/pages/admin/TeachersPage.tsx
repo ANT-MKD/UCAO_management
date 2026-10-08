@@ -24,7 +24,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   return (
     <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
       {label}
-      <button onClick={onRemove} className="hover:text-red-500 transition-colors ml-0.5"><X size={10} /></button>
+      <button aria-label="Fermer" title="Fermer" onClick={onRemove} className="hover:text-red-500 transition-colors ml-0.5"><X size={10} /></button>
     </span>
   );
 }
@@ -115,8 +115,8 @@ export default function TeachersPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/teachers/${r.id}`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Eye size={14} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/teachers/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/teachers/${r.id}`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Eye size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/teachers/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
         </div>
       ),
     },
@@ -163,8 +163,8 @@ export default function TeachersPage() {
         filterPanel={
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-              <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="teachers-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+              <select id="teachers-champ-1" value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 <option value="Permanent">Permanent</option>
                 <option value="Vacataire">Vacataire</option>
@@ -172,35 +172,35 @@ export default function TeachersPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
-              <select value={specialiteFilter} onChange={(e) => setSpecialiteFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="teachers-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Spécialité</label>
+              <select id="teachers-champ-2" value={specialiteFilter} onChange={(e) => setSpecialiteFilter(e.target.value)} className={inputClass}>
                 <option value="">Toutes</option>
                 {specialites.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Sexe</label>
-              <select value={sexeFilter} onChange={(e) => setSexeFilter(e.target.value)} className={inputClass} data-testid="filter-sexe-teacher">
+              <label htmlFor="teachers-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Sexe</label>
+              <select id="teachers-champ-3" value={sexeFilter} onChange={(e) => setSexeFilter(e.target.value)} className={inputClass} data-testid="filter-sexe-teacher">
                 <option value="">Tous</option>
                 <option value="M">Masculin</option>
                 <option value="F">Féminin</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux min (FCFA)</label>
-              <input type="number" value={tauxMin} onChange={(e) => setTauxMin(e.target.value)} className={inputClass} placeholder="8000" />
+              <label htmlFor="teachers-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Taux min (FCFA)</label>
+              <input id="teachers-champ-4" type="number" value={tauxMin} onChange={(e) => setTauxMin(e.target.value)} className={inputClass} placeholder="8000" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux max (FCFA)</label>
-              <input type="number" value={tauxMax} onChange={(e) => setTauxMax(e.target.value)} className={inputClass} placeholder="20000" />
+              <label htmlFor="teachers-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Taux max (FCFA)</label>
+              <input id="teachers-champ-5" type="number" value={tauxMax} onChange={(e) => setTauxMax(e.target.value)} className={inputClass} placeholder="20000" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">H/mois min</label>
-              <input type="number" value={heuresMin} onChange={(e) => setHeuresMin(e.target.value)} className={inputClass} placeholder="10" />
+              <label htmlFor="teachers-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">H/mois min</label>
+              <input id="teachers-champ-6" type="number" value={heuresMin} onChange={(e) => setHeuresMin(e.target.value)} className={inputClass} placeholder="10" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">H/mois max</label>
-              <input type="number" value={heuresMax} onChange={(e) => setHeuresMax(e.target.value)} className={inputClass} placeholder="60" />
+              <label htmlFor="teachers-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">H/mois max</label>
+              <input id="teachers-champ-7" type="number" value={heuresMax} onChange={(e) => setHeuresMax(e.target.value)} className={inputClass} placeholder="60" />
             </div>
             {activeFiltersCount > 0 && (
               <div className="col-span-full flex flex-wrap gap-2">

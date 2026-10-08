@@ -48,7 +48,7 @@ export default function TeacherContractsPage() {
 
       <div className="mb-4 relative w-full sm:w-72">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
+        <input aria-label="Rechercher un professeur (nom, matricule)"
           type="search"
           value={quickSearch}
           onChange={(e) => setQuickSearch(e.target.value)}

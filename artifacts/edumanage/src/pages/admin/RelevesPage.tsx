@@ -297,7 +297,7 @@ export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: Rele
             <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu — Relevé de Notes Officiel</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{entry.etudiant} · {entry.matricule} · {entry.semestre}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X size={16} className="text-gray-500" />
           </button>
         </div>
@@ -398,7 +398,7 @@ export default function RelevesPage() {
       render: (row) => {
         const g = row as unknown as BulletinGenerationRecord;
         return (
-          <button onClick={() => openGeneration(g.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`generation-ouvrir-${g.id}`}>
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={() => openGeneration(g.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`generation-ouvrir-${g.id}`}>
             <Eye size={14} />
           </button>
         );
@@ -428,7 +428,7 @@ export default function RelevesPage() {
       {mode === "liste" && (
         <>
           <div className="mb-4 max-w-sm">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Intitulé génération, session..." className={inputClass} data-testid="generation-recherche" />
+            <input aria-label="Intitulé génération, session" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Intitulé génération, session..." className={inputClass} data-testid="generation-recherche" />
           </div>
           <DataTable
             columns={columns}
@@ -575,8 +575,8 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
       <h3 className="text-sm font-bold text-foreground">Nouvelle génération bulletin</h3>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-        <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="generation-filiere">
+        <label htmlFor="releves-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+        <select id="releves-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="generation-filiere">
           <option value="">Sélectionner</option>
           {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
         </select>
@@ -584,15 +584,15 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-          <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-annee">
+          <label htmlFor="releves-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+          <select id="releves-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-annee">
             <option value="">Sélectionner</option>
             {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-          <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-niveau">
+          <label htmlFor="releves-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+          <select id="releves-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-niveau">
             <option value="">Sélectionner</option>
             {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
           </select>
@@ -601,16 +601,16 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-          <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-classe">
+          <label htmlFor="releves-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+          <select id="releves-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-classe">
             <option value="">Sélectionner</option>
             <option value={TOUTES_LES_CLASSES}>Générer pour toutes les classes</option>
             {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-          <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-semestre">
+          <label htmlFor="releves-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+          <select id="releves-champ-5" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-semestre">
             <option value="">Sélectionner</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
@@ -727,7 +727,7 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
                       : "—"}
                 </td>
                 <td className="px-5 py-3 text-right">
-                  <button
+                  <button aria-label="Voir le détail" title="Voir le détail"
                     onClick={() => handlePreview(e)}
                     disabled={e.statut !== "succes"}
                     className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"

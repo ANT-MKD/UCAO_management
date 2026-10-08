@@ -149,12 +149,12 @@ export default function TeacherVolumePage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="teacher-volume-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="teacher-volume-champ-1"
               type="search"
               value={query}
               onChange={(e) => {
@@ -247,7 +247,7 @@ export default function TeacherVolumePage() {
                         <span className="font-semibold text-foreground">{row.vhActuel}</span>
                       </td>
                       <td className="px-3 py-4">
-                        <input
+                        <input aria-label="Nouveau V.H"
                           type="number"
                           min={0}
                           value={row.nouveauVh}

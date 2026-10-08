@@ -202,9 +202,9 @@ export default function NotesEtudiantPage() {
       />
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
+        <label htmlFor="notes-etudiant-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
         <div className="relative">
-          <input
+          <input id="notes-etudiant-champ-1"
             value={searchQuery}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => setShowSuggestions(true)}

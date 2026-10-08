@@ -97,7 +97,7 @@ export default function StudentCahierPage() {
           <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher dans le cahier de texte"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher dans le cahier de texte…"
@@ -105,7 +105,7 @@ export default function StudentCahierPage() {
                 data-testid="cahier-recherche"
               />
             </div>
-            <select
+            <select aria-label="Tous les cours"
               value={ecFiltre}
               onChange={(e) => setEcFiltre(e.target.value)}
               className="w-full sm:w-auto max-w-full min-w-0 px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -114,7 +114,7 @@ export default function StudentCahierPage() {
               <option value="">Tous les cours</option>
               {ecsDisponibles.map((ec) => <option key={ec} value={ec}>{ec}</option>)}
             </select>
-            <select
+            <select aria-label="Tous les types"
               value={typeFiltre}
               onChange={(e) => setTypeFiltre(e.target.value as "" | "note" | "devoir")}
               className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

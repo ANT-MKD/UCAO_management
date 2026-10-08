@@ -219,9 +219,9 @@ export default function PoidsEvaluationPage() {
       />
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
+        <label htmlFor="poids-evaluation-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
         <div className="relative">
-          <input
+          <input id="poids-evaluation-champ-1"
             value={searchQuery}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => setShowSuggestions(true)}
@@ -255,8 +255,8 @@ export default function PoidsEvaluationPage() {
               </div>
             </div>
             <div className="w-full sm:w-72">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-              <select value={classeId} onChange={(e) => { setClasseId(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="poids-classe">
+              <label htmlFor="poids-evaluation-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+              <select id="poids-evaluation-champ-2" value={classeId} onChange={(e) => { setClasseId(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="poids-classe">
                 <option value="">Sélectionner</option>
                 {classeOptions.map((c) => <option key={c.classeId} value={c.classeId}>{c.annee} - {c.classe}</option>)}
               </select>
@@ -322,10 +322,10 @@ export default function PoidsEvaluationPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <button onClick={() => openEditModal(ev)} className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 flex items-center justify-center hover:bg-blue-100 transition-colors" data-testid={`poids-editer-${ev.id}`}>
+                          <button aria-label="Modifier" title="Modifier" onClick={() => openEditModal(ev)} className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 flex items-center justify-center hover:bg-blue-100 transition-colors" data-testid={`poids-editer-${ev.id}`}>
                             <Pencil size={12} />
                           </button>
-                          <button onClick={() => handleDeleteOne(ev)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`poids-supprimer-${ev.id}`}>
+                          <button aria-label="Fermer" title="Fermer" onClick={() => handleDeleteOne(ev)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`poids-supprimer-${ev.id}`}>
                             <X size={12} />
                           </button>
                         </div>
@@ -354,7 +354,7 @@ export default function PoidsEvaluationPage() {
           <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 bg-emerald-600 text-white">
               <h3 className="font-bold flex items-center gap-2"><Plus size={16} /> {editingId ? "Modifier le poids évaluation" : "Nouveau poids évaluation"}</h3>
-              <button onClick={() => setModalOpen(false)}><X size={18} /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={() => setModalOpen(false)}><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex items-center gap-3 pb-4 border-b border-border">
@@ -366,15 +366,15 @@ export default function PoidsEvaluationPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-                <select value={modalEcId} onChange={(e) => handleModalCoursChange(e.target.value)} className={inputClass} data-testid="poids-modal-cours">
+                <label htmlFor="poids-evaluation-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
+                <select id="poids-evaluation-champ-3" value={modalEcId} onChange={(e) => handleModalCoursChange(e.target.value)} className={inputClass} data-testid="poids-modal-cours">
                   <option value="">Sélectionner</option>
                   {coursDisponiblesModal.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-                <select value={modalSemestreId} onChange={(e) => setModalSemestreId(e.target.value)} disabled={!modalEcId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-modal-session">
+                <label htmlFor="poids-evaluation-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+                <select id="poids-evaluation-champ-4" value={modalSemestreId} onChange={(e) => setModalSemestreId(e.target.value)} disabled={!modalEcId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-modal-session">
                   <option value="">Sélectionner</option>
                   {SEMESTRES.filter((s) => s.filiere === classeObj.filiere && s.niveau === classeObj.niveau).map((s) => (
                     <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>
@@ -383,22 +383,22 @@ export default function PoidsEvaluationPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type *</label>
-                  <select value={modalType} onChange={(e) => setModalType(e.target.value as "" | EvaluationRecord["type"])} className={inputClass} data-testid="poids-modal-type">
+                  <label htmlFor="poids-evaluation-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Type *</label>
+                  <select id="poids-evaluation-champ-5" value={modalType} onChange={(e) => setModalType(e.target.value as "" | EvaluationRecord["type"])} className={inputClass} data-testid="poids-modal-type">
                     <option value="">Sélectionner</option>
                     <option value="devoir">Devoir</option>
                     <option value="examen">Examen</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Poids *</label>
-                  <input type="number" min={1} max={100} value={modalPoids} onChange={(e) => setModalPoids(e.target.value === "" ? "" : Number(e.target.value))} className={inputClass} data-testid="poids-modal-poids" />
+                  <label htmlFor="poids-evaluation-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Poids *</label>
+                  <input id="poids-evaluation-champ-6" type="number" min={1} max={100} value={modalPoids} onChange={(e) => setModalPoids(e.target.value === "" ? "" : Number(e.target.value))} className={inputClass} data-testid="poids-modal-poids" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir (optionnel)</label>
-                <select value={modalTypeEvaluationId} onChange={(e) => setModalTypeEvaluationId(e.target.value)} className={inputClass} data-testid="poids-modal-type-devoir">
+                <label htmlFor="poids-evaluation-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Type devoir (optionnel)</label>
+                <select id="poids-evaluation-champ-7" value={modalTypeEvaluationId} onChange={(e) => setModalTypeEvaluationId(e.target.value)} className={inputClass} data-testid="poids-modal-type-devoir">
                   <option value="">Non précisé</option>
                   {typesEvaluation.filter((t) => t.actif).map((t) => <option key={t.id} value={t.id}>{t.intitule}</option>)}
                 </select>
