@@ -149,7 +149,7 @@ export default function TeacherModulesPage() {
       <div className="grid lg:grid-cols-[1fr_300px] gap-5">
         <div className="space-y-5 min-w-0">
           <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-            <KPICard icon={BookOpen} label="Total de mes cours" value={courses.length} subtitle="ce semestre" accentColor="#2563eb" />
+            <KPICard icon={BookOpen} label="Total de mes cours" value={courses.length} subtitle="cette année" accentColor="#2563eb" />
             <KPICard icon={Layers} label="Classes concernées" value={classesConcernees.size} subtitle="au total" accentColor="#10b981" />
             <KPICard icon={Clock} label="Heures enseignées" value={`${heuresEnseignees} h`} subtitle="cette année" accentColor="#f59e0b" />
             <KPICard icon={GraduationCap} label="Étudiants concernés" value={etudiantsConcernes} subtitle="au total" accentColor="#8b5cf6" />

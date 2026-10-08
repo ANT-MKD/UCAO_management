@@ -23,6 +23,9 @@ import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { cn, formatShortDate } from "@/lib/utils";
+import { MotifModal } from "@/components/admin/MotifModal";
+import { deciderJustificatifAbsence } from "@/data/teacherAbsenceStore";
+import { useAuth } from "@/contexts/AuthContext";
 
 type TypeFilter = "" | TeacherAbsenceType;
 type JustifieFilter = "" | "oui" | "non";
@@ -92,6 +95,18 @@ export default function TeacherAbsencePage() {
   const [editMotif, setEditMotif] = useState("");
   const [editJustifie, setEditJustifie] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TeacherAbsenceRecord | null>(null);
+  const { currentUser } = useAuth();
+  // Justificatif envoyé par le professeur depuis « Mes absences » : accepter, ou refuser avec motif.
+  const [justifARefuser, setJustifARefuser] = useState<TeacherAbsenceRecord | null>(null);
+  const deciderJustif = (r: TeacherAbsenceRecord, decision: "accepter" | "refuser", motif?: string) => {
+    if (!currentUser) return;
+    try {
+      deciderJustificatifAbsence(r.id, decision, currentUser.id, motif);
+      toast.success(decision === "accepter" ? "Justificatif accepté : le constat est justifié." : "Justificatif refusé — le professeur a été prévenu du motif.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action impossible.");
+    }
+  };
 
   const matchesFilters = (
     r: TeacherAbsenceRecord,
@@ -323,15 +338,29 @@ export default function TeacherAbsencePage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-center">{r.type === "retard" ? `${r.dureeMinutes} min` : "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{r.motif}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {r.motif}
+                      {r.justificatif && !r.justifie && (
+                        <div className="mt-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200" data-testid={`constat-justificatif-${r.id}`}>
+                          <span className="font-semibold">Justificatif du professeur :</span> {r.justificatif.motif}
+                          {r.justificatif.pieceJointe && (
+                            <a href={r.justificatif.pieceJointe.dataUrl} download={r.justificatif.pieceJointe.nom} className="ml-1 underline">{r.justificatif.pieceJointe.nom}</a>
+                          )}
+                          <div className="flex gap-2 mt-1.5">
+                            <button type="button" onClick={() => deciderJustif(r, "accepter")} className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-medium" data-testid={`constat-justificatif-accepter-${r.id}`}>Accepter</button>
+                            <button type="button" onClick={() => setJustifARefuser(r)} className="px-2 py-0.5 rounded-md border border-red-300 text-red-700 dark:text-red-300 font-medium" data-testid={`constat-justificatif-refuser-${r.id}`}>Refuser</button>
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-center">
                       <span
                         className={cn(
-                          "text-xs px-2 py-0.5 rounded-full font-medium",
-                          r.justifie ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                          "text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap",
+                          r.justifie ? "bg-emerald-50 text-emerald-700" : r.justificatif ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600",
                         )}
                       >
-                        {r.justifie ? "Oui" : "Non"}
+                        {r.justifie ? "Oui" : r.justificatif ? "À examiner" : "Non"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -458,6 +487,16 @@ export default function TeacherAbsencePage() {
           </div>
         </div>
       )}
+      <MotifModal
+        open={!!justifARefuser}
+        title="Refuser le justificatif"
+        description="Le professeur verra ce motif dans « Mes absences » et pourra envoyer un autre justificatif."
+        obligatoire
+        libelleConfirmer="Refuser le justificatif"
+        onCancel={() => setJustifARefuser(null)}
+        onConfirm={(motif) => { if (justifARefuser) deciderJustif(justifARefuser, "refuser", motif); setJustifARefuser(null); }}
+        testId="constat-justificatif-refus"
+      />
     </div>
   );
 }

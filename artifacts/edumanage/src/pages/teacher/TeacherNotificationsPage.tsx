@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Bell, CheckCheck, Circle, Search, Archive, ArchiveRestore, Sliders,
   Wallet, CalendarDays, NotebookPen, CalendarX, Clock3, MessageCircle, ShieldAlert,
@@ -10,6 +10,9 @@ import { useNotifications } from "@/hooks/useStudentStore";
 import { markNotificationRead, markAllNotificationsRead, archiveNotification } from "@/data/studentStore";
 import { KPICard } from "@/components/admin/KPICard";
 import { cn, formatDate } from "@/lib/utils";
+import { lienNotificationProfesseur } from "@/lib/notificationsProfesseur";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { TEACHER_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
 
 type Filtre = "toutes" | "non_lues" | "importantes" | "archivees";
 
@@ -67,6 +70,19 @@ const PAGE_SIZE = 8;
 export default function TeacherNotificationsPage() {
   const { currentUser } = useAuth();
   const notifications = useNotifications(currentUser?.id);
+  const [, setLocation] = useLocation();
+  const features = usePortalFeatures();
+  /** Page à ouvrir pour cette notification, si l'établissement ne l'a pas fermée. */
+  const lienActif = (message: string): string | undefined => {
+    const href = lienNotificationProfesseur(message);
+    const feature = TEACHER_PORTAL_FEATURES.find((f) => f.href === href);
+    return href && (!feature || features[feature.id] !== false) ? href : undefined;
+  };
+  const ouvrir = (n: (typeof notifications)[number]) => {
+    if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id);
+    const href = lienActif(n.message);
+    if (href) setLocation(href);
+  };
   const [filtre, setFiltre] = useState<Filtre>("toutes");
   const [categorieFiltre, setCategorieFiltre] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -221,8 +237,10 @@ export default function TeacherNotificationsPage() {
                             <cat.icon size={14} style={{ color: cat.color }} />
                           </div>
                           <div
-                            className={cn("min-w-0 flex-1", !n.read && "cursor-pointer")}
-                            onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
+                            className={cn("min-w-0 flex-1", (!n.read || lienActif(n.message)) && "cursor-pointer")}
+                            onClick={() => ouvrir(n)}
+                            role={lienActif(n.message) ? "link" : undefined}
+                            data-testid={`teacher-notification-ouvrir-${n.id}`}
                           >
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap" style={{ color: cat.color, background: `${cat.color}18` }}>{cat.label}</span>

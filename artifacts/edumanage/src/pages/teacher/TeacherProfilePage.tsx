@@ -37,10 +37,17 @@ const ACTION_INFO: Record<string, { label: string; icon: React.ElementType }> = 
   send_message: { label: "Message envoyé", icon: Send },
   update_teacher: { label: "Informations personnelles modifiées", icon: Edit },
   update_password: { label: "Mot de passe modifié", icon: KeyRound },
+  add_ressource_pedagogique: { label: "Ressource pédagogique ajoutée", icon: Edit },
+  delete_ressource_pedagogique: { label: "Ressource pédagogique supprimée", icon: Edit },
+  demande_correction_note: { label: "Correction de note demandée", icon: Edit },
+  justificatif_absence_prof: { label: "Justificatif d'absence envoyé", icon: Edit },
+  add_document: { label: "Document ajouté", icon: Edit },
+  delete_document: { label: "Document supprimé", icon: Edit },
 };
 
+/** Libellé lisible d'une action du journal — jamais le code technique (ex. « add_ressource_pedagogique »). */
 function activityLabel(log: AuditLogRecord): { label: string; icon: React.ElementType } {
-  return ACTION_INFO[log.action] ?? { label: log.action, icon: Edit };
+  return ACTION_INFO[log.action] ?? { label: "Autre action enregistrée", icon: Edit };
 }
 
 function activityDateLabel(dateStr: string): string {

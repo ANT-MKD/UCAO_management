@@ -8,7 +8,19 @@ import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { KPICard } from "@/components/admin/KPICard";
+import { FormModal } from "@/components/admin/FormModal";
 import { cn, formatDate } from "@/lib/utils";
+import { toast } from "sonner";
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
+import { envoyerJustificatifAbsence, statutJustificationAbsence, type StatutJustificationAbsence, type TeacherAbsenceRecord } from "@/data/teacherAbsenceStore";
+
+/** Statut lisible d'un constat, de l'absence non justifiée à la décision sur le justificatif. */
+const STATUT_JUSTIF: Record<StatutJustificationAbsence, { label: string; className: string }> = {
+  justifiee: { label: "Justifiée", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+  justificatif_envoye: { label: "Justificatif envoyé", className: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" },
+  justificatif_refuse: { label: "Justificatif refusé", className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
+  non_justifiee: { label: "Non justifiée", className: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
+};
 
 const TYPE_LABEL: Record<string, string> = { absence: "Absence", retard: "Retard" };
 
@@ -20,6 +32,31 @@ const STATUT_COLORS = { justifiee: "#10b981", retard: "#f59e0b", nonJustifiee: "
 export default function TeacherAbsencesPage() {
   const [, setLocation] = useLocation();
   const { currentUser } = useAuth();
+  // Justifier un constat : motif + pièce jointe facultative, envoyés à l'administration.
+  const [aJustifier, setAJustifier] = useState<TeacherAbsenceRecord | null>(null);
+  const [justifMotif, setJustifMotif] = useState("");
+  const [justifPiece, setJustifPiece] = useState<{ nom: string; dataUrl: string } | undefined>();
+  const ouvrirJustification = (a: TeacherAbsenceRecord) => {
+    setAJustifier(a);
+    setJustifMotif("");
+    setJustifPiece(undefined);
+  };
+  const choisirPiece = (file?: File) => {
+    if (!file) { setJustifPiece(undefined); return; }
+    lireFichierPourStockage(file, { usagePhoto: "document" })
+      .then((dataUrl) => setJustifPiece({ nom: file.name, dataUrl }))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
+  };
+  const envoyerJustification = () => {
+    if (!aJustifier || !currentUser) return;
+    try {
+      envoyerJustificatifAbsence(aJustifier.id, { motif: justifMotif, pieceJointe: justifPiece }, currentUser.id);
+      toast.success("Justificatif envoyé à l'administration.");
+      setAJustifier(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Envoi impossible.");
+    }
+  };
   const absences = useTeacherAbsences();
   const anneesAcademiques = useAnneesAcademiques();
   const anneeActuelle = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "";
@@ -124,8 +161,8 @@ export default function TeacherAbsencesPage() {
           <p className="text-sm text-muted-foreground">Aucune absence ni retard constaté.</p>
         </div>
       ) : (
-        <div className="grid lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4 min-w-0">
             <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
               <div className="flex flex-wrap gap-3">
                 <div className="relative flex-1 min-w-[200px]">
@@ -204,9 +241,9 @@ export default function TeacherAbsencesPage() {
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                     data-testid="teacher-absences-filtre-justifie"
                   >
-                    <option value="">Justifiées et en attente</option>
+                    <option value="">Justifiées et non justifiées</option>
                     <option value="oui">Justifiées uniquement</option>
-                    <option value="non">En attente uniquement</option>
+                    <option value="non">Non justifiées uniquement</option>
                   </select>
                   <select aria-label="Toutes les périodes"
                     value={periodeFiltre}
@@ -258,6 +295,7 @@ export default function TeacherAbsencesPage() {
                         <th className="px-4 py-3">Durée</th>
                         <th className="px-4 py-3">Motif</th>
                         <th className="px-4 py-3">Statut</th>
+                        <th className="px-4 py-3"><span className="sr-only">Action</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -275,15 +313,27 @@ export default function TeacherAbsencesPage() {
                             <td className="px-4 py-3">{a.dureeMinutes ? `${a.dureeMinutes} min` : "—"}</td>
                             <td className="px-4 py-3 text-muted-foreground">{a.motif}</td>
                             <td className="px-4 py-3">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium",
-                                  a.justifie ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
-                                )}
-                              >
-                                {a.justifie ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-                                {a.justifie ? "Justifiée" : "En attente"}
-                              </span>
+                              {(() => {
+                                const st = statutJustificationAbsence(a);
+                                return (
+                                  <>
+                                    <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap", STATUT_JUSTIF[st].className)} data-testid={`teacher-absence-statut-${a.id}`}>
+                                      {st === "justifiee" ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                                      {STATUT_JUSTIF[st].label}
+                                    </span>
+                                    {st === "justificatif_refuse" && a.justificatifRefuse && (
+                                      <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">Motif : {a.justificatifRefuse.motifRefus}</p>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {(statutJustificationAbsence(a) === "non_justifiee" || statutJustificationAbsence(a) === "justificatif_refuse") && (
+                                <button type="button" onClick={() => ouvrirJustification(a)} className="text-xs font-medium text-primary hover:underline whitespace-nowrap" data-testid={`teacher-absence-justifier-${a.id}`}>
+                                  Justifier
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -333,7 +383,7 @@ export default function TeacherAbsencesPage() {
                       />
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">{formatDate(a.date)} · {ec?.libelle ?? a.ecId}</p>
-                        <p className="text-[11px] text-muted-foreground">{a.justifie ? "Justifiée" : "En attente"}</p>
+                        <p className="text-[11px] text-muted-foreground">{STATUT_JUSTIF[statutJustificationAbsence(a)].label}</p>
                       </div>
                     </div>
                   );
@@ -343,6 +393,28 @@ export default function TeacherAbsencesPage() {
           </div>
         </div>
       )}
+      <FormModal
+        open={!!aJustifier}
+        onClose={() => setAJustifier(null)}
+        title="Justifier ce constat"
+        subtitle={aJustifier ? `${TYPE_LABEL[aJustifier.type] ?? aJustifier.type} du ${formatDate(aJustifier.date)}` : undefined}
+      >
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="justif-motif" className="block text-xs font-medium text-muted-foreground mb-1.5">Explication *</label>
+            <textarea id="justif-motif" rows={3} value={justifMotif} onChange={(e) => setJustifMotif(e.target.value)} placeholder="Ex. : rendez-vous médical, certificat joint" className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="teacher-justif-motif" />
+          </div>
+          <div>
+            <label htmlFor="justif-piece" className="block text-xs font-medium text-muted-foreground mb-1.5">Pièce jointe (facultative)</label>
+            <input id="justif-piece" type="file" accept="image/*,application/pdf" onChange={(e) => choisirPiece(e.target.files?.[0])} className="text-sm" data-testid="teacher-justif-piece" />
+            {justifPiece && <p className="text-[11px] text-muted-foreground mt-1">{justifPiece.nom}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setAJustifier(null)} className="px-4 py-2 border border-border rounded-xl text-sm">Annuler</button>
+            <button type="button" onClick={envoyerJustification} disabled={!justifMotif.trim()} className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium disabled:opacity-50" data-testid="teacher-justif-envoyer">Envoyer à l&apos;administration</button>
+          </div>
+        </div>
+      </FormModal>
     </div>
   );
 }

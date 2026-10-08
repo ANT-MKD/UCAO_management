@@ -20,6 +20,7 @@ import {
   submitCahierSeance,
   getCahierStatsForEc,
   getCahierPourSeanceEtDate,
+  dateDeLaSeance,
   type CahierPresenceEntry,
   type CahierAttachment,
 } from "@/data/studentStore";
@@ -126,6 +127,16 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
     return (estMembre && !etudiantsRetiresIds.has(s.id)) || estAjoute;
   });
   const stats = seance ? getCahierStatsForEc(seance.ecId) : null;
+  // Cahier déjà soumis (non rejeté) pour la séance choisie : on l'ouvre au lieu d'en créer un second.
+  const cahierExistantBrut = seance ? getCahierPourSeanceEtDate(seance.id, dateDeLaSeance(seance)) : undefined;
+  const cahierExistant = cahierExistantBrut && cahierExistantBrut.statut !== "rejete" && cahierExistantBrut.id !== activeCahierId && cahierExistantBrut.sujet
+    ? cahierExistantBrut
+    : undefined;
+
+  // Arrivée par un lien (?seanceId=&date=) : la date suit toujours le jour réel de la séance.
+  useEffect(() => {
+    if (seance && !existing && date !== dateDeLaSeance(seance)) setDate(dateDeLaSeance(seance));
+  }, [seance?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (skipResetRef.current) {
@@ -201,28 +212,33 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
       toast.error("Motif d'annulation requis");
       return;
     }
-    submitCahierSeance({
-      seanceId,
-      prof: currentUser?.name ?? "Enseignant",
-      date,
-      sujet: sujet || (etatSeance === "annulee" ? "Séance annulée" : ""),
-      resume: resume || motifAnnulation,
-      competences,
-      liensExternes: liens.split("\n").map((l) => l.trim()).filter(Boolean),
-      photosTableau: photos,
-      piecesJointes: pieces,
-      presences,
-      travail: devoirDonne
-        ? { devoirDonne, dateLimite, fichierARemettre: fichierRemise, bareme, statutRemises }
-        : undefined,
-      evaluation: evalTypes.length
-        ? { types: evalTypes as ("quiz" | "controle" | "tp" | "projet" | "examen")[], detail: evalDetail }
-        : undefined,
-      etatSeance,
-      motifAnnulation: etatSeance === "annulee" ? motifAnnulation : undefined,
-      asDraft,
-      cahierId: activeCahierId,
-    });
+    try {
+      submitCahierSeance({
+        seanceId,
+        prof: currentUser?.name ?? "Enseignant",
+        date,
+        sujet: sujet || (etatSeance === "annulee" ? "Séance annulée" : ""),
+        resume: resume || motifAnnulation,
+        competences,
+        liensExternes: liens.split("\n").map((l) => l.trim()).filter(Boolean),
+        photosTableau: photos,
+        piecesJointes: pieces,
+        presences,
+        travail: devoirDonne
+          ? { devoirDonne, dateLimite, fichierARemettre: fichierRemise, bareme, statutRemises }
+          : undefined,
+        evaluation: evalTypes.length
+          ? { types: evalTypes as ("quiz" | "controle" | "tp" | "projet" | "examen")[], detail: evalDetail }
+          : undefined,
+        etatSeance,
+        motifAnnulation: etatSeance === "annulee" ? motifAnnulation : undefined,
+        asDraft,
+        cahierId: activeCahierId,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement impossible.");
+      return;
+    }
     toast.success(asDraft ? "Brouillon enregistré" : activeCahierId ? "Cahier mis à jour et soumis à nouveau" : "Cahier soumis — en attente de validation admin");
     if (!asDraft) {
       setLocation("/teacher/cahier");
@@ -318,20 +334,32 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                 onChange={(e) => {
                   setActiveCahierId(undefined);
                   setSeanceId(e.target.value);
+                  // La date du cahier est celle de la séance choisie (jamais un autre jour).
+                  const choisie = mine.find((x) => x.id === e.target.value);
+                  if (choisie) setDate(dateDeLaSeance(choisie));
                 }}
               >
                 <option value="">Choisir une séance…</option>
                 {mine.map((s) => {
-                  const cahierDuJour = getCahierPourSeanceEtDate(s.id, date);
+                  const cahierDuJour = getCahierPourSeanceEtDate(s.id, dateDeLaSeance(s));
                   return (
                     <option key={s.id} value={s.id}>
-                      {cahierDuJour ? "✓ " : ""}{JOURS[s.jour]} {s.heureDebut}–{s.heureFin} — {s.ec} ({s.classe}) · {s.salle}
-                      {cahierDuJour ? ` — déjà ${cahierDuJour.statut === "rejete" ? "rejeté" : "soumis"} le ${date}` : ""}
+                      {cahierDuJour ? "✓ " : ""}{JOURS[s.jour]} {formatShortDate(dateDeLaSeance(s))} {s.heureDebut}–{s.heureFin} — {s.ec} ({s.classe}) · {s.salle}
+                      {cahierDuJour ? ` — déjà ${cahierDuJour.statut === "rejete" ? "rejeté" : "soumis"}` : ""}
                     </option>
                   );
                 })}
               </select>
             </div>
+
+            {cahierExistant && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid="cahier-deja-soumis">
+                Un cahier a déjà été soumis pour cette séance le {formatShortDate(cahierExistant.date)}.{" "}
+                <button type="button" onClick={() => setLocation(`/teacher/cahier/${cahierExistant.id}/edit`)} className="font-semibold underline">
+                  Ouvrir ce cahier
+                </button>
+              </div>
+            )}
 
             {jourFerie && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -566,10 +594,10 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
               )}
 
               <div className="flex gap-2">
-                <button type="button" onClick={() => save(true)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium">
+                <button type="button" onClick={() => save(true)} disabled={!!cahierExistant} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium disabled:opacity-50">
                   Enregistrer brouillon
                 </button>
-                <button type="button" onClick={() => save(false)} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium">
+                <button type="button" onClick={() => save(false)} disabled={!!cahierExistant} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50" data-testid="cahier-soumettre">
                   Soumettre à l&apos;admin
                 </button>
               </div>

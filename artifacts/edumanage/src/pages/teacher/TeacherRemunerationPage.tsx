@@ -137,7 +137,7 @@ export default function TeacherRemunerationPage() {
         montantNet: d.netAPayer,
         montantPaye: d.montantPaye,
         statutKey: annule ? "annule" : paye ? "paye" : "attente",
-        statutLabel: annule ? "Annulé" : paye ? "Payé" : "Émis",
+        statutLabel: annule ? "Annulé" : paye ? "Payé" : d.montantPaye > 0 ? "Payé en partie" : "Émis",
         reference: d.reference,
         decompte: d,
       };
@@ -210,7 +210,7 @@ export default function TeacherRemunerationPage() {
   }, [rows, typeFiltre, statutFiltre, query]);
 
   const printDecompte = (d: DecompteRecord) => {
-    const statutLabel = d.statut === "annule" ? "Annulé" : d.montantPaye >= d.netAPayer ? "Payé" : "Emis";
+    const statutLabel = d.statut === "annule" ? "Annulé" : d.montantPaye >= d.netAPayer ? "Payé" : d.montantPaye > 0 ? "Payé en partie" : "Émis";
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(
@@ -279,7 +279,7 @@ export default function TeacherRemunerationPage() {
                     </button>
                   ))}
                 </div>
-                <select
+                <select aria-label="Filtrer par statut"
                   value={statutFiltre}
                   onChange={(e) => setStatutFiltre(e.target.value as StatutFiltre)}
                   className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"

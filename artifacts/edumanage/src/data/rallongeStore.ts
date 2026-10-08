@@ -68,6 +68,10 @@ export function makeRallongeId(): string {
 export function addRallonge(
   payload: Omit<RallongeRecord, "id" | "statut" | "createdAt">,
 ): RallongeRecord {
+  // Une seule demande en attente par cours : la suivante attend la décision sur la première.
+  if (store.some((r) => r.teacherId === payload.teacherId && r.ecId === payload.ecId && r.classeId === payload.classeId && r.annee === payload.annee && r.statut === "soumis")) {
+    throw new Error("Une demande de rallonge est déjà en attente pour ce cours : attendez la décision de l'administration.");
+  }
   const record: RallongeRecord = {
     ...payload,
     id: makeRallongeId(),

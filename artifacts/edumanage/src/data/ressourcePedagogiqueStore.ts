@@ -20,6 +20,8 @@ export interface RessourcePedagogiqueRecord {
   url?: string;
   ajouteLe: string;
   ajoutePar: string;
+  /** Compte de l'auteur : seul lui (ou l'administration) peut retirer la ressource. */
+  ajouteParId?: string;
 }
 
 const STORAGE_KEY = "edumanage-ressource-pedagogique-store-v1";
@@ -80,6 +82,7 @@ export function addRessourcePedagogique(payload: RessourcePedagogiqueInput, acto
     id: `rp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ajouteLe: new Date().toISOString(),
     ...payload,
+    ajouteParId: actorId,
   };
   store.unshift(record);
   logAudit(actorId, "add_ressource_pedagogique", "classe", payload.classeId, payload.titre);
@@ -92,9 +95,21 @@ export function addRessourcePedagogique(payload: RessourcePedagogiqueInput, acto
   return record;
 }
 
+/** Un professeur ne retire que les ressources qu'il a déposées ; l'administration, toutes. */
+export function peutSupprimerRessource(ressource: Pick<RessourcePedagogiqueRecord, "ajouteParId" | "ajoutePar">, actorId: string): boolean {
+  const acteur = getUserAccounts().find((u) => u.id === actorId);
+  if (!acteur) return false;
+  if (acteur.role === "admin") return true;
+  return ressource.ajouteParId ? ressource.ajouteParId === actorId : ressource.ajoutePar === acteur.displayName;
+}
+
 export function deleteRessourcePedagogique(id: string, actorId: string): void {
   const ressource = store.find((r) => r.id === id);
+  if (!ressource) return;
+  if (!peutSupprimerRessource(ressource, actorId)) {
+    throw new Error("Vous ne pouvez supprimer que les ressources que vous avez déposées.");
+  }
   store = store.filter((r) => r.id !== id);
-  if (ressource) logAudit(actorId, "delete_ressource_pedagogique", "classe", ressource.classeId, ressource.titre);
+  logAudit(actorId, "delete_ressource_pedagogique", "classe", ressource.classeId, ressource.titre);
   persist();
 }

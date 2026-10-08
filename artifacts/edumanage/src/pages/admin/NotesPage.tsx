@@ -17,6 +17,7 @@ import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/da
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatNote } from "@/lib/notes";
+import { DemandesCorrectionPanel } from "@/components/admin/DemandesCorrectionPanel";
 
 type NoteEntry = {
   note: string;
@@ -143,7 +144,7 @@ export default function NotesPage() {
     // devoirs) ont chacune leurs propres notes, jamais mélangées.
     const existing = notes.filter((n) => n.evaluationId === ev.id);
     const prefill: Record<string, NoteEntry> = {};
-    for (const n of existing) prefill[n.etudiantId] = { note: String(n.note), absent: false };
+    for (const n of existing) prefill[n.etudiantId] = { note: n.absent ? "" : String(n.note).replace(".", ","), absent: !!n.absent };
     setEntries(prefill);
   };
   const handleCoursChange = (value: string) => {
@@ -191,7 +192,7 @@ export default function NotesPage() {
   const validNotes = classeStudents.flatMap((s) => {
     const e = getEntry(s.id);
     if (e.absent) return [];
-    const val = parseFloat(e.note);
+    const val = parseFloat(e.note.replace(",", "."));
     return !isNaN(val) ? [val] : [];
   });
 
@@ -206,7 +207,7 @@ export default function NotesPage() {
   const buildInputs = (): EvaluationGridInput[] =>
     classeStudents.map((s) => {
       const e = getEntry(s.id);
-      const val = e.note ? parseFloat(e.note) : undefined;
+      const val = e.note.trim() ? parseFloat(e.note.replace(",", ".")) : undefined;
       return { etudiantId: s.id, note: val, absent: e.absent };
     });
 
@@ -255,7 +256,7 @@ export default function NotesPage() {
     if (!classeId || !ecId || !evaluationChoisie || !roleEvaluationChoisie) return;
     const ecLabel = ECS.find((e) => e.id === ecId)?.libelle ?? "";
     try {
-      saveNoteEvaluationGrid(classeId, ecId, ecLabel, evaluationChoisie.id, roleEvaluationChoisie, evaluationChoisie.session, buildInputs(), publish);
+      saveNoteEvaluationGrid(classeId, ecId, ecLabel, evaluationChoisie.id, roleEvaluationChoisie, evaluationChoisie.session, buildInputs(), publish, { bareme });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -303,6 +304,8 @@ export default function NotesPage() {
         title="Saisie des Notes"
         subtitle="Saisissez les notes d'une évaluation réellement planifiée — gestion des absences intégrée"
       />
+
+      <DemandesCorrectionPanel />
 
       <div className="grid lg:grid-cols-2 gap-5 mb-5">
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -524,7 +527,7 @@ export default function NotesPage() {
               <tbody>
                 {classeStudents.map((etu, i) => {
                   const entry = getEntry(etu.id);
-                  const noteVal = parseFloat(entry.note);
+                  const noteVal = parseFloat(entry.note.replace(",", "."));
                   const hasNote = !isNaN(noteVal) && !entry.absent;
                   const isAdmis = hasNote && noteVal >= 10;
                   const isAjourne = hasNote && noteVal < 10;

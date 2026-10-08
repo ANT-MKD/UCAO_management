@@ -35,6 +35,9 @@ function jourDeLaSemaine(dateIso: string): number {
  * cahiers déjà soumis. La saisie proprement dite se fait sur une page dédiée
  * (TeacherCahierFormPage, /teacher/cahier/nouveau ou /teacher/cahier/:id/edit) — accessible via
  * le bouton "Nouveau cahier" ou en cliquant sur une séance/un cahier ci-dessous. */
+const LIBELLE_STATUT_CAHIER: Record<string, string> = { brouillon: "Brouillon", soumis: "Soumis", valide: "Validé", rejete: "Rejeté" };
+const LIBELLE_ETAT_SEANCE: Record<string, string> = { preparee: "Préparée", realisee: "Réalisée", annulee: "Annulée" };
+
 export function TeacherCahierPage() {
   const [, setLocation] = useLocation();
   const { currentUser } = useAuth();
@@ -102,6 +105,7 @@ export function TeacherCahierPage() {
           <h3 className="font-bold text-sm">Reste à faire</h3>
           <input
             type="date"
+            aria-label="Jour à afficher"
             className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -163,7 +167,7 @@ export function TeacherCahierPage() {
                   >
                     <div className="flex flex-wrap justify-between gap-2">
                       <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUT_CLS[c.statut] ?? "bg-muted")}>{c.statut} · {c.etatSeance}</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUT_CLS[c.statut] ?? "bg-muted")}>{LIBELLE_STATUT_CAHIER[c.statut] ?? c.statut} · {LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{formatShortDate(c.date)} · {c.typeSeance} · présence {c.tauxPresence}%</p>
                     <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>

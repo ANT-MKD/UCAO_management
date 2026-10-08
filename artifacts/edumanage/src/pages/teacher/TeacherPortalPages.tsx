@@ -22,6 +22,7 @@ import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { ENSEIGNANTS, ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
 import { mondayOf, matchesProf, dateToJour, type EnseignantRecord } from "@/lib/teacherUtils";
+import { libelleSemaine } from "@/lib/scheduleUtils";
 import { addRallonge, type RallongeStatut } from "@/data/rallongeStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
@@ -117,7 +118,7 @@ export function TeacherDashboardPage() {
           icon={Wallet}
           label="Solde à percevoir"
           value={formatCFA(soldeDecompte)}
-          accentColor={soldeDecompte > 0 ? "#ef4444" : "#10b981"}
+          accentColor={soldeDecompte > 0 ? "#2563eb" : "#10b981"}
           onClick={() => setLocation("/teacher/remuneration")}
         />
       </section>
@@ -347,7 +348,7 @@ export function TeacherSchedulePage() {
     return d;
   }), [weekMonday]);
   const weekEnd = weekDays[5];
-  const weekLabel = `${weekDays[0].getDate()} – ${weekEnd.getDate()} ${weekDays[0].toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
+  const weekLabel = libelleSemaine(weekDays[0], weekEnd);
 
   const todayJourNum = Math.min(((now.getDay() + 6) % 7) + 1, 6);
   const displayDayIdxs = weekViewMode === "jour" ? [todayJourNum - 1] : [0, 1, 2, 3, 4, 5];
@@ -562,16 +563,21 @@ export function TeacherRallongePage() {
     const motif = motifDetails.trim()
       ? (motifCategorie === "Autre" ? motifDetails.trim() : `${motifCategorie} — ${motifDetails.trim()}`)
       : motifCategorie;
-    addRallonge({
-      teacherId: myTeacher.id,
-      ecId: selectedCourse.ecId,
-      classeId: selectedCourse.classeId,
-      annee,
-      vhActuel: selectedCourse.volumeHoraire,
-      vhSupplementaire: heuresNum,
-      motif,
-      origine: "prof",
-    });
+    try {
+      addRallonge({
+        teacherId: myTeacher.id,
+        ecId: selectedCourse.ecId,
+        classeId: selectedCourse.classeId,
+        annee,
+        vhActuel: selectedCourse.volumeHoraire,
+        vhSupplementaire: heuresNum,
+        motif,
+        origine: "prof",
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Demande impossible.");
+      return;
+    }
     toast.success("Demande de rallonge envoyée à l'administration");
     setCourseId("");
     setHeures("2");
@@ -647,7 +653,7 @@ export function TeacherRallongePage() {
                     </p>
                   )}
                 </div>
-                <textarea
+                <textarea aria-label="Détails ou justification de la demande"
                   rows={3}
                   className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
                   value={motifDetails}

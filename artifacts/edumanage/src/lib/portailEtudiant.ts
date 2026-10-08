@@ -1,5 +1,6 @@
 import type { EtudiantRecord, NoteRecord, SeanceRecord } from "@/data/studentStore";
 import type { UeRecord, EcRecord } from "@/data/curriculumStore";
+import { formatNote } from "@/lib/notes";
 
 /** Libellés lisibles des types de note (codes internes CC / EF). */
 export const TYPE_NOTE_LABELS: Record<string, string> = { CC: "Contrôle continu", EF: "Examen" };
@@ -68,4 +69,9 @@ export function semestresDeLEtudiant(
 /** Date de référence d'une note pour la trier : dernière modification, sinon création. */
 export function dateDeNote(n: Pick<NoteRecord, "dateCreation" | "dateModification">): string {
   return n.dateModification ?? n.dateCreation ?? "";
+}
+
+/** Valeur affichée d'une note : « 14,00/20 », ou « ABS (0) » pour un absent à l'évaluation. */
+export function valeurNote(n: Pick<NoteRecord, "note" | "absent">): string {
+  return n.absent ? "ABS (0)" : `${formatNote(n.note)}/20`;
 }

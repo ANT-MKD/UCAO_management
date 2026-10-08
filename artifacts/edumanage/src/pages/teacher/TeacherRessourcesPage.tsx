@@ -11,7 +11,7 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { useRessourcesPedagogiques } from "@/hooks/useRessourcePedagogiqueStore";
 import {
-  addRessourcePedagogique, deleteRessourcePedagogique, TAILLE_MAX_RESSOURCE_OCTETS,
+  addRessourcePedagogique, deleteRessourcePedagogique, peutSupprimerRessource, TAILLE_MAX_RESSOURCE_OCTETS,
   type RessourcePedagogiqueRecord,
 } from "@/data/ressourcePedagogiqueStore";
 import { formatTailleRessource, RESSOURCE_TYPE_STYLES, detecterTypeRessource } from "@/lib/ressourceUtils";
@@ -175,10 +175,22 @@ export default function TeacherRessourcesPage() {
       .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
+  // Suppression : seulement ses propres ressources, et après confirmation.
+  const [aSupprimer, setASupprimer] = useState<RessourcePedagogiqueRecord | null>(null);
+  const estMienne = (r: RessourcePedagogiqueRecord) => !!currentUser && peutSupprimerRessource(r, currentUser.id);
   function handleDelete(id: string) {
-    if (!currentUser) return;
-    deleteRessourcePedagogique(id, currentUser.id);
-    toast.success("Ressource supprimée.");
+    const r = ressources.find((x) => x.id === id);
+    if (r) setASupprimer(r);
+  }
+  function confirmerSuppression() {
+    if (!currentUser || !aSupprimer) return;
+    try {
+      deleteRessourcePedagogique(aSupprimer.id, currentUser.id);
+      toast.success("Ressource supprimée.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Suppression impossible.");
+    }
+    setASupprimer(null);
   }
 
   function renderCarte(r: RessourcePedagogiqueRecord) {
@@ -195,15 +207,18 @@ export default function TeacherRessourcesPage() {
             <div className="min-w-0 flex-1">
               <h3 className="font-bold text-sm text-foreground leading-tight truncate">{r.titre}</h3>
               <p className="text-[11px] text-muted-foreground truncate">{r.classe}{r.ec && ` — ${r.ec}`}</p>
+              {!estMienne(r) && <p className="text-[10px] text-muted-foreground truncate">Déposée par {r.ajoutePar}</p>}
             </div>
-            <button aria-label="Supprimer" title="Supprimer"
-              type="button"
-              onClick={() => handleDelete(r.id)}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0"
-              data-testid={`teacher-ressource-supprimer-${r.id}`}
-            >
-              <Trash2 size={13} />
-            </button>
+            {estMienne(r) && (
+              <button aria-label={`Supprimer « ${r.titre} »`} title="Supprimer"
+                type="button"
+                onClick={() => handleDelete(r.id)}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0"
+                data-testid={`teacher-ressource-supprimer-${r.id}`}
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
           {r.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{r.description}</p>}
           <p className="text-[11px] text-muted-foreground">
@@ -247,9 +262,11 @@ export default function TeacherRessourcesPage() {
             <Download size={14} />
           </a>
         )}
-        <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`teacher-ressource-supprimer-${r.id}`}>
-          <Trash2 size={14} />
-        </button>
+        {estMienne(r) && (
+          <button aria-label={`Supprimer « ${r.titre} »`} title="Supprimer" type="button" onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`teacher-ressource-supprimer-${r.id}`}>
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     );
   }
@@ -330,7 +347,7 @@ export default function TeacherRessourcesPage() {
                       data-testid="teacher-ressources-recherche"
                     />
                   </div>
-                  <select
+                  <select aria-label="Trier les ressources"
                     value={tri}
                     onChange={(e) => setTri(e.target.value as "recent" | "nom" | "taille")}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -346,6 +363,9 @@ export default function TeacherRessourcesPage() {
                         key={mode}
                         type="button"
                         onClick={() => setVue(mode)}
+                        aria-label={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
+                        aria-pressed={vue === mode}
+                        title={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
                         className={cn("p-2 rounded-md transition-colors", vue === mode ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
                         data-testid={`teacher-ressources-vue-${mode}`}
                       >
@@ -505,6 +525,15 @@ export default function TeacherRessourcesPage() {
               </button>
             </div>
           )}
+        </div>
+      </FormModal>
+      <FormModal open={!!aSupprimer} onClose={() => setASupprimer(null)} title="Supprimer la ressource" subtitle={aSupprimer?.titre} size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Les étudiants de {aSupprimer?.classe} ne pourront plus la consulter ni la télécharger.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setASupprimer(null)} className="px-4 py-2 border border-border rounded-xl text-sm">Annuler</button>
+            <button type="button" onClick={confirmerSuppression} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700" data-testid="teacher-ressource-confirmer-suppression">Supprimer</button>
+          </div>
         </div>
       </FormModal>
     </div>

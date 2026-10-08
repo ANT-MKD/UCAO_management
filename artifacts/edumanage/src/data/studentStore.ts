@@ -232,6 +232,8 @@ export interface NoteRecord {
   /** Horodatage réel de la dernière modification — absent tant que la note n'a jamais été
    * resaisie après sa création initiale. */
   dateModification?: string;
+  /** Étudiant absent à l'évaluation : « ABS », compté 0 dans les moyennes (règle UCAO). */
+  absent?: boolean;
 }
 
 export type UserRole = "admin" | "teacher" | "student";
@@ -2193,6 +2195,12 @@ export interface EvaluationGridInput {
   absent?: boolean;
 }
 
+/** Note validée par la scolarité ou publiée : elle fait foi, le professeur ne la modifie plus
+ * directement (il passe par une demande de correction, voir correctionNoteStore.ts). */
+export function noteEstOfficielle(n: Pick<NoteRecord, "statut">): boolean {
+  return n.statut === "valide_admin" || n.statut === "publie";
+}
+
 /** Sauvegarde les notes d'une évaluation précise (evaluationId), en plus du type CC/EF hérité
  * (conservé pour l'affichage des pages qui ne connaissent que le rôle, pas l'évaluation exacte).
  * Contrairement à saveNotesGrid — qui matche par (étudiant, EC, type, session) et donc écrase
@@ -2207,19 +2215,46 @@ export function saveNoteEvaluationGrid(
   session: "rattrapage" | undefined,
   inputs: EvaluationGridInput[],
   publish: boolean,
+  options: {
+    /** Note maximale de la filière (Paramétrage scolarité) — 20 par défaut. */
+    bareme?: number;
+    /** Portail professeur : les notes validées ou publiées ne sont jamais réécrites (ni remises
+     * en brouillon), et une case vidée retire la note encore en brouillon ou soumise. */
+    respecterVerrou?: boolean;
+  } = {},
 ): void {
   const annee = getAnneeActuelle();
   assertAnneeModifiable(annee);
   const type = role === "devoir" ? "CC" : "EF";
   const statut = publish ? "publie" as const : "brouillon_prof" as const;
+  const bareme = options.bareme ?? 20;
+
+  // Toutes les notes sont vérifiées avant d'en enregistrer une seule.
+  for (const input of inputs) {
+    if (input.absent || input.note === undefined || Number.isNaN(input.note)) continue;
+    if (input.note < 0 || input.note > bareme) {
+      const etudiant = getEtudiantById(input.etudiantId);
+      throw new Error(`Note invalide pour ${etudiant ? `${etudiant.prenom} ${etudiant.nom}` : "un étudiant"} : ${String(input.note).replace(".", ",")} — elle doit être comprise entre 0 et ${bareme}.`);
+    }
+  }
 
   for (const input of inputs) {
     const etudiant = getEtudiantById(input.etudiantId);
-    if (!etudiant || input.absent || input.note === undefined || Number.isNaN(input.note)) continue;
-
+    if (!etudiant) continue;
     const existing = store.notes.find((n) => n.etudiantId === input.etudiantId && n.evaluationId === evaluationId);
+    if (existing && options.respecterVerrou && noteEstOfficielle(existing)) continue;
+    const vide = !input.absent && (input.note === undefined || Number.isNaN(input.note));
+    if (vide) {
+      // Case vidée : la note encore modifiable est retirée (portail professeur uniquement).
+      if (existing && options.respecterVerrou) store.notes = store.notes.filter((n) => n.id !== existing.id);
+      continue;
+    }
+    // Absent : « ABS », compté 0.
+    const valeur = input.absent ? 0 : (input.note as number);
+
     if (existing) {
-      existing.note = input.note;
+      existing.note = valeur;
+      existing.absent = input.absent ? true : undefined;
       existing.statut = statut;
       existing.dateModification = new Date().toISOString();
     } else {
@@ -2231,7 +2266,8 @@ export function saveNoteEvaluationGrid(
         ec: ecLabel,
         ecId,
         type,
-        note: input.note,
+        note: valeur,
+        absent: input.absent ? true : undefined,
         statut,
         classeId,
         annee,
@@ -2246,6 +2282,30 @@ export function saveNoteEvaluationGrid(
     generateRelevesForClasseEc(classeId, ecId);
   }
   persist();
+}
+
+/** Correction d'une note officielle (validée ou publiée) acceptée par la scolarité : la note
+ * change de valeur sans changer de statut, la correction est inscrite au journal avec l'ancienne
+ * et la nouvelle valeur, et l'étudiant est prévenu si la note lui était déjà publiée. */
+export function corrigerNoteOfficielle(noteId: string, nouvelleNote: number, absent: boolean, actorUserId: string, motif: string): NoteRecord {
+  const note = store.notes.find((n) => n.id === noteId);
+  if (!note) throw new Error("Note introuvable.");
+  assertAnneeModifiable(note.annee);
+  const libelle = (n: number, abs?: boolean) => (abs ? "ABS" : String(n).replace(".", ","));
+  const avant = libelle(note.note, note.absent);
+  note.note = absent ? 0 : nouvelleNote;
+  note.absent = absent ? true : undefined;
+  note.dateModification = new Date().toISOString();
+  const apres = libelle(note.note, note.absent);
+  const typeLabel = note.type === "EF" ? "Examen" : note.type === "CC" ? "Contrôle continu" : note.type;
+  logAudit(actorUserId, "correction_note", "note", note.id, `${note.etudiant} (${note.matricule}) — ${note.ec} — ${typeLabel} : ${avant} → ${apres} — motif : ${motif}`);
+  if (note.statut === "publie") {
+    generateRelevesForClasseEc(note.classeId, note.ecId);
+    const compte = store.users.find((u) => u.role === "student" && u.linkedId === note.etudiantId);
+    if (compte) pushNotification(compte.id, `Note corrigée — ${note.ec} (${typeLabel}) : ${avant} → ${apres}.`);
+  }
+  persist();
+  return note;
 }
 
 export function publishNotesForClasseEc(classeId: string, ecId: string, session?: "rattrapage"): number {
@@ -2999,9 +3059,41 @@ export interface CahierSubmitPayload {
   cahierId?: string;
 }
 
+/** Date réelle d'une séance : le lundi de sa semaine + son jour (1 = lundi … 6 = samedi). */
+export function dateDeLaSeance(seance: Pick<SeanceRecord, "semaineDu" | "jour">): string {
+  const d = new Date(`${seance.semaineDu}T12:00:00`);
+  d.setDate(d.getDate() + (seance.jour - 1));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Cahier « de secours » saisi par l'administration faute de cahier du professeur
+ * (creerCahierSecoursAdmin) : le vrai cahier du professeur reste prioritaire sur lui. */
+function estCahierSecours(c: Pick<CahierSeanceRecord, "sujet" | "resume">): boolean {
+  return !c.sujet && c.resume.startsWith("Assiduité saisie par l'administration");
+}
+
 export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRecord {
   const seance = store.seances.find((s) => s.id === payload.seanceId);
   if (!seance) throw new Error("Séance introuvable");
+
+  // Un cahier décrit la séance réellement tenue : à sa date, une seule fois, et jamais à l'avance.
+  const dateSeance = dateDeLaSeance(seance);
+  const dateCahier = payload.date || dateSeance;
+  const dateFr = (iso: string) => iso.split("-").reverse().join("/");
+  if (dateCahier !== dateSeance) {
+    throw new Error(`La date du cahier doit être celle de la séance : le ${dateFr(dateSeance)}.`);
+  }
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  if (!payload.asDraft && payload.etatSeance === "realisee" && dateCahier > aujourdHui) {
+    throw new Error(`La séance du ${dateFr(dateCahier)} n'a pas encore eu lieu : enregistrez-la comme « préparée » ou en brouillon.`);
+  }
+  const dejaSoumis = store.cahiers.find((c) =>
+    c.id !== payload.cahierId && c.seanceId === payload.seanceId && c.date === dateCahier &&
+    c.statut !== "brouillon" && c.statut !== "rejete" && !estCahierSecours(c),
+  );
+  if (dejaSoumis) {
+    throw new Error(`Un cahier a déjà été soumis pour cette séance le ${dateFr(dateCahier)} : ouvrez-le pour le modifier.`);
+  }
 
   const ec = getEcs().find((e) => e.id === seance.ecId);
   const ue = getUes().find((u) => u.id === ec?.ueId);

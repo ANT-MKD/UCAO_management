@@ -136,3 +136,13 @@ export function detectEvenementConflicts(
 
   return conflicts;
 }
+
+/** Libellé d'une semaine d'emploi du temps : « 6 – 11 octobre 2026 », mais « 28 septembre – 3 octobre 2026 »
+ * quand la semaine change de mois (et « 29 décembre 2025 – 3 janvier 2026 » quand elle change d'année). */
+export function libelleSemaine(debut: Date, fin: Date): string {
+  const memeAnnee = debut.getFullYear() === fin.getFullYear();
+  const memeMois = memeAnnee && debut.getMonth() === fin.getMonth();
+  const libelleFin = fin.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  if (memeMois) return `${debut.getDate()} – ${libelleFin}`;
+  return `${debut.toLocaleDateString("fr-FR", memeAnnee ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" })} – ${libelleFin}`;
+}

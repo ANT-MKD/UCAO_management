@@ -136,16 +136,21 @@ export default function TeacherRallongeFormPage() {
       return;
     }
 
-    addRallonge({
-      teacherId: selected.id,
-      ecId: selectedCourse.ecId,
-      classeId: selectedCourse.classeId,
-      annee: anneeScolaire,
-      vhActuel,
-      vhSupplementaire: heures,
-      motif: motif.trim(),
-      origine: "admin",
-    });
+    try {
+      addRallonge({
+        teacherId: selected.id,
+        ecId: selectedCourse.ecId,
+        classeId: selectedCourse.classeId,
+        annee: anneeScolaire,
+        vhActuel,
+        vhSupplementaire: heures,
+        motif: motif.trim(),
+        origine: "admin",
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Demande impossible.");
+      return;
+    }
 
     toast.success("Demande de rallonge soumise pour traitement");
     resetForm();

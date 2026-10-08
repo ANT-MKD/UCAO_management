@@ -19,10 +19,11 @@ import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { getCahierStatsForEc } from "@/data/studentStore";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
+import { libelleSemaine } from "@/lib/scheduleUtils";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 import { recuOfficielHtml } from "@/lib/recuPaiement";
-import { semestresDeLEtudiant, semestreLePlusAvance, libelleTypeNote, statutEtudiant, dateDeNote } from "@/lib/portailEtudiant";
+import { semestresDeLEtudiant, semestreLePlusAvance, libelleTypeNote, statutEtudiant, dateDeNote, valeurNote } from "@/lib/portailEtudiant";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
@@ -87,16 +88,7 @@ export function StudentSchedulePage() {
     return d;
   }), [weekMonday]);
   const weekEnd = weekDays[5];
-  // « 6 – 11 octobre 2026 », mais « 28 septembre – 3 octobre 2026 » quand la semaine change de mois
-  // (et « 29 décembre 2025 – 3 janvier 2026 » quand elle change d'année).
-  const weekLabel = (() => {
-    const debut = weekDays[0];
-    const memeAnnee = debut.getFullYear() === weekEnd.getFullYear();
-    const memeMois = memeAnnee && debut.getMonth() === weekEnd.getMonth();
-    const fin = weekEnd.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-    if (memeMois) return `${debut.getDate()} – ${fin}`;
-    return `${debut.toLocaleDateString("fr-FR", memeAnnee ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" })} – ${fin}`;
-  })();
+  const weekLabel = libelleSemaine(weekDays[0], weekEnd);
 
   const todayJourNum = Math.min((now.getDay() + 6) % 7 + 1, 6);
   const displayDayIdxs = weekViewMode === "jour" ? [todayJourNum - 1] : [0, 1, 2, 3, 4, 5];
@@ -444,7 +436,7 @@ export function StudentNotesPage() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className={cn("font-bold text-sm tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(n.note)}/20</span>
+                    <span className={cn("font-bold text-sm tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{valeurNote(n)}</span>
                     <Link href={`/student/requests?type=reclamation_note&note=${n.id}`} className="text-[11px] text-primary hover:underline" data-testid={`note-reclamer-${n.id}`}>Réclamer</Link>
                   </div>
                 </div>
@@ -1603,7 +1595,7 @@ export function StudentCoursPage() {
     vht: c.ec.vht,
     progression: c.stats.pctProgramme,
     prochain: c.prochaine ? `${formatShortDate(c.prochaine.dateIso)} · ${c.prochaine.s.heureDebut}` : "—",
-    note: c.derniereNote ? `${formatNote(c.derniereNote.note)}/20` : "—",
+    note: c.derniereNote ? valeurNote(c.derniereNote) : "—",
     ressources: c.nbRessources,
   })), [coursEnrichis]);
 
@@ -1831,7 +1823,7 @@ export function StudentCoursPage() {
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <GraduationCap size={11} className="flex-shrink-0" />
                       {derniereNote ? (
-                        <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(derniereNote.note)}/20</span> ({libelleTypeNote(derniereNote.type, derniereNote.session)})</span>
+                        <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{valeurNote(derniereNote)}</span> ({libelleTypeNote(derniereNote.type, derniereNote.session)})</span>
                       ) : (
                         <span>Aucune note publiée</span>
                       )}

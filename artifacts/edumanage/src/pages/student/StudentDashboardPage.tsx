@@ -15,7 +15,7 @@ import { formatNote } from "@/lib/notes";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { computeBulletin } from "@/data/bulletinEngine";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
-import { semestresDeLEtudiant, libelleTypeNote, statutEtudiant, dateDeNote } from "@/lib/portailEtudiant";
+import { semestresDeLEtudiant, libelleTypeNote, statutEtudiant, dateDeNote, valeurNote } from "@/lib/portailEtudiant";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -229,7 +229,7 @@ export default function StudentDashboardPage() {
                     <div className="text-sm font-semibold text-foreground truncate">{n.ec}</div>
                     <div className="text-xs text-muted-foreground truncate">{libelleTypeNote(n.type, n.session)}</div>
                   </div>
-                  <span className={cn("text-sm font-bold tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(n.note)}/20</span>
+                  <span className={cn("text-sm font-bold tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{valeurNote(n)}</span>
                   <ChevronRight size={14} className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
                 </div>
               ))}

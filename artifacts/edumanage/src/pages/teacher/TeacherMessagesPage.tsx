@@ -94,7 +94,9 @@ export default function TeacherMessagesPage() {
     return new Set(courses.map((c) => c.classeId));
   }, [myTeacher, seances, ecs, ues, classes, anneeActuelle]);
   const contactsEtudiants = useMemo(() => {
-    const mesEtudiantIds = new Set(etudiants.filter((e) => mesClasseIds.has(e.classeId) && e.statut === "actif").map((e) => e.id));
+    // Tous les étudiants inscrits de ses classes (statut « inscrit » ou « actif »), pas ceux qui ont
+    // abandonné ou sont suspendus.
+    const mesEtudiantIds = new Set(etudiants.filter((e) => mesClasseIds.has(e.classeId) && e.statut !== "abandon" && e.statut !== "suspendu").map((e) => e.id));
     return accounts.filter((a) => a.actif && a.role === "student" && a.linkedId && mesEtudiantIds.has(a.linkedId));
   }, [etudiants, mesClasseIds, accounts]);
 
@@ -137,6 +139,17 @@ export default function TeacherMessagesPage() {
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: "end" });
   }, [activeConversation?.messages.length, effectiveSelectedId]);
+
+  // Une conversation affichée est une conversation lue — y compris celle ouverte d'office sur
+  // ordinateur. Sur téléphone, le fil n'apparaît qu'après un choix dans la liste.
+  useEffect(() => {
+    if (!currentUser || !activeConversation || activeConversation.unreadCount === 0) return;
+    const filVisible = !!selectedContactId || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+    if (!filVisible) return;
+    activeConversation.messages
+      .filter((m) => m.toUserId === currentUser.id && !m.read)
+      .forEach((m) => markMessageAsRead(m.id, currentUser.id));
+  }, [currentUser, activeConversation, selectedContactId]);
 
   const openConversation = (contactId: string) => {
     setSelectedContactId(contactId);

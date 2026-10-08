@@ -8,6 +8,8 @@ import { useRoles } from "@/hooks/useRoleStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { pourcentageStockage } from "@/lib/stockageLocal";
+import { useDemandesCorrection } from "@/hooks/useCorrectionNoteStore";
+import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
 import { useEtablissement } from "@/hooks/useEtablissementStore";
 import { NOM_ETABLISSEMENT_PAR_DEFAUT, nomEtablissementParDefaut } from "@/data/etablissementStore";
 
@@ -50,6 +52,8 @@ export function useAdminAlerts(): AdminAlert[] {
   const pointages = usePointages();
   const rallonges = useRallonges();
   const etablissement = useEtablissement();
+  const corrections = useDemandesCorrection().filter((d) => d.statut === "en_attente");
+  const justificatifsProfs = useTeacherAbsences().filter((a) => a.justificatif && !a.justifie);
 
   const impayes = etudiants.filter((e) => e.soldeDu > 0).length;
   const notesEnAttente = notes.filter((n) => n.statut === "soumis_admin");
@@ -91,6 +95,10 @@ export function useAdminAlerts(): AdminAlert[] {
     href: piecesAVerifier[0] ? `/admin/students/${piecesAVerifier[0].etudiantId}?onglet=documents` : "/admin/students" });
   push({ id: "cahiers-validation", type: "warning", count: cahiersAValider.length, domaine: "Pédagogie", action: "Valider",
     message: `${cahiersAValider.length} cahier(s) de séance à valider`, temps: depuis(cahiersAValider.map((c) => c.createdAt)), href: "/admin/cahiers" });
+  push({ id: "justificatifs-profs", type: "warning", count: justificatifsProfs.length, domaine: "Professeurs", action: "Examiner",
+    message: `${justificatifsProfs.length} justificatif(s) d'absence ou de retard envoyé(s) par des professeurs`, temps: depuis(justificatifsProfs.map((a) => a.justificatif?.envoyeLe ?? a.createdAt)), href: "/admin/teachers/absence" });
+  push({ id: "corrections-notes", type: "warning", count: corrections.length, domaine: "Pédagogie", action: "Décider",
+    message: `${corrections.length} demande(s) de correction de note envoyée(s) par des professeurs`, temps: depuis(corrections.map((d) => d.createdAt)), href: "/admin/notes" });
   push({ id: "notes-validation", type: "warning", count: notesEnAttente.length, domaine: "Pédagogie", action: "Valider",
     message: `${notesEnAttente.length} note(s) en attente de validation`, temps: depuis(notesEnAttente.map((n) => n.dateModification ?? n.dateCreation)), href: "/admin/notes" });
   push({ id: "pointages", type: "warning", count: pointagesAConfirmer.length, domaine: "Professeurs", action: "Confirmer",

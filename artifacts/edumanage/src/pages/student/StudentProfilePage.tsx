@@ -51,7 +51,7 @@ const ACTION_INFO: Record<string, { label: string; icon: React.ElementType }> = 
 function activityLabel(log: AuditLogRecord): { label: string; icon: React.ElementType; showMeta: boolean } {
   const info = ACTION_INFO[log.action];
   if (info) return { ...info, showMeta: log.action === "create_request" || log.action === "cancel_request" };
-  return { label: log.action, icon: FileText, showMeta: false };
+  return { label: "Autre action enregistrée", icon: FileText, showMeta: false };
 }
 
 function activityDateLabel(dateStr: string): string {

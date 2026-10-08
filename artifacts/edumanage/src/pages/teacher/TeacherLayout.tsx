@@ -28,6 +28,7 @@ import { useNotifications, useMessages } from "@/hooks/useStudentStore";
 import { markNotificationRead } from "@/data/studentStore";
 import { TEACHER_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { lienNotificationProfesseur } from "@/lib/notificationsProfesseur";
 
 const ICONS_BY_ID: Record<string, React.ElementType> = {
   "teacher-dashboard": LayoutDashboard,
@@ -74,7 +75,8 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useNotifications(currentUser?.id);
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Même compte que la page Notifications : les notifications archivées sont rangées, pas à lire.
+  const unreadCount = notifications.filter((n) => !n.read && !n.archived).length;
   const messages = useMessages(currentUser?.id);
   const unreadMessages = messages.filter((m) => m.toUserId === currentUser?.id && !m.read).length;
   const portalFeatures = usePortalFeatures();
@@ -93,8 +95,9 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
         key={item.to}
         href={item.to}
         onClick={opts?.onNavigate}
+        title={expanded ? undefined : item.label}
         className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+          "flex items-center gap-3 rounded-xl px-3 py-1.5 text-sm transition-colors",
           active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
       >
@@ -111,20 +114,26 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <aside className={cn("hidden lg:flex border-r border-border bg-card transition-all flex-col shrink-0", collapsed ? "w-16" : "w-60")}>
+      <aside className={cn("hidden lg:flex sticky top-0 h-screen border-r border-border bg-card transition-all flex-col shrink-0", collapsed ? "w-16" : "w-60")}>
         <div className="h-14 flex items-center justify-between px-3 border-b border-border">
           {!collapsed && (
             <span className="font-bold text-sm truncate" style={{ fontFamily: "Outfit, sans-serif" }}>
               Espace enseignant
             </span>
           )}
-          <button type="button" onClick={() => setCollapsed((v) => !v)} className="p-2 rounded-lg hover:bg-muted">
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            className="p-2 rounded-lg hover:bg-muted"
+            aria-label={collapsed ? "Ouvrir la barre latérale" : "Réduire la barre latérale"}
+            title={collapsed ? "Ouvrir la barre latérale" : "Réduire la barre latérale"}
+          >
             {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
         </div>
         <nav className="flex-1 p-2 overflow-y-auto">
           {groupNavItems(mainNav).map((section, i) => (
-            <div key={i} className={cn("space-y-1", i > 0 && "mt-3 pt-3 border-t border-border")}>
+            <div key={i} className={cn("space-y-0.5", i > 0 && "mt-2 pt-2 border-t border-border")}>
               {section.group && !collapsed && (
                 <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{section.group}</p>
               )}
@@ -133,13 +142,13 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         {profileNavItem && (
-          <div className="px-2 pt-2 border-t border-border">
+          <div className="px-2 py-1 border-t border-border">
             {renderNavItem(profileNavItem)}
           </div>
         )}
-        <div className="p-3 border-t border-border space-y-2">
+        <div className={cn("p-2 border-t border-border flex items-center gap-2", collapsed && "flex-col")}>
           {!collapsed && (
-            <div className="flex items-center gap-2 px-1">
+            <div className="flex-1 min-w-0 flex items-center gap-2 px-1">
               <UserAvatar name={currentUser?.name ?? "Prof"} size="sm" />
               <p className="text-xs truncate">{currentUser?.name}</p>
             </div>
@@ -150,10 +159,12 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
               logout();
               setLocation("/login");
             }}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full px-2 py-2 rounded-lg hover:bg-muted"
+            aria-label="Déconnexion"
+            title="Déconnexion"
+            data-testid="teacher-logout"
+            className="shrink-0 p-2 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
           >
             <LogOut className="w-4 h-4" />
-            {!collapsed && "Déconnexion"}
           </button>
         </div>
       </aside>
@@ -172,7 +183,7 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
             </div>
             <nav className="flex-1 p-2 overflow-y-auto">
               {groupNavItems(mainNav).map((section, i) => (
-                <div key={i} className={cn("space-y-1", i > 0 && "mt-3 pt-3 border-t border-border")}>
+                <div key={i} className={cn("space-y-0.5", i > 0 && "mt-2 pt-2 border-t border-border")}>
                   {section.group && (
                     <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{section.group}</p>
                   )}
@@ -240,7 +251,12 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
                     notifications.filter((n) => !n.archived).slice(0, 8).map((n) => (
                       <div
                         key={n.id}
-                        onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
+                        onClick={() => {
+                          if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id);
+                          const href = lienNotificationProfesseur(n.message);
+                          const feature = TEACHER_PORTAL_FEATURES.find((f) => f.href === href);
+                          if (href && (!feature || portalFeatures[feature.id] !== false)) { setNotifOpen(false); setLocation(href); }
+                        }}
                         className={cn(
                           "px-4 py-3 border-b border-border last:border-0 hover:bg-muted cursor-pointer transition-colors",
                           !n.read && "bg-primary/[0.03]",

@@ -32,7 +32,7 @@ import { FormModal } from "@/components/admin/FormModal";
 import { requestsLastSeenKey } from "@/components/layout/StudentLayout";
 import { cn, formatDate } from "@/lib/utils";
 import { formatNote } from "@/lib/notes";
-import { libelleTypeNote } from "@/lib/portailEtudiant";
+import { libelleTypeNote, valeurNote } from "@/lib/portailEtudiant";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 import { toast } from "sonner";
 
@@ -148,7 +148,7 @@ export default function StudentRequestsPage() {
   );
   const libelleAbsence = (r: (typeof absencesNonJustifiees)[number]) =>
     `${r.type === "retard" ? "Retard" : "Absence"} du ${formatDate(r.date)} ${r.heureDebut}–${r.heureFin} — ${r.ec}`;
-  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${libelleTypeNote(n.type, n.session)} : ${formatNote(n.note)}/20`;
+  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${libelleTypeNote(n.type, n.session)} : ${valeurNote(n)}`;
 
   const total = myRequests.length;
   const enAttente = myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours").length;
@@ -249,20 +249,20 @@ export default function StudentRequestsPage() {
     const absence = absencesNonJustifiees.find((x) => x.cahierId === absenceCahierId);
     const note = notesPubliees.find((x) => x.id === noteId);
     try {
-    addStudentRequest({
-      studentId: currentUser.linkedId,
-      type,
-      subject: subject.trim(),
-      message: message.trim(),
-      porteeRallonge: estRallonge ? porteeRallonge : undefined,
-      dateFinSouhaitee: estRallonge ? dateFinSouhaitee : undefined,
-      absenceCahierId: type === "justificatif_absence" ? absence?.cahierId : undefined,
-      absenceLibelle: type === "justificatif_absence" && absence ? libelleAbsence(absence) : undefined,
-      noteId: type === "reclamation_note" ? note?.id : undefined,
-      noteLibelle: type === "reclamation_note" && note ? libelleNote(note) : undefined,
-      attestationType: type === "attestation" ? attestationType : undefined,
-      pieceJointe: type !== "attestation" && type !== "demande_rallonge" ? pieceJointe : undefined,
-    });
+      addStudentRequest({
+        studentId: currentUser.linkedId,
+        type,
+        subject: subject.trim(),
+        message: message.trim(),
+        porteeRallonge: estRallonge ? porteeRallonge : undefined,
+        dateFinSouhaitee: estRallonge ? dateFinSouhaitee : undefined,
+        absenceCahierId: type === "justificatif_absence" ? absence?.cahierId : undefined,
+        absenceLibelle: type === "justificatif_absence" && absence ? libelleAbsence(absence) : undefined,
+        noteId: type === "reclamation_note" ? note?.id : undefined,
+        noteLibelle: type === "reclamation_note" && note ? libelleNote(note) : undefined,
+        attestationType: type === "attestation" ? attestationType : undefined,
+        pieceJointe: type !== "attestation" && type !== "demande_rallonge" ? pieceJointe : undefined,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Demande refusée.");
       return;
