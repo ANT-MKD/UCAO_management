@@ -86,6 +86,7 @@ export default function NouvelleReprisFraisPage() {
           <div className="flex-1 min-w-0 flex items-center gap-2">
             <input
               readOnly
+              aria-label="Fichier choisi"
               value={fileName}
               className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-l-xl bg-background"
             />

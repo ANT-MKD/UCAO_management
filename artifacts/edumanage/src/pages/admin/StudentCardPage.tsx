@@ -151,6 +151,7 @@ export default function StudentCardPage() {
               {(safePage - 1) * pageSize + paged.length} sur {filtered.length}
             </span>
             <select
+              aria-label="Nombre de cartes par page"
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
               className="px-2 py-1 border border-border rounded-lg bg-background"

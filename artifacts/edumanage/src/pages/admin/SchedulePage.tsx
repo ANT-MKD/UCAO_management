@@ -381,7 +381,7 @@ export default function SchedulePage() {
               )}
             </div>
           ) : (
-            <select data-testid="edt-target-select" value={viewTarget} onChange={(e) => setViewTarget(e.target.value)} className={inputClass + " min-w-[220px]"}>
+            <select aria-label="Emploi du temps affiché" data-testid="edt-target-select" value={viewTarget} onChange={(e) => setViewTarget(e.target.value)} className={inputClass + " min-w-[220px]"}>
               {targetOptions.map((o) => (
                 <option key={o.id} value={o.id}>{o.label}</option>
               ))}

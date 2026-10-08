@@ -181,6 +181,7 @@ export default function NouvelleDerogationPage() {
             value={personnelId}
             onChange={(e) => setPersonnelId(e.target.value)}
             className={inputClass}
+            aria-label="Autorisée par"
             data-testid="derogation-personnel"
           >
             <option value="">Sélectionner</option>

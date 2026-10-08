@@ -428,7 +428,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Indicateurs croisés réussite, finances et absences</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <select value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
+            <select aria-label="Année académique" value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className={inputClass}>
               {anneeOptions.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
             <select aria-label="Toutes les filières" value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className={inputClass}>

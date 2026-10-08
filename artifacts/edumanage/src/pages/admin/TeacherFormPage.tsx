@@ -310,7 +310,7 @@ export default function TeacherFormPage({ id }: Props) {
               <div className="space-y-2">
                 {diplomes.map((d, i) => (
                   <div key={i} className="flex gap-2">
-                    <input value={d} onChange={(e) => updateListItem(setDiplomes, i, e.target.value)} placeholder="ex: Master en Informatique" className={inputClass} />
+                    <input aria-label={`Diplôme ${i + 1}`} value={d} onChange={(e) => updateListItem(setDiplomes, i, e.target.value)} placeholder="ex: Master en Informatique" className={inputClass} />
                     {diplomes.length > 1 && (
                       <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => removeListItem(setDiplomes, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
                         <Trash2 size={14} />
@@ -335,6 +335,7 @@ export default function TeacherFormPage({ id }: Props) {
                       value={s}
                       onChange={(e) => updateListItem(setSpecialites, i, e.target.value)}
                       placeholder="ex: Algorithmique & Intelligence Artificielle"
+                      aria-label={`Spécialité ${i + 1}`}
                       className={inputClass}
                       required={i === 0}
                     />

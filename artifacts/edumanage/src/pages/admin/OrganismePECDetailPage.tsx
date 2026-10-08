@@ -124,7 +124,7 @@ export default function OrganismePECDetailPage({ id }: { id: string }) {
         <div className="bg-card border border-border rounded-xl overflow-hidden h-fit" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Étudiants pris en charge</h3>
-            <select value={annee} onChange={(e) => setAnnee(e.target.value)} className="px-2.5 py-1.5 text-xs border border-border rounded-lg bg-background">
+            <select aria-label="Année académique" value={annee} onChange={(e) => setAnnee(e.target.value)} className="px-2.5 py-1.5 text-xs border border-border rounded-lg bg-background">
               {anneesAcademiques.map((a) => (
                 <option key={a.id} value={a.libelle}>
                   {a.libelle}

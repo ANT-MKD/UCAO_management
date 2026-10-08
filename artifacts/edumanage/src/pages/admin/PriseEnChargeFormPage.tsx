@@ -295,9 +295,9 @@ export default function PriseEnChargeFormPage() {
               {type === "montant" ? "Montant" : "Pourcentage(%)"} <span className="text-red-500">*</span>
             </label>
             {type === "montant" ? (
-              <input type="number" min={0} value={montantTotal} onChange={(e) => setMontantTotal(e.target.value)} className={inputClass} data-testid="pec-montant" />
+              <input aria-label="Montant pris en charge" type="number" min={0} value={montantTotal} onChange={(e) => setMontantTotal(e.target.value)} className={inputClass} data-testid="pec-montant" />
             ) : (
-              <input type="number" min={0} max={100} value={pourcentage} onChange={(e) => setPourcentage(e.target.value)} className={inputClass} data-testid="pec-pourcentage" />
+              <input aria-label="Pourcentage pris en charge" type="number" min={0} max={100} value={pourcentage} onChange={(e) => setPourcentage(e.target.value)} className={inputClass} data-testid="pec-pourcentage" />
             )}
           </div>
           <div>

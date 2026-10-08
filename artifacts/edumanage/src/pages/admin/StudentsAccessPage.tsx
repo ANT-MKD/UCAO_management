@@ -301,6 +301,7 @@ export default function StudentsAccessPage() {
             <Checkbox
               checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
               onCheckedChange={(v) => toggleAllPage(v === true)}
+              aria-label="Tout sélectionner"
             />
             Tout sélectionner
             {selected.size > 0 && (
@@ -314,6 +315,7 @@ export default function StudentsAccessPage() {
               {(safePage - 1) * pageSize + paged.length} sur {filtered.length}
             </span>
             <select
+              aria-label="Nombre de lignes par page"
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
               className="px-2 py-1 border border-border rounded-lg bg-background"
