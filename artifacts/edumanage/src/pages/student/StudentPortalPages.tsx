@@ -606,6 +606,7 @@ export function StudentRelevesPage() {
               icon={Trophy}
               label="Rang dans la classe"
               value={resolved?.rang ? `${resolved.rang}/${resolved.totalClasse}` : "—"}
+              subtitle={resolved && !resolved.rang ? "Publié après la délibération" : undefined}
               accentColor="#f59e0b"
             />
           </div>

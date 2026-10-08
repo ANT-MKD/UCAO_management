@@ -102,7 +102,8 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
     mention: resoudreMention("moyenneSession", bulletin.moyenneSession, bulletin.moyenneSession >= bulletin.moyennePassage).mention ?? "—",
     creditsObtenus: bulletin.creditsObtenus,
     creditsTotal: bulletin.creditsTotal,
-    rang: rangIndex >= 0 ? rangIndex + 1 : undefined,
+    // Le rang, comme la décision, n'est communiqué qu'après la clôture du jury (règle UCAO).
+    rang: deliberation?.statut === "cloturee" && rangIndex >= 0 ? rangIndex + 1 : undefined,
     totalClasse: moyennesClasse.length,
     semestreAlias: semestreObj.alias,
     decision,

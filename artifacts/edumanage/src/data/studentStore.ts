@@ -2776,7 +2776,53 @@ export function getMessages(): MessageRecord[] {
   return store.messages;
 }
 
+/** Professeurs (comptes actifs) qui enseignent réellement dans une classe : un créneau d'emploi du
+ * temps, une évaluation, ou la responsabilité d'un EC de la filière et du niveau de la classe —
+ * rattachés par identifiant, ou à défaut par le nom complet (anciennes données). */
+export function comptesProfsDeLaClasse(classeId: string): UserAccountRecord[] {
+  const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+  const ids = new Set<string>();
+  const noms = new Set<string>();
+  const ajouter = (id: string | undefined, nom: string | undefined) => {
+    if (id) ids.add(id);
+    else if (nom?.trim()) noms.add(norm(nom));
+  };
+  for (const se of store.seances) if (se.classeId === classeId) ajouter(se.profId, se.prof);
+  for (const ev of getEvaluations()) if (ev.classeId === classeId) ajouter(ev.professeurId, ev.professeur);
+  const classe = getClasseById(classeId);
+  if (classe) {
+    const ueIds = new Set(getUes().filter((u) => u.filiereId === classe.filiereId && u.niveau === classe.niveau).map((u) => u.id));
+    for (const ec of getEcs()) if (ueIds.has(ec.ueId)) ajouter(ec.responsableId, ec.responsable);
+  }
+  return store.users.filter((u) => {
+    if (u.role !== "teacher" || u.actif === false) return false;
+    if (u.linkedId && ids.has(u.linkedId)) return true;
+    const nom = norm(u.displayName);
+    const inverse = nom.split(" ").reverse().join(" ");
+    return noms.has(nom) || noms.has(inverse);
+  });
+}
+
+/** Destinataires qu'un étudiant peut choisir pour un nouveau message : l'administration (scolarité,
+ * caisse…) et les professeurs de sa classe — pas les autres professeurs de l'établissement. */
+export function contactsMessagerieEtudiant(userId: string): UserAccountRecord[] {
+  const compte = store.users.find((u) => u.id === userId);
+  const etudiant = compte?.linkedId ? store.etudiants.find((e) => e.id === compte.linkedId) : undefined;
+  const admins = store.users.filter((u) => u.role === "admin" && u.actif !== false && u.id !== userId);
+  return [...admins, ...(etudiant?.classeId ? comptesProfsDeLaClasse(etudiant.classeId) : [])];
+}
+
 export function sendMessage(fromUserId: string, toUserId: string, subject: string, content: string): MessageRecord {
+  // Un étudiant écrit à l'administration et aux professeurs de sa classe ; il peut toujours répondre
+  // à quelqu'un qui lui a écrit le premier (conversation déjà ouverte).
+  const auteur = store.users.find((u) => u.id === fromUserId);
+  if (auteur?.role === "student") {
+    const autorise = contactsMessagerieEtudiant(fromUserId).some((u) => u.id === toUserId);
+    const conversationOuverte = store.messages.some((m) => m.fromUserId === toUserId && m.toUserId === fromUserId);
+    if (!autorise && !conversationOuverte) {
+      throw new Error("Vous pouvez écrire à l'administration et aux professeurs de votre classe uniquement.");
+    }
+  }
   const msg: MessageRecord = {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     fromUserId,

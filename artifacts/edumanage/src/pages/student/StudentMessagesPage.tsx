@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Send, Plus, ArrowLeft, Check, CheckCheck, Phone, Mail, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendMessage, markMessageAsRead, type MessageRecord, type UserAccountRecord } from "@/data/studentStore";
-import { useMessages, useUserAccounts } from "@/hooks/useStudentStore";
+import { sendMessage, markMessageAsRead, contactsMessagerieEtudiant, type MessageRecord, type UserAccountRecord } from "@/data/studentStore";
+import { useMessages, useUserAccounts, useSeances } from "@/hooks/useStudentStore";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FormModal } from "@/components/admin/FormModal";
 import { cn, formatDate } from "@/lib/utils";
@@ -64,10 +64,15 @@ export default function StudentMessagesPage() {
   const [newContent, setNewContent] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
 
+  // Nouveau message : l'administration et les professeurs de sa classe seulement (règle UCAO).
+  const seances = useSeances();
   const contacts = useMemo(
-    () => accounts.filter((a) => a.id !== currentUser?.id && a.actif && (a.role === "admin" || a.role === "teacher")),
-    [accounts, currentUser?.id],
+    () => (currentUser ? contactsMessagerieEtudiant(currentUser.id) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accounts, seances, currentUser?.id],
   );
+  const contactsAdministration = contacts.filter((c) => c.role === "admin");
+  const contactsProfesseurs = contacts.filter((c) => c.role === "teacher");
 
   const conversations = useMemo(() => {
     if (!currentUser) return [];
@@ -128,13 +133,23 @@ export default function StudentMessagesPage() {
 
   const handleReply = () => {
     if (!currentUser || !activeConversation || !draft.trim()) return;
-    sendMessage(currentUser.id, activeConversation.contactId, activeConversation.lastMessage.subject, draft.trim());
+    try {
+      sendMessage(currentUser.id, activeConversation.contactId, activeConversation.lastMessage.subject, draft.trim());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Message non envoyé.");
+      return;
+    }
     setDraft("");
   };
 
   const handleCreateConversation = () => {
     if (!currentUser || !newContactId || !newSubject.trim() || !newContent.trim()) return;
-    sendMessage(currentUser.id, newContactId, newSubject.trim(), newContent.trim());
+    try {
+      sendMessage(currentUser.id, newContactId, newSubject.trim(), newContent.trim());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Message non envoyé.");
+      return;
+    }
     toast.success("Message envoyé.");
     setSelectedContactId(newContactId);
     setShowNewMessage(false);
@@ -369,10 +384,18 @@ export default function StudentMessagesPage() {
               data-testid="nouveau-message-destinataire"
             >
               <option value="">— Sélectionner —</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>
-              ))}
+              {contactsAdministration.length > 0 && (
+                <optgroup label="Administration">
+                  {contactsAdministration.map((c) => <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>)}
+                </optgroup>
+              )}
+              {contactsProfesseurs.length > 0 && (
+                <optgroup label="Professeurs de ma classe">
+                  {contactsProfesseurs.map((c) => <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>)}
+                </optgroup>
+              )}
             </select>
+            <p className="text-[11px] text-muted-foreground mt-1">Vous pouvez écrire à l&apos;administration et aux professeurs de votre classe.</p>
           </div>
           <div>
             <label htmlFor="student-messages-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>

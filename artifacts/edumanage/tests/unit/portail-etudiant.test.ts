@@ -41,12 +41,14 @@ describe("résultats visibles par l'étudiante", () => {
     expect(enCours.decision).toBeUndefined();
     expect(enCours.decisionLabel).toBe("Délibération en cours");
     expect(enCours.appreciation).toBe("En attente de délibération");
+    expect(enCours.rang).toBeUndefined();
     expect(verifierEligibiliteReussite(e.awa.id, e.classe.id, sem.id).motif).toMatch(/pas clôturée/);
 
     D.cloturerDeliberation(d.id);
     const cloture = resolveBulletin(releve, e.S.getEtudiants())!;
     expect(cloture.decision).toBe(d.lignes[0].decisionFinale);
     expect(cloture.decisionLabel).not.toBe("Délibération en cours");
+    expect(cloture.rang).toBe(1);
   });
 
   it("le semestre en cours est le plus avancé qui a des notes (moyenne du tableau de bord)", async () => {
@@ -120,6 +122,28 @@ describe("démarches de l'étudiante", () => {
     expect(() => e.S.changeOwnPassword(e.compte.id, "Provisoire1", "      ")).toThrow(/au moins/);
     expect(() => e.S.changeOwnPassword(e.compte.id, "Provisoire1", "Provisoire1")).toThrow(/différent/);
     expect(e.S.changeOwnPassword(e.compte.id, "Provisoire1", "Etudiante2026")).toBe(true);
+  });
+});
+
+describe("messagerie", () => {
+  it("l'étudiante écrit à l'administration et aux professeurs de sa classe seulement", async () => {
+    const e = await avecAwa();
+    const T = await import("@/data/teacherStore");
+    const compteKane = e.S.creerCompteStaff({ role: "teacher", prenom: "Mamadou", nom: "KANE", identifier: "PROF-KANE", email: "kane@test.sn", password: "Professeur2026", linkedId: e.prof.id }, e.admin.id);
+    const autre = T.addTeacher({ prenom: "Ibrahima", nom: "FALL", matricule: "ENS-TEST-2", telephone: "770000001", specialite: "Droit", grade: "Vacataire", tauxHoraire: 10000, email: "fall@test.sn", sexe: "M" }, e.admin.id);
+    const compteFall = e.S.creerCompteStaff({ role: "teacher", prenom: "Ibrahima", nom: "FALL", identifier: "PROF-FALL", email: "fall@test.sn", password: "Professeur2026", linkedId: autre.id }, e.admin.id);
+    cahier(e, "2026-01-12", 1, "present"); // Mamadou KANE a un créneau dans la classe d'Awa
+
+    const contacts = e.S.contactsMessagerieEtudiant(e.compte.id).map((u) => u.id);
+    expect(contacts).toContain(e.admin.id);
+    expect(contacts).toContain(compteKane.id);
+    expect(contacts).not.toContain(compteFall.id);
+
+    expect(() => e.S.sendMessage(e.compte.id, compteFall.id, "Question", "Bonjour")).toThrow(/professeurs de votre classe/);
+    expect(() => e.S.sendMessage(e.compte.id, compteKane.id, "Question", "Bonjour")).not.toThrow();
+    // Un professeur qui écrit le premier peut recevoir une réponse.
+    e.S.sendMessage(compteFall.id, e.compte.id, "Conférence", "Vous êtes invitée.");
+    expect(() => e.S.sendMessage(e.compte.id, compteFall.id, "Conférence", "Merci")).not.toThrow();
   });
 });
 
