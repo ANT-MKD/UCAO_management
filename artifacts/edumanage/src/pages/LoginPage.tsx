@@ -128,11 +128,12 @@ export default function LoginPage() {
       <CadreConnexion
         etiquette="Première ouverture"
         titre={<>Bienvenue dans<br /><span className="text-[#4f46e5] dark:text-[#a5b4fc]">EduManage.</span></>}
-        intro="Cet écran n'apparaît qu'une seule fois : il crée le premier compte et l'année académique en cours."
+        intro="Cet écran n'apparaît qu'une seule fois : il enregistre l'établissement, crée le premier compte et l'année académique en cours."
         aide={(
           <EtapesAide
             active={0}
             etapes={[
+              { titre: "Établissement", texte: "Son nom et sa ville, imprimés sur les reçus, attestations et procès-verbaux." },
               { titre: "Administrateur principal", texte: "Votre compte, avec un mot de passe que vous choisissez vous-même." },
               { titre: "Année académique en cours", texte: "Son libellé et ses dates réelles de rentrée et de fin." },
               { titre: "Ensuite", texte: "Créez le second administrateur, puis la structure : filières, niveaux, classes, maquette." },
