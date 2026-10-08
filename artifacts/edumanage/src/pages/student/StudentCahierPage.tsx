@@ -9,6 +9,18 @@ import { useStudentStore, useCahiers, useSeances } from "@/hooks/useStudentStore
 import { KPICard } from "@/components/admin/KPICard";
 import { formatDate, formatShortDate, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
+import { cahierCompteAssiduite, getTauxPresencePourEtudiant } from "@/data/assiduiteEngine";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+
+/** Présence de l'étudiant connecté à une séance, telle que pointée dans le cahier. */
+function maPresence(statut: string | undefined, retardMinutes?: number, justifiee?: boolean): { label: string; className: string } {
+  if (statut === "present") return { label: "Présent(e)", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
+  if (statut === "retard") return { label: `En retard${retardMinutes ? ` (${retardMinutes} min)` : ""}`, className: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
+  if (statut === "absent") return justifiee
+    ? { label: "Absence justifiée", className: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" }
+    : { label: "Absent(e)", className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" };
+  return { label: "Non pointé(e)", className: "bg-muted text-muted-foreground" };
+}
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -38,7 +50,8 @@ export default function StudentCahierPage() {
   const mesCahiers = useMemo(
     () =>
       cahiers
-        .filter((c) => c.classeId === student?.classeId && c.statut !== "brouillon")
+        // Ni brouillon ni cahier rejeté par l'administration (même règle que l'assiduité).
+        .filter((c) => c.classeId === student?.classeId && cahierCompteAssiduite(c))
         .sort((a, b) => b.date.localeCompare(a.date) || b.heureDebut.localeCompare(a.heureDebut)),
     [cahiers, student?.classeId],
   );
@@ -64,9 +77,11 @@ export default function StudentCahierPage() {
     () => mesCahiers.filter((c) => c.travail?.devoirDonne && (!c.travail.dateLimite || c.travail.dateLimite >= todayIso)).length,
     [mesCahiers, todayIso],
   );
-  const tauxPresenceMoyen = seancesReelles.length
-    ? Math.round(seancesReelles.reduce((s, c) => s + (c.tauxPresence || 0), 0) / seancesReelles.length)
-    : 0;
+  // Présence de l'étudiant lui-même (comme sur son tableau de bord), jamais la moyenne de la classe.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const maPresenceGlobale = useMemo(() => (student ? getTauxPresencePourEtudiant(student.id) : { present: 0, total: 0, pct: 100 }), [student, cahiers]);
+  const features = usePortalFeatures();
+  const voitEdt = features["student-schedule"] !== false;
   const nbDevoirs = useMemo(() => mesCahiers.filter((c) => c.travail?.devoirDonne).length, [mesCahiers]);
   const nbNotes = mesCahiers.length - nbDevoirs;
 
@@ -89,10 +104,16 @@ export default function StudentCahierPage() {
         <KPICard icon={NotebookPen} label="Séances consignées" value={seancesReelles.length} accentColor="#2563eb" />
         <KPICard icon={CalendarDays} label="Cours concernés" value={coursConcernes} accentColor="#10b981" />
         <KPICard icon={ClipboardList} label="Devoirs en cours" value={devoirsEnCours} accentColor="#f59e0b" />
-        <KPICard icon={UserCheck} label="Taux de présence" value={`${tauxPresenceMoyen}%`} accentColor={tauxPresenceMoyen >= 80 ? "#10b981" : "#ef4444"} />
+        <KPICard
+          icon={UserCheck}
+          label="Ma présence"
+          value={maPresenceGlobale.total > 0 ? `${maPresenceGlobale.pct}%` : "--"}
+          subtitle={maPresenceGlobale.total > 0 ? `${maPresenceGlobale.present}/${maPresenceGlobale.total} séances suivies` : undefined}
+          accentColor={maPresenceGlobale.total === 0 || maPresenceGlobale.pct >= 80 ? "#10b981" : "#ef4444"}
+        />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-[200px]">
@@ -253,7 +274,16 @@ export default function StudentCahierPage() {
                           </div>
                         </div>
                       )}
-                      <p className="text-[10px] text-muted-foreground mt-3">Présence constatée : {c.tauxPresence}%</p>
+                      {(() => {
+                        const p = c.presences.find((x) => x.etudiantId === student?.id);
+                        const m = maPresence(p?.statut, p?.retardMinutes, !!p?.justification);
+                        return (
+                          <p className="text-[11px] text-muted-foreground mt-3 flex items-center gap-1.5">
+                            Votre présence :
+                            <span className={cn("font-semibold px-2 py-0.5 rounded-full", m.className)} data-testid={`cahier-ma-presence-${c.id}`}>{m.label}</span>
+                          </p>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
@@ -262,8 +292,8 @@ export default function StudentCahierPage() {
           )}
         </div>
 
-        <div className="space-y-4">
-          <div className="bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <div className="space-y-4 min-w-0">
+          {voitEdt && <div className="bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
@@ -293,7 +323,7 @@ export default function StudentCahierPage() {
                 ))}
               </div>
             )}
-          </div>
+          </div>}
 
           <div className="rounded-2xl border border-border bg-card p-5">
             <h3 className="font-bold text-sm text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Répartition</h3>

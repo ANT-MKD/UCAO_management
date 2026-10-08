@@ -20,6 +20,9 @@ import { getCahierStatsForEc } from "@/data/studentStore";
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { recuOfficielHtml } from "@/lib/recuPaiement";
+import { semestresDeLEtudiant, semestreLePlusAvance, libelleTypeNote, statutEtudiant, dateDeNote } from "@/lib/portailEtudiant";
 import { montantQuittance, statutQuittance } from "@/pages/admin/PaiementsPage";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
@@ -84,7 +87,16 @@ export function StudentSchedulePage() {
     return d;
   }), [weekMonday]);
   const weekEnd = weekDays[5];
-  const weekLabel = `${weekDays[0].getDate()} – ${weekEnd.getDate()} ${weekDays[0].toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
+  // « 6 – 11 octobre 2026 », mais « 28 septembre – 3 octobre 2026 » quand la semaine change de mois
+  // (et « 29 décembre 2025 – 3 janvier 2026 » quand elle change d'année).
+  const weekLabel = (() => {
+    const debut = weekDays[0];
+    const memeAnnee = debut.getFullYear() === weekEnd.getFullYear();
+    const memeMois = memeAnnee && debut.getMonth() === weekEnd.getMonth();
+    const fin = weekEnd.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    if (memeMois) return `${debut.getDate()} – ${fin}`;
+    return `${debut.toLocaleDateString("fr-FR", memeAnnee ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" })} – ${fin}`;
+  })();
 
   const todayJourNum = Math.min((now.getDay() + 6) % 7 + 1, 6);
   const displayDayIdxs = weekViewMode === "jour" ? [todayJourNum - 1] : [0, 1, 2, 3, 4, 5];
@@ -258,12 +270,10 @@ export function StudentSchedulePage() {
   );
 }
 
-const TYPE_LABELS: Record<string, string> = { CC: "Contrôle continu", EF: "Examen" };
-
 const REPARTITION_DEFS = [
-  { label: "Très bien (16-20)", color: "#10b981" },
-  { label: "Bien (14-15.99)", color: "#2563eb" },
-  { label: "Assez bien (10-13.99)", color: "#f59e0b" },
+  { label: "Très bien (16 à 20)", color: "#10b981" },
+  { label: "Bien (14 à 15,99)", color: "#2563eb" },
+  { label: "Assez bien (10 à 13,99)", color: "#f59e0b" },
   { label: "Insuffisant (< 10)", color: "#ef4444" },
 ];
 function bucketRepartition(note: number): number {
@@ -285,12 +295,6 @@ interface MatiereRow extends Record<string, unknown> {
   credits: number;
 }
 
-/** Dernier semestre (dans l'ordre du niveau) qui a déjà des données ; à défaut, le premier. */
-function semestreLePlusAvance(semestres: string[], avecDonnees: Set<string>): string {
-  const ordre = [...semestres].sort((a, b) => (Number(a.replace(/\D/g, "")) || 0) - (Number(b.replace(/\D/g, "")) || 0) || a.localeCompare(b));
-  return [...ordre].reverse().find((s) => avecDonnees.has(s)) ?? ordre[0] ?? "";
-}
-
 /** Suivi des notes en cours — jamais un verdict officiel (ça, c'est Relevés & bulletins, avec
  * mention et décision de jury réelles). computeBulletin() n'est réutilisé ici que pour son
  * calcul de moyenne selon les règles de la filière, pas pour un statut "validé". */
@@ -306,22 +310,13 @@ export function StudentNotesPage() {
   const [onglet, setOnglet] = useState<"matieres" | "evaluations">("matieres");
   const [semestreSelectionne, setSemestreSelectionne] = useState("");
 
-  const mesUes = useMemo(
-    () => ues.filter((u) => u.filiereId === student?.filiereId && u.niveau === student?.niveau).sort((a, b) => a.semestre.localeCompare(b.semestre)),
-    [ues, student?.filiereId, student?.niveau],
-  );
-  const semestres = useMemo(() => Array.from(new Set(mesUes.map((u) => u.semestre))), [mesUes]);
   // Par défaut : le semestre le plus avancé qui a déjà des notes publiées, pas le premier du
-  // niveau — sinon l'étudiant de S6 ouvre la page sur un S5 vide ou périmé. En début de parcours,
-  // avant toute note, celui des cours programmés pour sa classe.
-  const semestreParDefaut = useMemo(() => {
-    const ueParId = new Map(mesUes.map((u) => [u.id, u]));
-    const semestreDeLEc = (ecId: string) => ueParId.get(ecs.find((e) => e.id === ecId)?.ueId ?? "")?.semestre;
-    const semestresDe = (ecIds: string[]) => new Set(ecIds.map(semestreDeLEc).filter((x): x is string => !!x));
-    const avecNotes = semestresDe(notes.filter((n) => n.etudiantId === student?.id && n.statut === "publie").map((n) => n.ecId));
-    if (avecNotes.size > 0) return semestreLePlusAvance(semestres, avecNotes);
-    return semestreLePlusAvance(semestres, semestresDe(seances.filter((se) => se.classeId === student?.classeId).map((se) => se.ecId)));
-  }, [mesUes, notes, ecs, seances, student?.id, student?.classeId, semestres]);
+  // niveau — sinon l'étudiant de S6 ouvre la page sur un S5 vide ou périmé. Même choix que la
+  // moyenne affichée sur le tableau de bord (semestresDeLEtudiant).
+  const { semestres, semestreParDefaut } = useMemo(
+    () => semestresDeLEtudiant(student, ues, ecs, notes, seances),
+    [student, ues, ecs, notes, seances],
+  );
   const semestreActif = semestreSelectionne || semestreParDefaut;
 
   const bulletin = useMemo(() => {
@@ -394,6 +389,7 @@ export function StudentNotesPage() {
         </div>
         {semestres.length > 0 && (
           <select
+            aria-label="Semestre"
             value={semestreActif}
             onChange={(e) => setSemestreSelectionne(e.target.value)}
             className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -410,7 +406,7 @@ export function StudentNotesPage() {
         <KPICard icon={FileText} label="Notes publiées" value={notesDuSemestre.length} accentColor="#8b5cf6" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
             {([["matieres", "Par matières"], ["evaluations", "Par évaluations"]] as const).map(([key, label]) => (
@@ -440,7 +436,7 @@ export function StudentNotesPage() {
                 <div key={n.id} className="flex items-center justify-between gap-3 p-3.5" data-testid={`notes-evaluation-${n.id}`}>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{n.ec}</p>
-                    <p className="text-[11px] text-muted-foreground">{TYPE_LABELS[n.type] ?? n.type}{n.session === "rattrapage" ? " · Rattrapage" : ""}</p>
+                    <p className="text-[11px] text-muted-foreground">{libelleTypeNote(n.type, n.session)}</p>
                     <p className="text-[11px] text-muted-foreground/80 mt-0.5">
                       {n.dateModification
                         ? `Modifiée le ${new Date(n.dateModification).toLocaleDateString("fr-FR")}`
@@ -448,7 +444,7 @@ export function StudentNotesPage() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className={cn("font-bold text-sm", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{n.note}/20</span>
+                    <span className={cn("font-bold text-sm tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(n.note)}/20</span>
                     <Link href={`/student/requests?type=reclamation_note&note=${n.id}`} className="text-[11px] text-primary hover:underline" data-testid={`note-reclamer-${n.id}`}>Réclamer</Link>
                   </div>
                 </div>
@@ -567,6 +563,7 @@ export function StudentRelevesPage() {
         </div>
         {mesReleves.length > 0 && (
           <select
+            aria-label="Relevé du semestre"
             value={selected?.id ?? ""}
             onChange={(e) => setSelectedId(e.target.value)}
             className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -613,7 +610,7 @@ export function StudentRelevesPage() {
             />
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 space-y-4 min-w-0">
               <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
                 {([["notes", "Relevé de notes"], ["bulletin", "Bulletins"], ["historique", "Historique"]] as const).map(([key, label]) => (
@@ -787,7 +784,7 @@ export function StudentRelevesPage() {
                 <InfoRow label="Programme" value={resolved?.filiereNomComplet ?? student.filiere} />
                 <InfoRow label="Niveau" value={resolved?.niveauLabel ?? student.niveau} />
                 <InfoRow label="Année académique" value={selected.annee ?? "—"} />
-                <InfoRow label="Statut" value={student.statut} />
+                <InfoRow label="Statut" value={statutEtudiant(student.statut).label} />
                 <InfoRow label="Date d'inscription" value={inscriptionCorrespondante ? formatDate(inscriptionCorrespondante.dateInscription) : "—"} />
               </div>
 
@@ -803,43 +800,20 @@ export function StudentRelevesPage() {
       )}
 
       {previewReleve && (
-        <BulletinPreviewModal entry={previewReleve} resolved={resolveBulletin(previewReleve, students)} onClose={() => setPreviewReleve(null)} />
+        <BulletinPreviewModal entry={previewReleve} resolved={resolveBulletin(previewReleve, students)} onClose={() => setPreviewReleve(null)} pourEtudiant />
       )}
     </div>
   );
 }
 
-function printRecu(p: import("@/data/studentStore").PaiementRecord) {
-  const w = window.open("", "_blank", "width=480,height=640");
+/** Reçu officiel de la caisse (même document que Finances → Détail quittance), jamais un modèle
+ * propre au portail. */
+function printRecu(p: import("@/data/studentStore").PaiementRecord, etudiant?: import("@/data/studentStore").EtudiantRecord) {
+  const w = window.open("", "_blank");
   if (!w) return;
-  const lignesHtml =
-    p.lignes && p.lignes.length > 0
-      ? p.lignes
-          .map(
-            (l) =>
-              `<tr><td style="padding-left:12px;color:#666">${l.label}</td><td>${l.montant.toLocaleString("fr-FR")} FCFA</td></tr>`,
-          )
-          .join("")
-      : `<tr><td>Rubrique</td><td>${p.rubrique}</td></tr>`;
-  w.document.write(`<!DOCTYPE html><html><head><title>${p.numeroRecu}</title>
-    <style>body{font-family:system-ui;padding:24px}h1{font-size:18px}table{width:100%;margin-top:16px}td{padding:6px 0;border-bottom:1px solid #eee}</style>
-    </head><body>
-    <h1>EduManage — Reçu de paiement</h1>
-    <p>N° ${p.numeroRecu || p.reference}</p>
-    <table>
-      <tr><td>Date</td><td>${formatShortDate(p.date)}</td></tr>
-      <tr><td>Étudiant</td><td>${p.etudiant}</td></tr>
-      <tr><td colspan="2"><strong>Détail facture</strong></td></tr>
-      ${lignesHtml}
-      <tr><td>Montant versé</td><td><strong>${p.montant.toLocaleString("fr-FR")} FCFA</strong></td></tr>
-      <tr><td>Moyen</td><td>${p.moyen}</td></tr>
-      <tr><td>Statut</td><td>${p.statut}</td></tr>
-      <tr><td>Solde restant</td><td>${p.soldeRestant.toLocaleString("fr-FR")} FCFA</td></tr>
-    </table>
-    <p style="margin-top:24px;font-size:12px;color:#666">Document généré automatiquement</p>
-    <script>window.print()</script>
-    </body></html>`);
+  w.document.write(recuOfficielHtml(p, etudiant));
   w.document.close();
+  w.print();
 }
 
 function moisLabel(dateStr: string): string {
@@ -954,7 +928,7 @@ export function StudentFraisPayePage() {
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{ color: c.color, background: c.bg }}>{p.moyen}</span>
                         )}
                         <p className="text-sm font-bold text-emerald-600 whitespace-nowrap">{formatCFA(p.montant)}</p>
-                        <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline whitespace-nowrap">Imprimer</button>
+                        <button type="button" onClick={() => printRecu(p, student)} className="text-xs text-primary hover:underline whitespace-nowrap">Imprimer</button>
                       </div>
                     </div>
                   );
@@ -1083,7 +1057,9 @@ export function StudentPayerFacturesPage() {
   const students = useStudentStore();
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
-  const modesPaiement = useModesPaiementFinance();
+  // L'avoir est un crédit appliqué par la caisse sur le compte de l'étudiant, pas un moyen avec
+  // lequel l'étudiant peut payer lui-même : il n'apparaît pas dans les moyens proposés.
+  const modesPaiement = useModesPaiementFinance().filter((m) => m.intitule.trim().toUpperCase() !== "AVOIR");
   const modesEnLigne = modesPaiement.filter((m) => MOYENS_PAIEMENT_EN_LIGNE.some((k) => m.intitule.toLowerCase().includes(k)));
   const etablissement = getEtablissement();
 
@@ -1191,7 +1167,7 @@ export function StudentPayerFacturesPage() {
         <KPICard icon={CheckCircle2} label="Statut global" value={statutGlobal} subtitle={statutGlobal === "Partiel" ? "Partiellement payé" : undefined} accentColor={statutGlobalColor} />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="flex gap-1 rounded-xl border border-border bg-card p-1 overflow-x-auto">
             {(
@@ -1248,7 +1224,7 @@ export function StudentPayerFacturesPage() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         {statut === "Payé" ? (
-                          <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline whitespace-nowrap">Voir reçu</button>
+                          <button type="button" onClick={() => printRecu(p, student)} className="text-xs text-primary hover:underline whitespace-nowrap">Voir reçu</button>
                         ) : (
                           <>
                             <p className="text-sm font-bold text-red-500 whitespace-nowrap">{formatCFA(reste)}</p>
@@ -1419,7 +1395,7 @@ export function StudentPayerFacturesPage() {
                                 <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{ color: c.color, background: c.bg }}>{p.moyen}</span>
                               )}
                               <p className="text-sm font-bold text-emerald-600 whitespace-nowrap">{formatCFA(p.montant)}</p>
-                              <button type="button" onClick={() => printRecu(p)} className="text-xs text-primary hover:underline whitespace-nowrap">Imprimer</button>
+                              <button type="button" onClick={() => printRecu(p, student)} className="text-xs text-primary hover:underline whitespace-nowrap">Imprimer</button>
                             </div>
                           </div>
                         );
@@ -1575,9 +1551,15 @@ export function StudentCoursPage() {
     return candidates[0];
   }
 
+  // Notes masquées par l'établissement (module Notes désactivé) : la page Cours n'en montre aucune.
+  const voitNotes = usePortalFeatures()["student-notes"] !== false;
+
+  /** Note publiée la plus récente (par date de saisie ou de modification), pas la dernière stockée. */
   function derniereNotePourEc(ecId: string) {
-    const mine = notes.filter((n) => n.ecId === ecId && n.etudiantId === student?.id && n.statut === "publie");
-    return mine[mine.length - 1];
+    if (!voitNotes) return undefined;
+    return notes
+      .filter((n) => n.ecId === ecId && n.etudiantId === student?.id && n.statut === "publie")
+      .sort((a, b) => dateDeNote(b).localeCompare(dateDeNote(a)))[0];
   }
 
   const coursEnrichis = useMemo(() => {
@@ -1598,7 +1580,7 @@ export function StudentCoursPage() {
     else list = [...list].sort((a, b) => a.ec.libelle.localeCompare(b.ec.libelle));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mesCoursBase, ressources, seances, notes, student?.id, progressionFiltre, avecRessourcesSeulement, avecNoteSeulement, tri]);
+  }, [mesCoursBase, ressources, seances, notes, student?.id, progressionFiltre, avecRessourcesSeulement, avecNoteSeulement, tri, voitNotes]);
 
   const activeAdvancedCount = [profFiltre, progressionFiltre, avecRessourcesSeulement, avecNoteSeulement].filter(Boolean).length;
   function resetFiltresAvances() {
@@ -1620,7 +1602,7 @@ export function StudentCoursPage() {
     vht: c.ec.vht,
     progression: c.stats.pctProgramme,
     prochain: c.prochaine ? `${formatShortDate(c.prochaine.dateIso)} · ${c.prochaine.s.heureDebut}` : "—",
-    note: c.derniereNote ? `${c.derniereNote.note}/20` : "—",
+    note: c.derniereNote ? `${formatNote(c.derniereNote.note)}/20` : "—",
     ressources: c.nbRessources,
   })), [coursEnrichis]);
 
@@ -1638,28 +1620,29 @@ export function StudentCoursPage() {
       render: (r) => <span className={cn("font-semibold", (r.progression as number) >= 100 && "text-emerald-600")}>{r.progression as number}%</span>,
     },
     { key: "prochain", header: "Prochain cours" },
-    {
+    ...(voitNotes ? [{
       key: "note", header: "Dernière note",
-      render: (r) => {
+      render: (r: CoursTableRow) => {
         const v = r.note as string;
         if (v === "—") return v;
-        return <span className={cn("font-semibold", parseFloat(v) >= 10 ? "text-emerald-600" : "text-red-500")}>{v}</span>;
+        return <span className={cn("font-semibold", parseFloat(v.replace(",", ".")) >= 10 ? "text-emerald-600" : "text-red-500")}>{v}</span>;
       },
-    },
+    }] : []),
     { key: "ressources", header: "Ressources", render: (r) => `${r.ressources as number} ress.` },
   ];
 
   // Historique réel des années précédentes : reconstruit à partir des notes publiées de
   // l'étudiant (seule trace réellement conservée par EC/année dans le modèle de données).
   const anneesPrecedentes = useMemo(() => {
-    const map = new Map<string, { ec: string; note: number }[]>();
+    if (!voitNotes) return [];
+    const map = new Map<string, { ec: string; note: number; type: string }[]>();
     for (const n of notes) {
       if (n.etudiantId !== student?.id || n.statut !== "publie" || n.annee === anneeActuelle) continue;
       if (!map.has(n.annee)) map.set(n.annee, []);
-      map.get(n.annee)!.push({ ec: n.ec, note: n.note });
+      map.get(n.annee)!.push({ ec: n.ec, note: n.note, type: libelleTypeNote(n.type, n.session) });
     }
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [notes, student?.id, anneeActuelle]);
+  }, [notes, student?.id, anneeActuelle, voitNotes]);
 
   return (
     <div className="space-y-4">
@@ -1745,6 +1728,7 @@ export function StudentCoursPage() {
               <option value="termine">Terminé</option>
             </select>
             <select
+              aria-label="Trier les cours"
               value={tri}
               onChange={(e) => setTri(e.target.value as "nom" | "progression" | "credits")}
               className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -1759,10 +1743,12 @@ export function StudentCoursPage() {
                 <input type="checkbox" checked={avecRessourcesSeulement} onChange={(e) => setAvecRessourcesSeulement(e.target.checked)} data-testid="cours-filtre-avec-ressources" />
                 Avec ressources
               </label>
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                <input type="checkbox" checked={avecNoteSeulement} onChange={(e) => setAvecNoteSeulement(e.target.checked)} data-testid="cours-filtre-avec-note" />
-                Avec note publiée
-              </label>
+              {voitNotes && (
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                  <input type="checkbox" checked={avecNoteSeulement} onChange={(e) => setAvecNoteSeulement(e.target.checked)} data-testid="cours-filtre-avec-note" />
+                  Avec note publiée
+                </label>
+              )}
             </div>
             {activeAdvancedCount > 0 && (
               <button type="button" onClick={resetFiltresAvances} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors">
@@ -1840,14 +1826,16 @@ export function StudentCoursPage() {
                       <span>Aucune séance à venir planifiée</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <GraduationCap size={11} className="flex-shrink-0" />
-                    {derniereNote ? (
-                      <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{derniereNote.note}/20</span> ({derniereNote.type})</span>
-                    ) : (
-                      <span>Aucune note publiée</span>
-                    )}
-                  </div>
+                  {voitNotes && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <GraduationCap size={11} className="flex-shrink-0" />
+                      {derniereNote ? (
+                        <span>Dernière note : <span className={cn("font-semibold", derniereNote.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(derniereNote.note)}/20</span> ({libelleTypeNote(derniereNote.type, derniereNote.session)})</span>
+                      ) : (
+                        <span>Aucune note publiée</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <Link
@@ -1871,8 +1859,8 @@ export function StudentCoursPage() {
                 <div className="space-y-1">
                   {items.map((it, i) => (
                     <div key={i} className="flex items-center justify-between text-sm border-b border-border last:border-0 py-1.5">
-                      <span className="text-foreground">{it.ec}</span>
-                      <span className={cn("font-semibold text-xs", it.note >= 10 ? "text-emerald-600" : "text-red-500")}>{it.note}/20</span>
+                      <span className="text-foreground min-w-0">{it.ec} <span className="text-[11px] text-muted-foreground">· {it.type}</span></span>
+                      <span className={cn("font-semibold text-xs tabular-nums", it.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(it.note)}/20</span>
                     </div>
                   ))}
                 </div>
@@ -1969,7 +1957,9 @@ export function StudentAbsencesPage() {
   const retardsCount = rowsSemestre.filter((r) => r.type === "retard").length;
 
   const repartition = [
-    { label: "Présences", color: "#10b981", count: taux.present },
+    // taux.present inclut les retards (un retard compte comme une présence) : on ne montre ici que
+    // les présences à l'heure, pour que les trois parts fassent bien le total des séances.
+    { label: "À l'heure", color: "#10b981", count: Math.max(0, taux.present - retardsCount) },
     { label: "Retards", color: "#f59e0b", count: retardsCount },
     { label: "Absences", color: "#ef4444", count: absencesCount },
   ].filter((d) => d.count > 0);
@@ -1985,6 +1975,7 @@ export function StudentAbsencesPage() {
         </div>
         {semestres.length > 0 && (
           <select
+            aria-label="Semestre"
             value={semestreActif}
             onChange={(e) => setSemestreSelectionne(e.target.value)}
             className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -2002,7 +1993,7 @@ export function StudentAbsencesPage() {
         <KPICard icon={Library} label="Total séances" value={taux.total} subtitle="Cette période" accentColor="#2563eb" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
             {([["apercu", "Vue d'ensemble"], ["matieres", "Par matière"], ["historique", "Historique"]] as const).map(([key, label]) => (

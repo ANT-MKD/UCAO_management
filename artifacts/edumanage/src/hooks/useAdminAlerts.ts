@@ -62,6 +62,9 @@ export function useAdminAlerts(): AdminAlert[] {
   const cahiersAValider = cahiers.filter((c) => c.statut === "soumis");
   const pointagesAConfirmer = pointages.filter((p) => p.statut === "soumis");
   const rallongesAValider = rallonges.filter((r) => r.statut === "soumis");
+  // Pièces d'inscription déposées par les étudiants depuis leur portail, en attente de vérification.
+  const piecesAVerifier = etudiants.flatMap((e) => Object.values(e.piecesEnVerification ?? {}).map((p) => ({ etudiantId: e.id, deposeLe: p.deposeLe })))
+    .sort((a, b) => a.deposeLe.localeCompare(b.deposeLe));
 
   const alerts: AdminAlert[] = [];
   const push = (a: AdminAlert) => { if (a.count > 0) alerts.push(a); };
@@ -83,6 +86,9 @@ export function useAdminAlerts(): AdminAlert[] {
     message: `${paiementsAVerifier.length} paiement(s) en ligne à vérifier`, temps: depuis(paiementsAVerifier.map((d) => d.declareLe)), href: "/admin/paiements-declares" });
   push({ id: "demandes-etudiants", type: "warning", count: demandesNouvelles.length, domaine: "Étudiants", action: "Répondre",
     message: `${demandesNouvelles.length} nouvelle(s) demande(s) étudiant(s) sans réponse`, temps: depuis(demandesNouvelles.map((r) => r.createdAt)), href: "/admin/requests" });
+  push({ id: "pieces-etudiants", type: "warning", count: piecesAVerifier.length, domaine: "Étudiants", action: "Vérifier",
+    message: `${piecesAVerifier.length} pièce(s) d'inscription déposée(s) par des étudiants à vérifier`, temps: depuis(piecesAVerifier.map((p) => p.deposeLe)),
+    href: piecesAVerifier[0] ? `/admin/students/${piecesAVerifier[0].etudiantId}?onglet=documents` : "/admin/students" });
   push({ id: "cahiers-validation", type: "warning", count: cahiersAValider.length, domaine: "Pédagogie", action: "Valider",
     message: `${cahiersAValider.length} cahier(s) de séance à valider`, temps: depuis(cahiersAValider.map((c) => c.createdAt)), href: "/admin/cahiers" });
   push({ id: "notes-validation", type: "warning", count: notesEnAttente.length, domaine: "Pédagogie", action: "Valider",

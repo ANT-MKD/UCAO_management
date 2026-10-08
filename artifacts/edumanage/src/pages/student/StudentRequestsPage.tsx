@@ -32,6 +32,9 @@ import { FormModal } from "@/components/admin/FormModal";
 import { requestsLastSeenKey } from "@/components/layout/StudentLayout";
 import { cn, formatDate } from "@/lib/utils";
 import { formatNote } from "@/lib/notes";
+import { libelleTypeNote } from "@/lib/portailEtudiant";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { toast } from "sonner";
 
 type ReqType = StudentRequestRecord["type"];
 type ReqStatus = StudentRequestRecord["status"];
@@ -111,21 +114,41 @@ export default function StudentRequestsPage() {
   const [pieceJointe, setPieceJointe] = useState<StudentRequestRecord["pieceJointe"]>();
   const [erreurPiece, setErreurPiece] = useState("");
 
-  // Ce que la demande vise réellement : une absence non justifiée, une note publiée.
+  // Types proposés : ceux dont le module est ouvert par l'établissement (une réclamation de note
+  // n'a pas de sens si les notes sont masquées, un justificatif si les absences le sont).
+  const features = usePortalFeatures();
+  const typesDisponibles = useMemo(() => REQUEST_TYPES.filter((t) => {
+    if (t.value === "reclamation_note") return features["student-notes"] !== false;
+    if (t.value === "justificatif_absence") return features["student-absences"] !== false;
+    if (t.value === "demande_rallonge") return features["student-frais-impaye"] !== false || features["student-payer-factures"] !== false;
+    return true;
+  }), [features]);
+
+  // Ce que la demande vise réellement : une absence non justifiée, une note publiée — sauf celles
+  // qui ont déjà une demande en cours de traitement (pas de doublon dans la file du secrétariat).
   const cahiers = useCahiers();
   const notes = useNotes();
+  const demandesEnCours = useMemo(() => myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours"), [myRequests]);
+  const absencesEnTraitement = useMemo(
+    () => new Set(demandesEnCours.filter((r) => r.type === "justificatif_absence" && r.absenceCahierId).map((r) => r.absenceCahierId as string)),
+    [demandesEnCours],
+  );
+  const notesEnTraitement = useMemo(
+    () => new Set(demandesEnCours.filter((r) => r.type === "reclamation_note" && r.noteId).map((r) => r.noteId as string)),
+    [demandesEnCours],
+  );
   const absencesNonJustifiees = useMemo(
-    () => (currentUser?.linkedId ? getAssiduiteRowsPourEtudiant(currentUser.linkedId).filter((r) => !r.justifie) : []),
+    () => (currentUser?.linkedId ? getAssiduiteRowsPourEtudiant(currentUser.linkedId).filter((r) => !r.justifie && !absencesEnTraitement.has(r.cahierId)) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUser?.linkedId, cahiers],
+    [currentUser?.linkedId, cahiers, absencesEnTraitement],
   );
   const notesPubliees = useMemo(
-    () => notes.filter((n) => n.etudiantId === currentUser?.linkedId && n.statut === "publie"),
-    [notes, currentUser?.linkedId],
+    () => notes.filter((n) => n.etudiantId === currentUser?.linkedId && n.statut === "publie" && !notesEnTraitement.has(n.id)),
+    [notes, currentUser?.linkedId, notesEnTraitement],
   );
   const libelleAbsence = (r: (typeof absencesNonJustifiees)[number]) =>
     `${r.type === "retard" ? "Retard" : "Absence"} du ${formatDate(r.date)} ${r.heureDebut}–${r.heureFin} — ${r.ec}`;
-  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${n.type} : ${formatNote(n.note)}/20`;
+  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${libelleTypeNote(n.type, n.session)} : ${formatNote(n.note)}/20`;
 
   const total = myRequests.length;
   const enAttente = myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours").length;
@@ -176,7 +199,16 @@ export default function StudentRequestsPage() {
   useEffect(() => {
     const params = new URLSearchParams(search);
     const t = params.get("type") as ReqType | null;
-    if (t && REQUEST_TYPES.some((x) => x.value === t)) openNewRequest(t, { absence: params.get("absence") ?? undefined, note: params.get("note") ?? undefined });
+    if (t && typesDisponibles.some((x) => x.value === t)) {
+      const absence = params.get("absence") ?? undefined;
+      const note = params.get("note") ?? undefined;
+      if (absence && absencesEnTraitement.has(absence)) toast.info("Un justificatif pour cette absence est déjà en cours de traitement.");
+      if (note && notesEnTraitement.has(note)) toast.info("Une réclamation sur cette note est déjà en cours de traitement.");
+      openNewRequest(t, {
+        absence: absence && !absencesEnTraitement.has(absence) ? absence : undefined,
+        note: note && !notesEnTraitement.has(note) ? note : undefined,
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
@@ -204,7 +236,11 @@ export default function StudentRequestsPage() {
   };
 
   const estRallonge = type === "demande_rallonge";
-  const cibleManquante = (type === "justificatif_absence" && !absenceCahierId) || (type === "reclamation_note" && !noteId);
+  // La cible doit être l'une des absences ou notes encore proposées (pas une déjà en traitement,
+  // même arrivée par un lien « Demander une justification »).
+  const cibleManquante =
+    (type === "justificatif_absence" && !absencesNonJustifiees.some((r) => r.cahierId === absenceCahierId)) ||
+    (type === "reclamation_note" && !notesPubliees.some((n) => n.id === noteId));
 
   const handleSubmit = () => {
     if (!currentUser?.linkedId || !subject.trim() || !message.trim()) return;
@@ -212,6 +248,7 @@ export default function StudentRequestsPage() {
     if (cibleManquante) return;
     const absence = absencesNonJustifiees.find((x) => x.cahierId === absenceCahierId);
     const note = notesPubliees.find((x) => x.id === noteId);
+    try {
     addStudentRequest({
       studentId: currentUser.linkedId,
       type,
@@ -226,6 +263,10 @@ export default function StudentRequestsPage() {
       attestationType: type === "attestation" ? attestationType : undefined,
       pieceJointe: type !== "attestation" && type !== "demande_rallonge" ? pieceJointe : undefined,
     });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Demande refusée.");
+      return;
+    }
     setShowNewRequest(false);
     setSent(true);
     setTimeout(() => setSent(false), 2500);
@@ -265,7 +306,7 @@ export default function StudentRequestsPage() {
         <KPICard icon={Ban} label="Annulées" value={annulees} accentColor="#94a3b8" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             <div className="p-4 border-b border-border space-y-3">
@@ -358,7 +399,7 @@ export default function StudentRequestsPage() {
             <h3 className="text-sm font-bold text-foreground mb-1">Faire une nouvelle demande</h3>
             <p className="text-xs text-muted-foreground mb-4">Sélectionnez le type de demande que vous souhaitez effectuer.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {REQUEST_TYPES.map((t) => (
+              {typesDisponibles.map((t) => (
                 <button
                   key={t.value}
                   type="button"
@@ -435,7 +476,7 @@ export default function StudentRequestsPage() {
           <div className="rounded-2xl border border-border bg-card p-5">
             <h3 className="text-sm font-bold text-foreground mb-3">Délais moyens de traitement</h3>
             <div className="space-y-2.5">
-              {REQUEST_TYPES.map((t) => {
+              {typesDisponibles.map((t) => {
                 const avg = averageDelaiJours(allRequests, t.value);
                 return (
                   <div key={t.value} className="flex items-center justify-between gap-2 text-xs">
@@ -454,7 +495,7 @@ export default function StudentRequestsPage() {
           <div>
             <label htmlFor="student-requests-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de demande</label>
             <select id="student-requests-champ-1" value={type} onChange={(e) => setType(e.target.value as ReqType)} className={inputClass} data-testid="requete-type">
-              {REQUEST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              {typesDisponibles.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           {type === "attestation" && (
@@ -470,12 +511,19 @@ export default function StudentRequestsPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Absence à justifier *</label>
               {absencesNonJustifiees.length === 0 ? (
-                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">Aucune absence non justifiée à votre dossier.</p>
+                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">
+                  {absencesEnTraitement.size > 0 ? "Vos absences non justifiées ont déjà un justificatif en cours de traitement." : "Aucune absence non justifiée à votre dossier."}
+                </p>
               ) : (
                 <select aria-label="Choisir l&apos;absence" value={absenceCahierId} onChange={(e) => setAbsenceCahierId(e.target.value)} className={inputClass} data-testid="requete-absence">
                   <option value="">Choisir l&apos;absence…</option>
                   {absencesNonJustifiees.map((r) => <option key={r.id} value={r.cahierId}>{libelleAbsence(r)}</option>)}
                 </select>
+              )}
+              {absencesNonJustifiees.length > 0 && absencesEnTraitement.size > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1" data-testid="requete-absences-en-traitement">
+                  {absencesEnTraitement.size} absence{absencesEnTraitement.size > 1 ? "s ont" : " a"} déjà un justificatif en cours de traitement et n&apos;{absencesEnTraitement.size > 1 ? "apparaissent" : "apparaît"} pas ici.
+                </p>
               )}
             </div>
           )}
@@ -483,7 +531,9 @@ export default function StudentRequestsPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note contestée *</label>
               {notesPubliees.length === 0 ? (
-                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">Aucune note publiée à votre dossier.</p>
+                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">
+                  {notesEnTraitement.size > 0 ? "Vos notes publiées ont déjà une réclamation en cours de traitement." : "Aucune note publiée à votre dossier."}
+                </p>
               ) : (
                 <select aria-label="Choisir la note" value={noteId} onChange={(e) => setNoteId(e.target.value)} className={inputClass} data-testid="requete-note">
                   <option value="">Choisir la note…</option>

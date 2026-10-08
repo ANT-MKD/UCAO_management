@@ -10,7 +10,7 @@ import { useEmissionsMasse } from "@/hooks/useEmissionMasseStore";
 import { usePrisesEnCharge } from "@/hooks/usePriseEnChargeStore";
 import { useEncaissements } from "@/hooks/useEncaissementStore";
 import { annulerEncaissement } from "@/data/encaissementStore";
-import { buildPrintDocumentHtml } from "@/lib/printDocument";
+import { buildQuittanceHtml } from "@/lib/recuPaiement";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 const STATUT_CLS: Record<string, string> = {
@@ -19,48 +19,6 @@ const STATUT_CLS: Record<string, string> = {
   Annulé: "bg-red-50 text-red-700",
   Impayé: "bg-slate-100 text-slate-600",
 };
-
-function buildQuittanceHtml(args: {
-  numero: string;
-  emise: string;
-  limite: string;
-  etudiant: string;
-  matricule: string;
-  classe: string;
-  telephone: string;
-  email: string;
-  montantQuittance: number;
-  montantPaye: number;
-  statut: string;
-  lignes: { label: string; montant: number }[];
-  moyen: string;
-  reference: string;
-}): string {
-  const resteAPayer = Math.max(0, args.montantQuittance - args.montantPaye);
-  return buildPrintDocumentHtml({
-    badge: "REÇU",
-    numero: args.numero,
-    date: args.emise,
-    metaDroiteExtra: args.limite ? [{ label: "Date limite", valeur: args.limite }] : [],
-    destinataireNom: args.etudiant,
-    destinataireLignes: [
-      `${args.matricule}${args.classe ? ` — ${args.classe}` : ""}`,
-      ...(args.telephone ? [args.telephone] : []),
-      ...(args.email ? [args.email] : []),
-    ],
-    metaDroiteLabel: "Statut",
-    metaDroiteValeur: args.statut,
-    lignes: args.lignes,
-    encartLabel: "Méthode de paiement",
-    encartLignes: [`Mode : ${args.moyen || "—"}`, `Référence : ${args.reference || "—"}`],
-    summary: [
-      { label: "Sous-total", montant: args.montantQuittance },
-      { label: "Montant payé", montant: args.montantPaye },
-      ...(resteAPayer > 0 ? [{ label: "Reste à payer", montant: resteAPayer, emphasis: "due" as const }] : []),
-      { label: "Total", montant: args.montantQuittance, emphasis: "total" as const },
-    ],
-  });
-}
 
 export default function PaiementDetailPage({ id }: { id: string }) {
   const [, setLocation] = useLocation();

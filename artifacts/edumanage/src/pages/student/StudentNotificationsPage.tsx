@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Bell, CheckCheck, Circle, Search, Archive, ArchiveRestore, Sliders,
   Wallet, FileText, CalendarDays, CalendarX, ClipboardList, MessageCircle, ShieldAlert, FolderOpen, GraduationCap,
@@ -10,6 +10,9 @@ import { useNotifications } from "@/hooks/useStudentStore";
 import { markNotificationRead, markAllNotificationsRead, archiveNotification } from "@/data/studentStore";
 import { KPICard } from "@/components/admin/KPICard";
 import { cn, formatDate } from "@/lib/utils";
+import { categoriserNotificationEtudiant, lienNotificationEtudiant } from "@/lib/notificationsEtudiant";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { STUDENT_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
 
 type Filtre = "toutes" | "non_lues" | "importantes" | "archivees";
 
@@ -36,19 +39,7 @@ const CATEGORIES: Record<string, Categorie> = {
   autres: { label: "Autres", icon: Bell, color: "#64748b" },
 };
 
-function categoriser(message: string): string {
-  if (/bloqu/i.test(message)) return "compte";
-  if (/nouveau document disponible/i.test(message)) return "documents";
-  if (/votre demande/i.test(message)) return "demandes";
-  if (/nouveau message/i.test(message)) return "messagerie";
-  if (/nouvelle note publiée|relevé de notes/i.test(message)) return "notes";
-  if (/nouvelle ressource/i.test(message)) return "academique";
-  if (/absence constatée/i.test(message)) return "absences";
-  if (/nouveau créneau|edt mis à jour|^emploi du temps|séance (modifiée|annulée)|cours (modifié|annulé|déplacé)|créneau déplacé/i.test(message)) return "emploi_du_temps";
-  if (/paiement validé|quittance|reçu /i.test(message)) return "finances";
-  if (/affecté à la classe/i.test(message)) return "academique";
-  return "autres";
-}
+const categoriser = categoriserNotificationEtudiant;
 
 /** Rappel de paiement et blocage de compte sont les deux seuls types de notification ayant un
  * vrai impact bloquant pour l'étudiant — c'est le seul critère "important" objectivement fondé. */
@@ -74,6 +65,19 @@ const PAGE_SIZE = 8;
 export default function StudentNotificationsPage() {
   const { currentUser } = useAuth();
   const notifications = useNotifications(currentUser?.id);
+  const [, setLocation] = useLocation();
+  const features = usePortalFeatures();
+  /** Page à ouvrir pour cette notification, si elle existe et que l'établissement l'a laissée ouverte. */
+  const lienActif = (message: string): string | undefined => {
+    const href = lienNotificationEtudiant(message);
+    const feature = STUDENT_PORTAL_FEATURES.find((f) => f.href === href);
+    return href && (!feature || features[feature.id] !== false) ? href : undefined;
+  };
+  const ouvrir = (n: (typeof notifications)[number]) => {
+    if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id);
+    const href = lienActif(n.message);
+    if (href) setLocation(href);
+  };
   const [filtre, setFiltre] = useState<Filtre>("toutes");
   const [categorieFiltre, setCategorieFiltre] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -159,7 +163,7 @@ export default function StudentNotificationsPage() {
         <KPICard icon={Archive} label="Archivées" value={archivedCount} accentColor="#64748b" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-3 min-w-0">
           <div className="rounded-2xl border border-border bg-card p-3 space-y-2.5">
             <div className="flex flex-wrap gap-1">
@@ -228,8 +232,10 @@ export default function StudentNotificationsPage() {
                             <cat.icon size={14} style={{ color: cat.color }} />
                           </div>
                           <div
-                            className={cn("min-w-0 flex-1", !n.read && "cursor-pointer")}
-                            onClick={() => { if (!n.read && currentUser) markNotificationRead(n.id, currentUser.id); }}
+                            className={cn("min-w-0 flex-1", (!n.read || lienActif(n.message)) && "cursor-pointer")}
+                            onClick={() => ouvrir(n)}
+                            role={lienActif(n.message) ? "link" : undefined}
+                            data-testid={`notification-ouvrir-${n.id}`}
                           >
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap" style={{ color: cat.color, background: `${cat.color}18` }}>{cat.label}</span>

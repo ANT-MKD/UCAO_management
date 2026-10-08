@@ -191,7 +191,7 @@ export default function StudentRessourcesPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
@@ -221,6 +221,7 @@ export default function StudentRessourcesPage() {
               </div>
               {onglet === "toutes" && (
                 <select
+                  aria-label="Trier les ressources"
                   value={tri}
                   onChange={(e) => setTri(e.target.value as "recent" | "nom" | "taille")}
                   className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -238,6 +239,9 @@ export default function StudentRessourcesPage() {
                     type="button"
                     onClick={() => setVue(mode)}
                     className={cn("p-2 rounded-md transition-colors", vue === mode ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
+                    aria-label={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
+                    aria-pressed={vue === mode}
+                    title={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
                     data-testid={`ressources-vue-${mode}`}
                   >
                     <Icon size={15} />

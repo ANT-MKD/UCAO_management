@@ -1,4 +1,6 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { telephoneValide } from "@/lib/telephone";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
@@ -51,6 +53,12 @@ export interface EtudiantRecord {
    * documentsFournis (qui ne fait que déclarer la pièce reçue, ex. à l'inscription au guichet) :
    * un id peut être dans documentsFournis sans fichier ici (déposé physiquement), jamais l'inverse. */
   documentsFichiers?: Record<string, string>;
+  /** Pièces déposées par l'étudiant depuis « Mes documents » et pas encore vérifiées par le
+   * secrétariat : elles ne comptent comme fournies (documentsFournis/documentsFichiers) qu'une
+   * fois acceptées dans le dossier de l'étudiant. */
+  piecesEnVerification?: Record<string, { dataUrl: string; deposeLe: string }>;
+  /** Dernier refus motivé d'une pièce déposée — effacé quand l'étudiant en redépose une. */
+  piecesRefusees?: Record<string, { motif: string; refuseLe: string }>;
   /** Référence vers motifBlocageStore.ts — restreint des actions précises (accès portail,
    * impression de documents) sans désactiver le dossier de l'étudiant. Absent = aucun blocage. */
   motifBlocageId?: string;
@@ -315,6 +323,10 @@ export interface NotificationRecord {
   /** Rangée sans être supprimée — jamais posée automatiquement, seulement par une action
    * explicite de l'utilisateur sur sa page Notifications. */
   archived?: boolean;
+  /** Famille de notifications fusionnées tant qu'elles ne sont pas lues (ex. une par note
+   * publiée → « 6 nouvelles notes publiées ») ; nombre = événements regroupés. */
+  groupe?: string;
+  nombre?: number;
 }
 
 export interface AuditLogRecord {
@@ -856,6 +868,8 @@ export function definirMotDePasseDefinitif(userId: string, newPassword: string):
 export function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): boolean {
   const user = store.users.find((u) => u.id === userId);
   if (!user || !verifyPassword(currentPassword, user.password)) return false;
+  if (!isPasswordValid(newPassword)) throw new Error(`Le nouveau mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()} (hors espaces).`);
+  if (newPassword === currentPassword) throw new Error("Le nouveau mot de passe doit être différent de l'actuel.");
   user.password = hashPassword(newPassword);
   user.passwordUpdatedAt = new Date().toISOString();
   user.doitChangerMotDePasse = false;
@@ -1012,6 +1026,29 @@ export function pushNotification(userId: string, message: string) {
     createdAt: new Date().toISOString(),
     read: false,
   });
+}
+
+/** Notification regroupée : tant qu'une notification de la même famille n'est ni lue ni archivée,
+ * on la met à jour (compteur, message, date) au lieu d'en empiler une nouvelle — la publication
+ * des 12 notes d'un semestre donne une seule ligne, pas 12. Une fois lue, la suivante repart à 1. */
+export function pushNotificationGroupee(userId: string, groupe: string, messageUnitaire: string, messageGroupe: (nombre: number) => string) {
+  const idx = store.notifications.findIndex((n) => n.userId === userId && n.groupe === groupe && !n.read && !n.archived);
+  if (idx < 0) {
+    store.notifications.unshift({
+      id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      userId,
+      message: messageUnitaire,
+      createdAt: new Date().toISOString(),
+      read: false,
+      groupe,
+      nombre: 1,
+    });
+    return;
+  }
+  const existante = store.notifications[idx];
+  const nombre = (existante.nombre ?? 1) + 1;
+  store.notifications.splice(idx, 1);
+  store.notifications.unshift({ ...existante, message: messageGroupe(nombre), nombre, createdAt: new Date().toISOString() });
 }
 
 /** Pour un appelant externe au module (AuthContext.tsx, mailEnvoyeStore.ts, TeacherAbsencePage.tsx...)
@@ -1246,24 +1283,73 @@ export interface EtudiantInfosPayload {
 export function updateEtudiantInfos(etudiantId: string, payload: EtudiantInfosPayload, actorId: string): void {
   const etudiant = store.etudiants.find((e) => e.id === etudiantId);
   if (!etudiant) return;
+  if (!telephoneValide(payload.telephone ?? "") || !telephoneValide(payload.telTuteur ?? "")) {
+    throw new Error("Numéro de téléphone invalide — saisissez 8 à 15 chiffres.");
+  }
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...payload } : e));
   logAudit(actorId, "update_etudiant_infos", "etudiant", etudiantId);
   persist();
 }
 
-/** Dépôt d'une pièce d'inscription par l'étudiant lui-même (portail, "Mes documents") — marque la
- * pièce comme fournie (documentsFournis) et conserve le scan (documentsFichiers), pour qu'un
- * document manquant à l'inscription puisse être régularisé sans repasser par le guichet. Le
- * secrétariat le retrouve ensuite dans le Dossier étudiant (onglet Documents). */
-export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileDataUrl: string, actorId: string): void {
+/** Dépôt d'une pièce d'inscription par l'étudiant lui-même (portail, "Mes documents") : la pièce
+ * part en vérification (piecesEnVerification) et le secrétariat est prévenu. Elle ne devient
+ * « fournie » qu'une fois acceptée dans le Dossier étudiant (verifierPieceEtudiant) — un dépôt
+ * n'est jamais validé d'office. */
+export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileDataUrl: string, actorId: string, libellePiece = docId): void {
   const etudiant = store.etudiants.find((e) => e.id === etudiantId);
   if (!etudiant) return;
-  const documentsFournis = etudiant.documentsFournis?.includes(docId)
-    ? etudiant.documentsFournis
-    : [...(etudiant.documentsFournis ?? []), docId];
-  const documentsFichiers = { ...(etudiant.documentsFichiers ?? {}), [docId]: fileDataUrl };
-  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, documentsFournis, documentsFichiers } : e));
+  if (etudiant.documentsFournis?.includes(docId)) throw new Error("Cette pièce figure déjà comme fournie à votre dossier.");
+  const piecesEnVerification = { ...(etudiant.piecesEnVerification ?? {}), [docId]: { dataUrl: fileDataUrl, deposeLe: new Date().toISOString() } };
+  const piecesRefusees = { ...(etudiant.piecesRefusees ?? {}) };
+  delete piecesRefusees[docId];
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, piecesEnVerification, piecesRefusees } : e));
   logAudit(actorId, "upload_document", "etudiant", etudiantId, docId);
+  for (const admin of store.users.filter((u) => u.role === "admin" && u.actif !== false)) {
+    pushNotification(admin.id, `Pièce à vérifier : ${etudiant.prenom} ${etudiant.nom} (${etudiant.matricule}) a déposé « ${libellePiece} ».`);
+  }
+  persist();
+}
+
+/** Vérification par le secrétariat d'une pièce déposée par l'étudiant : acceptée, elle devient
+ * fournie avec son scan ; refusée, elle reste manquante avec le motif, que l'étudiant voit dans
+ * « Mes documents » avant d'en redéposer une. L'étudiant est notifié dans les deux cas. */
+export function verifierPieceEtudiant(
+  etudiantId: string,
+  docId: string,
+  decision: "accepter" | "refuser",
+  actorId: string,
+  options: { motif?: string; libellePiece?: string } = {},
+): void {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  const piece = etudiant?.piecesEnVerification?.[docId];
+  if (!etudiant || !piece) throw new Error("Aucune pièce en attente de vérification pour ce document.");
+  const motif = options.motif?.trim();
+  if (decision === "refuser" && !motif) throw new Error("Indiquez le motif du refus : l'étudiant le verra.");
+  const libelle = options.libellePiece ?? docId;
+  const piecesEnVerification = { ...(etudiant.piecesEnVerification ?? {}) };
+  delete piecesEnVerification[docId];
+  const piecesRefusees = { ...(etudiant.piecesRefusees ?? {}) };
+  let maj: Partial<EtudiantRecord> = { piecesEnVerification };
+  if (decision === "accepter") {
+    delete piecesRefusees[docId];
+    maj = {
+      ...maj,
+      piecesRefusees,
+      documentsFournis: etudiant.documentsFournis?.includes(docId) ? etudiant.documentsFournis : [...(etudiant.documentsFournis ?? []), docId],
+      documentsFichiers: { ...(etudiant.documentsFichiers ?? {}), [docId]: piece.dataUrl },
+    };
+  } else {
+    piecesRefusees[docId] = { motif: motif as string, refuseLe: new Date().toISOString() };
+    maj = { ...maj, piecesRefusees };
+  }
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...maj } : e));
+  logAudit(actorId, decision === "accepter" ? "accept_document" : "refuse_document", "etudiant", etudiantId, motif ? `${libelle} — motif : ${motif}` : libelle);
+  const compte = store.users.find((u) => u.role === "student" && u.linkedId === etudiantId);
+  if (compte) {
+    pushNotification(compte.id, decision === "accepter"
+      ? `Votre pièce « ${libelle} » a été acceptée : elle figure désormais comme fournie à votre dossier.`
+      : `Votre pièce « ${libelle} » a été refusée — motif : ${motif}. Vous pouvez en déposer une nouvelle depuis Mes documents.`);
+  }
   persist();
 }
 
@@ -2179,7 +2265,9 @@ export function publishNotesForClasseEc(classeId: string, ecId: string, session?
   if (notifNote?.actif && notifNote.envoyerEtudiant) {
     for (const n of publiees) {
       const studentUser = store.users.find((u) => u.linkedId === n.etudiantId && u.role === "student");
-      if (studentUser) pushNotification(studentUser.id, `Nouvelle note publiée — ${n.ec}`);
+      if (studentUser) {
+        pushNotificationGroupee(studentUser.id, "notes-publiees", `Nouvelle note publiée — ${n.ec}`, (nb) => `${nb} nouvelles notes publiées — dernière : ${n.ec}`);
+      }
     }
   }
   persist();
@@ -2356,6 +2444,9 @@ function notifierChangementEdt(
   messageEtudiant: string,
   messageProf: string,
   autresProfs: Pick<SeanceRecord, "prof" | "profId">[] = [],
+  /** Création de créneau : regroupée (la construction d'un emploi du temps en crée des dizaines).
+   * Modifications et annulations restent une notification chacune. */
+  regroupement?: { groupe: string; etudiant: (nombre: number) => string; prof: (nombre: number) => string },
 ) {
   const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
   if (!notifEdt?.actif) return;
@@ -2363,13 +2454,20 @@ function notifierChangementEdt(
     const studentUsers = store.users.filter(
       (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === seance.classeId),
     );
-    for (const u of studentUsers) pushNotification(u.id, messageEtudiant);
+    for (const u of studentUsers) {
+      if (regroupement) pushNotificationGroupee(u.id, regroupement.groupe, messageEtudiant, regroupement.etudiant);
+      else pushNotification(u.id, messageEtudiant);
+    }
   }
   if (notifEdt.envoyerProfesseur) {
     const deja = new Set<string>();
     for (const p of [seance, ...autresProfs]) {
       const compte = compteProfDeSeance(p);
-      if (compte && !deja.has(compte.id)) { deja.add(compte.id); pushNotification(compte.id, messageProf); }
+      if (compte && !deja.has(compte.id)) {
+        deja.add(compte.id);
+        if (regroupement) pushNotificationGroupee(compte.id, regroupement.groupe, messageProf, regroupement.prof);
+        else pushNotification(compte.id, messageProf);
+      }
     }
   }
 }
@@ -2417,6 +2515,12 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
     seance,
     `Emploi du temps : ${seance.ec} le ${libelleCreneau(seance)} — ${seance.salle}`,
     `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)} — ${seance.salle}`,
+    [],
+    {
+      groupe: "edt-nouveaux-creneaux",
+      etudiant: (nb) => `Emploi du temps : ${nb} nouveaux créneaux ajoutés — dernier : ${seance.ec} le ${libelleCreneau(seance)}`,
+      prof: (nb) => `${nb} nouveaux créneaux à votre emploi du temps — dernier : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)}`,
+    },
   );
 
   persist();
@@ -2564,6 +2668,17 @@ export function getStudentRequests(): StudentRequestRecord[] {
 }
 
 export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "updatedAt" | "status">): StudentRequestRecord {
+  // Une seule demande en cours de traitement par absence ou par note : un doublon encombrerait
+  // la file du secrétariat et resterait « Nouveau » une fois l'original traité.
+  if (payload.type === "justificatif_absence" && !payload.absenceCahierId) throw new Error("Choisissez l'absence à justifier.");
+  if (payload.type === "reclamation_note" && !payload.noteId) throw new Error("Choisissez la note contestée.");
+  const enCours = store.requests.filter((r) => r.studentId === payload.studentId && (r.status === "nouveau" || r.status === "en_cours"));
+  if (payload.type === "justificatif_absence" && payload.absenceCahierId && enCours.some((r) => r.type === "justificatif_absence" && r.absenceCahierId === payload.absenceCahierId)) {
+    throw new Error("Un justificatif pour cette absence est déjà en cours de traitement.");
+  }
+  if (payload.type === "reclamation_note" && payload.noteId && enCours.some((r) => r.type === "reclamation_note" && r.noteId === payload.noteId)) {
+    throw new Error("Une réclamation sur cette note est déjà en cours de traitement.");
+  }
   const now = new Date().toISOString();
   const req: StudentRequestRecord = {
     id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -2847,7 +2962,8 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   const classe = getClasseById(seance.classeId);
   const salle = getSalleById(seance.salleId);
 
-  const presents = payload.presences.filter((p) => p.statut === "present").length;
+  // Un retard compte comme une présence (règle UCAO, voir estPresentALaSeance).
+  const presents = payload.presences.filter((p) => p.statut === "present" || p.statut === "retard").length;
   const total = payload.presences.length || 1;
   const tauxPresence = Math.round((presents / total) * 1000) / 10;
   const absents = payload.presences.filter((p) => p.statut === "absent").map((p) => p.etudiantId);

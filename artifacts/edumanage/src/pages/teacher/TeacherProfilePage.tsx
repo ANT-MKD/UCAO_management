@@ -18,6 +18,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { telephoneValide, TELEPHONE_EXEMPLE } from "@/lib/telephone";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { updateTeacher, type TeacherInput } from "@/data/teacherStore";
@@ -102,6 +104,10 @@ export default function TeacherProfilePage() {
 
   const handleSaveInfos = () => {
     if (!currentUser) return;
+    if (!telephoneValide(telephone)) {
+      toast.error(`Numéro de téléphone invalide — saisissez 8 à 15 chiffres, par exemple ${TELEPHONE_EXEMPLE}.`);
+      return;
+    }
     const patch: Partial<TeacherInput> = {
       telephone: telephone.trim() || undefined,
       adresse: adresse.trim() || undefined,
@@ -114,8 +120,13 @@ export default function TeacherProfilePage() {
 
   const handleChangePassword = () => {
     if (!currentUser) return;
-    if (newPassword.length < 6) {
-      toast.error("Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    // Même règle qu'à la première connexion (passwordPolicy) : pas un simple remplissage d'espaces.
+    if (!isPasswordValid(newPassword)) {
+      toast.error(`Le nouveau mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()} (hors espaces).`);
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("Le nouveau mot de passe doit être différent de l'actuel.");
       return;
     }
     if (newPassword !== confirmPassword) {

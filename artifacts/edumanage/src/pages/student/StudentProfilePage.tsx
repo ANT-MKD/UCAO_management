@@ -23,6 +23,9 @@ import {
   Moon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { telephoneValide, TELEPHONE_EXEMPLE } from "@/lib/telephone";
+import { statutEtudiant } from "@/lib/portailEtudiant";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { updateEtudiantInfos, changeOwnPassword, type EtudiantInfosPayload, type AuditLogRecord } from "@/data/studentStore";
@@ -35,13 +38,6 @@ import { FormModal } from "@/components/admin/FormModal";
 import { cn, formatDate } from "@/lib/utils";
 
 type Tab = "personnelles" | "academiques" | "securite" | "preferences";
-
-const STATUT_STYLES: Record<string, { label: string; className: string }> = {
-  inscrit: { label: "Étudiant actif", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
-  preinscrit: { label: "Préinscrit", className: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
-  suspendu: { label: "Suspendu", className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
-  abandon: { label: "Dossier abandonné", className: "bg-muted text-muted-foreground" },
-};
 
 const ACTION_INFO: Record<string, { label: string; icon: React.ElementType }> = {
   login: { label: "Connexion réussie", icon: LogIn },
@@ -119,7 +115,7 @@ export default function StudentProfilePage() {
 
   if (!student) return <p className="text-sm text-muted-foreground">Profil introuvable.</p>;
 
-  const statutStyle = STATUT_STYLES[student.statut] ?? { label: student.statut, className: "bg-muted text-muted-foreground" };
+  const statutStyle = statutEtudiant(student.statut);
 
   const personnellesCompletes = !!(student.adresse && student.lieuNaissance && student.nationalite && student.cni);
   const academiquesCompletes = !!student.classeId;
@@ -144,6 +140,10 @@ export default function StudentProfilePage() {
 
   const handleSaveInfos = () => {
     if (!currentUser) return;
+    if (!telephoneValide(telephone) || !telephoneValide(telTuteur)) {
+      toast.error(`Numéro de téléphone invalide — saisissez 8 à 15 chiffres, par exemple ${TELEPHONE_EXEMPLE}.`);
+      return;
+    }
     const payload: EtudiantInfosPayload = {
       adresse: adresse.trim() || undefined,
       telephone: telephone.trim() || undefined,
@@ -158,8 +158,13 @@ export default function StudentProfilePage() {
 
   const handleChangePassword = () => {
     if (!currentUser) return;
-    if (newPassword.length < 6) {
-      toast.error("Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    // Même règle qu'à la première connexion (passwordPolicy) : pas un simple remplissage d'espaces.
+    if (!isPasswordValid(newPassword)) {
+      toast.error(`Le nouveau mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()} (hors espaces).`);
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("Le nouveau mot de passe doit être différent de l'actuel.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -283,7 +288,7 @@ export default function StudentProfilePage() {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           {tab === "personnelles" && (
             <div className="rounded-2xl border border-border bg-card p-5">

@@ -64,7 +64,7 @@ test.describe("parcours entre les trois portails", () => {
     await connecter(page, d.matricule, MDP_ETUDIANT);
     await page.goto("/student/notes");
     await page.getByText("Par évaluations").click();
-    await expect(page.locator("main")).toContainText("14/20");
+    await expect(page.locator("main")).toContainText("14,00/20");
     await expect(page.locator('[data-testid^="note-reclamer-"]').first()).toBeVisible();
   });
 });

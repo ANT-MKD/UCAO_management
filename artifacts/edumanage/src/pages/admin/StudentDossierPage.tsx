@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { ArrowLeft, Edit, AlertTriangle, GraduationCap, FileText, CreditCard, Calendar, History, IdCard, Wallet, UserX, Eye, Award, ShieldOff, Users, StickyNote, Paperclip, Plus, Trash2, Phone, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/admin/UserAvatar";
@@ -12,7 +12,8 @@ import { addContact, deleteContact, CONTACT_ROLE_LABELS, type ContactRole } from
 import { useRelances } from "@/hooks/useRelancePaiementStore";
 import { getRelanceActivePour, relanceEstExpiree, relanceEstResolue } from "@/data/relancePaiementStore";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
-import { setEtudiantMotifBlocage } from "@/data/studentStore";
+import { setEtudiantMotifBlocage, verifierPieceEtudiant } from "@/data/studentStore";
+import { MotifModal } from "@/components/admin/MotifModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useReleves, useStudentStore } from "@/hooks/useStudentStore";
@@ -50,7 +51,10 @@ const MOYEN_COLORS: Record<string, string> = {
 export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("informations");
+  // « À traiter » ouvre directement l'onglet concerné (ex. ?onglet=documents pour une pièce à vérifier).
+  const search = useSearch();
+  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(search).get("onglet") || "informations");
+  const [pieceARefuser, setPieceARefuser] = useState<{ id: string; label: string } | null>(null);
   const [blocageOpen, setBlocageOpen] = useState(false);
   const [motifChoisi, setMotifChoisi] = useState("");
   const [contactModalRole, setContactModalRole] = useState<ContactRole | null>(null);
@@ -835,16 +839,31 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
                 {DOCUMENTS_INSCRIPTION.map((doc) => {
                   const fournie = !!student?.documentsFournis?.includes(doc.id);
-                  const fichier = student?.documentsFichiers?.[doc.id];
+                  const enVerification = student?.piecesEnVerification?.[doc.id];
+                  const refus = student?.piecesRefusees?.[doc.id];
+                  const fichier = student?.documentsFichiers?.[doc.id] ?? enVerification?.dataUrl;
+                  const decider = (decision: "accepter" | "refuser", motif?: string) => {
+                    if (!currentUser || !student) return;
+                    try {
+                      verifierPieceEtudiant(student.id, doc.id, decision, currentUser.id, { motif, libellePiece: doc.label });
+                      toast.success(decision === "accepter" ? `${doc.label} acceptée : la pièce figure comme fournie.` : `${doc.label} refusée — l'étudiant a été prévenu du motif.`);
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Action impossible.");
+                    }
+                  };
                   return (
-                    <div key={doc.id} className="flex items-center justify-between gap-3 p-3 bg-card" data-testid={`dossier-piece-${doc.id}`}>
+                    <div key={doc.id} className="flex flex-wrap items-center justify-between gap-3 p-3 bg-card" data-testid={`dossier-piece-${doc.id}`}>
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {fournie ? <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" /> : <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />}
-                        <span className="text-sm text-foreground truncate">{doc.label}</span>
+                        {fournie ? <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" /> : <AlertCircle size={15} className={cn("flex-shrink-0", enVerification ? "text-sky-600" : "text-amber-600")} />}
+                        <div className="min-w-0">
+                          <span className="text-sm text-foreground truncate block">{doc.label}</span>
+                          {enVerification && !fournie && <span className="text-[11px] text-muted-foreground">Déposée par l&apos;étudiant le {formatDate(enVerification.deposeLe)}</span>}
+                          {refus && !fournie && !enVerification && <span className="text-[11px] text-red-600 dark:text-red-400">Refusée le {formatDate(refus.refuseLe)} — {refus.motif}</span>}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full", fournie ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300")}>
-                          {fournie ? "Fournie" : "Manquante"}
+                      <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                        <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full", fournie ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : enVerification ? "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300")}>
+                          {fournie ? "Fournie" : enVerification ? "À vérifier" : "Manquante"}
                         </span>
                         {fichier && (
                           <button
@@ -861,6 +880,16 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                             Voir le scan
                           </button>
                         )}
+                        {enVerification && !fournie && (
+                          <>
+                            <button type="button" onClick={() => decider("accepter")} className="text-xs font-medium px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700" data-testid={`dossier-piece-accepter-${doc.id}`}>
+                              Accepter
+                            </button>
+                            <button type="button" onClick={() => setPieceARefuser({ id: doc.id, label: doc.label })} className="text-xs font-medium px-2.5 py-1 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950" data-testid={`dossier-piece-refuser-${doc.id}`}>
+                              Refuser
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -868,6 +897,27 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               </div>
             </div>
             <DocumentsPanel entiteType="etudiant" entiteId={id} />
+            <MotifModal
+              open={!!pieceARefuser}
+              title={pieceARefuser ? `Refuser — ${pieceARefuser.label}` : ""}
+              description="L'étudiant verra ce motif dans « Mes documents » et pourra déposer une nouvelle pièce."
+              obligatoire
+              libelleConfirmer="Refuser la pièce"
+              placeholder="Ex. : document illisible, merci de déposer un scan complet"
+              onCancel={() => setPieceARefuser(null)}
+              onConfirm={(motif) => {
+                if (pieceARefuser && currentUser && student) {
+                  try {
+                    verifierPieceEtudiant(student.id, pieceARefuser.id, "refuser", currentUser.id, { motif, libellePiece: pieceARefuser.label });
+                    toast.success(`${pieceARefuser.label} refusée — l'étudiant a été prévenu du motif.`);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Action impossible.");
+                  }
+                }
+                setPieceARefuser(null);
+              }}
+              testId="dossier-piece-refus"
+            />
           </div>
         )}
       </div>

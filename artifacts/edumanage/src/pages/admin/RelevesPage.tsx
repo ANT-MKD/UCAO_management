@@ -86,8 +86,11 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
 
   // Décision réelle du jury (jamais un seuil moyenne >= 10 fabriqué) : lit la délibération
   // effectivement tenue pour cette classe/semestre, y compris une correction manuelle du jury.
+  // Seule une délibération clôturée fait foi : tant que le jury siège (ou a rouvert la session),
+  // ses décisions sont provisoires et ne paraissent ni sur le bulletin ni sur le portail étudiant.
   const deliberation = getDeliberationForClasseSemestre(etudiant.classeId, semestreObj.id);
-  const ligne = deliberation?.lignes.find((l) => l.etudiantId === etudiant.id);
+  const juryEnCours = !!deliberation && deliberation.statut !== "cloturee";
+  const ligne = juryEnCours ? undefined : deliberation?.lignes.find((l) => l.etudiantId === etudiant.id);
   const decision = ligne?.decisionFinale;
   const niveauObj = NIVEAUX.find((n) => n.filiereId === filiereObj.id && n.alias === etudiant.niveau);
 
@@ -103,7 +106,7 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
     totalClasse: moyennesClasse.length,
     semestreAlias: semestreObj.alias,
     decision,
-    decisionLabel: decision ? DECISION_LABELS[decision] : "Non délibéré",
+    decisionLabel: decision ? DECISION_LABELS[decision] : juryEnCours ? "Délibération en cours" : "Non délibéré",
     appreciation: decision ? APPRECIATION_PAR_DECISION[decision] : "En attente de délibération",
     filiereNomComplet: filiereObj.nom,
     niveauLabel: niveauObj?.nom ?? etudiant.niveau,
@@ -271,9 +274,12 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 </html>`;
 }
 
-function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
+function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined, pourEtudiant = false) {
   if (estActionInterdite(entry.etudiantId, "impression_bulletin")) {
-    toast.error(`Impression bloquée pour ${entry.etudiant} — un motif de blocage l'interdit (voir Paramètres → Motifs de blocage).`);
+    // L'étudiant n'a pas accès aux Paramètres : on lui dit à qui s'adresser, pas où cliquer côté admin.
+    toast.error(pourEtudiant
+      ? "Impression bloquée — un motif de blocage administratif l'interdit. Contactez le service scolarité (Messagerie)."
+      : `Impression bloquée pour ${entry.etudiant} — un motif de blocage l'interdit (voir Paramètres → Motifs de blocage).`);
     return;
   }
   const html = buildPrintHtml(entry, resolved);
@@ -288,7 +294,7 @@ function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) 
  * où un bulletin doit être prévisualisé (Relevés, Génération, et le portail étudiant) : l'aperçu
  * est donc toujours pixel pour pixel identique au document réellement imprimé, plus de gabarit
  * React dupliqué qui pourrait diverger. */
-export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: ReleverEntry; resolved: BulletinResolu | undefined; onClose: () => void }) {
+export function BulletinPreviewModal({ entry, resolved, onClose, pourEtudiant = false }: { entry: ReleverEntry; resolved: BulletinResolu | undefined; onClose: () => void; pourEtudiant?: boolean }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -315,7 +321,7 @@ export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: Rele
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
             {resolved && (
-              <button onClick={() => printReleve(entry, resolved)} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+              <button onClick={() => printReleve(entry, resolved, pourEtudiant)} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
                 <Printer size={14} /> Imprimer / Exporter PDF
               </button>
             )}

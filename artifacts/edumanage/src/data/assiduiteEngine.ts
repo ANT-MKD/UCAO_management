@@ -2,6 +2,19 @@ import { getCahiers, getEtudiantById, durationHours } from "./studentStore";
 import { getAbsencePeriodeCouvrant } from "./absencePeriodeStore";
 import { mondayOf } from "@/lib/teacherUtils";
 
+/** Un cahier ne compte pour l'assiduité qu'une fois soumis et tant que l'administration ne l'a
+ * pas rejeté : un brouillon n'est pas encore constaté, un cahier rejeté (saisi pour la mauvaise
+ * classe, à refaire…) ne constate plus rien. */
+export function cahierCompteAssiduite(c: { statut: string }): boolean {
+  return c.statut !== "brouillon" && c.statut !== "rejete";
+}
+
+/** Règle UCAO : un étudiant en retard a assisté à la séance — il compte comme présent dans les
+ * taux de présence (le retard reste visible dans la liste des absences et retards). */
+export function estPresentALaSeance(statut: string): boolean {
+  return statut === "present" || statut === "retard";
+}
+
 /** Une ligne d'assiduité = une absence ou un retard réellement constaté par un cahier de
  * textes soumis (jamais un brouillon) — jamais ressaisi ailleurs. Justifie() vérifie d'abord la
  * justification posée directement sur la présence (Nouvelle assiduité), puis si une déclaration
@@ -35,7 +48,7 @@ export function getAssiduiteRows(): AssiduiteRow[] {
   const cahiers = getCahiers();
   const rows: AssiduiteRow[] = [];
   for (const c of cahiers) {
-    if (c.statut === "brouillon") continue;
+    if (!cahierCompteAssiduite(c)) continue;
     for (const p of c.presences) {
       if (p.statut === "present") continue;
       const periode = getAbsencePeriodeCouvrant(p.etudiantId, c.date);
@@ -74,19 +87,19 @@ export function getAssiduiteRowsPourEtudiant(etudiantId: string): AssiduiteRow[]
   return getAssiduiteRows().filter((r) => r.etudiantId === etudiantId);
 }
 
-/** Taux de présence réel d'un étudiant : séances où il a été noté présent, sur toutes les
+/** Taux de présence réel d'un étudiant : séances où il a été noté présent ou en retard, sur toutes les
  * séances où il apparaît dans un cahier de textes réellement soumis — jamais un total de
  * séances fabriqué. Filtrable par semestre (alias réel, ex. "S1") pour scoper aux séances de
  * la période sélectionnée plutôt qu'à l'historique complet. */
 export function getTauxPresencePourEtudiant(etudiantId: string, semestreAlias?: string): { present: number; total: number; pct: number } {
-  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && (!semestreAlias || c.semestre === semestreAlias));
+  const cahiers = getCahiers().filter((c) => cahierCompteAssiduite(c) && (!semestreAlias || c.semestre === semestreAlias));
   let present = 0;
   let total = 0;
   for (const c of cahiers) {
     const p = c.presences.find((x) => x.etudiantId === etudiantId);
     if (!p) continue;
     total++;
-    if (p.statut === "present") present++;
+    if (estPresentALaSeance(p.statut)) present++;
   }
   return { present, total, pct: total > 0 ? Math.round((present / total) * 100) : 100 };
 }
@@ -103,7 +116,7 @@ export interface PresenceHebdo {
  * semaine où l'étudiant apparaît dans au moins un cahier réellement soumis, jamais une semaine
  * future ou vide comblée artificiellement. */
 export function getPresenceHebdoPourEtudiant(etudiantId: string, semestreAlias?: string): PresenceHebdo[] {
-  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && (!semestreAlias || c.semestre === semestreAlias));
+  const cahiers = getCahiers().filter((c) => cahierCompteAssiduite(c) && (!semestreAlias || c.semestre === semestreAlias));
   const parSemaine = new Map<string, { present: number; total: number }>();
   for (const c of cahiers) {
     const p = c.presences.find((x) => x.etudiantId === etudiantId);
@@ -111,7 +124,7 @@ export function getPresenceHebdoPourEtudiant(etudiantId: string, semestreAlias?:
     const weekStart = mondayOf(c.date);
     const entry = parSemaine.get(weekStart) ?? { present: 0, total: 0 };
     entry.total++;
-    if (p.statut === "present") entry.present++;
+    if (estPresentALaSeance(p.statut)) entry.present++;
     parSemaine.set(weekStart, entry);
   }
   return [...parSemaine.entries()]
@@ -135,14 +148,14 @@ export interface PresenceParEc {
 /** Taux de présence réel par matière (EC) — permet de repérer les cours où l'assiduité décroche,
  * jamais une moyenne globale déguisée en détail par matière. */
 export function getPresenceParEcPourEtudiant(etudiantId: string, semestreAlias?: string): PresenceParEc[] {
-  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && (!semestreAlias || c.semestre === semestreAlias));
+  const cahiers = getCahiers().filter((c) => cahierCompteAssiduite(c) && (!semestreAlias || c.semestre === semestreAlias));
   const parEc = new Map<string, { present: number; total: number }>();
   for (const c of cahiers) {
     const p = c.presences.find((x) => x.etudiantId === etudiantId);
     if (!p) continue;
     const entry = parEc.get(c.ec) ?? { present: 0, total: 0 };
     entry.total++;
-    if (p.statut === "present") entry.present++;
+    if (estPresentALaSeance(p.statut)) entry.present++;
     parEc.set(c.ec, entry);
   }
   return [...parEc.entries()]
@@ -154,7 +167,7 @@ export function getPresenceParEcPourEtudiant(etudiantId: string, semestreAlias?:
  * par Délibérations pour la décision d'exclusion disciplinaire. Une absence justifiée (par le
  * cahier ou couverte par une déclaration de période) ne compte jamais contre l'étudiant. */
 export function getHeuresAbsenceNonJustifieePourEtudiant(etudiantId: string, classeId: string, semestreAlias: string): number {
-  const cahiers = getCahiers().filter((c) => c.statut !== "brouillon" && c.classeId === classeId && c.semestre === semestreAlias);
+  const cahiers = getCahiers().filter((c) => cahierCompteAssiduite(c) && c.classeId === classeId && c.semestre === semestreAlias);
   let heures = 0;
   for (const c of cahiers) {
     const p = c.presences.find((x) => x.etudiantId === etudiantId);

@@ -12,6 +12,10 @@ import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/dat
 import { formatCFA, formatDate, formatShortDate, moyenPaiementColor, cn } from "@/lib/utils";
 import { mondayOf } from "@/lib/teacherUtils";
 import { formatNote } from "@/lib/notes";
+import { useUes, useEcs } from "@/hooks/useCurriculumStore";
+import { computeBulletin } from "@/data/bulletinEngine";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { semestresDeLEtudiant, libelleTypeNote, statutEtudiant, dateDeNote } from "@/lib/portailEtudiant";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -33,11 +37,35 @@ export default function StudentDashboardPage() {
   const student = students.find((s) => s.id === currentUser?.linkedId) ?? students[0];
   const paiements = usePaiementsByEtudiant(student?.id ?? "");
 
+  const ues = useUes();
+  const ecs = useEcs();
+  // Un module désactivé par l'établissement disparaît aussi du tableau de bord, pas seulement du menu.
+  const features = usePortalFeatures();
+  const actif = (id: string) => features[id] !== false;
+  const voitNotes = actif("student-notes");
+  const voitAbsences = actif("student-absences");
+  const voitEdt = actif("student-schedule");
+  const voitPaiements = actif("student-frais-paye");
+  const voitSolde = actif("student-frais-impaye") || actif("student-payer-factures");
+
   const studentNotes = useMemo(() => notes.filter((n) => n.etudiantId === student?.id && n.statut === "publie"), [notes, student?.id]);
-  const recentNotes = useMemo(() => studentNotes.slice(-10).reverse(), [studentNotes]);
-  const moyenne = studentNotes.length
-    ? formatNote(studentNotes.reduce((sum, n) => sum + n.note, 0) / studentNotes.length)
-    : "--";
+  const recentNotes = useMemo(
+    () => [...studentNotes].sort((a, b) => dateDeNote(b).localeCompare(dateDeNote(a))).slice(0, 10),
+    [studentNotes],
+  );
+  // Moyenne officielle du semestre en cours (même calcul et même semestre que la page Notes et le
+  // bulletin) — jamais une moyenne brute de toutes les notes, tous semestres confondus.
+  const { semestreParDefaut } = useMemo(
+    () => semestresDeLEtudiant(student, ues, ecs, notes, seances),
+    [student, ues, ecs, notes, seances],
+  );
+  const bulletin = useMemo(
+    () => (student && semestreParDefaut ? computeBulletin(student.id, student.classeId, student.filiereId, student.niveau, semestreParDefaut) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [student, semestreParDefaut, notes, ecs],
+  );
+  const moyenneSemestre = bulletin?.moyenneSession;
+  const statut = statutEtudiant(student?.statut);
 
   const paiementsPayes = useMemo(() => paiements.filter((p) => p.statut !== "annule" && p.montant > 0), [paiements]);
 
@@ -85,34 +113,44 @@ export default function StudentDashboardPage() {
       </section>
 
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-        <KPICard icon={CalendarDays} label="Séances cette semaine" value={weekSeances.length} accentColor="#2563eb" />
-        <KPICard icon={FileText} label="Notes publiées" value={studentNotes.length} accentColor="#10b981" />
-        <KPICard
-          icon={UserCheck}
-          label="Taux de présence"
-          value={taux.total > 0 ? `${taux.pct}%` : "--"}
-          subtitle={taux.total > 0 ? `${taux.present}/${taux.total} séances` : undefined}
-          accentColor={taux.total === 0 || taux.pct >= 80 ? "#10b981" : "#ef4444"}
-        />
-        <KPICard
-          icon={AlertTriangle}
-          label="Solde dû"
-          value={student ? formatCFA(student.soldeDu) : "--"}
-          accentColor={student && student.soldeDu > 0 ? "#ef4444" : "#10b981"}
-        />
+        {voitEdt && <KPICard icon={CalendarDays} label="Séances cette semaine" value={weekSeances.length} accentColor="#2563eb" />}
+        {voitNotes && <KPICard icon={FileText} label="Notes publiées" value={studentNotes.length} accentColor="#10b981" />}
+        {voitAbsences && (
+          <KPICard
+            icon={UserCheck}
+            label="Taux de présence"
+            value={taux.total > 0 ? `${taux.pct}%` : "--"}
+            subtitle={taux.total > 0 ? `${taux.present}/${taux.total} séances suivies` : undefined}
+            accentColor={taux.total === 0 || taux.pct >= 80 ? "#10b981" : "#ef4444"}
+          />
+        )}
+        {voitSolde && (
+          <KPICard
+            icon={AlertTriangle}
+            label="Solde dû"
+            value={student ? formatCFA(student.soldeDu) : "--"}
+            accentColor={student && student.soldeDu > 0 ? "#ef4444" : "#10b981"}
+          />
+        )}
       </section>
 
       <section className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-border bg-card p-5 flex flex-col min-w-0">
           <h3 className="font-bold text-foreground mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Aperçu académique</h3>
           <div className="space-y-2 text-sm flex-1">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Moyenne générale</span>
-              <span className="font-bold text-foreground">{moyenne}/20</span>
-            </div>
+            {voitNotes && semestreParDefaut && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Moyenne {semestreParDefaut}</span>
+                {moyenneSemestre !== undefined ? (
+                  <span className="font-bold text-foreground tabular-nums" data-testid="dashboard-moyenne">{formatNote(moyenneSemestre)}/20</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground text-right" data-testid="dashboard-moyenne">Notes du semestre incomplètes</span>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Statut</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{student?.statut ?? "--"}</span>
+              <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", statut.className)}>{statut.label}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Formation</span>
@@ -123,12 +161,14 @@ export default function StudentDashboardPage() {
               <span className="font-medium text-foreground">{student?.niveau ?? "--"}</span>
             </div>
           </div>
-          <button onClick={() => setLocation("/student/notes")} className="text-xs text-primary hover:underline flex items-center gap-1 font-medium mt-3">
-            Voir mes résultats <ArrowRight size={11} />
-          </button>
+          {voitNotes && (
+            <button onClick={() => setLocation("/student/notes")} className="text-xs text-primary hover:underline flex items-center gap-1 font-medium mt-3">
+              Voir mes résultats <ArrowRight size={11} />
+            </button>
+          )}
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-5 flex flex-col min-w-0">
+        {voitEdt && <div className="rounded-2xl border border-border bg-card p-5 flex flex-col min-w-0">
           <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
             <div className="min-w-0">
               <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Aujourd&apos;hui</h3>
@@ -158,12 +198,12 @@ export default function StudentDashboardPage() {
               ))}
             </div>
           )}
-        </div>
+        </div>}
       </section>
 
       <section className="grid lg:grid-cols-2 gap-5">
         {/* Dernières notes */}
-        <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
+        {voitNotes && <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -187,18 +227,18 @@ export default function StudentDashboardPage() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-foreground truncate">{n.ec}</div>
-                    <div className="text-xs text-muted-foreground truncate">{n.type}</div>
+                    <div className="text-xs text-muted-foreground truncate">{libelleTypeNote(n.type, n.session)}</div>
                   </div>
-                  <span className={cn("text-sm font-bold tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{n.note}/20</span>
+                  <span className={cn("text-sm font-bold tabular-nums", n.note >= 10 ? "text-emerald-600" : "text-red-500")}>{formatNote(n.note)}/20</span>
                   <ChevronRight size={14} className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Frais payés récents */}
-        <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
+        {voitPaiements && <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
@@ -238,10 +278,10 @@ export default function StudentDashboardPage() {
               })}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Absences / retards récents */}
-        <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
+        {voitAbsences && <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
@@ -275,10 +315,10 @@ export default function StudentDashboardPage() {
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Planning de la semaine */}
-        <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
+        {voitEdt && <div className="bg-card border border-border rounded-2xl overflow-hidden min-w-0" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
@@ -317,7 +357,7 @@ export default function StudentDashboardPage() {
               })}
             </div>
           )}
-        </div>
+        </div>}
       </section>
     </div>
   );

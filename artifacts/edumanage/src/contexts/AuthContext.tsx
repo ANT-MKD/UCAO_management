@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Le portail ${PORTAL_LABELS[account.role]} est actuellement désactivé (Sécurité → Portails). Contactez l'administration.`);
     }
     if (account.actif === false) {
-      throw new Error("Ce compte a été désactivé (Sécurité → Liste des utilisateurs). Contactez l'administration.");
+      throw new Error("Ce compte a été désactivé. Contactez l'administration de l'établissement.");
     }
     if (account.role === "student" && account.linkedId && estActionInterdite(account.linkedId, "portail_etudiant")) {
       const motif = motifBlocagePortailPour(account.linkedId);

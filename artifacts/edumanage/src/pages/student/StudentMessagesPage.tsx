@@ -107,6 +107,18 @@ export default function StudentMessagesPage() {
     threadEndRef.current?.scrollIntoView({ block: "end" });
   }, [activeConversation?.messages.length, effectiveSelectedId]);
 
+  // Une conversation affichée est une conversation lue — y compris celle ouverte d'office à
+  // l'arrivée sur la page (sur ordinateur). Sur téléphone, le fil n'apparaît qu'après un choix
+  // dans la liste : rien n'est marqué lu tant que l'étudiant n'a rien ouvert.
+  useEffect(() => {
+    if (!currentUser || !activeConversation || activeConversation.unreadCount === 0) return;
+    const filVisible = !!selectedContactId || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+    if (!filVisible) return;
+    activeConversation.messages
+      .filter((m) => m.toUserId === currentUser.id && !m.read)
+      .forEach((m) => markMessageAsRead(m.id, currentUser.id));
+  }, [currentUser, activeConversation, selectedContactId]);
+
   const openConversation = (contactId: string) => {
     setSelectedContactId(contactId);
     if (!currentUser) return;

@@ -97,6 +97,9 @@ export function verifierEligibiliteReussite(etudiantId: string, classeId: string
   if (!deliberation) {
     return { eligible: false, motif: "Aucune délibération n'a encore eu lieu pour ce semestre — impossible de certifier une réussite." };
   }
+  if (deliberation.statut !== "cloturee") {
+    return { eligible: false, motif: "La délibération de ce semestre n'est pas clôturée — ses décisions sont encore provisoires." };
+  }
   const ligne = deliberation.lignes.find((l) => l.etudiantId === etudiantId);
   if (!ligne) {
     return { eligible: false, motif: "Cet étudiant n'apparaît pas dans la délibération de ce semestre." };
