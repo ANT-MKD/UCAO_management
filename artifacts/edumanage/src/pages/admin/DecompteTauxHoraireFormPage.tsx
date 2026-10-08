@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Search, FileCheck2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -14,7 +14,7 @@ import { useDecomptes } from "@/hooks/useDecompteStore";
 import { useVacations } from "@/hooks/useVacationStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
 import { findVacationChevauchantDecompte } from "@/lib/remunerationOverlap";
-import { computeEligibleDecompteLines, type EligibleDecompteLine } from "@/lib/decompteEligibility";
+import { analyserDecompteTauxHoraire, type DiagnosticDecompte, type EligibleDecompteLine } from "@/lib/decompteEligibility";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
@@ -53,10 +53,12 @@ export default function DecompteTauxHoraireFormPage() {
 
   const pointageIdsDejaDecomptes = useMemo(() => getPointageIdsDejaDecomptes(), [decomptes]);
 
-  const eligibleLines: EligibleDecompteLine[] = useMemo(() => {
-    if (!selected) return [];
-    return computeEligibleDecompteLines(selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes);
+  const analyse = useMemo(() => {
+    if (!selected) return null;
+    return analyserDecompteTauxHoraire(selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes);
   }, [selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes]);
+  const eligibleLines: EligibleDecompteLine[] = analyse?.lines ?? [];
+  const tauxFicheUtilise = eligibleLines.some((l) => l.sourceTaux === "fiche");
 
   const pickTeacher = (t: EnseignantRecord) => {
     setSelectedId(t.id);
@@ -200,11 +202,18 @@ export default function DecompteTauxHoraireFormPage() {
           Sélectionnez un professeur pour afficher ses pointages validés éligibles au décompte
         </div>
       ) : eligibleLines.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">
-          Aucun pointage validé, payé au taux horaire et non encore décompté pour {selected.prenom} {selected.nom} sur {anneeScolaire}
+        <div className="bg-card border border-dashed border-border rounded-xl py-12 px-6 text-center text-sm text-muted-foreground" data-testid="decompte-aucune-ligne">
+          <p>Aucun pointage à payer au taux horaire pour {selected.prenom} {selected.nom} sur {anneeScolaire}.</p>
+          {analyse && <RaisonsExclusion diagnostic={analyse.diagnostic} className="mt-4 max-w-xl mx-auto text-left" />}
         </div>
       ) : (
         <>
+          {analyse && <RaisonsExclusion diagnostic={analyse.diagnostic} className="mb-4" />}
+          {tauxFicheUtilise && (
+            <p className="text-xs text-muted-foreground mb-3" data-testid="decompte-taux-fiche">
+              Pour les cours sans taux propre, le taux horaire de la fiche du professeur ({formatCFA(Number(selected.tauxHoraire) || 0)} / h) et l&apos;abattement par défaut s&apos;appliquent. Pour un autre montant : <Link href="/admin/teachers/rates" className="text-primary hover:underline">Professeurs › Taux horaire / Forfait</Link>.
+            </p>
+          )}
           <div className="bg-muted/60 border border-border rounded-t-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm font-semibold text-foreground">
               {selected.matricule} — {selected.prenom} {selected.nom}
@@ -291,6 +300,46 @@ export default function DecompteTauxHoraireFormPage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+const pluriel = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
+
+/** Pointages validés mais absents de ce décompte, avec la raison et l'endroit où agir. */
+function RaisonsExclusion({ diagnostic, className }: { diagnostic: DiagnosticDecompte; className?: string }) {
+  const raisons: { texte: string; lien?: { href: string; libelle: string } }[] = [];
+  if (diagnostic.sansTaux) raisons.push({
+    texte: `${pluriel(diagnostic.sansTaux, "pointage validé attend", "pointages validés attendent")} un taux : aucun taux horaire n'est défini pour ces cours, ni sur la fiche du professeur.`,
+    lien: { href: "/admin/teachers/rates", libelle: "Définir le taux (Professeurs › Taux horaire / Forfait)" },
+  });
+  if (diagnostic.forfait) raisons.push({
+    texte: `${pluriel(diagnostic.forfait, "pointage concerne un cours payé", "pointages concernent des cours payés")} au forfait.`,
+    lien: { href: "/admin/decomptes/forfait/new", libelle: "Décompte au forfait" },
+  });
+  if (diagnostic.aTerme) raisons.push({
+    texte: `${pluriel(diagnostic.aTerme, "pointage concerne un cours comptabilisé", "pointages concernent des cours comptabilisés")} à terme.`,
+    lien: { href: "/admin/decomptes/a-terme/new", libelle: "Décompte à terme" },
+  });
+  if (diagnostic.enAttente) raisons.push({
+    texte: `${pluriel(diagnostic.enAttente, "pointage attend", "pointages attendent")} encore ${diagnostic.enAttente > 1 ? "leur" : "sa"} validation.`,
+    lien: { href: "/admin/teachers/pointage", libelle: "Valider les pointages" },
+  });
+  if (diagnostic.horsCours) raisons.push({
+    texte: `${pluriel(diagnostic.horsCours, "pointage validé porte", "pointages validés portent")} sur un cours qui n'existe plus cette année (EC ou classe supprimée, ou séances retirées de l'emploi du temps).`,
+  });
+  if (raisons.length === 0) return null;
+  return (
+    <div className={cn("rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-4 space-y-2", className)} data-testid="decompte-raisons">
+      {raisons.map((r) => (
+        <div key={r.texte} className="flex gap-2 text-sm text-amber-900 dark:text-amber-200">
+          <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+          <p>
+            {r.texte}
+            {r.lien && <> <Link href={r.lien.href} className="font-medium underline">{r.lien.libelle}</Link></>}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }

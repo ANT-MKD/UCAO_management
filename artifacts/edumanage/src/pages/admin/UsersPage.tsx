@@ -70,7 +70,10 @@ export default function UsersPage() {
       .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
-  const peutSauvegarder = form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password) && (form.role !== "teacher" || form.teacherId);
+  // Un compte limité par un rôle ne crée pas de compte administrateur à accès complet.
+  const acteurAccesComplet = currentUser?.role === "admin" && !currentUser.roleId;
+  const roleRequis = form.role === "admin" && !acteurAccesComplet;
+  const peutSauvegarder = (!roleRequis || form.roleId) && form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password) && (form.role !== "teacher" || form.teacherId);
 
   const handleSave = () => {
     if (!currentUser || !peutSauvegarder) return;
@@ -330,9 +333,14 @@ export default function UsersPage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
             <select value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))} className={inputClass} data-testid="user-role-select">
-              <option value="">Aucun — accès complet</option>
+              <option value="" disabled={roleRequis}>{roleRequis ? "Choisissez un rôle" : "Aucun — accès complet"}</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
             </select>
+            {roleRequis && (
+              <p className="text-[11px] text-muted-foreground mt-1" data-testid="user-role-requis">
+                Seul un administrateur à accès complet peut créer un compte sans rôle.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe initial *</label>

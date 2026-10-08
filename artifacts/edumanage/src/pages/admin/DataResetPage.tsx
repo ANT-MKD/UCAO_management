@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Trash2, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
 import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
@@ -27,17 +28,24 @@ const DONNEES_CONSERVEES = [
 export default function DataResetPage() {
   const { currentUser } = useAuth();
   const [phrase, setPhrase] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
+  const [erreur, setErreur] = useState("");
   const [resetting, setResetting] = useState(false);
 
-  const peutConfirmer = phrase.trim().toUpperCase() === PHRASE_CONFIRMATION;
+  const accesComplet = currentUser?.role === "admin" && !currentUser.roleId;
+  const peutConfirmer = accesComplet && phrase.trim().toUpperCase() === PHRASE_CONFIRMATION && motDePasse.length > 0;
 
   const handleReset = () => {
     if (!currentUser || !peutConfirmer) return;
+    setErreur("");
     setResetting(true);
     try {
-      resetTestData(currentUser.id);
-    } catch {
-      toast.error("La réinitialisation a échoué.");
+      resetTestData(currentUser.id, motDePasse);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "La réinitialisation a échoué.";
+      setErreur(message);
+      toast.error(message);
+      setMotDePasse("");
       setResetting(false);
     }
   };
@@ -83,6 +91,11 @@ export default function DataResetPage() {
           </div>
         </div>
 
+        {!accesComplet ? (
+          <AvisAccesComplet testId="reset-reserve">
+            La réinitialisation efface les données de tout l&apos;établissement : elle est réservée aux administrateurs à accès complet.
+          </AvisAccesComplet>
+        ) : (
         <div className="bg-card border border-border rounded-xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
             Tapez <span className="font-mono font-bold text-foreground">{PHRASE_CONFIRMATION}</span> pour confirmer
@@ -95,6 +108,19 @@ export default function DataResetPage() {
             style={{ fontFamily: "JetBrains Mono, monospace" }}
             data-testid="input-confirmation-reset"
           />
+          <label htmlFor="reset-mot-de-passe" className="block text-xs font-medium text-muted-foreground mt-4 mb-1.5">
+            Votre mot de passe
+          </label>
+          <input
+            id="reset-mot-de-passe"
+            type="password"
+            autoComplete="current-password"
+            value={motDePasse}
+            onChange={(e) => { setMotDePasse(e.target.value); setErreur(""); }}
+            className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500"
+            data-testid="input-mot-de-passe-reset"
+          />
+          {erreur && <p className="text-xs text-red-600 mt-1.5" role="alert" data-testid="reset-erreur">{erreur}</p>}
           <button
             type="button"
             onClick={handleReset}
@@ -105,6 +131,7 @@ export default function DataResetPage() {
             <Trash2 size={14} /> {resetting ? "Réinitialisation…" : "Réinitialiser les données"}
           </button>
         </div>
+        )}
       </div>
     </div>
   );

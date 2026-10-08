@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, ENSEIGNANTS } from "@/data/mockData";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { deleteEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
+import { type EvaluationRecord } from "@/data/evaluationStore";
+import { verifierSuppressionEvaluation, supprimerEvaluation } from "@/data/suppressionReferentiel";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNotes, useStudentStore } from "@/hooks/useStudentStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { cn } from "@/lib/utils";
@@ -15,6 +17,7 @@ function noteTypeFor(type: EvaluationRecord["type"]): "CC" | "EF" {
 }
 
 export default function DevoirDetailPage({ id }: { id: string }) {
+  const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const evaluations = useEvaluations();
   const notes = useNotes();
@@ -58,8 +61,12 @@ export default function DevoirDetailPage({ id }: { id: string }) {
     .sort((a, b) => `${a.etudiant.nom}${a.etudiant.prenom}`.localeCompare(`${b.etudiant.nom}${b.etudiant.prenom}`));
 
   const handleDelete = () => {
-    if (!confirm(`Supprimer l'évaluation ${evaluation.code} (${evaluation.type === "devoir" ? "Devoir" : "Examen"}) ? Cette action est définitive.`)) return;
-    deleteEvaluation(evaluation.id);
+    const v = verifierSuppressionEvaluation(evaluation.id);
+    if (!v.ok) { toast.error(v.reason, { duration: 10000 }); return; }
+    const brouillons = v.notesBrouillon ? ` Les ${v.notesBrouillon} note(s) en brouillon seront aussi supprimées.` : "";
+    if (!confirm(`Supprimer l'évaluation ${evaluation.code} (${evaluation.type === "devoir" ? "Devoir" : "Examen"}) ?${brouillons} Cette action est définitive.`)) return;
+    const res = supprimerEvaluation(evaluation.id, currentUser?.id ?? "admin");
+    if (!res.ok) { toast.error(res.reason); return; }
     toast.success("Évaluation supprimée");
     setLocation("/admin/evaluation/devoir");
   };

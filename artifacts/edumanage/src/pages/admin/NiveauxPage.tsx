@@ -5,12 +5,17 @@ import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { FILIERES } from "@/data/mockData";
 import { useNiveaux } from "@/hooks/useNiveauStore";
-import { deleteNiveau, type NiveauRecord } from "@/data/niveauStore";
+import { type NiveauRecord } from "@/data/niveauStore";
 import { useCycles } from "@/hooks/useAcademicSettingsStore";
+import { verifierSuppressionNiveau, supprimerNiveau } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 const FALLBACK_CYCLE_COLORS: Record<string, string> = { Licence: "#4f46e5", Master: "#8b5cf6", BTS: "#f59e0b", Doctorat: "#10b981" };
 
 export default function NiveauxPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const niveaux = useNiveaux();
   const cycles = useCycles();
@@ -73,9 +78,9 @@ export default function NiveauxPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer le niveau ${r.nom} (${r.alias}) ?`)) deleteNiveau(r.id);
+              confirmerSuppression(verifierSuppressionNiveau(r.id), `Supprimer le niveau ${r.nom} (${r.alias}) ?`, () => supprimerNiveau(r.id, acteur), "Niveau supprimé");
             }}
-            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label={`Supprimer le niveau ${r.nom} (${r.alias})`} data-testid={`niveau-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
           >
             <Trash2 size={14} />
           </button>

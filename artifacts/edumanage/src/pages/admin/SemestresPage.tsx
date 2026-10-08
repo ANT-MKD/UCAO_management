@@ -5,9 +5,14 @@ import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { useSemestres } from "@/hooks/useSemestreStore";
-import { deleteSemestre, type SemestreRecord } from "@/data/semestreStore";
+import { type SemestreRecord } from "@/data/semestreStore";
+import { verifierSuppressionSemestre, supprimerSemestre } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SemestresPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const semestres = useSemestres();
   const actifs = semestres.filter((s) => s.statut === "actif").length;
@@ -28,9 +33,9 @@ export default function SemestresPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer le semestre ${r.nom} (${r.alias}) ?`)) deleteSemestre(r.id);
+              confirmerSuppression(verifierSuppressionSemestre(r.id), `Supprimer le semestre ${r.nom} (${r.alias}) ?`, () => supprimerSemestre(r.id, acteur), "Semestre supprimé");
             }}
-            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label={`Supprimer le semestre ${r.nom} (${r.alias})`} data-testid={`semestre-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
           >
             <Trash2 size={14} />
           </button>

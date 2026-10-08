@@ -8,9 +8,12 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES } from "@/data/mockData";
-import { deleteClasse, type ClassePedagogiqueRecord } from "@/data/structureStore";
+import { type ClassePedagogiqueRecord } from "@/data/structureStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import { downloadClasseTemplate, parseClasseExcel, importClasseRows, exportClassesToExcel } from "@/lib/classeImportExport";
+import { verifierSuppressionClasse, supprimerClasse } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -21,6 +24,8 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 }
 
 export default function ClassesPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const classes = useClasses();
   const salles = useSalles();
@@ -118,7 +123,7 @@ export default function ClassesPage() {
             </button>
           )}
           <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/classes/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
-          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Supprimer ${r.nom} ?`)) deleteClasse(r.id); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+          <button onClick={(e) => { e.stopPropagation(); confirmerSuppression(verifierSuppressionClasse(r.id), `Supprimer la classe ${r.nom} ?`, () => supprimerClasse(r.id, acteur), "Classe supprimée"); }} aria-label={`Supprimer la classe ${r.nom}`} data-testid={`classe-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
         </div>
       ),
     },

@@ -11,6 +11,7 @@ import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import {
   getTeacherRate,
   makeTeacherRateId,
+  TAUX_ABATTEMENT_DEFAUT,
   upsertTeacherRates,
   type ModePaiementProf,
   type TeacherCourseRateRecord,
@@ -104,7 +105,7 @@ export default function TeacherRatePage() {
           volumeHoraire: c.volumeHoraire,
           modePaiement: saved?.modePaiement ?? "taux_horaire",
           montant: defaultMontant,
-          tauxAbatt: saved?.tauxAbatt != null ? String(saved.tauxAbatt) : "5.0",
+          tauxAbatt: saved?.tauxAbatt != null ? String(saved.tauxAbatt) : TAUX_ABATTEMENT_DEFAUT.toFixed(1),
         };
       }),
     );

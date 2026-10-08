@@ -6,9 +6,12 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { deleteSalle, type SallePhysiqueRecord } from "@/data/structureStore";
+import { type SallePhysiqueRecord } from "@/data/structureStore";
 import { useSalles } from "@/hooks/useStructureStore";
 import { downloadSalleTemplate, parseSalleExcel, importSalleRows, exportSallesToExcel } from "@/lib/salleImportExport";
+import { verifierSuppressionSalle, supprimerSalle } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -19,6 +22,8 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 }
 
 export default function SallesPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const salles = useSalles();
   const [typeFilter, setTypeFilter] = useState("");
@@ -85,7 +90,7 @@ export default function SallesPage() {
       render: (r) => (
         <div className="flex items-center gap-1">
           <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/salles/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
-          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Supprimer ${r.nom} ?`)) deleteSalle(r.id); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+          <button onClick={(e) => { e.stopPropagation(); confirmerSuppression(verifierSuppressionSalle(r.id), `Supprimer la salle ${r.nom} ?`, () => supprimerSalle(r.id, acteur), "Salle supprimée"); }} aria-label={`Supprimer la salle ${r.nom}`} data-testid={`salle-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
         </div>
       ),
     },

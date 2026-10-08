@@ -3,6 +3,9 @@ const STORAGE_KEY = "edumanage-teacher-rates-v1";
 
 export type ModePaiementProf = "" | "taux_horaire" | "forfait";
 
+/** Abattement proposé tant qu'aucun n'a été saisi pour un cours (en %). */
+export const TAUX_ABATTEMENT_DEFAUT = 5;
+
 export interface TeacherCourseRateRecord {
   id: string;
   teacherId: string;

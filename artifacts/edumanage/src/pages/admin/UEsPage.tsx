@@ -6,9 +6,12 @@ import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { CurriculumImportButton } from "@/components/admin/CurriculumImportButton";
 import { MaquetteExportButton } from "@/components/admin/MaquetteExportButton";
-import { deleteUe, type UeRecord } from "@/data/curriculumStore";
+import { type UeRecord } from "@/data/curriculumStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { FILIERES } from "@/data/mockData";
+import { verifierSuppressionUe, supprimerUe } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   Obligatoire: { bg: "#eff6ff", color: "#2563eb" },
@@ -20,6 +23,8 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 export default function UEsPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const ues = useUes();
   const ecs = useEcs();
@@ -79,9 +84,11 @@ export default function UEsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer l'UE ${r.code} et ses EC ?`)) deleteUe(r.id);
+              confirmerSuppression(verifierSuppressionUe(r.id), `Supprimer l'UE ${r.code} et ses EC ?`, () => supprimerUe(r.id, acteur), "UE supprimée");
             }}
             className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label={`Supprimer l'UE ${r.code}`}
+            data-testid={`ue-supprimer-${r.id}`}
           >
             <Trash2 size={14} />
           </button>

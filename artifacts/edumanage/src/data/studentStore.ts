@@ -310,6 +310,8 @@ export interface NotificationRecord {
   message: string;
   createdAt: string;
   read: boolean;
+  /** Date de lecture : une notification lue depuis plus de 90 jours est purgée au chargement. */
+  readAt?: string;
   /** Rangée sans être supprimée — jamais posée automatiquement, seulement par une action
    * explicite de l'utilisateur sur sa page Notifications. */
   archived?: boolean;
@@ -476,6 +478,16 @@ function buildFreshStore(): StoreData {
   };
 }
 
+const DUREE_CONSERVATION_NOTIFICATION_LUE_MS = 90 * 24 * 3600 * 1000;
+
+/** Les notifications s'accumulent à chaque événement (plusieurs centaines pour quelques étudiants
+ * en une année) et occupent le stockage du navigateur : celles lues depuis plus de 90 jours
+ * disparaissent. Les non lues et celles que l'utilisateur a rangées (archivées) sont gardées. */
+export function purgerNotificationsLues(notifications: NotificationRecord[], maintenant = Date.now()): NotificationRecord[] {
+  const limite = maintenant - DUREE_CONSERVATION_NOTIFICATION_LUE_MS;
+  return notifications.filter((n) => !n.read || n.archived || new Date(n.readAt ?? n.createdAt).getTime() >= limite);
+}
+
 function loadStore(): StoreData {
   if (typeof window !== "undefined") {
     const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
@@ -503,7 +515,7 @@ function loadStore(): StoreData {
           users: mergeUsersWithSeed(parsed.users ?? [], fresh.users).map((u) => (u.fonction === "Super administrateur" ? { ...u, fonction: FONCTION_ADMIN_PRINCIPAL } : u)),
           requests: parsed.requests ?? fresh.requests,
           messages: parsed.messages ?? fresh.messages,
-          notifications: parsed.notifications ?? fresh.notifications,
+          notifications: purgerNotificationsLues(parsed.notifications ?? fresh.notifications),
           auditLogs: parsed.auditLogs ?? fresh.auditLogs,
           cahiers: parsed.cahiers ?? fresh.cahiers,
           receiptCounter: parsed.receiptCounter ?? paiements.length,
@@ -856,6 +868,42 @@ export function getUserAccountById(id: string): UserAccountRecord | undefined {
   return store.users.find((u) => u.id === id);
 }
 
+/** Administrateur à accès complet : compte du portail admin sans rôle limité (Sécurité → Les
+ * rôles) — c'est le cas des administrateurs principaux de l'établissement. */
+export function aAccesComplet(userId: string | undefined): boolean {
+  const u = userId ? store.users.find((x) => x.id === userId) : undefined;
+  return !!u && u.role === "admin" && !u.roleId && u.actif !== false;
+}
+
+function estCompteAccesComplet(u: UserAccountRecord): boolean {
+  return u.role === "admin" && !u.roleId;
+}
+
+/** Actions qui touchent aux droits ou à l'ensemble des données : un compte limité par un rôle ne
+ * les fait jamais, même si son rôle lui ouvre la page (sinon il pourrait s'élever lui-même). */
+export function exigerAccesComplet(actorUserId: string | undefined, action: string): void {
+  if (!aAccesComplet(actorUserId)) throw new Error(`${action} : action réservée aux administrateurs à accès complet.`);
+}
+
+/** Un compte limité par un rôle ne modifie, ne bloque ni ne réinitialise jamais un compte à accès
+ * complet — il pourrait sinon s'en emparer (code PIN) ou écarter les administrateurs principaux. */
+export function peutGererCompte(actorUserId: string | undefined, cible: UserAccountRecord): boolean {
+  return aAccesComplet(actorUserId) || !estCompteAccesComplet(cible);
+}
+
+/** Il reste toujours au moins un administrateur à accès complet actif : sans lui, plus personne ne
+ * pourrait gérer les rôles ni débloquer un compte. */
+function seraitDernierAccesComplet(cible: UserAccountRecord): boolean {
+  return estCompteAccesComplet(cible) && cible.actif !== false
+    && !store.users.some((u) => u.id !== cible.id && estCompteAccesComplet(u) && u.actif !== false);
+}
+
+/** Confirmation d'une action sensible par le mot de passe du compte connecté. */
+export function verifierMotDePasseCompte(userId: string, motDePasse: string): boolean {
+  const user = store.users.find((u) => u.id === userId);
+  return !!user && verifyPassword(motDePasse, user.password);
+}
+
 export interface CreerCompteStaffPayload {
   role: "admin" | "teacher";
   prenom: string;
@@ -889,6 +937,9 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
   if (payload.role === "teacher" && payload.linkedId && store.users.some((u) => u.role === "teacher" && u.linkedId === payload.linkedId)) {
     throw new Error("Cette fiche enseignant est déjà reliée à un autre compte.");
   }
+  if (payload.role === "admin" && !payload.roleId && !aAccesComplet(creePar)) {
+    throw new Error("Seul un administrateur à accès complet peut créer un compte sans rôle (accès complet). Choisissez un rôle.");
+  }
   const account: UserAccountRecord = {
     id: `u-staff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role: payload.role,
@@ -914,6 +965,8 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
 export function setUserAccountActif(userId: string, actif: boolean, actorUserId: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
+  if (!peutGererCompte(actorUserId, user)) throw new Error("Ce compte a un accès complet : seul un administrateur à accès complet peut le bloquer.");
+  if (!actif && seraitDernierAccesComplet(user)) throw new Error("C'est le dernier administrateur à accès complet : il ne peut pas être désactivé.");
   user.actif = actif;
   logAudit(actorUserId, actif ? "activate_user_account" : "deactivate_user_account", "user_account", userId);
   persist();
@@ -934,12 +987,19 @@ export interface UpdateUserAccountInfoPayload {
 export function updateUserAccountInfo(userId: string, payload: UpdateUserAccountInfoPayload, actorUserId: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
+  const nouveauRoleId = payload.roleId || undefined;
+  if (!peutGererCompte(actorUserId, user)) throw new Error("Ce compte a un accès complet : seul un administrateur à accès complet peut le modifier.");
+  if (nouveauRoleId !== user.roleId && !aAccesComplet(actorUserId)) {
+    if (userId === actorUserId) throw new Error("Vous ne pouvez pas changer votre propre rôle.");
+    if (user.role === "admin" && !nouveauRoleId) throw new Error("Seul un administrateur à accès complet peut donner l'accès complet.");
+  }
+  if (nouveauRoleId && seraitDernierAccesComplet(user)) throw new Error("C'est le dernier administrateur à accès complet : il doit le rester.");
   user.displayName = payload.displayName.trim();
   user.email = payload.email.trim();
   user.telephone = payload.telephone?.trim() || undefined;
   user.fonction = payload.fonction?.trim() || undefined;
   if (payload.photoDataUrl !== undefined) user.photoDataUrl = payload.photoDataUrl || undefined;
-  user.roleId = payload.roleId || undefined;
+  user.roleId = nouveauRoleId;
   logAudit(actorUserId, "update_user_account", "user_account", userId);
   persist();
 }
@@ -1928,11 +1988,48 @@ export function getEffectiveNote(etudiantId: string, classeId: string, ecId: str
   return matches.find((n) => n.session === undefined) ?? matches[0];
 }
 
-export function deleteNote(id: string): void {
+/** Une note validée ou publiée compte déjà dans les résultats : sa suppression exige un motif et
+ * reste tracée au journal d'audit avec l'ancienne valeur (qui, quand, quelle note, pourquoi). */
+export function noteOfficielle(note: Pick<NoteRecord, "statut">): boolean {
+  return note.statut === "publie" || note.statut === "valide_admin";
+}
+
+const LIBELLE_STATUT_NOTE: Record<NoteRecord["statut"], string> = {
+  brouillon_prof: "brouillon",
+  soumis_admin: "soumise",
+  valide_admin: "validée",
+  publie: "publiée",
+};
+
+function decrireNote(n: NoteRecord): string {
+  const type = `${n.type === "CC" ? "Devoir" : "Examen"}${n.session === "rattrapage" ? " de rattrapage" : ""}`;
+  return `${n.etudiant} (${n.matricule}) — ${n.ec} — ${type} : ${String(n.note).replace(".", ",")} (${LIBELLE_STATUT_NOTE[n.statut]})`;
+}
+
+export function deleteNote(id: string, par: string, motif?: string): void {
   const note = store.notes.find((n) => n.id === id);
-  if (note) assertAnneeModifiable(note.annee);
+  if (!note) return;
+  assertAnneeModifiable(note.annee);
+  if (noteOfficielle(note) && !motif?.trim()) {
+    throw new Error("Indiquez le motif : cette note est déjà validée ou publiée.");
+  }
   store.notes = store.notes.filter((n) => n.id !== id);
-  persist();
+  logAudit(par, "suppression_note", "note", id, `${decrireNote(note)}${motif?.trim() ? ` — motif : ${motif.trim()}` : ""}`);
+}
+
+/** Notes rattachées à une évaluation (via evaluationId). */
+export function getNotesEvaluation(evaluationId: string): NoteRecord[] {
+  return store.notes.filter((n) => n.evaluationId === evaluationId);
+}
+
+/** Retire les notes encore en brouillon ou soumises d'une évaluation supprimée (les notes
+ * validées ou publiées bloquent la suppression en amont). Renvoie le nombre de notes retirées. */
+export function deleteNotesNonOfficiellesEvaluation(evaluationId: string): number {
+  const avant = store.notes.length;
+  store.notes = store.notes.filter((n) => n.evaluationId !== evaluationId || noteOfficielle(n));
+  const retirees = avant - store.notes.length;
+  if (retirees) persist();
+  return retirees;
 }
 
 export interface GridNoteInput {
@@ -2601,6 +2698,7 @@ export function getNotifications(): NotificationRecord[] {
 export function markNotificationRead(notificationId: string, userId: string) {
   const n = store.notifications.find((x) => x.id === notificationId && x.userId === userId);
   if (!n) return;
+  if (!n.read) n.readAt = new Date().toISOString();
   n.read = true;
   persist();
 }
@@ -2610,6 +2708,7 @@ export function markAllNotificationsRead(userId: string) {
   for (const n of store.notifications) {
     if (n.userId === userId && !n.read) {
       n.read = true;
+      n.readAt = new Date().toISOString();
       changed = true;
     }
   }
@@ -2620,7 +2719,10 @@ export function archiveNotification(notificationId: string, userId: string, arch
   const n = store.notifications.find((x) => x.id === notificationId && x.userId === userId);
   if (!n) return;
   n.archived = archived;
-  if (archived) n.read = true;
+  if (archived && !n.read) {
+    n.read = true;
+    n.readAt = new Date().toISOString();
+  }
   persist();
 }
 

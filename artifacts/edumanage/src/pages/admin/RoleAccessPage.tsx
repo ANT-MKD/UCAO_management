@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, ChevronDown, ChevronRight, Check, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { useRole } from "@/hooks/useRoleStore";
 import { setRoleAccess } from "@/data/roleStore";
 import { ADMIN_NAV_SECTIONS, type AdminNavNode } from "@/lib/adminNavConfig";
@@ -41,6 +42,7 @@ function TriState({ checked, indeterminate }: { checked: boolean; indeterminate:
 
 export default function RoleAccessPage({ id }: { id: string }) {
   const { currentUser } = useAuth();
+  const gestion = currentUser?.role === "admin" && !currentUser.roleId;
   const [, setLocation] = useLocation();
   const role = useRole(id);
 
@@ -78,7 +80,12 @@ export default function RoleAccessPage({ id }: { id: string }) {
 
   const handleSave = () => {
     if (!currentUser) return;
-    setRoleAccess(role.id, Array.from(selected), currentUser.id);
+    try {
+      setRoleAccess(role.id, Array.from(selected), currentUser.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement impossible");
+      return;
+    }
     toast.success("Accès enregistrés.");
     setLocation(`/admin/roles/${role.id}`);
   };
@@ -95,12 +102,18 @@ export default function RoleAccessPage({ id }: { id: string }) {
         ]}
         title={`Définir les accès — ${role.code}`}
         subtitle={`${selected.size} page(s) sélectionnée(s)`}
-        actions={
+        actions={gestion && (
           <button onClick={handleSave} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="access-sauvegarder">
             Sauvegarder
           </button>
-        }
+        )}
       />
+
+      {!gestion && (
+        <AvisAccesComplet testId="access-lecture-seule">
+          Consultation seulement : les accès d'un rôle ne peuvent être modifiés que par un administrateur à accès complet.
+        </AvisAccesComplet>
+      )}
 
       <div className="bg-card border border-border rounded-2xl p-2" style={{ boxShadow: "var(--shadow-sm)" }}>
         {ADMIN_NAV_SECTIONS.map((section) => {

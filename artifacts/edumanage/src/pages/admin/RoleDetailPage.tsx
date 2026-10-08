@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Pencil, Trash2, KeyRound, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useRole } from "@/hooks/useRoleStore";
@@ -18,6 +19,7 @@ function formatDate(iso: string) {
 
 export default function RoleDetailPage({ id }: { id: string }) {
   const { currentUser } = useAuth();
+  const gestion = currentUser?.role === "admin" && !currentUser.roleId;
   const [, setLocation] = useLocation();
   const role = useRole(id);
   const comptes = useUserAccounts();
@@ -70,7 +72,7 @@ export default function RoleDetailPage({ id }: { id: string }) {
 
   const handleDelete = () => {
     try {
-      deleteRole(role.id);
+      deleteRole(role.id, currentUser?.id ?? "");
       toast.success("Rôle supprimé.");
       setLocation("/admin/roles");
     } catch (err) {
@@ -89,7 +91,7 @@ export default function RoleDetailPage({ id }: { id: string }) {
         ]}
         title={role.code}
         subtitle={role.description}
-        actions={
+        actions={gestion && (
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={openEdit} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="role-editer">
               <Pencil size={13} /> Éditer
@@ -98,8 +100,14 @@ export default function RoleDetailPage({ id }: { id: string }) {
               <Trash2 size={13} /> Supprimer
             </button>
           </div>
-        }
+        )}
       />
+
+      {!gestion && (
+        <AvisAccesComplet testId="role-lecture-seule">
+          Consultation seulement : ce rôle ne peut être modifié que par un administrateur à accès complet.
+        </AvisAccesComplet>
+      )}
 
       <div className="grid md:grid-cols-[1fr_320px] gap-4">
         <div className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -108,13 +116,13 @@ export default function RoleDetailPage({ id }: { id: string }) {
               <p className="text-xs font-semibold text-muted-foreground">Pages accessibles</p>
               <p className="text-2xl font-bold text-foreground" data-testid="role-nb-pages">{role.accessibleItemIds.length}</p>
             </div>
-            <button
+            {gestion && <button
               onClick={() => setLocation(`/admin/roles/${role.id}/access`)}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
               data-testid="role-definir-acces"
             >
               <KeyRound size={14} /> Définir les accès
-            </button>
+            </button>}
           </div>
 
           {sectionsResume.length === 0 ? (

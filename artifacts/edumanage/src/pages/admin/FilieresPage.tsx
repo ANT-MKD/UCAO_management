@@ -8,12 +8,17 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useFilieres } from "@/hooks/useFiliereStore";
-import { deleteFiliere, type FiliereRecord } from "@/data/filiereStore";
+import { type FiliereRecord } from "@/data/filiereStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
 import { downloadFiliereTemplate, parseFiliereExcel, importFiliereRows, exportFilieresToExcel } from "@/lib/filiereImportExport";
+import { verifierSuppressionFiliere, supprimerFiliere } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function FilieresPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const filieres = useFilieres();
   const classes = useClasses();
@@ -93,9 +98,10 @@ export default function FilieresPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer la filière ${r.nom} ?`)) deleteFiliere(r.id);
+              confirmerSuppression(verifierSuppressionFiliere(r.id), `Supprimer la filière ${r.nom} ?`, () => supprimerFiliere(r.id, acteur), "Filière supprimée");
             }}
             className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 transition-colors text-muted-foreground hover:text-red-500"
+            aria-label={`Supprimer la filière ${r.nom}`}
             data-testid={`btn-delete-${r.id}`}
           >
             <Trash2 size={14} />

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Plus, Eye, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { FormModal } from "@/components/admin/FormModal";
 import { useRoles } from "@/hooks/useRoleStore";
@@ -22,6 +23,7 @@ export default function RolesPage() {
   const [, setLocation] = useLocation();
   const roles = useRoles();
   const comptes = useUserAccounts();
+  const gestion = currentUser?.role === "admin" && !currentUser.roleId;
   const totalPages = collectAllLeaves().length;
 
   const [open, setOpen] = useState(false);
@@ -110,12 +112,18 @@ export default function RolesPage() {
         breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Les rôles" }]}
         title="Les rôles"
         subtitle="Un rôle donne accès à un sous-ensemble des pages du menu — les comptes sans rôle gardent l'accès complet"
-        actions={
+        actions={gestion && (
           <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="role-ajouter">
             <Plus size={14} /> Nouveau rôle
           </button>
-        }
+        )}
       />
+
+      {!gestion && (
+        <AvisAccesComplet testId="roles-lecture-seule">
+          Consultation seulement : les rôles ne peuvent être créés ou modifiés que par un administrateur à accès complet.
+        </AvisAccesComplet>
+      )}
 
       <DataTable
         columns={columns}

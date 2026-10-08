@@ -7,11 +7,16 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { CurriculumImportButton } from "@/components/admin/CurriculumImportButton";
 import { MaquetteExportButton } from "@/components/admin/MaquetteExportButton";
-import { deleteEc, type EcRecord } from "@/data/curriculumStore";
+import { type EcRecord } from "@/data/curriculumStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useFilieres } from "@/hooks/useFiliereStore";
+import { verifierSuppressionEc, supprimerEc } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ECsPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const ecs = useEcs();
   const ues = useUes();
@@ -94,9 +99,9 @@ export default function ECsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer l'EC ${r.code} ?`)) deleteEc(r.id);
+              confirmerSuppression(verifierSuppressionEc(r.id), `Supprimer l'EC ${r.code} ?`, () => supprimerEc(r.id, acteur), "EC supprimé");
             }}
-            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label={`Supprimer l'EC ${r.code}`} data-testid={`ec-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
           >
             <Trash2 size={14} />
           </button>

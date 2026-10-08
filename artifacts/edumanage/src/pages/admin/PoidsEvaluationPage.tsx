@@ -11,13 +11,13 @@ import { useEvaluations } from "@/hooks/useEvaluationStore";
 import {
   createEvaluation,
   updateEvaluation,
-  deleteEvaluation,
   findEvaluationsDoublon,
   getPoidsAutreType,
   type EvaluationRecord,
 } from "@/data/evaluationStore";
 import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { verifierSuppressionEvaluation, supprimerEvaluation } from "@/data/suppressionReferentiel";
 import { cn } from "@/lib/utils";
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -176,18 +176,32 @@ export default function PoidsEvaluationPage() {
     );
   };
 
+  const acteur = currentUser?.id ?? "admin";
+
   const handleDeleteOne = (ev: EvaluationRecord) => {
-    if (!confirm(`Supprimer l'évaluation ${ev.type === "devoir" ? "Devoir" : "Examen"} de ${ev.cours} ?`)) return;
-    deleteEvaluation(ev.id);
+    const v = verifierSuppressionEvaluation(ev.id);
+    if (!v.ok) { toast.error(v.reason, { duration: 10000 }); return; }
+    const brouillons = v.notesBrouillon ? ` Les ${v.notesBrouillon} note(s) en brouillon seront aussi supprimées.` : "";
+    if (!confirm(`Supprimer l'évaluation ${ev.type === "devoir" ? "Devoir" : "Examen"} de ${ev.cours} ?${brouillons}`)) return;
+    const res = supprimerEvaluation(ev.id, acteur);
+    if (!res.ok) { toast.error(res.reason); return; }
     setSelectedIds((prev) => { const next = new Set(prev); next.delete(ev.id); return next; });
     toast.success("Évaluation supprimée");
   };
 
+  // Les évaluations aux notes validées ou publiées sont conservées ; les autres sont supprimées.
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Supprimer ${selectedIds.size} évaluation(s) sélectionnée(s) ?`)) return;
-    for (const id of selectedIds) deleteEvaluation(id);
-    toast.success(`${selectedIds.size} évaluation(s) supprimée(s)`);
+    const ids = [...selectedIds];
+    const bloquees = ids.filter((id) => !verifierSuppressionEvaluation(id).ok);
+    const supprimables = ids.filter((id) => !bloquees.includes(id));
+    if (supprimables.length === 0) { toast.error("Aucune de ces évaluations ne peut être supprimée : leurs notes sont validées ou publiées.", { duration: 10000 }); return; }
+    const avert = bloquees.length ? ` ${bloquees.length} autre(s) seront conservée(s) car leurs notes sont validées ou publiées.` : "";
+    if (!confirm(`Supprimer ${supprimables.length} évaluation(s) ?${avert}`)) return;
+    let n = 0;
+    for (const id of supprimables) if (supprimerEvaluation(id, acteur).ok) n++;
+    if (bloquees.length) toast.warning(`${n} évaluation(s) supprimée(s), ${bloquees.length} conservée(s) (notes validées ou publiées).`, { duration: 10000 });
+    else toast.success(`${n} évaluation(s) supprimée(s)`);
     setSelectedIds(new Set());
   };
 
