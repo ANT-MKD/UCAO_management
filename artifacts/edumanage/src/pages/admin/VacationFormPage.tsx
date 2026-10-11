@@ -32,8 +32,9 @@ export default function VacationFormPage({ id }: Props) {
   const enseignants = useTeachers();
   const anneesAcademiques = useAnneesAcademiques();
 
-  const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormData>({
-    defaultValues: { enseignantId: "", mois: "", heuresCm: 0, heuresTd: 0, tauxHoraire: 15000, statut: "brouillon", observations: "" },
+  // Pas de taux arbitraire : il vient de la fiche de l'enseignant choisi (voir le select ci-dessous).
+  const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<FormData>({
+    defaultValues: { enseignantId: "", mois: "", heuresCm: 0, heuresTd: 0, tauxHoraire: Number.NaN, statut: "brouillon", observations: "" },
   });
 
   useEffect(() => {
@@ -133,7 +134,19 @@ export default function VacationFormPage({ id }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label htmlFor="vacation-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant *</label>
-                <select id="vacation-form-champ-1" {...register("enseignantId", { required: "Enseignant requis" })} className={inputClass}>
+                <select
+                  id="vacation-form-champ-1"
+                  {...register("enseignantId", {
+                    required: "Enseignant requis",
+                    // Choix fait à la main (jamais au chargement d'une vacation existante, qui garde son
+                    // taux) : on propose le taux de la fiche, ou un champ vide si la fiche n'en a pas.
+                    onChange: (e) => {
+                      const taux = enseignants.find((x) => x.id === e.target.value)?.tauxHoraire;
+                      setValue("tauxHoraire", taux && taux > 0 ? taux : Number.NaN);
+                    },
+                  })}
+                  className={inputClass}
+                >
                   <option value="">Sélectionner un enseignant</option>
                   {enseignants.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite} ({e.grade})</option>)}
                 </select>
@@ -146,8 +159,14 @@ export default function VacationFormPage({ id }: Props) {
                     <p className="text-[10px] text-muted-foreground">{enseignant.specialite} · {enseignant.grade}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-bold text-foreground">{formatCFA(enseignant.tauxHoraire)}/h</p>
-                    <p className="text-[10px] text-muted-foreground">Taux par défaut</p>
+                    {enseignant.tauxHoraire > 0 ? (
+                      <>
+                        <p className="text-xs font-bold text-foreground">{formatCFA(enseignant.tauxHoraire)}/h</p>
+                        <p className="text-[10px] text-muted-foreground">Taux de sa fiche</p>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">Aucun taux sur sa fiche : saisissez-le ci-dessous.</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -184,7 +203,7 @@ export default function VacationFormPage({ id }: Props) {
               </div>
               <div>
                 <label htmlFor="vacation-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
-                <input id="vacation-form-champ-5" {...register("tauxHoraire", { required: "Taux requis", valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} />
+                <input id="vacation-form-champ-5" {...register("tauxHoraire", { valueAsNumber: true, validate: (v) => (Number.isFinite(v) && v > 0) || "Indiquez le taux horaire de cette vacation." })} type="number" min={0} className={inputClass} data-testid="vacation-taux" />
                 {errors.tauxHoraire && <p className="text-xs text-red-500 mt-1">{errors.tauxHoraire.message}</p>}
               </div>
               <div>

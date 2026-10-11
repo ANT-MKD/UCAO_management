@@ -40,6 +40,19 @@ const TYPE_COLORS: Record<string, { bar: string; bg: string; text: string }> = {
   EX: { bar: "#ef4444", bg: "#fef2f2", text: "#ef4444" },
 };
 
+/** Graduation d'un axe de montants : « 0 », « 250 k », « 1,5 M » — jamais « 0M » répété. */
+function montantAxe(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${(v / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M`;
+  if (a >= 1_000) return `${Math.round(v / 1_000).toLocaleString("fr-FR")} k`;
+  return v.toLocaleString("fr-FR");
+}
+
+/** Remplace un graphique sans aucune donnée par une phrase, plutôt que des axes vides. */
+function GraphiqueVide({ hauteur, message }: { hauteur: number; message: string }) {
+  return <div style={{ height: hauteur }} className="flex items-center justify-center text-xs text-muted-foreground text-center px-6">{message}</div>;
+}
+
 const FinanceTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -165,6 +178,13 @@ export default function DashboardPage() {
         ),
   }));
 
+  const sansMontant = (rows: { recettes?: number; depenses?: number }[]) => rows.every((r) => !r.recettes && !r.depenses);
+  const revenusVides = sansMontant(revenueDataTop);
+  const reportingVide = sansMontant(revenueDataReporting);
+  const absencesVides = absencesData.every((r) => !r.justifiees && !r.nonJustifiees);
+  // Une quittance émise mais pas encore réglée a un montant de 0 : ce n'est pas un paiement.
+  const paiementsRecents = paiements.filter((p) => p.montant > 0 && p.statut !== "annule").slice(0, 5);
+
   const inputClass = "px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
   return (
@@ -208,9 +228,10 @@ export default function DashboardPage() {
           accentColor="#10b981"
           onClick={() => setLocation("/admin/encaissements")}
         />
-        <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiant${impayes > 1 ? "s" : ""}`} trend="Voir la liste" trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
-        <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend="Crédits dus aux étudiants" trendDirection="down" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
-        <KPICard icon={GraduationCap} label="Reste à payer aux profs" value={formatCFA(totalDecompteRestant)} trend="Décomptes non soldés" trendDirection="down" accentColor="#8b5cf6" onClick={() => setLocation("/admin/decomptes")} />
+        {/* Une étiquette rouge seulement quand il y a vraiment quelque chose à traiter. */}
+        <KPICard icon={AlertTriangle} label="Impayés actifs" value={`${impayes} étudiant${impayes > 1 ? "s" : ""}`} trend={impayes > 0 ? "Voir la liste" : undefined} trendDirection="down" accentColor="#ef4444" onClick={() => setLocation("/admin/paiements")} />
+        <KPICard icon={Wallet} label="Avoir en circulation" value={formatCFA(totalAvoirCirculation)} trend={totalAvoirCirculation > 0 ? "Crédits dus aux étudiants" : undefined} trendDirection="neutral" accentColor="#0ea5e9" onClick={() => setLocation("/admin/encaissements")} />
+        <KPICard icon={GraduationCap} label="Reste à payer aux profs" value={formatCFA(totalDecompteRestant)} trend={totalDecompteRestant > 0 ? "Décomptes non soldés" : undefined} trendDirection="down" accentColor="#8b5cf6" onClick={() => setLocation("/admin/decomptes")} />
         <KPICard icon={BarChart3} label="Taux de réussite" value={tauxReussiteMoy === null ? "—" : `${tauxReussiteMoy}%`} trend={tauxReussiteMoy === null ? "Aucune délibération enregistrée" : "Voir le détail"} trendDirection="up" accentColor="#f59e0b" onClick={() => document.getElementById("reporting")?.scrollIntoView({ behavior: "smooth" })} />
       </div>
 
@@ -230,12 +251,15 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+          {revenusVides ? (
+            <GraphiqueVide hauteur={220} message="Aucun encaissement ni paiement d'enseignant sur cette année pour l'instant." />
+          ) : (
           <ResponsiveContainer width="100%" height={220}>
             {chartType === "bar" ? (
               <BarChart data={revenueDataTop} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={montantAxe} />
                 <Tooltip content={<FinanceTooltip />} />
                 <Bar dataKey="recettes" fill="#4f46e5" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="depenses" fill="#e0e7ff" radius={[4, 4, 0, 0]} />
@@ -244,13 +268,14 @@ export default function DashboardPage() {
               <LineChart data={revenueDataTop}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={montantAxe} />
                 <Tooltip content={<FinanceTooltip />} />
                 <Line type="monotone" dataKey="recettes" stroke="#4f46e5" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="depenses" stroke="#ef4444" strokeWidth={2} dot={false} strokeDasharray="4 4" />
               </LineChart>
             )}
           </ResponsiveContainer>
+          )}
         </div>
 
         <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -311,7 +336,13 @@ export default function DashboardPage() {
             </button>
           </div>
           <div className="p-2">
-            {paiements.slice(0, 5).map((p) => (
+            {paiementsRecents.length === 0 && (
+              <div className="py-10 px-4 text-center space-y-3" data-testid="dashboard-paiements-vide">
+                <p className="text-sm text-muted-foreground">Aucun paiement enregistré pour l&apos;instant.</p>
+                <button onClick={() => setLocation("/admin/paiements/new")} className="text-xs font-medium text-primary hover:underline">Enregistrer un encaissement</button>
+              </div>
+            )}
+            {paiementsRecents.map((p) => (
               <div
                 key={p.id}
                 className="flex items-center gap-3 mx-2 my-1 px-3 py-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer group"
@@ -445,16 +476,20 @@ export default function DashboardPage() {
             <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
               <DollarSign size={16} className="text-primary" /> Évolution financière — {anneeFilter}
             </h3>
+            {reportingVide ? (
+              <GraphiqueVide hauteur={240} message={`Aucun encaissement ni paiement d'enseignant en ${anneeFilter}.`} />
+            ) : (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={revenueDataReporting}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mois" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={montantAxe} />
                 <Tooltip content={<StatsTooltip />} />
                 <Area type="monotone" dataKey="recettes" name="Recettes" stroke="#4f46e5" fill="#4f46e520" />
                 <Area type="monotone" dataKey="depenses" name="Dépenses" stroke="#ef4444" fill="#ef444420" />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -462,6 +497,9 @@ export default function DashboardPage() {
               <TrendingUp size={16} className="text-emerald-600" />
               Taux de réussite {filiereFilter ? `— ${filiereFilter}` : "— global"}
             </h3>
+            {filteredSuccess.length === 0 ? (
+              <GraphiqueVide hauteur={240} message="Aucune délibération enregistrée : le taux de réussite apparaîtra après le premier jury." />
+            ) : (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={filteredSuccess}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -471,6 +509,7 @@ export default function DashboardPage() {
                 <Line type="monotone" dataKey="value" name="Réussite" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -494,6 +533,9 @@ export default function DashboardPage() {
 
           <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground mb-4">Absences par mois</h3>
+            {absencesVides ? (
+              <GraphiqueVide hauteur={220} message={`Aucune absence relevée dans les cahiers de séance en ${anneeFilter}.`} />
+            ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={absencesData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -505,6 +547,7 @@ export default function DashboardPage() {
                 <Bar dataKey="nonJustifiees" name="Non justifiées" fill="#ef4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
