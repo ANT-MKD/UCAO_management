@@ -8,6 +8,8 @@
 \set F '''00000000-0000-4000-8000-00000000000d'''
 \set W '''00000000-0000-4000-8000-00000000000e'''
 \set D '''00000000-0000-4000-8000-000000000010'''
+-- Tout se passe dans une transaction annulée à la fin : chaque fichier de tests part d'une base vide.
+begin;
 
 -- ——— Préparation (propriétaire de la base) ———
 insert into auth.users (id, email) values
@@ -205,3 +207,5 @@ select tests.verifier(private.purger_notifications() = 1, 'la purge retire une n
 select tests.verifier((select count(*) from public.notifications where destinataire = :K) = 3
   and not exists (select 1 from public.notifications where message = 'lue il y a 100 jours'),
   'la purge ne retire que les notifications lues depuis plus de 90 jours et non archivées');
+
+rollback;
