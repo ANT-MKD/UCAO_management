@@ -9,7 +9,9 @@ on:
 
 jobs:
   verifier:
-    runs-on: ubuntu-latest
+    # Version fixée : « ubuntu-latest » est passé à Ubuntu 26.04, sur lequel Playwright 1.56.1
+    # (la version du projet) ne sait pas installer Chromium. À relever avec Playwright.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
