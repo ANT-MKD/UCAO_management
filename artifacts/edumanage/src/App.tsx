@@ -316,8 +316,9 @@ function homeForRole(role: string): string {
 }
 
 function Admin({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useAuth();
+  const { currentUser, chargement } = useAuth();
   const allowed = useRoleGuard();
+  if (chargement) return <PageLoader />;
   if (!currentUser) return <Redirect to="/login" />;
   if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   // Un compte étudiant ou professeur n'a jamais accès au portail Admin, quelle que soit l'URL tapée.
@@ -340,8 +341,9 @@ function usePortalFeatureGuard(portal: "student" | "teacher"): boolean {
 }
 
 function Student({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useAuth();
+  const { currentUser, chargement } = useAuth();
   const allowed = usePortalFeatureGuard("student");
+  if (chargement) return <PageLoader />;
   if (!currentUser) return <Redirect to="/login" />;
   if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   if (currentUser.role !== "student") return <Redirect to={homeForRole(currentUser.role)} />;
@@ -367,8 +369,9 @@ function Student({ children }: { children: React.ReactNode }) {
 }
 
 function Teacher({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useAuth();
+  const { currentUser, chargement } = useAuth();
   const allowed = usePortalFeatureGuard("teacher");
+  if (chargement) return <PageLoader />;
   if (!currentUser) return <Redirect to="/login" />;
   if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
   if (currentUser.role !== "teacher") return <Redirect to={homeForRole(currentUser.role)} />;

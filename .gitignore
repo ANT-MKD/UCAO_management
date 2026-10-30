@@ -51,3 +51,7 @@ Thumbs.db
 # Résultats des tests de navigateur (Playwright)
 test-results
 playwright-report
+
+# Réglages locaux (adresse et clé du projet Supabase utilisé en développement)
+.env.local
+.env.*.local

@@ -4,6 +4,8 @@ import { champConnexion, etiquetteChamp, boutonPrincipal } from "@/components/si
 import { DISPLAY, MONO } from "@/components/site/Decor";
 import { installerEtablissement } from "@/data/studentStore";
 import { definirIdentiteEtablissement, getEtablissement, nomEtablissementParDefaut } from "@/data/etablissementStore";
+import { modeSupabase } from "@/lib/supabase";
+import { installerServeur } from "@/lib/comptesServeur";
 
 const inputClass = champConnexion;
 const labelClass = etiquetteChamp;
@@ -19,7 +21,7 @@ function anneeProposee(): string {
  * l'établissement (imprimé sur tous les documents officiels), on crée le premier administrateur
  * principal (qui choisit lui-même son mot de passe) et l'année académique en cours avec ses dates
  * réelles — il n'y a plus ni compte ni mot de passe livrés par défaut. */
-export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier: string, password: string) => void }) {
+export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier: string, password: string, adresse: string) => void | Promise<void> }) {
   const [nomEtablissement, setNomEtablissement] = useState(() => (nomEtablissementParDefaut() ? "" : getEtablissement().nom));
   const [adresse, setAdresse] = useState(() => getEtablissement().adresse);
   const [prenom, setPrenom] = useState("");
@@ -32,17 +34,30 @@ export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier
   const [dateDebut, setDateDebut] = useState("");
   const [dateFin, setDateFin] = useState("");
   const [erreur, setErreur] = useState("");
+  const [envoi, setEnvoi] = useState(false);
 
-  const valider = () => {
+  const valider = async () => {
     setErreur("");
     if (!nomEtablissement.trim()) { setErreur("Indiquez le nom de l'établissement : il figure sur les reçus, attestations et procès-verbaux."); return; }
     if (password !== confirmation) { setErreur("Les deux mots de passe ne correspondent pas."); return; }
     try {
-      const admin = installerEtablissement({ prenom, nom, identifier, email, password, annee: { libelle: libelle.trim(), dateDebut, dateFin } });
-      definirIdentiteEtablissement(nomEtablissement, adresse, admin.id);
-      onInstalled(identifier.trim().toUpperCase(), password);
+      if (modeSupabase) {
+        setEnvoi(true);
+        await installerServeur({
+          etablissement: nomEtablissement.trim(), prenom, nom, identifiant: identifier, email, motDePasse: password,
+          annee: libelle.trim(), dateDebut, dateFin,
+        });
+        // Copie locale pour les documents pas encore branchés sur la base (partie 3).
+        definirIdentiteEtablissement(nomEtablissement, adresse, "installation");
+      } else {
+        const admin = installerEtablissement({ prenom, nom, identifier, email, password, annee: { libelle: libelle.trim(), dateDebut, dateFin } });
+        definirIdentiteEtablissement(nomEtablissement, adresse, admin.id);
+      }
+      await onInstalled(identifier.trim().toUpperCase(), password, adresse);
     } catch (err) {
       setErreur(err instanceof Error ? err.message : "Installation impossible.");
+    } finally {
+      setEnvoi(false);
     }
   };
 
@@ -94,8 +109,8 @@ export function PremiereInstallation({ onInstalled }: { onInstalled: (identifier
           </div>
         )}
 
-        <button type="button" onClick={valider} className={boutonPrincipal} data-testid="inst-valider">
-          <CheckCircle2 size={15} /> Installer et me connecter
+        <button type="button" onClick={() => void valider()} disabled={envoi} className={boutonPrincipal} data-testid="inst-valider">
+          <CheckCircle2 size={15} /> {envoi ? "Installation…" : "Installer et me connecter"}
         </button>
       </div>
     </div>

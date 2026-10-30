@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { definirMotDePasseDefinitif } from "@/data/studentStore";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { modeSupabase } from "@/lib/supabase";
+import { changerMotDePasseServeur } from "@/lib/comptesServeur";
 import { CadreConnexion, EtapesAide, champConnexion, etiquetteChamp, boutonPrincipal } from "@/components/site/CadreConnexion";
 import { DISPLAY } from "@/components/site/Decor";
 
@@ -18,21 +20,35 @@ function accueil(role: string): string {
  * l'administration, ou mot de passe initial du compte d'origine) : aucun portail n'est accessible
  * tant qu'un mot de passe personnel n'a pas été choisi. */
 export default function ChangerMotDePassePage() {
-  const { currentUser, logout, confirmerMotDePasseChange } = useAuth();
+  const { currentUser, chargement, logout, confirmerMotDePasseChange } = useAuth();
   const [, setLocation] = useLocation();
   const [nouveau, setNouveau] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [erreur, setErreur] = useState("");
+  const [envoi, setEnvoi] = useState(false);
 
+  if (chargement) return null;
   if (!currentUser) return <Redirect to="/login" />;
   if (!currentUser.doitChangerMotDePasse) return <Redirect to={accueil(currentUser.role)} />;
 
-  const valider = () => {
+  const valider = async () => {
     setErreur("");
     if (!isPasswordValid(nouveau)) { setErreur(`Le mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()}.`); return; }
     if (nouveau !== confirmation) { setErreur("Les deux mots de passe ne correspondent pas."); return; }
-    const res = definirMotDePasseDefinitif(currentUser.id, nouveau);
-    if (!res.ok) { setErreur(res.reason ?? "Mot de passe refusé."); return; }
+    if (modeSupabase) {
+      setEnvoi(true);
+      try {
+        await changerMotDePasseServeur(nouveau);
+      } catch (err) {
+        setErreur(err instanceof Error ? err.message : "Mot de passe refusé.");
+        return;
+      } finally {
+        setEnvoi(false);
+      }
+    } else {
+      const res = definirMotDePasseDefinitif(currentUser.id, nouveau);
+      if (!res.ok) { setErreur(res.reason ?? "Mot de passe refusé."); return; }
+    }
     confirmerMotDePasseChange();
     toast.success("Mot de passe enregistré.");
     setLocation(accueil(currentUser.role));
@@ -72,8 +88,8 @@ export default function ChangerMotDePassePage() {
             <p className="text-[13px] text-red-700 dark:text-red-300">{erreur}</p>
           </div>
         )}
-        <button type="button" onClick={valider} className={boutonPrincipal} data-testid="button-valider-mdp">
-          <CheckCircle2 size={16} /> Enregistrer et continuer
+        <button type="button" onClick={() => void valider()} disabled={envoi} className={boutonPrincipal} data-testid="button-valider-mdp">
+          <CheckCircle2 size={16} /> {envoi ? "Enregistrement…" : "Enregistrer et continuer"}
         </button>
         <button
           type="button"

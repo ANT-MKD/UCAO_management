@@ -1,5 +1,6 @@
 # Vérifications automatiques d'EduManage, à chaque envoi sur GitHub et à chaque demande de fusion :
-# compilation, tests des calculs, construction, puis parcours complets dans un vrai navigateur.
+# compilation, tests des calculs, construction, parcours complets dans un vrai navigateur, et tests
+# de la base de données (migrations Supabase, règles d'accès, garde-fous).
 # Une modification qui casse l'un d'eux est signalée avant d'arriver en production.
 name: Vérifications
 
@@ -55,3 +56,31 @@ jobs:
           name: rapport-parcours
           path: artifacts/edumanage/playwright-report
           retention-days: 7
+
+  base-de-donnees:
+    # Les migrations de supabase/migrations appliquées sur un PostgreSQL 17 (la version de Supabase)
+    # avec une imitation minimale de Supabase, puis les tests de supabase/tests.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Migrations et tests de la base
+        run: supabase/tests/lancer.sh

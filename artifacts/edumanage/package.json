@@ -81,6 +81,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
     "bcryptjs": "^3.0.3",
     "mammoth": "^1.12.2",
     "pdfjs-dist": "^6.3.289",

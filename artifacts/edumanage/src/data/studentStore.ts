@@ -784,6 +784,31 @@ export function installerEtablissement(payload: InstallationPayload): UserAccoun
   return compte;
 }
 
+/** Mode Supabase : le compte connecté (lu sur le serveur) est recopié parmi les comptes locaux,
+ * pour les écrans pas encore branchés sur la base, qui le retrouvent par son id. Il n'a pas de mot
+ * de passe local utilisable : on ne se connecte qu'au serveur. */
+export function refleterCompteServeur(compte: {
+  id: string;
+  role: UserRole;
+  email: string;
+  identifier: string;
+  displayName: string;
+  linkedId?: string;
+  roleId?: string;
+  actif: boolean;
+  doitChangerMotDePasse: boolean;
+}): void {
+  const existant = store.users.find((u) => u.id === compte.id);
+  const reflet: UserAccountRecord = {
+    ...(existant ?? { password: COMPTE_SANS_MOT_DE_PASSE_HASH }),
+    ...compte,
+    linkedId: compte.linkedId,
+    roleId: compte.roleId,
+  };
+  store.users = existant ? store.users.map((u) => (u.id === compte.id ? reflet : u)) : [...store.users, reflet];
+  persist();
+}
+
 export function getUserAccounts(): UserAccountRecord[] {
   return store.users;
 }
