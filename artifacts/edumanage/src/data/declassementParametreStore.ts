@@ -49,6 +49,12 @@ export function getDeclassementParametres(): DeclassementParametreRecord[] {
   return store;
 }
 
+/** Paramètres de la base (avec Supabase). */
+export function remplacerDeclassementParametres(records: DeclassementParametreRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getDeclassementParametresPour(filiereId: string, niveau: string, annee: string): DeclassementParametreRecord[] {
   return store.filter((p) => p.filiereId === filiereId && p.niveau === niveau && p.annee === annee);
 }

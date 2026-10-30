@@ -56,6 +56,12 @@ export function getTypesEvaluation(): TypeEvaluationRecord[] {
   return store;
 }
 
+/** Types de la base (avec Supabase) ; aucun : les types par défaut, comme au chargement. */
+export function remplacerTypesEvaluation(records: TypeEvaluationRecord[]) {
+  store = records.length > 0 ? records : seed();
+  persist();
+}
+
 export function getTypeEvaluationById(id: string): TypeEvaluationRecord | undefined {
   return store.find((t) => t.id === id);
 }

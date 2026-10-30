@@ -89,6 +89,12 @@ export function getMentions(): MentionRecord[] {
   return store;
 }
 
+/** Mentions de la base (avec Supabase) ; aucune : le barème par défaut, comme au chargement. */
+export function remplacerMentions(records: MentionRecord[]) {
+  store = records.length > 0 ? records : seed();
+  persist();
+}
+
 export function getMentionsParNiveau(niveau: NiveauMethodeCalcul): MentionRecord[] {
   return store.filter((m) => m.niveau === niveau);
 }

@@ -1,4 +1,5 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
+import { sansEnvoi } from "@/lib/miroirServeur";
 import { FILIERES } from "./mockData";
 import { getFilieres, subscribeFilieres } from "./filiereStore";
 import type { FormulesCalcul } from "./formulesCalcul";
@@ -171,13 +172,20 @@ function load(): Persisted {
 
 let store: Persisted = load();
 
+function configsManquantes(): ScolariteConfigRecord[] {
+  return getFilieres()
+    .filter((f) => !store.configs.some((c) => c.filiereId === f.id))
+    .map((f) => configPour(f, store.valeursParDefaut ?? DEFAUT));
+}
+
 /** Toute filière créée après l'installation reçoit aussitôt sa configuration (valeurs par défaut
- * de l'établissement) — sans attendre un rechargement de la page. */
+ * de l'établissement) — sans attendre un rechargement de la page. Ce complément, calculé à
+ * l'identique sur chaque poste, ne part vers la base qu'avec un enregistrement du paramétrage. */
 function completerFilieres() {
-  const manquantes = getFilieres().filter((f) => !store.configs.some((c) => c.filiereId === f.id));
+  const manquantes = configsManquantes();
   if (manquantes.length === 0) return;
-  store.configs = [...store.configs, ...manquantes.map((f) => configPour(f, store.valeursParDefaut ?? DEFAUT))];
-  persist();
+  store.configs = [...store.configs, ...manquantes];
+  sansEnvoi(persist);
 }
 
 function persist() {
@@ -202,6 +210,20 @@ export function getScolariteConfigs(): ScolariteConfigRecord[] {
 
 export function getValeursParDefaut(): ValeursParDefaut {
   return store.valeursParDefaut;
+}
+
+/** Valeurs par défaut de la base (avec Supabase) ; jamais réglées : celles de l'application. */
+export function remplacerValeursParDefaut(valeurs: ValeursParDefaut | undefined) {
+  store = { ...store, valeursParDefaut: valeurs ?? DEFAUT };
+  persist();
+}
+
+/** Paramétrage de la base (avec Supabase) ; une filière sans configuration en reçoit une, comme à
+ * l'ouverture de l'application. */
+export function remplacerScolariteConfigs(configs: ScolariteConfigRecord[]) {
+  store = { ...store, configs };
+  store.configs = [...configs, ...configsManquantes()];
+  persist();
 }
 
 export function getConfigForFiliere(filiereId: string): ScolariteConfigRecord | undefined {

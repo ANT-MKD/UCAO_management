@@ -28,6 +28,11 @@ export interface PartieMiroir<R extends { id: string }> {
   remplacer: (fiches: R[]) => void;
   /** Ordre d'envoi des lignes modifiées (ex. l'année « actuelle » en dernier). */
   ordreEnvoi?: (a: Ligne, b: Ligne) => number;
+  /** Fiches qui partent vers la base ; les autres restent propres au navigateur (ex. valeurs par
+   * défaut jamais réglées par un administrateur). */
+  envoyable?: (fiche: R) => boolean;
+  /** Table que la base écrit elle-même (ex. historique) : lue à la connexion, jamais envoyée. */
+  lectureSeule?: boolean;
 }
 
 export interface Miroir {
@@ -72,7 +77,8 @@ const miroirs = new Map<string, Miroir>();
 /** Dernier état connu de la base, par table puis par id (ligne sérialisée). */
 const connu = new Map<string, Map<string, string>>();
 let pret = false;
-/** Vrai pendant qu'un store reprend le contenu de la base : cet enregistrement-là ne repart pas. */
+/** Vrai pendant qu'un store reprend le contenu de la base ou se complète lui-même : ces
+ * enregistrements-là ne partent pas. */
 let enRemplacement = false;
 let file: Promise<void> = Promise.resolve();
 
@@ -82,13 +88,17 @@ export function enregistrerMiroir(miroir: Miroir): void {
 
 /** Message lisible pour un refus de la base. */
 export function motifRefus(erreur: { code?: string; message?: string }): string {
+  // Refus rédigé par la base elle-même (année clôturée, filière qui a déjà un règlement…).
+  if (erreur.message && /^(23|P0)/.test(erreur.code ?? "") && !/violates|permission denied/i.test(erreur.message)) {
+    return `La base a refusé : ${erreur.message} L'écran a été remis à jour.`;
+  }
   switch (erreur.code) {
     case "23503":
       return "La base a refusé : cet élément est encore utilisé par d'autres données (ou dépend d'un élément absent). L'écran a été remis à jour.";
     case "42501":
       return "Vous n'avez pas le droit de modifier ces données. L'écran a été remis à jour.";
     case "23505":
-      return "La base a refusé : ce code existe déjà (créé depuis un autre poste ?). L'écran a été remis à jour.";
+      return "La base a refusé : cet élément existe déjà (enregistré depuis un autre poste ?). L'écran a été remis à jour.";
     case "23514":
     case "23502":
       return "La base a refusé une valeur hors des limites autorisées. L'écran a été remis à jour.";
@@ -120,12 +130,20 @@ async function chargerMiroir(miroir: Miroir): Promise<void> {
     const existantes = new Map(partie.lire().map((f) => [f.id, f as Fiche]));
     const fiches = lignes.map((l) => depuisLigne(partie, l, existantes.get(String(l.id))));
     connu.set(partie.table, new Map(fiches.map((f) => [f.id, JSON.stringify(versLigne(partie, f))])));
-    enRemplacement = true;
-    try {
-      partie.remplacer(fiches as { id: string }[]);
-    } finally {
-      enRemplacement = false;
-    }
+    sansEnvoi(() => partie.remplacer(fiches as { id: string }[]));
+  }
+}
+
+/** Exécute fn sans que ses enregistrements partent vers la base : compléments que l'application
+ * calcule à l'identique sur chaque poste (configuration d'une nouvelle filière…). Ils partent avec
+ * le prochain enregistrement de ce store par un compte qui en a le droit. */
+export function sansEnvoi<T>(fn: () => T): T {
+  const avant = enRemplacement;
+  enRemplacement = true;
+  try {
+    return fn();
+  } finally {
+    enRemplacement = avant;
   }
 }
 
@@ -173,9 +191,10 @@ async function envoyer(): Promise<void> {
   if (modifiees.size === 0) return;
   const lot = [...miroirs.values()].filter((m) => modifiees.has(m.cle));
   modifiees.clear();
-  const parties = lot.flatMap((m) => m.parties).map((partie) => {
-    const lignes = partie.lire().map((f) => versLigne(partie, f as Fiche));
-    return { partie, lignes, ids: new Set(lignes.map((l) => String(l.id))) };
+  const parties = lot.flatMap((m) => m.parties).filter((p) => !p.lectureSeule).map((partie) => {
+    const fiches = partie.lire();
+    const lignes = fiches.filter((f) => !partie.envoyable || partie.envoyable(f)).map((f) => versLigne(partie, f as Fiche));
+    return { partie, lignes, ids: new Set(fiches.map((f) => f.id)) };
   });
   try {
     for (const { partie, lignes } of parties) {

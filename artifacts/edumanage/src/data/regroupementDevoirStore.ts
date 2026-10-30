@@ -61,6 +61,12 @@ export function getRegroupementsDevoir(): RegroupementDevoirRecord[] {
   return store;
 }
 
+/** Regroupements de la base (avec Supabase) ; aucun : devoir et examen par défaut. */
+export function remplacerRegroupementsDevoir(records: RegroupementDevoirRecord[]) {
+  store = records.length > 0 ? records : seed();
+  persist();
+}
+
 export function getRegroupementDevoirById(id: string): RegroupementDevoirRecord | undefined {
   return store.find((r) => r.id === id);
 }

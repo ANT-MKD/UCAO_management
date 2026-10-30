@@ -54,6 +54,11 @@ function seed(): RegleValidationRecord[] {
   return FILIERES.flatMap(reglesPour);
 }
 
+/** Une règle jamais modifiée par un administrateur suit les critères par défaut en vigueur. */
+function suivreCriteresParDefaut(r: RegleValidationRecord): RegleValidationRecord {
+  return r.modifiePar ? r : { ...r, ...criteresParDefaut(r.filiereId, r.type) };
+}
+
 const listeners = new Set<() => void>();
 function notify() {
   listeners.forEach((fn) => fn());
@@ -66,8 +71,7 @@ function load(): RegleValidationRecord[] {
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RegleValidationRecord[];
     if (!Array.isArray(parsed) || parsed.length === 0) return seed();
-    // Une règle jamais modifiée par un administrateur suit les critères par défaut en vigueur.
-    return parsed.map((r) => (r.modifiePar ? r : { ...r, ...criteresParDefaut(r.filiereId, r.type) }));
+    return parsed.map(suivreCriteresParDefaut);
   } catch {
     return seed();
   }
@@ -112,6 +116,16 @@ function persist() {
 
 suivreConfigsScolarite();
 subscribeScolariteConfigs(suivreConfigsScolarite);
+
+/** Règles de la base (avec Supabase), reprises comme au chargement : critères par défaut pour
+ * une règle jamais modifiée, et les trois règles de chaque filière configurée. */
+export function remplacerReglesValidation(records: RegleValidationRecord[]) {
+  store = records.map(suivreCriteresParDefaut);
+  for (const c of getScolariteConfigs()) {
+    if (!store.some((r) => r.filiereId === c.filiereId)) store = [...store, ...reglesPour({ id: c.filiereId, nom: c.filiere })];
+  }
+  persist();
+}
 
 export function subscribeReglesValidation(fn: () => void) {
   listeners.add(fn);

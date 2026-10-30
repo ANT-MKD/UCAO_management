@@ -2,3 +2,4 @@
  * tables parentes d'abord. */
 import "./miroirsStructure";
 import "./miroirsSecurite";
+import "./miroirsScolarite";

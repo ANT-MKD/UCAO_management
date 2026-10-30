@@ -227,7 +227,7 @@ describe("miroir des rôles, des pages des portails et des motifs de blocage", (
     window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
     b.motifs.upsertMotifBlocage({ code: "impaye", intitule: "Impayé", actionsInterdites: [] }, ADMIN);
     await b.miroir.attendreEnvois();
-    expect(motifs).toEqual([expect.stringContaining("ce code existe déjà")]);
+    expect(motifs).toEqual([expect.stringContaining("existe déjà")]);
   });
 
   it("un store reflété après une première connexion est lui aussi mis de côté avant d'être remplacé", async () => {
@@ -243,3 +243,85 @@ describe("miroir des rôles, des pages des portails et des motifs de blocage", (
     expect(b.motifs.getMotifsBlocage()).toEqual([]);
   });
 });
+
+describe("miroir du paramétrage de la scolarité et des bulletins", () => {
+  const REGLEMENT = { id: "reg-qhse", nom: "Règlement LQHSE", annee: "2026-2027", filiere_ids: ["fil-qhse"], formules: {}, cree_par: "Ibrahima FALL", cree_le: "2026-10-30T10:00:00+00:00", modifie_par: "Ibrahima FALL", modifie_le: "2026-10-30T11:00:00+00:00", depuis_version: null };
+  const version = (numero: number, action: string, nom: string) => ({ id: `version-reg-qhse-${numero}`, reglement_id: "reg-qhse", numero, action, nom, annee: "2026-2027", filiere_ids: ["fil-qhse"], formules: {}, par: "Ibrahima FALL", le: "2026-10-30T10:00:00+00:00", depuis_version: null });
+
+  it("à la connexion : le paramétrage de la base, complété sur le poste pour ce qu'elle n'a pas encore", async () => {
+    const b = await avecBase({
+      annees_academiques: [ANNEE], filieres: [FILIERE],
+      scolarite_valeurs_defaut: [{ id: "etablissement", note_bareme: 20, cumul_credit: false, moyenne_passage: 12, moyenne_eliminatoire: 5, modifie_par: "Ibrahima FALL", modifie_le: "2026-10-30T00:00:00+00:00" }],
+      methodes_calcul: [{ id: "meth-moyenneUe-calculMoyenneCredit", code: "calculMoyenneCredit", intitule: "Moyenne au prorata des crédits", niveau: "moyenneUe", description: null, actif: true }],
+      reglements_calcul: [REGLEMENT],
+      reglements_calcul_versions: [version(1, "creation", "Règlement QHSE"), version(2, "modification", "Règlement LQHSE")],
+    });
+    await b.miroir.chargerMiroirs();
+    const Sc = await import("@/data/scolariteConfigStore");
+    const Rv = await import("@/data/reglesValidationStore");
+    const Me = await import("@/data/mentionsStore");
+    const Mc = await import("@/data/bulletinMethodesStore");
+    const Rc = await import("@/data/reglementCalculStore");
+    expect(Sc.getConfigForFiliere("fil-qhse")).toMatchObject({ moyennePassage: 12, moyenneEliminatoire: 5, cumulCredit: false });
+    expect(Rv.getRegleValidation("fil-qhse", "annee")).toMatchObject({ validationParMoyenne: true, validationParCredit: false, moyennePassage: 12 });
+    expect(Me.getMentions()).toHaveLength(20);
+    expect(Mc.getMethodesCalcul().find((m) => m.id === "meth-moyenneUe-calculMoyenneCredit")?.intitule).toBe("Moyenne au prorata des crédits");
+    expect(Mc.getMethodesCalculParNiveau("moyenneSession").length).toBeGreaterThan(0);
+    expect(Rc.reglementPour("fil-qhse", "2026-2027")?.nom).toBe("Règlement LQHSE");
+    expect(Rc.getHistoriqueReglement("reg-qhse").map((v) => v.numero)).toEqual([2, 1]);
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("une filière créée sans « Paramétrage scolarité » : sa configuration est calculée sur le poste, seule la filière part", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], filieres: [FILIERE] });
+    await b.miroir.chargerMiroirs();
+    const Sc = await import("@/data/scolariteConfigStore");
+    const Rv = await import("@/data/reglesValidationStore");
+    const f = b.filieres.addFiliere({ code: "LGL", nom: "Licence Génie logiciel", responsable: "", nbClasses: 0, nbEtudiants: 0, statut: "actif" });
+    await b.miroir.attendreEnvois();
+    expect(Sc.getConfigForFiliere(f.id)).toMatchObject({ moyennePassage: 10 });
+    expect(Rv.getRegleValidation(f.id, "semestre")).toBeDefined();
+    expect(b.envois.map((e) => e.table)).toEqual(["filieres"]);
+
+    // Ibrahima FALL relève la moyenne de passage de LQHSE : la configuration et les règles de
+    // validation qui la suivaient partent, avec les compléments calculés ; pas les valeurs par
+    // défaut, jamais réglées.
+    Sc.updateScolariteConfig("scol-cfg-fil-qhse", { noteBareme: 20, cumulCredit: true, moyennePassage: 12, moyenneEliminatoire: 0 }, "Ibrahima FALL");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.slice(1).map((e) => e.table)).toEqual(["scolarite_configs", "regles_validation"]);
+    const configs = b.envois[1].donnees as { id: string; filiere_id: string; moyenne_passage: number }[];
+    expect(configs.find((c) => c.filiere_id === "fil-qhse")?.moyenne_passage).toBe(12);
+    expect(configs.map((c) => c.filiere_id)).toContain(f.id);
+    const regles = b.envois[2].donnees as { filiere_id: string; moyenne_passage: number }[];
+    expect(regles.filter((r) => r.filiere_id === "fil-qhse").every((r) => r.moyenne_passage === 12)).toBe(true);
+  });
+
+  it("un règlement enregistré part seul : son historique, la base l'écrit elle-même", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], filieres: [FILIERE] });
+    await b.miroir.chargerMiroirs();
+    const Rc = await import("@/data/reglementCalculStore");
+    const res = Rc.enregistrerReglement({ nom: "Règlement LQHSE", annee: "2026-2027", filiereIds: ["fil-qhse"], formules: {} }, undefined, "Ibrahima FALL");
+    expect(res.ok).toBe(true);
+    const id = res.reglement!.id;
+    Rc.enregistrerReglement({ nom: "Règlement LQHSE 2026", annee: "2026-2027", filiereIds: ["fil-qhse"], formules: {} }, id, "Ibrahima FALL");
+    Rc.enregistrerReglement({ nom: "Règlement LQHSE", annee: "2026-2027", filiereIds: ["fil-qhse"], formules: {} }, id, "Ibrahima FALL", { depuisVersion: 1 });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["reglements_calcul"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id, nom: "Règlement LQHSE", filiere_ids: ["fil-qhse"], formules: {}, cree_par: "Ibrahima FALL", depuis_version: 1 })]);
+    expect(Rc.getHistoriqueReglement(id).map((v) => v.action)).toEqual(["retour", "modification", "creation"]);
+  });
+
+  it("refus rédigé par la base (filière qui a déjà un règlement) : l'écran affiche son message et se recale", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], filieres: [FILIERE] },
+      (table) => (table === "reglements_calcul" ? { code: "23505", message: "Licence QHSE a déjà le règlement « Règlement LQHSE » pour 2026-2027." } : null));
+    await b.miroir.chargerMiroirs();
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    const Rc = await import("@/data/reglementCalculStore");
+    Rc.enregistrerReglement({ nom: "Doublon", annee: "2026-2027", filiereIds: ["fil-qhse"], formules: {} }, undefined, "Ibrahima FALL");
+    await b.miroir.attendreEnvois();
+    expect(motifs).toEqual(["La base a refusé : Licence QHSE a déjà le règlement « Règlement LQHSE » pour 2026-2027. L'écran a été remis à jour."]);
+    expect(Rc.getReglements()).toEqual([]);
+  });
+});
+
