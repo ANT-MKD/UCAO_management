@@ -33,7 +33,9 @@ select tests.verifier(not exists (
   where c.contype = 'f' and c.connamespace in ('public'::regnamespace)
     and not exists (select 1 from pg_index i where i.indrelid = c.conrelid and a.attnum = any (i.indkey))
 ), 'chaque clé étrangère a son index');
-select tests.verifier((select count(*) = 11 from pg_trigger where tgname like '%\_journal' and not tgisinternal),
+select tests.verifier((select count(*) = 11 from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    where t.tgname like '%\_journal' and not t.tgisinternal and c.relname in ('cycles', 'entites', 'categories_cours',
+      'filieres', 'niveaux', 'semestres', 'salles', 'classes', 'ues', 'ecs', 'annees_academiques')),
   'les onze tables de la structure (années comprises) sont journalisées');
 
 -- ——— L'administrateur principal construit la structure ———
