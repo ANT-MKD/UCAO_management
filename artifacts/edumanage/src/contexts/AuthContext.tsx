@@ -12,6 +12,10 @@ import {
 } from "@/data/studentStore";
 import { modeSupabase, supabase } from "@/lib/supabase";
 import { compteDeLaSession, connecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
+import { arreterMiroirs, chargerMiroirs } from "@/lib/miroirServeur";
+import "@/data/miroirsStructure";
+
+const DONNEES_INJOIGNABLES = "Impossible de charger les données de l'établissement. Vérifiez votre connexion internet, puis reconnectez-vous.";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
 import { isLocked, registerFailedAttempt, registerSuccessfulLogin, MAX_TENTATIVES } from "@/data/loginSecurityStore";
 import { getCommunicationRolesParType } from "@/data/communicationRolesStore";
@@ -128,6 +132,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const etat = await compteDeLaSession();
         if (!monte) return;
         if (etat && "compte" in etat) {
+          // Données de référence (structure académique…) chargées avant d'ouvrir les écrans.
+          try {
+            await chargerMiroirs();
+          } catch {
+            await client.auth.signOut();
+            if (monte) setCurrentUser(null);
+            return;
+          }
+          if (!monte) return;
           setCurrentUser(utilisateurServeur(etat.compte));
         } else {
           if (etat) await client.auth.signOut();
@@ -155,6 +168,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (modeSupabase) {
       const compte = await connecterServeur(identifierOrEmail, password);
       if (!compte) return null;
+      try {
+        await chargerMiroirs();
+      } catch {
+        await supabase?.auth.signOut();
+        throw new Error(DONNEES_INJOIGNABLES);
+      }
       const user = utilisateurServeur(compte);
       setCurrentUser(user);
       return user;
@@ -229,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
+    arreterMiroirs();
     if (supabase) void supabase.auth.signOut();
     else clearAuthSession();
   };

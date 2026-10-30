@@ -129,6 +129,19 @@ function recalcUeNbEc(ueId: string) {
   if (ue) ue.nbEc = store.ecs.filter((e) => e.ueId === ueId).length;
 }
 
+/** Remplacent UE et EC (contenu de la base, avec Supabase) ; le nombre d'EC de chaque UE est
+ * recompté. */
+export function remplacerUes(records: UeRecord[]) {
+  store.ues = records.map((u) => ({ ...u, nbEc: store.ecs.filter((e) => e.ueId === u.id).length }));
+  persist();
+}
+
+export function remplacerEcs(records: EcRecord[]) {
+  store.ecs = records.slice();
+  store.ues = store.ues.map((u) => ({ ...u, nbEc: store.ecs.filter((e) => e.ueId === u.id).length }));
+  persist();
+}
+
 export function getUes(): UeRecord[] {
   return store.ues;
 }

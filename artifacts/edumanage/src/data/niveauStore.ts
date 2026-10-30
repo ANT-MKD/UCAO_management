@@ -65,6 +65,12 @@ function persist() {
   notify();
 }
 
+/** Remplace tous les niveaux (contenu de la base, avec Supabase). */
+export function remplacerNiveaux(records: NiveauRecord[]) {
+  niveaux.splice(0, niveaux.length, ...records);
+  persist();
+}
+
 export function subscribeNiveaux(fn: () => void) {
   listeners.add(fn);
   return () => listeners.delete(fn);

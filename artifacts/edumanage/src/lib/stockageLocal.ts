@@ -10,11 +10,23 @@ const MARGE_STOCKAGE = 250_000;
 
 export const EVENEMENT_STOCKAGE_PLEIN = "edumanage:stockage-plein";
 
+type ObservateurEcriture = (cle: string) => void;
+const observateurs = new Set<ObservateurEcriture>();
+
+/** Prévient à chaque enregistrement réussi d'une clé (le miroir Supabase y envoie les modifications). */
+export function observerEcritures(fn: ObservateurEcriture): () => void {
+  observateurs.add(fn);
+  return () => {
+    observateurs.delete(fn);
+  };
+}
+
 /** Écrit une valeur ; en cas d'échec (stockage plein), prévient l'écran au lieu d'échouer en silence. */
 export function ecrireStockage(cle: string, valeur: string): boolean {
   if (typeof window === "undefined") return false;
   try {
     localStorage.setItem(cle, valeur);
+    observateurs.forEach((fn) => fn(cle));
     return true;
   } catch (err) {
     console.error(`[EduManage] Enregistrement impossible (${cle}) :`, err);

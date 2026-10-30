@@ -96,6 +96,13 @@ export function updateFiliere(id: string, patch: Partial<FiliereInput>) {
   persist();
 }
 
+/** Remplace toutes les filières (contenu de la base, avec Supabase) ; les compteurs calculés
+ * absents valent 0. */
+export function remplacerFilieres(records: FiliereRecord[]) {
+  filieres.splice(0, filieres.length, ...records.map((f) => ({ ...f, nbClasses: f.nbClasses ?? 0, nbEtudiants: f.nbEtudiants ?? 0 })));
+  persist();
+}
+
 export function deleteFiliere(id: string) {
   const idx = filieres.findIndex((f) => f.id === id);
   if (idx >= 0) filieres.splice(idx, 1);

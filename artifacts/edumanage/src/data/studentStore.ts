@@ -1119,6 +1119,13 @@ export function getInscriptions(): InscriptionRecord[] {
   return store.inscriptions;
 }
 
+/** Remplace les années académiques (contenu de la base, avec Supabase). */
+export function remplacerAnneesAcademiques(annees: AnneeAcademiqueRecord[]) {
+  store.annees = annees.slice();
+  syncAnneesToMockData();
+  persist();
+}
+
 export function getAnneesAcademiques() {
   return store.annees;
 }

@@ -141,6 +141,18 @@ function persist() {
 
 if (typeof window !== "undefined") persist();
 
+/** Remplacent classes et salles (contenu de la base, avec Supabase) ; l'effectif calculé absent
+ * vaut 0. */
+export function remplacerClasses(records: ClassePedagogiqueRecord[]) {
+  store.classes = records.map((c) => ({ ...c, inscrits: c.inscrits ?? 0 }));
+  persist();
+}
+
+export function remplacerSalles(records: SallePhysiqueRecord[]) {
+  store.salles = records.slice();
+  persist();
+}
+
 export function getClasses(): ClassePedagogiqueRecord[] {
   return store.classes;
 }

@@ -52,6 +52,12 @@ function persist() {
   notify();
 }
 
+/** Remplace tous les semestres (contenu de la base, avec Supabase). */
+export function remplacerSemestres(records: SemestreRecord[]) {
+  semestres.splice(0, semestres.length, ...records);
+  persist();
+}
+
 export function subscribeSemestres(fn: () => void) {
   listeners.add(fn);
   return () => listeners.delete(fn);

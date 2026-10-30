@@ -55,5 +55,10 @@ export function createListStore<T extends { id: string }>(storageKey: string, se
       store = store.filter((r) => r.id !== id);
       persist();
     },
+    /** Remplace toute la liste (contenu de la base, avec Supabase). */
+    remplacer(records: T[]) {
+      store = records.slice();
+      persist();
+    },
   };
 }

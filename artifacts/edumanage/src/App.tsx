@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { AlerteStockage } from "@/components/AlerteStockage";
+import { AlerteServeur } from "@/components/AlerteServeur";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -1097,6 +1098,7 @@ function App() {
             <Toaster />
             <SonnerToaster />
             <AlerteStockage />
+            <AlerteServeur />
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>
