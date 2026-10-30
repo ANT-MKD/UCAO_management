@@ -1,6 +1,7 @@
 -- Outils des tests de la base (chargés après les migrations, jamais sur Supabase).
 --   tests.connecter(id)      : la suite s'exécute comme ce compte connecté (rôle authenticated) ;
 --   tests.anonyme()          : comme un visiteur non connecté (rôle anon) ;
+--   tests.service()          : comme une fonction serveur (clé secrète, rôle service_role) ;
 --   tests.deconnecter()      : retour au propriétaire de la base ;
 --   tests.verifier(cond, m)  : échoue avec le message m si cond n'est pas vraie ;
 --   tests.echoue(sql, motif) : vérifie que l'instruction est refusée, avec un message contenant motif.
@@ -20,6 +21,13 @@ language plpgsql as $$
 begin
   perform set_config('request.jwt.claims', '{"role":"anon"}', false);
   execute 'set role anon';
+end $$;
+
+create or replace function tests.service() returns void
+language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', false);
+  execute 'set role service_role';
 end $$;
 
 create or replace function tests.deconnecter() returns void
