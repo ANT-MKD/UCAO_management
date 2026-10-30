@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,12 @@ import { DISPLAY, MONO } from "@/components/site/Decor";
 import { cn } from "@/lib/utils";
 import { signalerDemandeReinitialisation, verifierEtConsommerPin } from "@/data/pinActivationStore";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { modeSupabase, supabase } from "@/lib/supabase";
+import { demanderCodeServeur, installationFaiteServeur, reinitialiserServeur } from "@/lib/comptesServeur";
+
+/** Avec Supabase, on se connecte par matricule ou identifiant uniquement (l'adresse de connexion
+ * est technique et jamais montrée). */
+const LIBELLE_IDENTIFIANT = modeSupabase ? "Matricule ou identifiant" : "Matricule, identifiant ou e-mail";
 
 const loginSchema = z.object({
   identifier: z.string().min(1, "Identifiant requis"),
@@ -31,8 +37,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const [mode, setMode] = useState<Mode>("login");
-  // Aucun administrateur encore : première ouverture, on installe au lieu de se connecter.
-  const [installation] = useState(() => installationRequise());
+  // Aucun administrateur encore : première ouverture, on installe au lieu de se connecter. Avec
+  // Supabase, le serveur le dit (null : réponse attendue).
+  const [installation, setInstallation] = useState<boolean | null>(() => (modeSupabase ? null : installationRequise()));
+  useEffect(() => {
+    if (!modeSupabase) return;
+    installationFaiteServeur()
+      .then((faite) => setInstallation(!faite))
+      .catch((err: unknown) => {
+        setInstallation(false);
+        setError(err instanceof Error ? err.message : "Le serveur est injoignable.");
+      });
+  }, []);
   const [forgotIdentifier, setForgotIdentifier] = useState("");
   const [forgotError, setForgotError] = useState("");
   const [pinInput, setPinInput] = useState("");
@@ -42,8 +58,17 @@ export default function LoginPage() {
   /** Aucun code n'est envoyé ni affiché ici : la demande prévient l'administration, qui vérifie
    * l'identité et remet un code en main propre. La réponse est la même que le compte existe ou non,
    * pour ne pas révéler quels identifiants sont valides. */
-  const handleForgotRequest = () => {
+  const handleForgotRequest = async () => {
     setForgotError("");
+    if (modeSupabase) {
+      try {
+        await demanderCodeServeur(forgotIdentifier);
+        setMode("forgot-sent");
+      } catch (err) {
+        setForgotError(err instanceof Error ? err.message : "Demande impossible pour le moment.");
+      }
+      return;
+    }
     const compte = findUserAccountByIdentifier(forgotIdentifier);
     if (compte && compte.actif !== false) {
       const nouvelle = signalerDemandeReinitialisation(compte.id, compte.displayName, compte.identifier);
@@ -57,19 +82,28 @@ export default function LoginPage() {
     setMode("forgot-sent");
   };
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     setForgotError("");
-    if (!forgotIdentifier.trim()) { setForgotError("Saisissez votre email ou matricule."); return; }
+    if (!forgotIdentifier.trim()) { setForgotError(modeSupabase ? "Saisissez votre matricule ou votre identifiant." : "Saisissez votre email ou matricule."); return; }
     if (!pinInput.trim()) { setForgotError("Saisissez le code remis par l'administration."); return; }
     if (!isPasswordValid(newPassword)) { setForgotError(`Le mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()}.`); return; }
     if (newPassword !== confirmPassword) { setForgotError("Les deux mots de passe ne correspondent pas."); return; }
-    const compte = findUserAccountByIdentifier(forgotIdentifier);
-    // Même message que le compte existe ou non, et que le code soit faux ou expiré.
-    if (!compte || !verifierEtConsommerPin(compte.id, pinInput.trim())) {
-      setForgotError("Identifiant ou code invalide, déjà utilisé ou expiré. Après 5 essais erronés, le code est annulé.");
-      return;
+    if (modeSupabase) {
+      try {
+        await reinitialiserServeur(forgotIdentifier, pinInput.trim(), newPassword);
+      } catch (err) {
+        setForgotError(err instanceof Error ? err.message : "Réinitialisation impossible pour le moment.");
+        return;
+      }
+    } else {
+      const compte = findUserAccountByIdentifier(forgotIdentifier);
+      // Même message que le compte existe ou non, et que le code soit faux ou expiré.
+      if (!compte || !verifierEtConsommerPin(compte.id, pinInput.trim())) {
+        setForgotError("Identifiant ou code invalide, déjà utilisé ou expiré. Après 5 essais erronés, le code est annulé.");
+        return;
+      }
+      updateUserPassword(compte.id, newPassword);
     }
-    updateUserPassword(compte.id, newPassword);
     toast.success("Mot de passe réinitialisé — vous pouvez vous connecter.");
     setMode("login");
     setForgotIdentifier("");
@@ -88,7 +122,7 @@ export default function LoginPage() {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 800));
     try {
-      const user = login(data.identifier, data.password);
+      const user = await login(data.identifier, data.password);
       setLoading(false);
       if (!user) {
         setError("Identifiants incorrects.");
@@ -117,11 +151,19 @@ export default function LoginPage() {
   );
 
   const etapesOubli = [
-    { titre: "Demandez un code", texte: "Saisissez votre matricule ou votre e-mail : l'administration est prévenue." },
+    { titre: "Demandez un code", texte: `Saisissez votre ${modeSupabase ? "matricule ou votre identifiant" : "matricule ou votre e-mail"} : l'administration est prévenue.` },
     { titre: "Passez au secrétariat", texte: "Avec une pièce d'identité. Un code à 6 chiffres vous est remis, valable 24 heures." },
     { titre: "Choisissez un nouveau mot de passe", texte: "Saisissez le code reçu et votre nouveau mot de passe." },
   ];
   const etapeOubli = mode === "forgot-request" ? 0 : mode === "forgot-sent" ? 1 : 2;
+
+  if (installation === null) {
+    return (
+      <CadreConnexion etiquette="Connexion" titre={<>Un instant…</>} intro="Connexion au serveur de l'établissement.">
+        <p className="text-sm text-[#5d5a7a] dark:text-[#a3a6c2]" data-testid="connexion-attente">Chargement…</p>
+      </CadreConnexion>
+    );
+  }
 
   if (installation) {
     return (
@@ -142,9 +184,11 @@ export default function LoginPage() {
         )}
       >
         <PremiereInstallation
-          onInstalled={async (identifiant, motDePasse) => {
+          onInstalled={async (identifiant, motDePasse, adresse) => {
             try {
               await login(identifiant, motDePasse);
+              // La ville de l'établissement, que l'installation sur le serveur ne reçoit pas.
+              if (supabase && adresse.trim()) await supabase.from("etablissement").update({ adresse: adresse.trim() }).eq("id", 1);
               toast.success("EduManage est installé. Bienvenue !");
               setLocation("/admin/dashboard");
             } catch {
@@ -171,7 +215,7 @@ export default function LoginPage() {
             <p className="text-sm text-[#5d5a7a] dark:text-[#a3a6c2] mb-6">L&apos;administration sera prévenue de votre demande.</p>
             <div className="space-y-4">
               <div>
-                <label htmlFor="oubli-identifiant" className={etiquetteChamp}>Matricule, identifiant ou e-mail</label>
+                <label htmlFor="oubli-identifiant" className={etiquetteChamp}>{LIBELLE_IDENTIFIANT}</label>
                 <input
                   id="oubli-identifiant"
                   value={forgotIdentifier}
@@ -216,7 +260,7 @@ export default function LoginPage() {
             <p className="text-sm text-[#5d5a7a] dark:text-[#a3a6c2] mb-6">Saisissez votre identifiant, le code remis par l&apos;administration et votre nouveau mot de passe.</p>
             <div className="space-y-4">
               <div>
-                <label htmlFor="reset-identifiant" className={etiquetteChamp}>Matricule, identifiant ou e-mail</label>
+                <label htmlFor="reset-identifiant" className={etiquetteChamp}>{LIBELLE_IDENTIFIANT}</label>
                 <input id="reset-identifiant" value={forgotIdentifier} onChange={(e) => setForgotIdentifier(e.target.value)} type="text" autoComplete="username" placeholder="ex. 2025-LQHSE-0001" className={champConnexion} data-testid="input-reset-identifier" />
               </div>
               <div>
@@ -288,7 +332,7 @@ export default function LoginPage() {
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="connexion-identifiant" className={etiquetteChamp}>Matricule, identifiant ou e-mail</label>
+          <label htmlFor="connexion-identifiant" className={etiquetteChamp}>{LIBELLE_IDENTIFIANT}</label>
           <input
             id="connexion-identifiant"
             {...form.register("identifier")}

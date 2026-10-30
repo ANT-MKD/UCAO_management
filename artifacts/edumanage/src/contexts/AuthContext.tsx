@@ -6,9 +6,12 @@ import {
   loadAuthSession,
   logAudit,
   pushNotificationEtPersister,
+  refleterCompteServeur,
   saveAuthSession,
   type UserRole,
 } from "@/data/studentStore";
+import { modeSupabase, supabase } from "@/lib/supabase";
+import { compteDeLaSession, connecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
 import { isLocked, registerFailedAttempt, registerSuccessfulLogin, MAX_TENTATIVES } from "@/data/loginSecurityStore";
 import { getCommunicationRolesParType } from "@/data/communicationRolesStore";
@@ -34,7 +37,11 @@ interface User {
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
-  login: (identifierOrEmail: string, password: string) => User | null;
+  /** Mode Supabase : vrai le temps de retrouver la session ouverte au chargement de la page. */
+  chargement: boolean;
+  /** null : identifiants incorrects. Rejetée avec le motif d'un refus (verrouillage, compte
+   * désactivé, portail fermé). */
+  login: (identifierOrEmail: string, password: string) => Promise<User | null>;
   logout: () => void;
   /** À appeler après un changement de mot de passe obligatoire réussi. */
   confirmerMotDePasseChange: () => void;
@@ -43,13 +50,35 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   isAuthenticated: false,
-  login: () => null,
+  chargement: false,
+  login: async () => null,
   logout: () => {},
   confirmerMotDePasseChange: () => {},
 });
 
+/** Compte lu sur le serveur → utilisateur de l'application, recopié parmi les comptes locaux pour
+ * les écrans pas encore branchés sur la base. */
+function utilisateurServeur(compte: CompteServeur): User {
+  const user = utilisateurDuCompte(compte);
+  refleterCompteServeur({
+    id: user.id,
+    role: user.role,
+    email: user.email,
+    identifier: user.identifier,
+    displayName: user.name,
+    linkedId: user.linkedId,
+    roleId: user.roleId,
+    actif: compte.actif,
+    doitChangerMotDePasse: user.doitChangerMotDePasse,
+  });
+  return user;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [chargement, setChargement] = useState(modeSupabase);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    // Mode Supabase : la session est retrouvée auprès du serveur (effet ci-dessous).
+    if (modeSupabase) return null;
     const saved = loadAuthSession();
     if (!saved) return null;
     return {
@@ -75,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * ces coupe-circuits ne bloquaient que les connexions futures, une session déjà ouverte restait
    * valide indéfiniment. Se réévalue à chaque changement (réactif), pas seulement au chargement. */
   useEffect(() => {
-    if (!currentUser) return;
+    if (modeSupabase || !currentUser) return;
     const account = accounts.find((a) => a.id === currentUser.id);
     let stillValid = !!account && account.actif !== false && portalAccess[currentUser.role];
     if (stillValid && currentUser.role === "student" && currentUser.linkedId) {
@@ -87,7 +116,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser, accounts, portalAccess]);
 
-  const login = (identifierOrEmail: string, password: string): User | null => {
+  /** Mode Supabase : session retrouvée au chargement, puis revérifiée à chaque renouvellement du
+   * jeton (compte désactivé ou portail fermé entre-temps : la session se ferme). La base refuse de
+   * toute façon les données à un compte désactivé ou dont le portail est fermé. */
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    let monte = true;
+    const verifier = async () => {
+      try {
+        const etat = await compteDeLaSession();
+        if (!monte) return;
+        if (etat && "compte" in etat) {
+          setCurrentUser(utilisateurServeur(etat.compte));
+        } else {
+          if (etat) await client.auth.signOut();
+          setCurrentUser(null);
+        }
+      } catch {
+        // Réseau momentanément indisponible : on garde l'état courant.
+      } finally {
+        if (monte) setChargement(false);
+      }
+    };
+    void verifier();
+    const { data } = client.auth.onAuthStateChange((evenement) => {
+      // Pas d'appel à Supabase directement dans ce rappel (il bloquerait le client) : on diffère.
+      if (evenement === "SIGNED_OUT") setCurrentUser(null);
+      else if (evenement === "TOKEN_REFRESHED") setTimeout(() => void verifier(), 0);
+    });
+    return () => {
+      monte = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  const login = async (identifierOrEmail: string, password: string): Promise<User | null> => {
+    if (modeSupabase) {
+      const compte = await connecterServeur(identifierOrEmail, password);
+      if (!compte) return null;
+      const user = utilisateurServeur(compte);
+      setCurrentUser(user);
+      return user;
+    }
+
     const lock = isLocked(identifierOrEmail);
     if (lock.locked) {
       const minutes = Math.max(1, Math.ceil((lock.remainingMs ?? 0) / 60000));
@@ -145,16 +217,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser) return;
     const user = { ...currentUser, doitChangerMotDePasse: false };
     setCurrentUser(user);
-    saveAuthSession(user);
+    if (modeSupabase) {
+      refleterCompteServeur({
+        id: user.id, role: user.role, email: user.email, identifier: user.identifier, displayName: user.name,
+        linkedId: user.linkedId, roleId: user.roleId, actif: true, doitChangerMotDePasse: false,
+      });
+    } else {
+      saveAuthSession(user);
+    }
   };
 
   const logout = () => {
     setCurrentUser(null);
-    clearAuthSession();
+    if (supabase) void supabase.auth.signOut();
+    else clearAuthSession();
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout, confirmerMotDePasseChange }}>
+    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, chargement, login, logout, confirmerMotDePasseChange }}>
       {children}
     </AuthContext.Provider>
   );

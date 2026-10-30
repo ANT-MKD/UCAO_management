@@ -28,7 +28,8 @@ import { telephoneValide, TELEPHONE_EXEMPLE } from "@/lib/telephone";
 import { statutEtudiant } from "@/lib/portailEtudiant";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { updateEtudiantInfos, changeOwnPassword, type EtudiantInfosPayload, type AuditLogRecord } from "@/data/studentStore";
+import { updateEtudiantInfos, type EtudiantInfosPayload, type AuditLogRecord } from "@/data/studentStore";
+import { changerMonMotDePasse } from "@/lib/comptesServeur";
 import { useStudentStore, useInscriptions, useUserAccount, useAuditLogs } from "@/hooks/useStudentStore";
 import { getEtablissement } from "@/data/etablissementStore";
 import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
@@ -156,7 +157,7 @@ export default function StudentProfilePage() {
     setShowEditModal(false);
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!currentUser) return;
     // Même règle qu'à la première connexion (passwordPolicy) : pas un simple remplissage d'espaces.
     if (!isPasswordValid(newPassword)) {
@@ -171,9 +172,14 @@ export default function StudentProfilePage() {
       toast.error("Les mots de passe ne correspondent pas.");
       return;
     }
-    const ok = changeOwnPassword(currentUser.id, currentPassword, newPassword);
-    if (!ok) {
-      toast.error("Mot de passe actuel incorrect.");
+    try {
+      const ok = await changerMonMotDePasse(currentUser.id, currentPassword, newPassword);
+      if (!ok) {
+        toast.error("Mot de passe actuel incorrect.");
+        return;
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Mot de passe refusé.");
       return;
     }
     toast.success("Mot de passe modifié.");
@@ -544,7 +550,7 @@ export default function StudentProfilePage() {
             <label htmlFor="student-profile-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
             <input id="student-profile-champ-8" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
           </div>
-          <button onClick={handleChangePassword} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="mdp-enregistrer">
+          <button onClick={() => void handleChangePassword()} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="mdp-enregistrer">
             Changer le mot de passe
           </button>
         </div>
