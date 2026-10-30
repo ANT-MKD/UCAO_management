@@ -3,12 +3,20 @@ import { getDerogationsPaiement, derogationActivePour } from "./derogationPaieme
 import { getDeliberations, DECISION_LABELS, type DeliberationLigne } from "./deliberationStore";
 import { computeCreditsCumulesParcours } from "./bulletinEngine";
 import { getDettesActivesPourEtudiant } from "./creditDetteStore";
+import { getDeliberationsAnnuelles, DECISION_ANNUELLE_LABELS, type DeliberationAnnuelleLigne } from "./deliberationAnnuelleStore";
 import type { NiveauRecord } from "./niveauStore";
+import { formatCFA } from "@/lib/utils";
 
 export interface ReinscriptionEligibility {
   decision: "allowed" | "conditional" | "blocked";
   reasons: string[];
 }
+
+export const LIBELLE_DECISION_REINSCRIPTION: Record<ReinscriptionEligibility["decision"], string> = {
+  allowed: "Autorisée",
+  conditional: "Sous conditions",
+  blocked: "Bloquée",
+};
 
 /** Dernière décision de jury connue pour cet étudiant, tous semestres/classes confondus —
  * la délibération la plus récente (par date) dans laquelle il apparaît. */
@@ -28,6 +36,20 @@ export function getDerniereLigneDeliberation(etudiantId: string): DeliberationLi
 /** niveauCible : le niveau visé par la réinscription en cours — permet de vérifier le garde-fou
  * de crédits cumulés (NiveauRecord.creditsRequisEntree, ex. 120 crédits requis pour L3). Optionnel
  * pour ne pas casser les appels existants qui ne connaissent pas encore le niveau cible. */
+/** Dernière délibération annuelle connue pour cet étudiant (la plus récente), avec son année :
+ * c'est elle qui décide du passage, pas le jury de semestre. */
+export function getDerniereDecisionAnnuelle(etudiantId: string): { annee: string; ligne: DeliberationAnnuelleLigne } | undefined {
+  const derniere = getDeliberationsAnnuelles()
+    .filter((d) => d.lignes.some((l) => l.etudiantId === etudiantId))
+    .sort((a, b) => b.annee.localeCompare(a.annee) || b.dateDeliberation.localeCompare(a.dateDeliberation))[0];
+  const ligne = derniere?.lignes.find((l) => l.etudiantId === etudiantId);
+  return derniere && ligne ? { annee: derniere.annee, ligne } : undefined;
+}
+
+export function getDerniereLigneDeliberationAnnuelle(etudiantId: string): DeliberationAnnuelleLigne | undefined {
+  return getDerniereDecisionAnnuelle(etudiantId)?.ligne;
+}
+
 export function checkReinscriptionEligibility(etudiantId: string, niveauCible?: NiveauRecord): ReinscriptionEligibility {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant) return { decision: "blocked", reasons: ["Étudiant introuvable"] };
@@ -46,22 +68,54 @@ export function checkReinscriptionEligibility(etudiantId: string, niveauCible?: 
   if (etudiant.soldeDu > 0) {
     const derogation = derogationActivePour(getDerogationsPaiement(), etudiantId, "reinscription");
     if (derogation) {
-      reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA) — dérogation ${derogation.reference} accordée jusqu'au ${derogation.dateFin}`);
+      reasons.push(`Impayés en cours (${formatCFA(etudiant.soldeDu)}) — dérogation ${derogation.reference} accordée jusqu'au ${new Date(derogation.dateFin).toLocaleDateString("fr-FR")}`);
     } else {
       conditional = true;
-      reasons.push(`Impayés en cours (${etudiant.soldeDu} FCFA)`);
+      reasons.push(`Impayés en cours (${formatCFA(etudiant.soldeDu)})`);
     }
   }
-  const ligne = getDerniereLigneDeliberation(etudiantId);
-  if (ligne && ligne.decisionFinale !== "admis") {
-    conditional = true;
-    reasons.push(`Délibération : ${DECISION_LABELS[ligne.decisionFinale]}`);
+  // Règle UCAO : le passage se décide sur l'année (délibération annuelle) ; la délibération de
+  // semestre ne sert de repère que si l'année n'a pas encore été délibérée.
+  const monte = !!niveauCible && niveauCible.alias !== etudiant.niveau;
+  const ligneAnnuelle = getDerniereLigneDeliberationAnnuelle(etudiantId);
+  if (ligneAnnuelle) {
+    const decision = ligneAnnuelle.decisionFinale;
+    if (decision === "admis_avec_dette") {
+      conditional = true;
+      reasons.push(`Délibération annuelle : ${DECISION_ANNUELLE_LABELS[decision]} — ${ligneAnnuelle.creditsObtenus}/${ligneAnnuelle.creditsTotal} crédits`);
+    } else if (decision !== "admis" && monte) {
+      blocked = true;
+      reasons.push(`Délibération annuelle : ${DECISION_ANNUELLE_LABELS[decision]} — passage au niveau supérieur impossible`);
+    } else if (decision !== "admis") {
+      conditional = true;
+      reasons.push(`Délibération annuelle : ${DECISION_ANNUELLE_LABELS[decision]}`);
+    }
+  } else {
+    const ligne = getDerniereLigneDeliberation(etudiantId);
+    if (ligne && ligne.decisionFinale !== "admis") {
+      conditional = true;
+      reasons.push(`Délibération : ${DECISION_LABELS[ligne.decisionFinale]}`);
+    }
+  }
+
+  // Règle UCAO : on monte avec une dette d'un seul niveau. Pour entrer en L3, la L1 doit être
+  // entièrement validée (tous ses crédits), même si la L2 a été obtenue avec dette.
+  if (monte) {
+    const { detail } = computeCreditsCumulesParcours(etudiantId, etudiant.filiereId);
+    for (const d of detail) {
+      if (d.niveau === etudiant.niveau || d.niveau === niveauCible!.alias) continue;
+      if (d.creditsTotal > 0 && d.creditsObtenus < d.creditsTotal) {
+        blocked = true;
+        reasons.push(`Entrée en ${niveauCible!.nom} impossible : ${d.niveau} n'est pas entièrement validé (${d.creditsObtenus}/${d.creditsTotal} crédits)`);
+      }
+    }
   }
 
   // Garde-fou de crédits cumulés (ex. 120 crédits requis pour L3) : un contrôle dur, jamais
   // contournable par dérogation contrairement aux impayés — sans quoi le passage conditionnel
-  // (AJAC) n'aurait plus de plafond réel.
-  if (niveauCible?.creditsRequisEntree !== undefined) {
+  // (AJAC) n'aurait plus de plafond réel. Il ne vaut que pour entrer dans un niveau : un
+  // redoublant qui reste dans le sien n'y est pas soumis.
+  if (monte && niveauCible?.creditsRequisEntree !== undefined) {
     const { creditsObtenus } = computeCreditsCumulesParcours(etudiantId, etudiant.filiereId);
     if (creditsObtenus < niveauCible.creditsRequisEntree) {
       blocked = true;

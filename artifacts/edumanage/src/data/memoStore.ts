@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type MemoEntiteType = "etudiant" | "enseignant";
@@ -37,7 +38,7 @@ let store: MemoRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -58,7 +59,7 @@ export function getMemosPourEntite(entiteType: MemoEntiteType, entiteId: string)
 export type MemoInput = Omit<MemoRecord, "id">;
 
 export function addMemo(payload: MemoInput, actorId: string): MemoRecord {
-  const record: MemoRecord = { id: `memo-${Date.now()}`, ...payload };
+  const record: MemoRecord = { id: `memo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   logAudit(actorId, "create_memo", payload.entiteType, payload.entiteId, payload.objet);
   persist();

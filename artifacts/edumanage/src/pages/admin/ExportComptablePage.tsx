@@ -183,12 +183,12 @@ export default function ExportComptablePage() {
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début *</label>
-            <input type="date" value={periodeDebut} onChange={(e) => setPeriodeDebut(e.target.value)} className={inputClass} data-testid="export-periode-debut" />
+            <label htmlFor="export-comptable-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début *</label>
+            <input id="export-comptable-champ-1" type="date" value={periodeDebut} onChange={(e) => setPeriodeDebut(e.target.value)} className={inputClass} data-testid="export-periode-debut" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin *</label>
-            <input type="date" value={periodeFin} onChange={(e) => setPeriodeFin(e.target.value)} className={inputClass} data-testid="export-periode-fin" />
+            <label htmlFor="export-comptable-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin *</label>
+            <input id="export-comptable-champ-2" type="date" value={periodeFin} onChange={(e) => setPeriodeFin(e.target.value)} className={inputClass} data-testid="export-periode-fin" />
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
@@ -14,11 +15,12 @@ import { getJourFerieCouvrant } from "@/data/scheduleSettingsStore";
 import { useJoursFeries } from "@/hooks/useScheduleSettingsStore";
 import { mondayOf, matchesProf } from "@/lib/teacherUtils";
 import { TAILLE_MAX_RESSOURCE_OCTETS } from "@/data/ressourcePedagogiqueStore";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 import {
   submitCahierSeance,
   getCahierStatsForEc,
   getCahierPourSeanceEtDate,
+  dateDeLaSeance,
   type CahierPresenceEntry,
   type CahierAttachment,
 } from "@/data/studentStore";
@@ -49,7 +51,14 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
-  const existing = id ? cahiers.find((c) => c.id === id) : undefined;
+  // Un cahier ne s'ouvre que pour le professeur de la séance (identifiant de sa fiche, ou nom
+  // complet exact pour les anciens cahiers) : l'adresse d'un cahier ne donne pas accès à celui d'un
+  // collègue, même encore modifiable.
+  const cahierDemande = id ? cahiers.find((c) => c.id === id) : undefined;
+  const seanceDuCahier = cahierDemande ? seances.find((s) => s.id === cahierDemande.seanceId) : undefined;
+  const existing = cahierDemande && myTeacher && matchesProf(myTeacher, cahierDemande.prof, cahierDemande.profId ?? seanceDuCahier?.profId)
+    ? cahierDemande
+    : undefined;
   const notFound = Boolean(id) && !existing;
   const readOnly = Boolean(existing) && existing?.statut === "valide";
 
@@ -102,7 +111,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
     setMotifAnnulation(existing.motifAnnulation ?? "");
   }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof) && s.semaineDu === mondayOf(date));
+  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof, s.profId) && s.semaineDu === mondayOf(date));
   const seance = seances.find((s) => s.id === seanceId);
   const ec = ecs.find((e) => e.id === seance?.ecId);
   const ue = ues.find((u) => u.id === ec?.ueId);
@@ -118,6 +127,16 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
     return (estMembre && !etudiantsRetiresIds.has(s.id)) || estAjoute;
   });
   const stats = seance ? getCahierStatsForEc(seance.ecId) : null;
+  // Cahier déjà soumis (non rejeté) pour la séance choisie : on l'ouvre au lieu d'en créer un second.
+  const cahierExistantBrut = seance ? getCahierPourSeanceEtDate(seance.id, dateDeLaSeance(seance)) : undefined;
+  const cahierExistant = cahierExistantBrut && cahierExistantBrut.statut !== "rejete" && cahierExistantBrut.id !== activeCahierId && cahierExistantBrut.sujet
+    ? cahierExistantBrut
+    : undefined;
+
+  // Arrivée par un lien (?seanceId=&date=) : la date suit toujours le jour réel de la séance.
+  useEffect(() => {
+    if (seance && !existing && date !== dateDeLaSeance(seance)) setDate(dateDeLaSeance(seance));
+  }, [seance?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (skipResetRef.current) {
@@ -152,36 +171,28 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
   function addPiece(file: File | null) {
     if (!file) return;
-    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
-      toast.error(`Fichier trop lourd (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_RESSOURCE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => {
       setPieces((prev) => [
         ...prev,
         {
-          id: `pj-${Date.now()}`,
+          id: `pj-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           nom: file.name,
           type: file.type || "application/octet-stream",
-          tailleKo: Math.round(file.size / 1024),
+          tailleKo: Math.round((dataUrl.length * 0.75) / 1024),
           ref: file.name,
-          dataUrl: String(reader.result),
+          dataUrl: dataUrl,
         },
       ]);
-    };
-    reader.readAsDataURL(file);
+    })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
   function addPhoto(file: File | null) {
     if (!file) return;
-    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setPhotos((prev) => [...prev, String(reader.result)]);
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_RESSOURCE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => setPhotos((prev) => [...prev, dataUrl]))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
   function toggleEval(t: string) {
@@ -201,28 +212,33 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
       toast.error("Motif d'annulation requis");
       return;
     }
-    submitCahierSeance({
-      seanceId,
-      prof: currentUser?.name ?? "Enseignant",
-      date,
-      sujet: sujet || (etatSeance === "annulee" ? "Séance annulée" : ""),
-      resume: resume || motifAnnulation,
-      competences,
-      liensExternes: liens.split("\n").map((l) => l.trim()).filter(Boolean),
-      photosTableau: photos,
-      piecesJointes: pieces,
-      presences,
-      travail: devoirDonne
-        ? { devoirDonne, dateLimite, fichierARemettre: fichierRemise, bareme, statutRemises }
-        : undefined,
-      evaluation: evalTypes.length
-        ? { types: evalTypes as ("quiz" | "controle" | "tp" | "projet" | "examen")[], detail: evalDetail }
-        : undefined,
-      etatSeance,
-      motifAnnulation: etatSeance === "annulee" ? motifAnnulation : undefined,
-      asDraft,
-      cahierId: activeCahierId,
-    });
+    try {
+      submitCahierSeance({
+        seanceId,
+        prof: currentUser?.name ?? "Enseignant",
+        date,
+        sujet: sujet || (etatSeance === "annulee" ? "Séance annulée" : ""),
+        resume: resume || motifAnnulation,
+        competences,
+        liensExternes: liens.split("\n").map((l) => l.trim()).filter(Boolean),
+        photosTableau: photos,
+        piecesJointes: pieces,
+        presences,
+        travail: devoirDonne
+          ? { devoirDonne, dateLimite, fichierARemettre: fichierRemise, bareme, statutRemises }
+          : undefined,
+        evaluation: evalTypes.length
+          ? { types: evalTypes as ("quiz" | "controle" | "tp" | "projet" | "examen")[], detail: evalDetail }
+          : undefined,
+        etatSeance,
+        motifAnnulation: etatSeance === "annulee" ? motifAnnulation : undefined,
+        asDraft,
+        cahierId: activeCahierId,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enregistrement impossible.");
+      return;
+    }
     toast.success(asDraft ? "Brouillon enregistré" : activeCahierId ? "Cahier mis à jour et soumis à nouveau" : "Cahier soumis — en attente de validation admin");
     if (!asDraft) {
       setLocation("/teacher/cahier");
@@ -297,8 +313,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
         <>
           <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
             <div>
-              <label className={labelClass}>Date de la séance (l&apos;emploi du temps est propre à chaque semaine)</label>
-              <input
+              <label htmlFor="teacher-cahier-form-champ-1" className={labelClass}>Date de la séance (l&apos;emploi du temps est propre à chaque semaine)</label>
+              <input id="teacher-cahier-form-champ-1"
                 type="date"
                 className={inputClass}
                 value={date}
@@ -311,31 +327,43 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
             </div>
 
             <div>
-              <label className={labelClass}>Séance de la semaine du {mondayOf(date)}</label>
-              <select
+              <label htmlFor="teacher-cahier-form-champ-2" className={labelClass}>Séance de la semaine du {formatShortDate(mondayOf(date))}</label>
+              <select id="teacher-cahier-form-champ-2"
                 className={inputClass}
                 value={seanceId}
                 onChange={(e) => {
                   setActiveCahierId(undefined);
                   setSeanceId(e.target.value);
+                  // La date du cahier est celle de la séance choisie (jamais un autre jour).
+                  const choisie = mine.find((x) => x.id === e.target.value);
+                  if (choisie) setDate(dateDeLaSeance(choisie));
                 }}
               >
                 <option value="">Choisir une séance…</option>
                 {mine.map((s) => {
-                  const cahierDuJour = getCahierPourSeanceEtDate(s.id, date);
+                  const cahierDuJour = getCahierPourSeanceEtDate(s.id, dateDeLaSeance(s));
                   return (
                     <option key={s.id} value={s.id}>
-                      {cahierDuJour ? "✓ " : ""}{JOURS[s.jour]} {s.heureDebut}–{s.heureFin} — {s.ec} ({s.classe}) · {s.salle}
-                      {cahierDuJour ? ` — déjà ${cahierDuJour.statut === "rejete" ? "rejeté" : "soumis"} le ${date}` : ""}
+                      {cahierDuJour ? "✓ " : ""}{JOURS[s.jour]} {formatShortDate(dateDeLaSeance(s))} {s.heureDebut}–{s.heureFin} — {s.ec} ({s.classe}) · {s.salle}
+                      {cahierDuJour ? ` — déjà ${cahierDuJour.statut === "rejete" ? "rejeté" : "soumis"}` : ""}
                     </option>
                   );
                 })}
               </select>
             </div>
 
+            {cahierExistant && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid="cahier-deja-soumis">
+                Un cahier a déjà été soumis pour cette séance le {formatShortDate(cahierExistant.date)}.{" "}
+                <button type="button" onClick={() => setLocation(`/teacher/cahier/${cahierExistant.id}/edit`)} className="font-semibold underline">
+                  Ouvrir ce cahier
+                </button>
+              </div>
+            )}
+
             {jourFerie && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Le {date} est déclaré jour férié — {jourFerie.intitule}.
+                Le {formatShortDate(date)} est déclaré jour férié — {jourFerie.intitule}.
               </div>
             )}
 
@@ -374,8 +402,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                 <h3 className="font-bold text-sm">Contenu de la séance</h3>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>État de la séance</label>
-                    <select className={inputClass} value={etatSeance} onChange={(e) => setEtatSeance(e.target.value as typeof etatSeance)}>
+                    <label htmlFor="teacher-cahier-form-champ-3" className={labelClass}>État de la séance</label>
+                    <select id="teacher-cahier-form-champ-3" className={inputClass} value={etatSeance} onChange={(e) => setEtatSeance(e.target.value as typeof etatSeance)}>
                       <option value="preparee">Séance préparée</option>
                       <option value="realisee">Séance réalisée</option>
                       <option value="annulee">Séance annulée</option>
@@ -384,22 +412,22 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                 </div>
                 {etatSeance === "annulee" ? (
                   <div>
-                    <label className={labelClass}>Motif de l&apos;annulation</label>
-                    <textarea className={`${inputClass} min-h-[80px]`} value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)} />
+                    <label htmlFor="teacher-cahier-form-champ-4" className={labelClass}>Motif de l&apos;annulation</label>
+                    <textarea id="teacher-cahier-form-champ-4" className={`${inputClass} min-h-[80px]`} value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)} />
                   </div>
                 ) : (
                   <>
                     <div>
-                      <label className={labelClass}>Sujet *</label>
-                      <input className={inputClass} value={sujet} onChange={(e) => setSujet(e.target.value)} placeholder="Titre / thème du cours" />
+                      <label htmlFor="teacher-cahier-form-champ-5" className={labelClass}>Sujet *</label>
+                      <input id="teacher-cahier-form-champ-5" className={inputClass} value={sujet} onChange={(e) => setSujet(e.target.value)} placeholder="Titre / thème du cours" />
                     </div>
                     <div>
-                      <label className={labelClass}>Résumé du cours *</label>
-                      <textarea className={`${inputClass} min-h-[100px]`} value={resume} onChange={(e) => setResume(e.target.value)} />
+                      <label htmlFor="teacher-cahier-form-champ-6" className={labelClass}>Résumé du cours *</label>
+                      <textarea id="teacher-cahier-form-champ-6" className={`${inputClass} min-h-[100px]`} value={resume} onChange={(e) => setResume(e.target.value)} />
                     </div>
                     <div>
-                      <label className={labelClass}>Compétences visées</label>
-                      <textarea className={`${inputClass} min-h-[60px]`} value={competences} onChange={(e) => setCompetences(e.target.value)} />
+                      <label htmlFor="teacher-cahier-form-champ-7" className={labelClass}>Compétences visées</label>
+                      <textarea id="teacher-cahier-form-champ-7" className={`${inputClass} min-h-[60px]`} value={competences} onChange={(e) => setCompetences(e.target.value)} />
                     </div>
                   </>
                 )}
@@ -410,8 +438,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                   <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
                     <h3 className="font-bold text-sm">Documents & médias</h3>
                     <div>
-                      <label className={labelClass}>Joindre un fichier (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko)</label>
-                      <input type="file" className="text-sm" onChange={(e) => { addPiece(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                      <label htmlFor="teacher-cahier-form-champ-8" className={labelClass}>Joindre un fichier (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko)</label>
+                      <input id="teacher-cahier-form-champ-8" type="file" className="text-sm" onChange={(e) => { addPiece(e.target.files?.[0] ?? null); e.target.value = ""; }} />
                       {pieces.length > 0 && (
                         <ul className="mt-2 space-y-1">
                           {pieces.map((p) => (
@@ -430,18 +458,18 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                       )}
                     </div>
                     <div>
-                      <label className={labelClass}>Liens externes (un par ligne)</label>
-                      <textarea className={`${inputClass} min-h-[60px]`} value={liens} onChange={(e) => setLiens(e.target.value)} placeholder="https://…" />
+                      <label htmlFor="teacher-cahier-form-champ-9" className={labelClass}>Liens externes (un par ligne)</label>
+                      <textarea id="teacher-cahier-form-champ-9" className={`${inputClass} min-h-[60px]`} value={liens} onChange={(e) => setLiens(e.target.value)} placeholder="https://…" />
                     </div>
                     <div>
-                      <label className={labelClass}>Photos du tableau (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko chacune)</label>
-                      <input type="file" accept="image/*" className="text-sm" onChange={(e) => { addPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                      <label htmlFor="teacher-cahier-form-champ-10" className={labelClass}>Photos du tableau (max {Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko chacune)</label>
+                      <input id="teacher-cahier-form-champ-10" type="file" accept="image/*" className="text-sm" onChange={(e) => { addPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} />
                       {photos.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {photos.map((src, i) => (
                             <div key={i} className="relative">
                               <img src={src} alt={`Photo du tableau ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-border" />
-                              <button
+                              <button aria-label="Fermer" title="Fermer"
                                 type="button"
                                 onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
                                 className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center"
@@ -471,7 +499,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                               type="button"
                               onClick={() => { setPresence(p.etudiantId, "absent"); setJustif(p.etudiantId, periode.motif); }}
                               className="text-[11px] px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700"
-                              title={`Absence déclarée du ${periode.dateDebut} au ${periode.dateFin} — ${periode.motif}`}
+                              title={`Absence déclarée du ${formatShortDate(periode.dateDebut)} au ${formatShortDate(periode.dateFin)} — ${periode.motif}`}
                             >
                               Absence prévue (période) — appliquer
                             </button>
@@ -495,7 +523,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                             </button>
                           ))}
                           {p.statut === "absent" && (
-                            <input
+                            <input aria-label="Justification d'absence"
                               className="flex-1 min-w-[160px] text-xs rounded-lg border border-border px-2 py-1 bg-background"
                               placeholder="Justification d'absence"
                               value={p.justification || ""}
@@ -503,7 +531,7 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                             />
                           )}
                           {p.statut === "retard" && (
-                            <input
+                            <input aria-label="Durée (min)"
                               type="number"
                               min={1}
                               className="w-28 text-xs rounded-lg border border-border px-2 py-1 bg-background"
@@ -520,15 +548,15 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
 
                   <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
                     <h3 className="font-bold text-sm">Travaux</h3>
-                    <input className={inputClass} placeholder="Devoir donné" value={devoirDonne} onChange={(e) => setDevoirDonne(e.target.value)} />
+                    <input aria-label="Devoir donné" className={inputClass} placeholder="Devoir donné" value={devoirDonne} onChange={(e) => setDevoirDonne(e.target.value)} />
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div>
-                        <label className={labelClass}>Date limite</label>
-                        <input type="date" className={inputClass} value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} />
+                        <label htmlFor="teacher-cahier-form-champ-11" className={labelClass}>Date limite</label>
+                        <input id="teacher-cahier-form-champ-11" type="date" className={inputClass} value={dateLimite} onChange={(e) => setDateLimite(e.target.value)} />
                       </div>
                       <div>
-                        <label className={labelClass}>Statut des remises</label>
-                        <select className={inputClass} value={statutRemises} onChange={(e) => setStatutRemises(e.target.value as typeof statutRemises)}>
+                        <label htmlFor="teacher-cahier-form-champ-12" className={labelClass}>Statut des remises</label>
+                        <select id="teacher-cahier-form-champ-12" className={inputClass} value={statutRemises} onChange={(e) => setStatutRemises(e.target.value as typeof statutRemises)}>
                           <option value="non_ouvert">Non ouvert</option>
                           <option value="ouvert">Ouvert</option>
                           <option value="partiel">Partiel</option>
@@ -536,8 +564,8 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                         </select>
                       </div>
                     </div>
-                    <input className={inputClass} placeholder="Fichier à remettre (ex. devoir.pdf)" value={fichierRemise} onChange={(e) => setFichierRemise(e.target.value)} />
-                    <input className={inputClass} placeholder="Barème" value={bareme} onChange={(e) => setBareme(e.target.value)} />
+                    <input aria-label="Fichier à remettre (ex. devoir.pdf)" className={inputClass} placeholder="Fichier à remettre (ex. devoir.pdf)" value={fichierRemise} onChange={(e) => setFichierRemise(e.target.value)} />
+                    <input aria-label="Barème" className={inputClass} placeholder="Barème" value={bareme} onChange={(e) => setBareme(e.target.value)} />
                   </div>
 
                   <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
@@ -560,16 +588,16 @@ export function TeacherCahierFormPage({ id }: { id?: string }) {
                         </button>
                       ))}
                     </div>
-                    <textarea className={`${inputClass} min-h-[60px]`} placeholder="Détail de l'évaluation…" value={evalDetail} onChange={(e) => setEvalDetail(e.target.value)} />
+                    <textarea aria-label="Détail de l'évaluation" className={`${inputClass} min-h-[60px]`} placeholder="Détail de l'évaluation…" value={evalDetail} onChange={(e) => setEvalDetail(e.target.value)} />
                   </div>
                 </>
               )}
 
               <div className="flex gap-2">
-                <button type="button" onClick={() => save(true)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium">
+                <button type="button" onClick={() => save(true)} disabled={!!cahierExistant} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium disabled:opacity-50">
                   Enregistrer brouillon
                 </button>
-                <button type="button" onClick={() => save(false)} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium">
+                <button type="button" onClick={() => save(false)} disabled={!!cahierExistant} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50" data-testid="cahier-soumettre">
                   Soumettre à l&apos;admin
                 </button>
               </div>

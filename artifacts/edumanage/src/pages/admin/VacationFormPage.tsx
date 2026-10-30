@@ -1,18 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Calculator } from "lucide-react";
+import { ArrowLeft, Save, Calculator, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { getVacationById, addVacation, updateVacation } from "@/data/vacationStore";
+import { useDecomptes } from "@/hooks/useDecompteStore";
+import { findDecompteChevauchantVacation } from "@/lib/remunerationOverlap";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { formatCFA } from "@/lib/utils";
-
-const MOIS_OPTIONS = [
-  "Octobre 2025", "Novembre 2025", "Décembre 2025",
-  "Janvier 2026", "Février 2026", "Mars 2026",
-  "Avril 2026", "Mai 2026", "Juin 2026",
-];
+import { moisDeLAnneeAcademique } from "@/lib/anneeAcademique";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   enseignantId: string;
@@ -31,9 +30,11 @@ export default function VacationFormPage({ id }: Props) {
   const { currentUser } = useAuth();
   const isEdit = !!id;
   const enseignants = useTeachers();
+  const anneesAcademiques = useAnneesAcademiques();
 
-  const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormData>({
-    defaultValues: { enseignantId: "", mois: "", heuresCm: 0, heuresTd: 0, tauxHoraire: 15000, statut: "brouillon", observations: "" },
+  // Pas de taux arbitraire : il vient de la fiche de l'enseignant choisi (voir le select ci-dessous).
+  const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<FormData>({
+    defaultValues: { enseignantId: "", mois: "", heuresCm: 0, heuresTd: 0, tauxHoraire: Number.NaN, statut: "brouillon", observations: "" },
   });
 
   useEffect(() => {
@@ -60,6 +61,23 @@ export default function VacationFormPage({ id }: Props) {
 
   const enseignantId = watch("enseignantId");
   const enseignant = enseignants.find((e) => e.id === enseignantId);
+  const moisChoisi = watch("mois");
+  // Mois de chaque année académique non archivée (plus récente en premier), de sa rentrée à sa fin
+  // réelles ; un mois déjà enregistré hors de ces années reste proposé.
+  const moisParAnnee = useMemo(
+    () =>
+      [...anneesAcademiques]
+        .filter((a) => !a.archivee)
+        .sort((a, b) => b.libelle.localeCompare(a.libelle))
+        .map((a) => ({ annee: a.libelle, mois: moisDeLAnneeAcademique(a) })),
+    [anneesAcademiques],
+  );
+  const moisHorsListe = moisChoisi && !moisParAnnee.some((g) => g.mois.includes(moisChoisi)) ? moisChoisi : "";
+  const decomptes = useDecomptes();
+  const decompteChevauchant = useMemo(
+    () => (enseignantId && moisChoisi ? findDecompteChevauchantVacation(enseignantId, moisChoisi, decomptes) : undefined),
+    [enseignantId, moisChoisi, decomptes],
+  );
 
   const onSubmit = (data: FormData) => {
     if (!currentUser || !enseignant) return;
@@ -85,6 +103,19 @@ export default function VacationFormPage({ id }: Props) {
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
+  const existingVacation = id ? getVacationById(id) : undefined;
+  if (isEdit && !existingVacation) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Finances" }, { label: "Vacations", href: "/admin/vacations" }, { label: "Modifier" }]}
+        title="Vacation introuvable"
+        message="Cette vacation n'existe pas ou a été supprimée."
+        backHref="/admin/vacations"
+        backLabel="Retour aux vacations"
+      />
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -98,12 +129,24 @@ export default function VacationFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant *</label>
-                <select {...register("enseignantId", { required: "Enseignant requis" })} className={inputClass}>
+                <label htmlFor="vacation-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Enseignant *</label>
+                <select
+                  id="vacation-form-champ-1"
+                  {...register("enseignantId", {
+                    required: "Enseignant requis",
+                    // Choix fait à la main (jamais au chargement d'une vacation existante, qui garde son
+                    // taux) : on propose le taux de la fiche, ou un champ vide si la fiche n'en a pas.
+                    onChange: (e) => {
+                      const taux = enseignants.find((x) => x.id === e.target.value)?.tauxHoraire;
+                      setValue("tauxHoraire", taux && taux > 0 ? taux : Number.NaN);
+                    },
+                  })}
+                  className={inputClass}
+                >
                   <option value="">Sélectionner un enseignant</option>
                   {enseignants.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.specialite} ({e.grade})</option>)}
                 </select>
@@ -116,43 +159,64 @@ export default function VacationFormPage({ id }: Props) {
                     <p className="text-[10px] text-muted-foreground">{enseignant.specialite} · {enseignant.grade}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-bold text-foreground">{formatCFA(enseignant.tauxHoraire)}/h</p>
-                    <p className="text-[10px] text-muted-foreground">Taux par défaut</p>
+                    {enseignant.tauxHoraire > 0 ? (
+                      <>
+                        <p className="text-xs font-bold text-foreground">{formatCFA(enseignant.tauxHoraire)}/h</p>
+                        <p className="text-[10px] text-muted-foreground">Taux de sa fiche</p>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">Aucun taux sur sa fiche : saisissez-le ci-dessous.</p>
+                    )}
                   </div>
                 </div>
               )}
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mois de la vacation *</label>
-                <select {...register("mois", { required: "Mois requis" })} className={inputClass}>
+                <label htmlFor="vacation-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Mois de la vacation *</label>
+                <select id="vacation-form-champ-2" {...register("mois", { required: "Mois requis" })} className={inputClass}>
                   <option value="">Sélectionner le mois</option>
-                  {MOIS_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  {moisHorsListe && <option value={moisHorsListe}>{moisHorsListe}</option>}
+                  {moisParAnnee.map((g) => (
+                    <optgroup key={g.annee} label={`Année ${g.annee}`}>
+                      {g.mois.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
                 {errors.mois && <p className="text-xs text-red-500 mt-1">{errors.mois.message}</p>}
               </div>
+              {decompteChevauchant && (
+                <div className="col-span-2 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl">
+                  <AlertTriangle size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-800 dark:text-amber-400">
+                    {enseignant?.prenom} {enseignant?.nom} a déjà un décompte (réf. <strong>{decompteChevauchant.reference}</strong>) incluant des séances de {moisChoisi} — vérifiez qu&apos;il ne s&apos;agit pas d&apos;un double paiement avant de créer cette vacation.
+                  </p>
+                </div>
+              )}
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de CM</label>
-                <input {...register("heuresCm", { valueAsNumber: true, min: 0 })} type="number" min={0} step={0.5} className={inputClass} />
+                <label htmlFor="vacation-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de CM</label>
+                <input id="vacation-form-champ-3" {...register("heuresCm", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
+                {errors.heuresCm && <p className="text-xs text-red-500 mt-1">{errors.heuresCm.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de TD / TP</label>
-                <input {...register("heuresTd", { valueAsNumber: true, min: 0 })} type="number" min={0} step={0.5} className={inputClass} />
+                <label htmlFor="vacation-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Heures de TD / TP</label>
+                <input id="vacation-form-champ-4" {...register("heuresTd", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} step={0.5} className={inputClass} />
+                {errors.heuresTd && <p className="text-xs text-red-500 mt-1">{errors.heuresTd.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
-                <input {...register("tauxHoraire", { required: "Taux requis", valueAsNumber: true, min: 0 })} type="number" min={0} className={inputClass} />
+                <label htmlFor="vacation-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Taux horaire (FCFA) *</label>
+                <input id="vacation-form-champ-5" {...register("tauxHoraire", { valueAsNumber: true, validate: (v) => (Number.isFinite(v) && v > 0) || "Indiquez le taux horaire de cette vacation." })} type="number" min={0} className={inputClass} data-testid="vacation-taux" />
                 {errors.tauxHoraire && <p className="text-xs text-red-500 mt-1">{errors.tauxHoraire.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-                <select {...register("statut")} className={inputClass}>
+                <label htmlFor="vacation-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+                <select id="vacation-form-champ-6" {...register("statut")} className={inputClass}>
                   <option value="brouillon">Brouillon</option>
                   <option value="valide">Validé</option>
                   <option value="paye">Payé</option>
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Observations</label>
-                <textarea {...register("observations")} rows={2} placeholder="Remarques éventuelles..." className={`${inputClass} resize-none`} />
+                <label htmlFor="vacation-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Observations</label>
+                <textarea id="vacation-form-champ-7" {...register("observations")} rows={2} placeholder="Remarques éventuelles..." className={`${inputClass} resize-none`} />
               </div>
             </div>
           </div>

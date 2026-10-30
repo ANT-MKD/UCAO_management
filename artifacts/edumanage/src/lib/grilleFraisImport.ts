@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import type { ModeleFraisRecord } from "@/data/financeSettingsStore";
 import type { GrilleFraisRecord, LigneGrilleFrais, ModaliteFrais } from "@/data/grilleFraisStore";
-import { makeGrilleFraisId, makeLigneGrilleFraisId } from "@/data/grilleFraisStore";
+import { makeGrilleFraisId, makeLigneGrilleFraisId, normaliserDateGrille, formatDateGrille } from "@/data/grilleFraisStore";
 
 const HEADERS = [
   "Filière", "Niveau", "Année", "Modèle de frais",
@@ -65,8 +65,9 @@ export async function parseGrilleFraisExcel(file: File, modelesFrais: ModeleFrai
     const modaliteTxt = str(get(raw, "modalite", "modalité")).toLowerCase();
     const modalite: ModaliteFrais = modaliteTxt.includes("echeance") || modaliteTxt.includes("échéance") ? "echeances" : "avant_inscription";
     const nbEcheances = modalite === "echeances" ? num(get(raw, "echeances", "échéances", "nb echeances")) || undefined : undefined;
-    const dateDebut = modalite === "echeances" ? str(get(raw, "date debut", "date début")) || undefined : undefined;
-    const dateLimite = modalite === "echeances" ? str(get(raw, "date limite")) || undefined : undefined;
+    // Dates complètes (JJ/MM/AAAA, date Excel) ou ancien format JJ/MM — normalisées par la grille.
+    const dateDebut = modalite === "echeances" ? normaliserDateGrille(get(raw, "date debut", "date début")) : undefined;
+    const dateLimite = modalite === "echeances" ? normaliserDateGrille(get(raw, "date limite", "date fin")) : undefined;
 
     const key = makeGrilleFraisId(filiere.id, niveauRec.alias, annee, modele.id);
     let group = groups.get(key);
@@ -84,7 +85,7 @@ export function downloadGrilleFraisTemplate() {
   const sample: (string | number)[][] = [
     [...HEADERS],
     ["LPIG", "L3", "2025-2026", "Privé", "Frais d'inscription", 120000, "Avant inscription", "", "", ""],
-    ["LPIG", "L3", "2025-2026", "Privé", "Frais de scolarité", 520000, "Échéances", 8, "10/09", "10/06"],
+    ["LPIG", "L3", "2025-2026", "Privé", "Frais de scolarité", 520000, "Échéances", 8, "10/11/2025", "10/06/2026"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(sample);
   const wb = XLSX.utils.book_new();
@@ -107,8 +108,8 @@ export function exportGrillesFraisExcel(grilles: GrilleFraisRecord[], modelesFra
         l.montant,
         l.modalite === "echeances" ? "Échéances" : "Avant inscription",
         l.nbEcheances ?? "",
-        l.dateDebut ?? "",
-        l.dateLimite ?? "",
+        formatDateGrille(l.dateDebut),
+        formatDateGrille(l.dateLimite),
       ]);
     }
   }

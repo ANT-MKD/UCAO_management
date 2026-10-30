@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
@@ -60,7 +61,7 @@ let store: AttestationRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -95,6 +96,9 @@ export function verifierEligibiliteReussite(etudiantId: string, classeId: string
   const deliberation = getDeliberationForClasseSemestre(classeId, semestreId);
   if (!deliberation) {
     return { eligible: false, motif: "Aucune délibération n'a encore eu lieu pour ce semestre — impossible de certifier une réussite." };
+  }
+  if (deliberation.statut !== "cloturee") {
+    return { eligible: false, motif: "La délibération de ce semestre n'est pas clôturée — ses décisions sont encore provisoires." };
   }
   const ligne = deliberation.lignes.find((l) => l.etudiantId === etudiantId);
   if (!ligne) {

@@ -11,10 +11,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { cn } from "@/lib/utils";
 
+/** « Awa SECK (étudiante) » plutôt que le code technique du portail. */
+const PROFIL_COMPTE: Record<string, string> = { admin: "administration", teacher: "professeur", student: "étudiant" };
+const profil = (role: string) => PROFIL_COMPTE[role] ?? role;
+
 export default function MessagesPage() {
   const { currentUser } = useAuth();
   const messages = useMessages(currentUser?.id);
   const users = useMemo(() => getUserAccounts().filter((u) => u.id !== currentUser?.id), [currentUser?.id]);
+  // Boîte de réception = messages reçus uniquement : un mail diffusé à une classe dépose une copie
+  // chez chaque étudiant, qui ne doit pas revenir en autant d'entrées chez l'expéditeur.
+  const recus = useMemo(() => messages.filter((m) => m.toUserId === currentUser?.id), [messages, currentUser?.id]);
+  const nomExpediteur = (id: string) => getUserAccounts().find((u) => u.id === id)?.displayName ?? "Compte supprimé";
   const [toUserId, setToUserId] = useState("");
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
@@ -22,6 +30,7 @@ export default function MessagesPage() {
   const handleSend = () => {
     if (!currentUser || !toUserId || !subject.trim() || !content.trim()) return;
     sendMessage(currentUser.id, toUserId, subject.trim(), content.trim());
+    toast.success(`Message envoyé à ${nomExpediteur(toUserId)} — il le trouvera dans sa messagerie.`);
     setSubject("");
     setContent("");
   };
@@ -30,7 +39,7 @@ export default function MessagesPage() {
   const groupesExternes = useGroupesExternes();
   const groupesInternes = useGroupesInternes();
   const groupesPersonnalises = useGroupesPersonnalises();
-  useCommunicationRoles(); // re-rend si les validateurs désignés changent
+  const rolesCommunication = useCommunicationRoles(); // re-rend si les validateurs désignés changent
 
   const [destSearch, setDestSearch] = useState("");
   const [selections, setSelections] = useState<SelectionDestinataireMail[]>([]);
@@ -39,7 +48,9 @@ export default function MessagesPage() {
   const [corpsMail, setCorpsMail] = useState("");
   const [fichiers, setFichiers] = useState<string[]>([]);
 
-  const autorise = currentUser ? estAutorise("validateur_message", currentUser.id) : false;
+  // Même règle que envoyerMail : sans aucun validateur désigné, l'envoi est direct.
+  const aucunValidateur = !rolesCommunication.some((r) => r.role === "validateur_message");
+  const autorise = aucunValidateur || (currentUser ? estAutorise("validateur_message", currentUser.id) : false);
 
   const candidats = useMemo(() => {
     const q = destSearch.trim().toLowerCase();
@@ -48,7 +59,7 @@ export default function MessagesPage() {
     groupesExternes.filter((g) => g.nom.toLowerCase().includes(q)).forEach((g) => out.push({ type: "groupe_externe", id: g.id, label: `Groupe externe — ${g.nom}` }));
     groupesInternes.filter((g) => g.nom.toLowerCase().includes(q)).forEach((g) => out.push({ type: "groupe_interne", id: g.id, label: `Groupe interne — ${g.nom}` }));
     groupesPersonnalises.filter((g) => g.nom.toLowerCase().includes(q)).forEach((g) => out.push({ type: "groupe_personnalise", id: g.id, label: `Groupe personnalisé — ${g.nom}` }));
-    getUserAccounts().filter((u) => u.displayName.toLowerCase().includes(q)).forEach((u) => out.push({ type: "compte", id: u.id, label: `${u.displayName} (${u.role})` }));
+    getUserAccounts().filter((u) => u.displayName.toLowerCase().includes(q)).forEach((u) => out.push({ type: "compte", id: u.id, label: `${u.displayName} (${profil(u.role)})` }));
     return out.filter((c) => !selections.some((s) => s.type === c.type && s.id === c.id)).slice(0, 8);
   }, [destSearch, groupesExternes, groupesInternes, groupesPersonnalises, selections]);
 
@@ -77,7 +88,7 @@ export default function MessagesPage() {
       fichiers,
     });
     if (mail.statut === "traite") {
-      toast.success(`Mail envoyé à ${apercuDestinataires.length} destinataire(s).`);
+      toast.success(`Mail envoyé à ${apercuDestinataires.length} destinataire(s) — déposé dans leur messagerie.`);
     } else {
       toast.info("Aucun validateur désigné pour votre compte — mail envoyé en validation (Validation mails).");
     }
@@ -108,16 +119,16 @@ export default function MessagesPage() {
             )}
           >
             {autorise ? <ShieldCheck size={12} /> : <Clock size={12} />}
-            {autorise ? "Envoi direct (validateur désigné)" : "Passera par validation"}
+            {aucunValidateur ? "Envoi direct (aucun validateur désigné)" : autorise ? "Envoi direct (validateur désigné)" : "Passera par validation"}
           </span>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-5">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataires *</label>
+            <label htmlFor="messages-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataires *</label>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input id="messages-champ-1"
                 value={destSearch}
                 onChange={(e) => setDestSearch(e.target.value)}
                 placeholder="Groupe externe, interne, personnalisé, compte..."
@@ -144,7 +155,7 @@ export default function MessagesPage() {
                 {selections.map((s) => (
                   <span key={`${s.type}-${s.id}`} className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full">
                     {s.label}
-                    <button onClick={() => handleRemoveSelection(s)} className="hover:text-red-500"><X size={11} /></button>
+                    <button aria-label="Fermer" title="Fermer" onClick={() => handleRemoveSelection(s)} className="hover:text-red-500"><X size={11} /></button>
                   </span>
                 ))}
               </div>
@@ -155,8 +166,8 @@ export default function MessagesPage() {
               </p>
             )}
 
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Emails supplémentaires</label>
-            <input
+            <label htmlFor="messages-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Emails supplémentaires</label>
+            <input id="messages-champ-2"
               value={emailsSupp}
               onChange={(e) => setEmailsSupp(e.target.value)}
               placeholder="séparés par des virgules"
@@ -165,11 +176,11 @@ export default function MessagesPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet *</label>
-            <input value={objet} onChange={(e) => setObjet(e.target.value)} className={inputClass} data-testid="envoi-objet" />
+            <label htmlFor="messages-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet *</label>
+            <input id="messages-champ-3" value={objet} onChange={(e) => setObjet(e.target.value)} className={inputClass} data-testid="envoi-objet" />
 
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Message *</label>
-            <textarea
+            <label htmlFor="messages-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5 mt-4">Message *</label>
+            <textarea id="messages-champ-4"
               value={corpsMail}
               onChange={(e) => setCorpsMail(e.target.value)}
               className={inputClass + " min-h-[140px]"}
@@ -208,28 +219,30 @@ export default function MessagesPage() {
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Boîte de réception</h4>
             <div className="space-y-2 max-h-[420px] overflow-auto">
-              {messages.map((m) => (
+              {recus.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => currentUser && markMessageAsRead(m.id, currentUser.id)}
-                  className="w-full text-left rounded-xl border border-border p-3 hover:bg-muted"
+                  onClick={() => { if (currentUser) markMessageAsRead(m.id, currentUser.id); setToUserId(m.fromUserId); setSubject(m.subject); }}
+                  className={cn("w-full text-left rounded-xl border border-border p-3 hover:bg-muted", !m.read && "border-primary/40 bg-primary/5")}
+                  data-testid={`message-recu-${m.id}`}
                 >
+                  <p className="text-[11px] text-muted-foreground">{nomExpediteur(m.fromUserId)} · {new Date(m.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</p>
                   <p className="text-sm font-semibold">{m.subject}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{m.content}</p>
                 </button>
               ))}
-              {messages.length === 0 && <p className="text-sm text-muted-foreground">Aucun message.</p>}
+              {recus.length === 0 && <p className="text-sm text-muted-foreground">Aucun message reçu.</p>}
             </div>
           </div>
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Répondre à un compte</h4>
             <div className="space-y-3">
-              <select value={toUserId} onChange={(e) => setToUserId(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-border bg-background">
+              <select aria-label="Destinataire" value={toUserId} onChange={(e) => setToUserId(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-border bg-background">
                 <option value="">Destinataire</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.displayName} ({u.role})</option>)}
+                {users.map((u) => <option key={u.id} value={u.id}>{u.displayName} ({profil(u.role)})</option>)}
               </select>
-              <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet" className="w-full px-3 py-2 rounded-xl border border-border bg-background" />
-              <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Message..." className="w-full min-h-[120px] px-3 py-2 rounded-xl border border-border bg-background" />
+              <input aria-label="Objet" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet" className="w-full px-3 py-2 rounded-xl border border-border bg-background" />
+              <textarea aria-label="Message" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Message..." className="w-full min-h-[120px] px-3 py-2 rounded-xl border border-border bg-background" />
               <button onClick={handleSend} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm">
                 <Send size={14} /> Envoyer
               </button>

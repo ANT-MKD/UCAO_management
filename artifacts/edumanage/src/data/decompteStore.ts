@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-decomptes-v1";
@@ -66,7 +67,7 @@ function persist() {
   // et ne re-rend pas si getDecomptes() renvoie la même référence.
   store = { ...store, records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

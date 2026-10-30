@@ -198,20 +198,20 @@ function TypeFraisSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier le type frais" : "Nouveau type frais"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-1" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-2" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Remarques</label>
-            <textarea value={remarques} onChange={(e) => setRemarques(e.target.value)} rows={3} className={inputClass} />
+            <label htmlFor="finance-parametrage-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Remarques</label>
+            <textarea id="finance-parametrage-champ-3" value={remarques} onChange={(e) => setRemarques(e.target.value)} rows={3} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
@@ -317,16 +317,16 @@ function ModePaiementSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier le mode de paiement" : "Nouveau mode de paiement"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-4" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-5" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
@@ -446,16 +446,16 @@ function TypeFactureSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier le type facture" : "Nouveau type facture"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-6" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-7" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={facturePedagogique} onChange={(e) => setFacturePedagogique(e.target.checked)} className="rounded" />
@@ -565,16 +565,16 @@ function ModeleFraisSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier le modèle de frais" : "Nouveau modèle de frais"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-8" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-9" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
@@ -726,22 +726,22 @@ function ArticleServiceSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier l'article" : "Nouvel article"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-10" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-11" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-12" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Prix Unitaire <span className="text-red-500">*</span>
             </label>
-            <input type="number" min={0} value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-12" type="number" min={0} value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value)} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
@@ -893,22 +893,22 @@ function BanqueSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier la banque" : "Nouvelle banque"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-13" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-13" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-14" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-14" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-15" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Numéro Compte <span className="text-red-500">*</span>
             </label>
-            <input value={numeroCompte} onChange={(e) => setNumeroCompte(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-15" value={numeroCompte} onChange={(e) => setNumeroCompte(e.target.value)} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">
@@ -1060,22 +1060,22 @@ function ActiviteServiceSection() {
       <FormModal open={open} onClose={close} title={editing ? "Modifier l'activité" : "Nouvelle activité"} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-16" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Code <span className="text-red-500">*</span>
             </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-16" value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-17" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Intitulé <span className="text-red-500">*</span>
             </label>
-            <input value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-17" value={intitule} onChange={(e) => setIntitule(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="finance-parametrage-champ-18" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Montant <span className="text-red-500">*</span>
             </label>
-            <input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={inputClass} />
+            <input id="finance-parametrage-champ-18" type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} className={inputClass} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={close} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">

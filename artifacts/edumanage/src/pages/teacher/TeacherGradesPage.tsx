@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
-import { Save, Upload, Download, CheckCircle, AlertCircle, TrendingUp, ArrowLeft, Info } from "lucide-react";
+import { Save, Upload, Download, CheckCircle, AlertCircle, TrendingUp, ArrowLeft, Info, Lock, PencilLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useNotes, useSeances } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
@@ -12,7 +12,10 @@ import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
-import { saveNoteEvaluationGrid, submitNotesForValidation, getNoteForEvaluation, type EvaluationGridInput } from "@/data/studentStore";
+import { saveNoteEvaluationGrid, submitNotesForValidation, getNoteForEvaluation, noteEstOfficielle, type EvaluationGridInput, type NoteRecord } from "@/data/studentStore";
+import { demanderCorrectionNote, libelleValeurNote } from "@/data/correctionNoteStore";
+import { useDemandesCorrection } from "@/hooks/useCorrectionNoteStore";
+import { FormModal } from "@/components/admin/FormModal";
 import { resolveRoleEvaluation } from "@/data/evaluationStore";
 import { ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
@@ -20,8 +23,14 @@ import { matchesProf } from "@/lib/teacherUtils";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNote } from "@/lib/notes";
 
 type NoteEntry = { note: string; absent: boolean };
+
+/** « 12,5 » comme « 12.5 » : un professeur francophone tape une virgule. */
+function lireNote(texte: string): number {
+  return parseFloat(texte.trim().replace(",", "."));
+}
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -47,6 +56,11 @@ export default function TeacherGradesPage() {
   const evaluations = useEvaluations();
   const typesEvaluation = useTypesEvaluation();
   usePortefeuilleCours();
+  const demandesCorrection = useDemandesCorrection();
+  const [correction, setCorrection] = useState<NoteRecord | null>(null);
+  const [correctionNote, setCorrectionNote] = useState("");
+  const [correctionAbsent, setCorrectionAbsent] = useState(false);
+  const [correctionMotif, setCorrectionMotif] = useState("");
 
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
   const annee = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEES_ACADEMIQUES[0]?.libelle ?? "";
@@ -77,7 +91,9 @@ export default function TeacherGradesPage() {
     () => (course
       ? evaluations
         .filter((e) => e.classeId === course.classeId && e.ecId === course.ecId && e.session === undefined)
-        .filter((e) => !myTeacher || !e.professeurId || e.professeurId === myTeacher.id || matchesProf(myTeacher, e.professeur))
+        // Par identifiant quand l'évaluation en a un (un homonyme ne voit pas celles d'un collègue),
+        // sinon par nom complet exact (anciennes évaluations).
+        .filter((e) => !myTeacher || (e.professeurId ? e.professeurId === myTeacher.id : !e.professeur || matchesProf(myTeacher, e.professeur)))
         .sort((a, b) => a.dateCreation.localeCompare(b.dateCreation))
       : []),
     [course, evaluations, myTeacher],
@@ -108,7 +124,7 @@ export default function TeacherGradesPage() {
   const prefillFromEvaluation = (evId: string) => {
     const existing = notes.filter((n) => n.evaluationId === evId);
     const prefill: Record<string, NoteEntry> = {};
-    for (const n of existing) prefill[n.etudiantId] = { note: String(n.note), absent: false };
+    for (const n of existing) prefill[n.etudiantId] = { note: n.absent ? "" : String(n.note).replace(".", ","), absent: !!n.absent };
     setEntries(prefill);
   };
 
@@ -125,7 +141,7 @@ export default function TeacherGradesPage() {
   const validNotes = classeStudents.flatMap((s) => {
     const e = getEntry(s.id);
     if (e.absent) return [];
-    const val = parseFloat(e.note);
+    const val = lireNote(e.note);
     return !isNaN(val) ? [val] : [];
   });
   const nbAbsents = classeStudents.filter((s) => getEntry(s.id).absent).length;
@@ -152,7 +168,7 @@ export default function TeacherGradesPage() {
   const buildInputs = (): EvaluationGridInput[] =>
     classeStudents.map((s) => {
       const e = getEntry(s.id);
-      const val = e.note ? parseFloat(e.note) : undefined;
+      const val = e.note.trim() ? lireNote(e.note) : undefined;
       return { etudiantId: s.id, note: val, absent: e.absent };
     });
 
@@ -181,8 +197,9 @@ export default function TeacherGradesPage() {
         const etu = classeStudents.find((s) => s.matricule.toLowerCase() === matricule.toLowerCase());
         if (!etu) continue;
         const absentTxt = getCell(raw, "absent").toLowerCase();
-        const absent = ["oui", "x", "1", "true"].includes(absentTxt);
-        next[etu.id] = { note: absent ? "" : getCell(raw, "note"), absent };
+        const noteTxt = getCell(raw, "note");
+        const absent = ["oui", "x", "1", "true"].includes(absentTxt) || noteTxt.toUpperCase() === "ABS";
+        next[etu.id] = { note: absent ? "" : noteTxt, absent };
         count++;
       }
       setEntries(next);
@@ -198,7 +215,7 @@ export default function TeacherGradesPage() {
     if (!course) return;
     const rows = classeStudents.map((s) => {
       const e = getEntry(s.id);
-      return { Matricule: s.matricule, Étudiant: `${s.prenom} ${s.nom}`, Note: e.absent ? "" : e.note, Absent: e.absent ? "Oui" : "Non" };
+      return { Matricule: s.matricule, Étudiant: `${s.prenom} ${s.nom}`, Note: e.absent ? "ABS" : e.note.trim() && !Number.isNaN(lireNote(e.note)) ? lireNote(e.note) : "", Absent: e.absent ? "Oui" : "Non" };
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -209,15 +226,36 @@ export default function TeacherGradesPage() {
   const handleSave = (submit: boolean) => {
     if (!course || !evaluationChoisie || !roleEvaluationChoisie) return;
     try {
-      saveNoteEvaluationGrid(course.classeId, course.ecId, ec?.libelle ?? "", evaluationChoisie.id, roleEvaluationChoisie, evaluationChoisie.session, buildInputs(), false);
+      // Les notes validées ou publiées ne sont jamais réécrites d'ici (respecterVerrou) : elles se
+      // corrigent par une demande à la scolarité.
+      saveNoteEvaluationGrid(course.classeId, course.ecId, ec?.libelle ?? "", evaluationChoisie.id, roleEvaluationChoisie, evaluationChoisie.session, buildInputs(), false, { bareme, respecterVerrou: true });
       if (submit) {
         const count = submitNotesForValidation(course.classeId, course.ecId);
         toast.success(count > 0 ? `${count} note(s) soumise(s) à l'admin.` : "Notes enregistrées.");
+      } else {
+        toast.success("Notes enregistrées en brouillon.");
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Enregistrement impossible");
+    }
+  };
+
+  const ouvrirCorrection = (n: NoteRecord) => {
+    setCorrection(n);
+    setCorrectionNote(n.absent ? "" : String(n.note).replace(".", ","));
+    setCorrectionAbsent(!!n.absent);
+    setCorrectionMotif("");
+  };
+  const envoyerCorrection = () => {
+    if (!correction || !currentUser) return;
+    try {
+      demanderCorrectionNote({ noteId: correction.id, nouvelleNote: lireNote(correctionNote), absent: correctionAbsent, motif: correctionMotif, bareme }, currentUser.id);
+      toast.success("Demande de correction envoyée à la scolarité.");
+      setCorrection(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Demande impossible.");
     }
   };
 
@@ -237,15 +275,15 @@ export default function TeacherGradesPage() {
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <h3 className="font-semibold text-foreground text-sm">Évaluation</h3>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mon cours *</label>
-            <select value={courseId} onChange={(e) => handleCourseChange(e.target.value)} className={inputClass} data-testid="notes-cours">
+            <label htmlFor="teacher-grades-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Mon cours *</label>
+            <select id="teacher-grades-champ-1" value={courseId} onChange={(e) => handleCourseChange(e.target.value)} className={inputClass} data-testid="notes-cours">
               <option value="">Sélectionner</option>
               {mesCours.map((c) => <option key={c.id} value={c.id}>{c.coursLabel} — {c.detailsLabel}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type d&apos;évaluation *</label>
-            <select value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!course} className={cn(inputClass, "disabled:opacity-50")} data-testid="notes-evaluation">
+            <label htmlFor="teacher-grades-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Type d&apos;évaluation *</label>
+            <select id="teacher-grades-champ-2" value={evaluationId} onChange={(e) => handleEvaluationChange(e.target.value)} disabled={!course} className={cn(inputClass, "disabled:opacity-50")} data-testid="notes-evaluation">
               <option value="">Sélectionner</option>
               {evaluationsDuCours.map((ev) => {
                 const typeLabel = ev.typeEvaluationId ? typesEvaluation.find((t) => t.id === ev.typeEvaluationId)?.intitule : undefined;
@@ -308,12 +346,12 @@ export default function TeacherGradesPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
                 <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp size={11} /> Moyenne</p>
-                <p className={cn("text-2xl font-bold", moyenne !== null ? (moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>{moyenne !== null ? moyenne.toFixed(2) : "—"}</p>
+                <p className={cn("text-2xl font-bold", moyenne !== null ? (moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>{formatNote(moyenne)}</p>
                 <p className="text-[10px] text-muted-foreground">/{bareme}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
                 <p className="text-xs text-muted-foreground mb-1">Max / Min</p>
-                <p className="text-lg font-bold text-foreground">{noteMax !== null ? noteMax.toFixed(1) : "—"} <span className="text-muted-foreground text-sm">/</span> {noteMin !== null ? noteMin.toFixed(1) : "—"}</p>
+                <p className="text-lg font-bold text-foreground">{formatNote(noteMax)} <span className="text-muted-foreground text-sm">/</span> {formatNote(noteMin)}</p>
                 <p className="text-[10px] text-muted-foreground">{nbSaisis}/{classeStudents.length} saisies</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -335,8 +373,8 @@ export default function TeacherGradesPage() {
                   <p className="text-xs text-muted-foreground">{classeStudents.length} étudiants dans la liste</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44" />
-                  <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <input aria-label="Rechercher un étudiant" value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44" />
+                  <select aria-label="Tous les statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Tous les statuts</option>
                     <option value="brouillon_prof">Brouillon</option>
                     <option value="soumis_admin">Soumis</option>
@@ -368,11 +406,14 @@ export default function TeacherGradesPage() {
                 <tbody>
                   {classeStudents.map((etu, i) => {
                     const entry = getEntry(etu.id);
-                    const noteVal = parseFloat(entry.note);
+                    const noteVal = lireNote(entry.note);
                     const hasNote = !isNaN(noteVal) && !entry.absent;
-                    const isAdmis = hasNote && noteVal >= 10;
-                    const isAjourne = hasNote && noteVal < 10;
+                    const isAdmis = hasNote && noteVal >= bareme / 2;
+                    const isAjourne = hasNote && noteVal < bareme / 2;
                     const noteExistante = getNoteForEvaluation(etu.id, evaluationChoisie.id);
+                    const verrouillee = !!noteExistante && noteEstOfficielle(noteExistante);
+                    const demandeEnCours = noteExistante ? demandesCorrection.find((d) => d.noteId === noteExistante.id && d.statut === "en_attente") : undefined;
+                    const dernierRefus = noteExistante && !demandeEnCours ? demandesCorrection.find((d) => d.noteId === noteExistante.id && d.statut === "refusee") : undefined;
                     if (statutFilter && noteExistante?.statut !== statutFilter) return null;
                     const rowBg = entry.absent ? "bg-red-50/40 dark:bg-red-950/20" : isAjourne ? "bg-red-50/30 dark:bg-red-950/10" : "";
                     return (
@@ -389,21 +430,38 @@ export default function TeacherGradesPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <input
-                            type="number" min={0} max={bareme} step={0.25} disabled={entry.absent}
-                            value={entry.note} onChange={(e) => updateEntry(etu.id, { note: e.target.value })}
+                            type="text" inputMode="decimal" disabled={entry.absent || verrouillee}
+                            aria-label={`Note de ${etu.prenom} ${etu.nom} sur ${bareme}`}
+                            value={entry.absent ? "ABS" : entry.note} onChange={(e) => updateEntry(etu.id, { note: e.target.value })}
                             className={cn("w-20 text-center px-2 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background",
-                              entry.absent ? "opacity-30 cursor-not-allowed border-border" : isAdmis ? "border-emerald-300" : isAjourne ? "border-red-300" : "border-border")}
+                              verrouillee ? "bg-muted/60 cursor-not-allowed border-border" : entry.absent ? "opacity-60 cursor-not-allowed border-border" : isAdmis ? "border-emerald-300" : isAjourne ? "border-red-300" : "border-border")}
                             placeholder="—" data-testid={`notes-note-${etu.id}`}
                           />
+                          {verrouillee && (
+                            <div className="mt-1 flex flex-col items-center gap-0.5">
+                              {demandeEnCours ? (
+                                <span className="text-[10px] text-amber-700 dark:text-amber-300" data-testid={`notes-correction-attente-${etu.id}`}>Correction demandée : {libelleValeurNote(demandeEnCours.nouvelleNote, demandeEnCours.nouvelAbsent)}</span>
+                              ) : (
+                                <button type="button" onClick={() => noteExistante && ouvrirCorrection(noteExistante)} className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline" data-testid={`notes-corriger-${etu.id}`}>
+                                  <PencilLine size={10} /> Demander une correction
+                                </button>
+                              )}
+                              {dernierRefus && <span className="text-[10px] text-red-600 dark:text-red-400 max-w-[11rem]">Correction refusée : {dernierRefus.motifRefus}</span>}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <button onClick={() => toggleAbsent(etu.id)} className={cn("w-8 h-5 rounded-full transition-all duration-200 relative", entry.absent ? "bg-red-500" : "bg-muted border border-border")} data-testid={`notes-absent-${etu.id}`}>
+                          <button onClick={() => toggleAbsent(etu.id)} disabled={verrouillee} aria-label={`${etu.prenom} ${etu.nom} absent(e)`} aria-pressed={entry.absent} className={cn("w-8 h-5 rounded-full transition-all duration-200 relative disabled:opacity-40 disabled:cursor-not-allowed", entry.absent ? "bg-red-500" : "bg-muted border border-border")} data-testid={`notes-absent-${etu.id}`}>
                             <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200", entry.absent ? "left-3.5" : "left-0.5")} />
                           </button>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {entry.absent ? (
-                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300">Absent</span>
+                          {verrouillee && noteExistante ? (
+                            <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full", noteExistante.statut === "publie" ? "bg-indigo-50 text-indigo-600" : "bg-blue-50 text-blue-600")}>
+                              <Lock size={10} /> {STATUT_LABEL[noteExistante.statut]}
+                            </span>
+                          ) : entry.absent ? (
+                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300">ABS (0)</span>
                           ) : noteExistante ? (
                             <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full",
                               noteExistante.statut === "publie" ? "bg-indigo-50 text-indigo-600" :
@@ -466,11 +524,41 @@ export default function TeacherGradesPage() {
                 <p><span className="font-semibold text-foreground">Soumis à l&apos;admin</span> — en attente de validation</p>
                 <p><span className="font-semibold text-foreground">Validé</span> — vérifié par l&apos;administration</p>
                 <p><span className="font-semibold text-foreground">Publié</span> — visible par l&apos;étudiant</p>
+                <p><span className="font-semibold text-foreground">ABS</span> — absent à l&apos;évaluation, compté 0</p>
+                <p className="pt-1 border-t border-border">Une note validée ou publiée ne se modifie plus ici : utilisez « Demander une correction ».</p>
               </div>
             </div>
           </div>
         </div>
       )}
+      <FormModal
+        open={!!correction}
+        onClose={() => setCorrection(null)}
+        title="Demander une correction"
+        subtitle={correction ? `${correction.etudiant} — ${correction.ec} : ${libelleValeurNote(correction.note, correction.absent)} actuellement` : undefined}
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Cette note est validée par la scolarité : vous ne pouvez plus la modifier vous-même. Indiquez la note juste et le motif ; la scolarité acceptera ou refusera la correction, et elle sera inscrite au journal.</p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label htmlFor="correction-note" className="block text-xs font-medium text-muted-foreground mb-1.5">Nouvelle note /{bareme}</label>
+              <input id="correction-note" type="text" inputMode="decimal" disabled={correctionAbsent} value={correctionAbsent ? "ABS" : correctionNote} onChange={(e) => setCorrectionNote(e.target.value)} className={inputClass} data-testid="correction-note" />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-foreground pb-2.5">
+              <input type="checkbox" checked={correctionAbsent} onChange={(e) => setCorrectionAbsent(e.target.checked)} data-testid="correction-absent" />
+              Absent (ABS = 0)
+            </label>
+          </div>
+          <div>
+            <label htmlFor="correction-motif" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
+            <textarea id="correction-motif" rows={3} value={correctionMotif} onChange={(e) => setCorrectionMotif(e.target.value)} placeholder="Ex. : erreur de report, copie recorrigée" className={inputClass} data-testid="correction-motif" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setCorrection(null)} className="px-4 py-2 border border-border rounded-xl text-sm">Annuler</button>
+            <button type="button" onClick={envoyerCorrection} disabled={!correctionMotif.trim() || (!correctionAbsent && !correctionNote.trim())} className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium disabled:opacity-50" data-testid="correction-envoyer">Envoyer la demande</button>
+          </div>
+        </div>
+      </FormModal>
     </div>
   );
 }

@@ -110,10 +110,10 @@ export default function SupprimerFraisEtudiantPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="relative">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
+          <label htmlFor="supprimer-frais-etudiant-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="supprimer-frais-etudiant-champ-1"
               type="search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSelectedStudent(null); }}
@@ -166,8 +166,8 @@ export default function SupprimerFraisEtudiantPage() {
       <FormModal open={anneeModalOpen} onClose={() => setAnneeModalOpen(false)} title="Année scolaire" size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire</label>
-            <select
+            <label htmlFor="supprimer-frais-etudiant-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire</label>
+            <select id="supprimer-frais-etudiant-champ-2"
               value={modalAnneeChoice}
               onChange={(e) => setModalAnneeChoice(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -254,8 +254,8 @@ export default function SupprimerFraisEtudiantPage() {
                 : "Ce frais a déjà été quittancé : l'annulation restaurera le solde dû de l'étudiant du montant correspondant."}
             </p>
             <div>
-              <label className="block text-xs font-medium text-red-500 mb-1.5">Motif *</label>
-              <textarea value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={cn(inputClass, "resize-y")} data-testid="supprimer-frais-motif" />
+              <label htmlFor="supprimer-frais-etudiant-champ-3" className="block text-xs font-medium text-red-500 mb-1.5">Motif *</label>
+              <textarea id="supprimer-frais-etudiant-champ-3" value={motif} onChange={(e) => setMotif(e.target.value)} rows={2} className={cn(inputClass, "resize-y")} data-testid="supprimer-frais-motif" />
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setConfirmTarget(null)} className="px-4 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors">Annuler</button>

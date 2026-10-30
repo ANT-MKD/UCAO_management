@@ -1,4 +1,4 @@
-import { resetOperationalData } from "@/data/studentStore";
+import { aAccesComplet, logAudit, resetOperationalData, verifierMotDePasseCompte } from "@/data/studentStore";
 
 /** Clés localStorage explicitement conservées lors d'une réinitialisation : uniquement ce qui
  * est édité depuis l'une des 6 pages « Paramétrage X » (académique, finances, scolarité, emploi
@@ -44,8 +44,14 @@ const KEEP_KEYS = new Set([
  * compte admin qui déclenche l'action. Recharge la page pour que tous les stores — y compris ceux
  * qui mutent un tableau mockData.ts en place (filiereStore, teacherStore...) — se réinitialisent
  * proprement depuis un localStorage nettoyé. */
-export function resetTestData(keepUserId: string) {
+export function resetTestData(keepUserId: string, motDePasse: string) {
+  // Tout l'établissement est effacé : réservé à un administrateur à accès complet, qui confirme
+  // avec son propre mot de passe (une session laissée ouverte ne suffit pas).
+  if (!aAccesComplet(keepUserId)) throw new Error("La réinitialisation est réservée aux administrateurs à accès complet.");
+  if (!verifierMotDePasseCompte(keepUserId, motDePasse)) throw new Error("Mot de passe incorrect.");
   resetOperationalData(keepUserId);
+  // Le journal vient d'être vidé : la réinitialisation elle-même y reste inscrite.
+  logAudit(keepUserId, "reinitialisation_donnees", "etablissement", "donnees");
 
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const key = localStorage.key(i);

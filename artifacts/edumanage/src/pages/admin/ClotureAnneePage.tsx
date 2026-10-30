@@ -77,23 +77,23 @@ export default function ClotureAnneePage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="cloture-annee-programme">
+          <label htmlFor="cloture-annee-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+          <select id="cloture-annee-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="cloture-annee-programme">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-            <select value={annee} onChange={(e) => { setAnnee(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="cloture-annee-annee">
+            <label htmlFor="cloture-annee-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+            <select id="cloture-annee-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="cloture-annee-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSelectedIds(new Set()); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="cloture-annee-niveau">
+            <label htmlFor="cloture-annee-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="cloture-annee-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSelectedIds(new Set()); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="cloture-annee-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { UES as SEED_UES, ECS as SEED_ECS } from "./mockData";
 import { getFiliereByCode } from "./filiereStore";
 
@@ -6,10 +7,6 @@ export interface UeRecord {
   code: string;
   libelle: string;
   credits: number;
-  /** Coefficient de pondération de l'UE, distinct du crédit — utilisé par les méthodes de calcul
-   * "coefficient" (Paramétrage bulletin). Optionnel : les méthodes qui en ont besoin retombent
-   * sur `credits` si non renseigné. */
-  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
@@ -29,7 +26,6 @@ export interface EcRecord {
   abrege?: string;
   ue: string;
   ueId: string;
-  coeff: number;
   credits: number;
   volCm: number;
   volTd: number;
@@ -116,7 +112,7 @@ function persist() {
   store = { ues: store.ues.slice(), ecs: store.ecs.slice() };
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      ecrireStockage(STORAGE_KEY, JSON.stringify(store));
     } catch (err) {
       console.error("[EduManage] curriculum persist failed", err);
     }
@@ -157,7 +153,6 @@ export interface UePayload {
   code: string;
   libelle: string;
   credits: number;
-  coeff?: number;
   filiere: string;
   filiereId: string;
   niveau: string;
@@ -195,7 +190,6 @@ export interface EcPayload {
   libelle: string;
   abrege?: string;
   ueId: string;
-  coeff: number;
   credits: number;
   volCm: number;
   volTd: number;
@@ -306,7 +300,6 @@ export function importCurriculumRows(
         code: row.codeEc.toUpperCase(),
         libelle: row.libelleEc,
         ueId: ue.id,
-        coeff: 1,
         credits: row.credits || 0,
         volCm: cm,
         volTd: td,

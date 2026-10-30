@@ -6,19 +6,24 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { deleteSalle, type SallePhysiqueRecord } from "@/data/structureStore";
+import { type SallePhysiqueRecord } from "@/data/structureStore";
 import { useSalles } from "@/hooks/useStructureStore";
 import { downloadSalleTemplate, parseSalleExcel, importSalleRows, exportSallesToExcel } from "@/lib/salleImportExport";
+import { verifierSuppressionSalle, supprimerSalle } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">
-      {label}<button onClick={onRemove} className="hover:text-red-500 ml-0.5"><X size={10} /></button>
+      {label}<button aria-label="Fermer" title="Fermer" onClick={onRemove} className="hover:text-red-500 ml-0.5"><X size={10} /></button>
     </span>
   );
 }
 
 export default function SallesPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const salles = useSalles();
   const [typeFilter, setTypeFilter] = useState("");
@@ -84,8 +89,8 @@ export default function SallesPage() {
       key: "actions", header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/salles/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
-          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Supprimer ${r.nom} ?`)) deleteSalle(r.id); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/salles/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button onClick={(e) => { e.stopPropagation(); confirmerSuppression(verifierSuppressionSalle(r.id), `Supprimer la salle ${r.nom} ?`, () => supprimerSalle(r.id, acteur), "Salle supprimée"); }} aria-label={`Supprimer la salle ${r.nom}`} data-testid={`salle-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
         </div>
       ),
     },
@@ -98,7 +103,7 @@ export default function SallesPage() {
         title="Salles physiques"
         subtitle={`${filteredData.length} locaux — ${totalCapacite} places · noms stables (ex. RDC 1A)`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={downloadSalleTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
               <FileSpreadsheet size={13} /> Modèle
             </button>
@@ -130,22 +135,22 @@ export default function SallesPage() {
         filterPanel={
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="salles-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
+              <select id="salles-champ-1" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 {types.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Bâtiment</label>
-              <select value={batimentFilter} onChange={(e) => setBatimentFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="salles-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Bâtiment</label>
+              <select id="salles-champ-2" value={batimentFilter} onChange={(e) => setBatimentFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 {batiments.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-              <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
+              <label htmlFor="salles-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+              <select id="salles-champ-3" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
                 <option value="">Tous</option>
                 <option value="actif">Disponible</option>
                 <option value="en_maintenance">Maintenance</option>
@@ -153,8 +158,8 @@ export default function SallesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité min.</label>
-              <input type="number" value={capMin} onChange={(e) => setCapMin(e.target.value)} className={inputClass} placeholder="30" />
+              <label htmlFor="salles-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité min.</label>
+              <input id="salles-champ-4" type="number" value={capMin} onChange={(e) => setCapMin(e.target.value)} className={inputClass} placeholder="30" />
             </div>
             {activeFiltersCount > 0 && (
               <div className="col-span-full flex flex-wrap gap-2">

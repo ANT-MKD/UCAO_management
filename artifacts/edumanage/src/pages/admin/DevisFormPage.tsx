@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useModelesFrais } from "@/hooks/useFinanceSettingsStore";
 import { useGrillesFrais } from "@/hooks/useGrilleFraisStore";
-import { getGrilleFrais, getModelesFraisDisponibles } from "@/data/grilleFraisStore";
+import { getGrilleFrais, getModelesFraisDisponibles, resoudreDateGrille, formatDateGrille } from "@/data/grilleFraisStore";
 import { genererDevis, type DevisLigne } from "@/data/devisStore";
 import { niveauLabel } from "@/lib/teacherCourseUtils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +19,7 @@ const inputClass =
 function ligneDescription(intitule: string, montant: number, modalite: string, nbEcheances: number | undefined, dateLimite: string | undefined, modeleLabel: string): string {
   if (modalite === "echeances" && nbEcheances) {
     const parEcheance = Math.round(montant / nbEcheances);
-    const dateTxt = dateLimite ? ` au plus tard le ${dateLimite}` : "";
+    const dateTxt = dateLimite ? ` au plus tard le ${formatDateGrille(dateLimite)}` : "";
     return `${intitule} - ${formatCFA(montant)} payable en ${nbEcheances} échéances de ${formatCFA(parEcheance)}${dateTxt} pour le modèle de frais ${modeleLabel}`;
   }
   return `${intitule} - ${formatCFA(montant)} pour le modèle de frais ${modeleLabel} avant inscription`;
@@ -35,7 +35,7 @@ export default function DevisFormPage() {
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState(defaultAnnee);
@@ -68,10 +68,11 @@ export default function DevisFormPage() {
       montantHT: l.montant,
       modalite: l.modalite,
       nbEcheances: l.nbEcheances,
-      dateLimite: l.dateLimite,
+      // Date réelle (ISO) figée dans le devis, qu'elle ait été saisie complète ou en ancien format JJ/MM.
+      dateLimite: l.dateLimite ? resoudreDateGrille(annee, l.dateLimite) ?? l.dateLimite : undefined,
       montantTTC: Math.round(l.montant * (1 + tauxTaxeNum / 100)),
     }));
-  }, [grille, tauxTaxeNum]);
+  }, [grille, tauxTaxeNum, annee]);
 
   const totalHT = lignes.reduce((s, l) => s + l.montantHT, 0);
   const totalTTC = lignes.reduce((s, l) => s + l.montantTTC, 0);
@@ -112,10 +113,10 @@ export default function DevisFormPage() {
 
       <div className="max-w-3xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="devis-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Filière <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="devis-form-champ-1"
             value={filiereId}
             onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setModeleFraisId(""); }}
             className={inputClass}
@@ -130,20 +131,20 @@ export default function DevisFormPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="devis-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Choix année scolaire <span className="text-red-500">*</span>
             </label>
-            <select value={annee} onChange={(e) => { setAnnee(e.target.value); setModeleFraisId(""); }} className={inputClass} data-testid="devis-annee">
+            <select id="devis-form-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setModeleFraisId(""); }} className={inputClass} data-testid="devis-annee">
               {anneeOptions.map((a) => (
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="devis-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Niveau <span className="text-red-500">*</span>
             </label>
-            <select
+            <select id="devis-form-champ-3"
               value={niveau}
               onChange={(e) => { setNiveau(e.target.value); setModeleFraisId(""); }}
               className={inputClass}
@@ -160,8 +161,8 @@ export default function DevisFormPage() {
 
         {filiereId && niveau && annee && (
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
-            <select value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="devis-modele-frais">
+            <label htmlFor="devis-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
+            <select id="devis-form-champ-4" value={modeleFraisId} onChange={(e) => setModeleFraisId(e.target.value)} className={inputClass} data-testid="devis-modele-frais">
               <option value="">— Sélectionner —</option>
               {modelesDisponibles.map((m) => (
                 <option key={m.id} value={m.id}>{m.intitule}</option>
@@ -179,28 +180,28 @@ export default function DevisFormPage() {
         )}
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="devis-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Bénéficiaire <span className="text-red-500">*</span>
           </label>
-          <input value={beneficiaire} onChange={(e) => setBeneficiaire(e.target.value)} className={inputClass} placeholder="Nom du bénéficiaire" data-testid="devis-beneficiaire" />
+          <input id="devis-form-champ-5" value={beneficiaire} onChange={(e) => setBeneficiaire(e.target.value)} className={inputClass} placeholder="Nom du bénéficiaire" data-testid="devis-beneficiaire" />
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="devis-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Téléphone <span className="text-red-500">*</span>
             </label>
-            <input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} placeholder="+221 7XX XX XX XX" data-testid="devis-telephone" />
+            <input id="devis-form-champ-6" type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} placeholder="+221 7XX XX XX XX" data-testid="devis-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} data-testid="devis-email" />
+            <label htmlFor="devis-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+            <input id="devis-form-champ-7" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} data-testid="devis-email" />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-          <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="devis-adresse" />
+          <label htmlFor="devis-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+          <input id="devis-form-champ-8" value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="devis-adresse" />
         </div>
 
         {grille && lignes.length > 0 && (

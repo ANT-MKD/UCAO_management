@@ -41,7 +41,7 @@ export default function AbsencePeriodeListPage() {
 
   const columns: Column<AbsencePeriodeRecord>[] = [
     {
-      key: "etudiant", header: "Etudiant",
+      key: "etudiant", header: "Étudiant",
       render: (r) => (
         <div>
           <p className="font-medium text-foreground">{r.matricule} - {r.etudiant}</p>
@@ -82,7 +82,7 @@ export default function AbsencePeriodeListPage() {
         title="Les absences sur une période des étudiants"
         subtitle="Absences prolongées déclarées (maladie, sortie scolaire, congé autorisé)"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-2 px-4 py-2 border border-amber-300 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 transition-colors">
               <Search size={14} /> Recherche avancée
             </button>
@@ -98,8 +98,8 @@ export default function AbsencePeriodeListPage() {
 
       {showFilters && (
         <div className="bg-card border border-border rounded-xl mb-5 p-4" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
-          <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="w-full max-w-xs px-3 py-2 text-sm border border-border rounded-lg bg-background">
+          <label htmlFor="absence-periode-list-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Statut</label>
+          <select id="absence-periode-list-champ-1" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className="w-full max-w-xs px-3 py-2 text-sm border border-border rounded-lg bg-background">
             <option value="">Tous</option>
             <option value="justifie">Justifié</option>
             <option value="non_justifie">Non justifié</option>

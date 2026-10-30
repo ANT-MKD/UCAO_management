@@ -146,45 +146,45 @@ export default function PoidsEvaluationMassePage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année référence *</label>
-          <select value={anneeRef} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="poids-masse-annee">
+          <label htmlFor="poids-evaluation-masse-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Année référence *</label>
+          <select id="poids-evaluation-masse-champ-1" value={anneeRef} onChange={(e) => handleAnneeChange(e.target.value)} className={inputClass} data-testid="poids-masse-annee">
             <option value="">Sélectionner</option>
             {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-          <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} disabled={!anneeRef} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-filiere">
+          <label htmlFor="poids-evaluation-masse-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+          <select id="poids-evaluation-masse-champ-2" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} disabled={!anneeRef} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-filiere">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-niveau">
+            <label htmlFor="poids-evaluation-masse-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="poids-evaluation-masse-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-            <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-classe">
+            <label htmlFor="poids-evaluation-masse-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+            <select id="poids-evaluation-masse-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom} ({c.inscrits} étudiants)</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-          <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-session">
+          <label htmlFor="poids-evaluation-masse-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+          <select id="poids-evaluation-masse-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-session">
             <option value="">Sélectionner</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
-          <select value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-professeur">
+          <label htmlFor="poids-evaluation-masse-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur *</label>
+          <select id="poids-evaluation-masse-champ-6" value={professeurId} onChange={(e) => handleProfesseurChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="poids-masse-professeur">
             <option value="">Sélectionner</option>
             {professeurOptions.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
@@ -252,7 +252,7 @@ export default function PoidsEvaluationMassePage() {
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => removeRow(row.id)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`poids-masse-supprimer-ligne-${row.id}`}>
+                    <button aria-label="Fermer" title="Fermer" onClick={() => removeRow(row.id)} className="w-7 h-7 rounded-full bg-red-50 text-red-600 dark:bg-red-950 flex items-center justify-center hover:bg-red-100 transition-colors" data-testid={`poids-masse-supprimer-ligne-${row.id}`}>
                       <X size={12} />
                     </button>
                   </td>

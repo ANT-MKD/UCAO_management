@@ -15,17 +15,23 @@ import { useReglesValidation } from "@/hooks/useReglesValidationStore";
 import { useBulletinGenerations } from "@/hooks/useBulletinGenerationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import {
-  chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation, ajusterSeuilSession,
+  chargerDeliberation, overrideDecision, cloturerDeliberation, reouvrirDeliberation, ajusterSeuilSession, recalculerLigneDeliberation,
   DECISION_LABELS,
   type DeliberationRecord, type DecisionJury,
 } from "@/data/deliberationStore";
 import { decideValidation, type RegleValidationRecord } from "@/data/reglesValidationStore";
-import { computeBulletinPourClasse } from "@/data/bulletinEngine";
+import { computeBulletinPourClasse, type UeMoyenne } from "@/data/bulletinEngine";
+import { repecherUe, annulerRepechage, getRepechageUe } from "@/data/repechageStore";
+import { useRepechages } from "@/hooks/useRepechageStore";
+import { formatNote } from "@/lib/notes";
+import { formulesPour } from "@/data/reglementCalculStore";
 import { getEvaluationsForClasseEc, getRattrapageEvaluation } from "@/data/evaluationStore";
 import { getNoteForEvaluation } from "@/data/studentStore";
 import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
+import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
+import { MotifModal } from "@/components/admin/MotifModal";
 
 const DECISION_CONFIG: Record<DecisionJury, { label: string; color: string; bg: string; icon: React.ElementType; border: string }> = {
   admis: { label: DECISION_LABELS.admis, color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/50", icon: CheckCircle2, border: "border-emerald-200 dark:border-emerald-800" },
@@ -48,14 +54,13 @@ function Badge({ children, tone = "muted" }: { children: React.ReactNode; tone?:
 }
 
 function buildPvHtml(deliberation: DeliberationRecord): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const rows = deliberation.lignes
     .map((l) => {
       const cfg = DECISION_CONFIG[l.decisionFinale];
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:10px;">${l.matricule}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${l.etudiant}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${l.moyenne.toFixed(2)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${formatNote(l.moyenne)}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${l.creditsObtenus}/${l.creditsTotal}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${cfg.label.toUpperCase()}</td>
       </tr>`;
@@ -73,6 +78,7 @@ function buildPvHtml(deliberation: DeliberationRecord): string {
     .sig-box { border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-family: Arial, sans-serif; font-size: 10px; color: #6b7280; }
   </style>
   </head><body>
+    ${enteteEtablissementHtml()}
     <h1>Procès-verbal de délibération</h1>
     <div class="meta">
       <strong>Filière :</strong> ${deliberation.filiere} — ${deliberation.niveauLabel} — ${deliberation.annee}<br/>
@@ -87,7 +93,7 @@ function buildPvHtml(deliberation: DeliberationRecord): string {
     <div class="signatures">
       <div class="sig-box">Le Président du jury<br/><br/><br/>Signature</div>
       <div class="sig-box">Le Secrétaire<br/><br/><br/>Signature</div>
-      <div class="sig-box">Fait le ${now}</div>
+      <div class="sig-box">${faitALe()}</div>
     </div>
     <script>window.onload = function(){ window.print(); }</script>
   </body></html>`;
@@ -162,7 +168,7 @@ export default function DeliberationsPage() {
       render: (row) => {
         const d = row as unknown as DeliberationRecord;
         return (
-          <button onClick={() => openDeliberation(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`deliberation-ouvrir-${d.id}`}>
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={() => openDeliberation(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`deliberation-ouvrir-${d.id}`}>
             <Eye size={14} />
           </button>
         );
@@ -192,7 +198,7 @@ export default function DeliberationsPage() {
       {mode === "liste" && (
         <>
           <div className="mb-4 max-w-sm">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, session, utilisateur..." className={inputClass} data-testid="deliberation-recherche" />
+            <input aria-label="Classe, session, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, session, utilisateur..." className={inputClass} data-testid="deliberation-recherche" />
           </div>
           <DataTable
             columns={columns}
@@ -329,23 +335,23 @@ function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation
     <div className="max-w-3xl bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
       <h3 className="text-sm font-bold text-foreground">Délibération</h3>
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-        <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); setSemestreId(""); }} className={inputClass} data-testid="deliberation-filiere">
+        <label htmlFor="deliberations-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+        <select id="deliberations-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); setSemestreId(""); }} className={inputClass} data-testid="deliberation-filiere">
           <option value="">Sélectionner</option>
           {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
         </select>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-          <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-annee">
+          <label htmlFor="deliberations-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+          <select id="deliberations-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-annee">
             <option value="">Sélectionner</option>
             {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-          <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); setSemestreId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-niveau">
+          <label htmlFor="deliberations-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+          <select id="deliberations-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); setSemestreId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-niveau">
             <option value="">Sélectionner</option>
             {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
           </select>
@@ -353,15 +359,15 @@ function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-          <select value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-classe">
+          <label htmlFor="deliberations-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+          <select id="deliberations-champ-4" value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-classe">
             <option value="">Sélectionner</option>
             {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-          <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-semestre">
+          <label htmlFor="deliberations-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+          <select id="deliberations-champ-5" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="deliberation-semestre">
             <option value="">Sélectionner</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
@@ -388,6 +394,7 @@ function DetailDeliberation({
   const deliberations = useDeliberations();
   const deliberation = deliberations.find((d) => d.id === deliberationId);
   const [decisionFilter, setDecisionFilter] = useState("");
+  const [correction, setCorrection] = useState<{ etudiantId: string; etudiant: string; decision: DecisionJury; decisionAuto: DecisionJury } | null>(null);
 
   if (!deliberation) {
     return <div className="bg-card border border-border rounded-xl p-10 text-center text-sm text-muted-foreground">Délibération introuvable.</div>;
@@ -395,6 +402,9 @@ function DetailDeliberation({
 
   const cloture = deliberation.statut === "cloturee";
   const regleSemestre = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "semestre");
+  // Règle UCAO : le semestre se valide aux crédits — le seuil de moyenne et la décision
+  // « rattrapage » (marge sous la moyenne) ne s'appliquent alors pas.
+  const parMoyenne = !formulesPour(deliberation.filiereId, deliberation.annee).decisionSemestre && (regleSemestre?.validationParMoyenne ?? true);
 
   const handleRecharger = () => {
     const semestre = SEMESTRES.find((s) => s.id === deliberation.semestreId);
@@ -432,11 +442,13 @@ function DetailDeliberation({
     aDeclasser: deliberation.lignes.filter((l) => l.decisionFinale === "a_declasser").length,
   };
   const tauxReussite = stats.total > 0 ? Math.round((stats.admis / stats.total) * 100) : 0;
-  const moyGeneral = stats.total > 0 ? (deliberation.lignes.reduce((s, l) => s + l.moyenne, 0) / stats.total).toFixed(2) : "—";
+  const moyGeneral = stats.total > 0 ? formatNote(deliberation.lignes.reduce((s, l) => s + l.moyenne, 0) / stats.total) : "—";
 
+  /** Revenir à la décision calculée ne demande rien ; une correction manuelle demande son motif. */
   const handleOverride = (etudiantId: string, decision: DecisionJury, decisionAuto: DecisionJury) => {
-    const raison = decision !== decisionAuto ? (window.prompt("Motif de la correction manuelle (optionnel) :") ?? "") : "";
-    overrideDecision(deliberationId, etudiantId, decision, raison, auteur);
+    if (decision === decisionAuto) { overrideDecision(deliberationId, etudiantId, decision, "", auteur); return; }
+    const etudiant = deliberation.lignes.find((l) => l.etudiantId === etudiantId)?.etudiant ?? "";
+    setCorrection({ etudiantId, etudiant, decision, decisionAuto });
   };
 
   return (
@@ -486,16 +498,16 @@ function DetailDeliberation({
         </div>
       )}
 
-      {!cloture && regleSemestre && (
+      {!cloture && regleSemestre && parMoyenne && (
         <SeuilSimulateur deliberation={deliberation} regle={regleSemestre} auteur={auteur} />
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: "Total", value: stats.total, icon: Users, color: "#6366f1" },
-          { label: "Admis", value: stats.admis, icon: CheckCircle2, color: "#10b981" },
-          { label: "Rattrapage", value: stats.rattrapage, icon: AlertTriangle, color: "#f59e0b" },
-          { label: "Ajournés", value: stats.ajourne, icon: XCircle, color: "#ef4444" },
+          { label: "Validés", value: stats.admis, icon: CheckCircle2, color: "#10b981" },
+          ...(parMoyenne ? [{ label: "Rattrapage", value: stats.rattrapage, icon: AlertTriangle, color: "#f59e0b" }] : []),
+          { label: "Non validés", value: stats.ajourne, icon: XCircle, color: "#ef4444" },
           { label: "Exclus", value: stats.exclu, icon: Ban, color: "#71717a" },
           { label: "À déclasser", value: stats.aDeclasser, icon: AlertOctagon, color: "#9333ea" },
           { label: "Taux réussite", value: `${tauxReussite}%`, icon: TrendingUp, color: "#4f46e5" },
@@ -515,10 +527,10 @@ function DetailDeliberation({
             <h3 className="text-sm font-bold text-foreground">Liste des bulletins de note</h3>
           </div>
           <div className="flex items-center gap-3">
-            <select value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background" data-testid="deliberation-filtre-statut">
+            <select aria-label="Statut" value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background" data-testid="deliberation-filtre-statut">
               <option value="">Statut</option>
-              <option value="admis">Admis</option>
-              <option value="ajourne">Ajourné</option>
+              <option value="admis">Semestre validé</option>
+              <option value="ajourne">Semestre non validé</option>
               <option value="rattrapage">Rattrapage</option>
               <option value="exclu">Exclu</option>
             </select>
@@ -549,7 +561,7 @@ function DetailDeliberation({
                       <div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className={cn("text-sm font-bold font-mono", l.moyenne >= 10 ? "text-emerald-600" : "text-red-600")}>{l.moyenne.toFixed(2)}</span>
+                      <span className={cn("text-sm font-bold font-mono", !parMoyenne ? "text-foreground" : l.moyenne >= (deliberation.seuilOverride ?? regleSemestre?.moyennePassage ?? 10) ? "text-emerald-600" : "text-red-600")}>{formatNote(l.moyenne)}</span>
                     </td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}</td>
                     <td className="px-3 py-3 text-center text-sm">{l.creditsTotal}</td>
@@ -604,6 +616,20 @@ function DetailDeliberation({
           </table>
         </div>
       </div>
+
+      <MotifModal
+        open={!!correction}
+        title="Correction manuelle de la décision"
+        description={correction && <>Décision de <strong>{correction.etudiant}</strong> : {DECISION_CONFIG[correction.decisionAuto].label} → <strong>{DECISION_CONFIG[correction.decision].label}</strong>.</>}
+        libelleConfirmer="Corriger la décision"
+        placeholder="ex : décision du jury après examen du dossier"
+        onCancel={() => setCorrection(null)}
+        onConfirm={(motif) => {
+          if (correction) overrideDecision(deliberationId, correction.etudiantId, correction.decision, motif, auteur);
+          setCorrection(null);
+        }}
+        testId="correction-decision"
+      />
     </div>
   );
 }
@@ -636,15 +662,15 @@ function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: Delibe
     return lignesAutomatiques.filter((l) => decideValidation(l.moyenne, l.creditsObtenus, l.absences, regleSimulee) !== l.decisionAuto);
   }, [seuil, lignesAutomatiques, regle]);
 
+  const [demandeMotif, setDemandeMotif] = useState(false);
   const handleAppliquer = () => {
     if (seuil === seuilActuel) return;
-    const raison = window.prompt(`Motif de l'ajustement du seuil de cette session (${seuilActuel} → ${seuil}) :`) ?? "";
-    if (!raison.trim()) {
-      toast.error("Un motif est requis pour ajuster le seuil de session");
-      return;
-    }
-    ajusterSeuilSession(deliberation.id, seuil, raison.trim(), auteur, regle);
-    toast.success(`Seuil de session ajusté à ${seuil}`);
+    setDemandeMotif(true);
+  };
+  const appliquerSeuil = (raison: string) => {
+    ajusterSeuilSession(deliberation.id, seuil, raison, auteur, regle);
+    toast.success(`Seuil de session ajusté à ${formatNote(seuil)}`);
+    setDemandeMotif(false);
     setOpen(false);
   };
 
@@ -671,7 +697,7 @@ function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: Delibe
               onChange={(e) => setSeuil(parseFloat(e.target.value))}
               className="flex-1" data-testid="deliberation-seuil-slider"
             />
-            <span className="font-mono text-lg font-bold text-foreground w-16 text-right">{seuil.toFixed(2)}</span>
+            <span className="font-mono text-lg font-bold text-foreground w-16 text-right">{formatNote(seuil)}</span>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-3">
@@ -702,6 +728,17 @@ function SeuilSimulateur({ deliberation, regle, auteur }: { deliberation: Delibe
           </button>
         </div>
       )}
+      <MotifModal
+        open={demandeMotif}
+        title="Ajuster le seuil de cette session"
+        description={<>Seuil de passage : {formatNote(seuilActuel)} → <strong>{formatNote(seuil)}</strong>{bascules.length > 0 ? ` (${bascules.length} étudiant${bascules.length > 1 ? "s" : ""} change${bascules.length > 1 ? "nt" : ""} de décision)` : ""}.</>}
+        obligatoire
+        libelleConfirmer="Ajuster le seuil"
+        placeholder="ex : péréquation décidée par le jury"
+        onCancel={() => setDemandeMotif(false)}
+        onConfirm={appliquerSeuil}
+        testId="seuil-motif"
+      />
     </div>
   );
 }
@@ -715,6 +752,32 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
   const bulletin = deliberation && semestreAlias ? computeBulletinPourClasse(etudiantId, deliberation.classeId, semestreAlias) : undefined;
   const [notesEc, setNotesEc] = useState<{ id: string; libelle: string } | null>(null);
   const niveauId = deliberation ? NIVEAUX.find((n) => n.filiereId === deliberation.filiereId && n.alias === deliberation.niveau)?.id : undefined;
+  const { currentUser } = useAuth();
+  useRepechages();
+  const modifiable = !!deliberation && deliberation.statut !== "cloturee";
+  const [repechageUe, setRepechageUe] = useState<UeMoyenne | null>(null);
+  const [motif, setMotif] = useState("");
+
+  const confirmerRepechage = () => {
+    if (!deliberation || !repechageUe || !semestreAlias) return;
+    const res = repecherUe({
+      etudiantId, classeId: deliberation.classeId, ueId: repechageUe.id, ueLibelle: repechageUe.libelle, semestreAlias,
+      moyenne: repechageUe.moyenne, absences: ligne?.absences ?? 0, motif, decidePar: currentUser?.id ?? "admin",
+    });
+    if (!res.ok) { toast.error(res.reason); return; }
+    recalculerLigneDeliberation(deliberation.id, etudiantId);
+    toast.success(`UE « ${repechageUe.libelle} » acquise par décision du jury`);
+    setRepechageUe(null); setMotif("");
+  };
+
+  const annuler = (ue: UeMoyenne) => {
+    if (!deliberation) return;
+    const rep = getRepechageUe(etudiantId, deliberation.classeId, ue.id);
+    if (!rep) return;
+    annulerRepechage(rep.id, currentUser?.id ?? "admin");
+    recalculerLigneDeliberation(deliberation.id, etudiantId);
+    toast.success("Repêchage annulé");
+  };
 
   const allerAuRattrapage = (ecId: string) => {
     if (!deliberation) return;
@@ -734,9 +797,17 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h3 className="text-base font-bold text-foreground">Consultation bulletin étudiant — {ligne?.etudiant ?? ""}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6">
+          {ligne && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs mb-4 p-3 rounded-xl bg-muted/40" data-testid="deliberation-dossier-resume">
+              <span>Crédits : <strong className="text-foreground">{ligne.creditsObtenus} / {ligne.creditsTotal}</strong></span>
+              <span>Moyenne du semestre : <strong className="text-foreground">{formatNote(ligne.moyenne)}</strong></span>
+              <span>Absences non justifiées : <strong className={cn(ligne.absences > 0 ? "text-amber-700" : "text-emerald-700")}>{ligne.absences} h</strong></span>
+              {modifiable && <span className="text-muted-foreground w-full">Le jury peut repêcher une UE non acquise, en s&apos;appuyant notamment sur l&apos;assiduité.</span>}
+            </div>
+          )}
           {!bulletin || bulletin.ues.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun détail disponible pour cet étudiant.</p>
           ) : (
@@ -762,7 +833,7 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                       )}
                       <td className="px-3 py-2 text-muted-foreground">
                         {ec.libelle}
-                        {ec.ef !== undefined && ec.moyenne !== undefined && ec.moyenne < 10 && (
+                        {ec.moyenne !== undefined && !ue.validee && !ue.valideeParCompensation && (
                           <button
                             onClick={() => allerAuRattrapage(ec.id)}
                             className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 hover:opacity-80"
@@ -773,14 +844,29 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                           </button>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-center">{ec.cc !== undefined ? ec.cc.toFixed(2) : "—"}</td>
-                      <td className="px-3 py-2 text-center">{ec.ef !== undefined ? ec.ef.toFixed(2) : "—"}</td>
-                      <td className="px-3 py-2 text-center font-semibold">{ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+                      <td className="px-3 py-2 text-center">{formatNote(ec.cc)}</td>
+                      <td className="px-3 py-2 text-center">{formatNote(ec.ef)}</td>
+                      <td className="px-3 py-2 text-center font-semibold">{formatNote(ec.moyenne)}</td>
                       {i === 0 && (
-                        <td className="px-3 py-2 text-center align-top font-semibold text-primary" rowSpan={ue.ecs.length}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-2 text-center align-top font-semibold text-primary" rowSpan={ue.ecs.length}>{formatNote(ue.moyenne)}</td>
                       )}
                       {i === 0 && (
-                        <td className="px-3 py-2 text-center align-top" rowSpan={ue.ecs.length}>{ue.credits}</td>
+                        <td className="px-3 py-2 text-center align-top" rowSpan={ue.ecs.length} data-testid={`deliberation-ue-statut-${ue.id}`}>
+                          <div className="font-medium">{ue.creditsObtenus} / {ue.credits}</div>
+                          <div className={cn("text-[10px] font-semibold mt-0.5", ue.validee || ue.valideeParCompensation ? "text-emerald-700" : "text-red-600")}>
+                            {ue.valideeParJury ? "Acquise par décision du jury" : ue.capitalisee ? `Acquise en ${ue.capitalisee.annee}` : ue.valideeParCompensation ? "Acquise par compensation" : ue.validee ? "Acquise" : ue.moyenne !== undefined ? "Non acquise" : "En attente"}
+                          </div>
+                          {modifiable && !ue.validee && !ue.valideeParCompensation && ue.moyenne !== undefined && (
+                            <button onClick={() => { setRepechageUe(ue); setMotif(""); }} className="mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20" data-testid={`deliberation-repecher-${ue.id}`}>
+                              Repêcher
+                            </button>
+                          )}
+                          {modifiable && ue.valideeParJury && (
+                            <button onClick={() => annuler(ue)} className="mt-1 text-[10px] text-muted-foreground hover:underline" data-testid={`deliberation-annuler-repechage-${ue.id}`}>
+                              Annuler
+                            </button>
+                          )}
+                        </td>
                       )}
                       <td className="px-3 py-2 text-center">
                         <button
@@ -797,6 +883,19 @@ function DrillDownEtudiant({ deliberationId, etudiantId, onClose }: { deliberati
                 )}
               </tbody>
             </table>
+          )}
+          {repechageUe && (
+            <div className="mt-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2" data-testid="deliberation-repechage-form">
+              <p className="text-sm font-semibold text-foreground">Repêcher l&apos;UE « {repechageUe.libelle} »</p>
+              <p className="text-xs text-muted-foreground">
+                Moyenne de l&apos;UE : {formatNote(repechageUe.moyenne)} · absences non justifiées : {ligne?.absences ?? 0} h. L&apos;UE sera acquise avec ses {repechageUe.credits} crédits ; sa vraie moyenne reste sur le relevé, avec la mention « acquise par décision du jury ».
+              </p>
+              <input aria-label="Motif de la décision du jury (ex. étudiant assidu, aucune absence)" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif de la décision du jury (ex. étudiant assidu, aucune absence)" className="w-full px-3 py-2 text-sm border border-border rounded-xl bg-background" data-testid="deliberation-repechage-motif" />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setRepechageUe(null)} className="px-3 py-1.5 border border-border rounded-xl text-xs hover:bg-muted">Annuler</button>
+                <button onClick={confirmerRepechage} className="px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary/90" data-testid="deliberation-repechage-confirmer">Repêcher l&apos;UE</button>
+              </div>
+            </div>
           )}
           <div className="flex justify-end pt-4">
             <button onClick={onClose} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Retour</button>
@@ -837,7 +936,7 @@ function NotesEtudiantModal({
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 bg-primary text-white rounded-t-2xl">
           <h3 className="text-base font-bold">Les notes de l'étudiant</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><X size={16} /></button>
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6">
           {evaluations.length === 0 ? (
@@ -867,7 +966,7 @@ function NotesEtudiantModal({
                       <td className="px-3 py-2 text-muted-foreground">{ev.professeur}</td>
                       <td className="px-3 py-2 text-center text-muted-foreground">{formatDate(ev.dateCreation)}</td>
                       <td className="px-3 py-2 text-center">{typeLabel ?? (ev.type === "devoir" ? "Devoir" : "Examen")}{ev.session === "rattrapage" ? " (rattrapage)" : ""}</td>
-                      <td className="px-3 py-2 text-center font-semibold">{note ? note.note.toFixed(2) : "—"}</td>
+                      <td className="px-3 py-2 text-center font-semibold">{note ? formatNote(note.note) : "—"}</td>
                     </tr>
                   );
                 })}

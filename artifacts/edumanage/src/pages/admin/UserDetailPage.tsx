@@ -1,8 +1,10 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Mail, Phone, ShieldCheck, ShieldOff, KeyRound, Pencil, Image as ImageIcon, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FormModal } from "@/components/admin/FormModal";
 import { useUserAccount, useUserAccounts, useAuditLogs } from "@/hooks/useStudentStore";
@@ -61,6 +63,11 @@ export default function UserDetailPage({ id }: { id: string }) {
   const portailActif = portails[compte.role];
 
   const roleAssigne = compte.roleId ? roles.find((r) => r.id === compte.roleId) : undefined;
+  // Un compte limité par un rôle ne touche pas aux comptes à accès complet, ne donne pas l'accès
+  // complet et ne change pas son propre rôle (mêmes règles que studentStore.updateUserAccountInfo).
+  const acteurAccesComplet = currentUser?.role === "admin" && !currentUser.roleId;
+  const peutGerer = acteurAccesComplet || !(compte.role === "admin" && !compte.roleId);
+  const peutChangerRole = acteurAccesComplet || compte.id !== currentUser?.id;
 
   const openEdit = () => {
     setEditForm({
@@ -76,30 +83,36 @@ export default function UserDetailPage({ id }: { id: string }) {
 
   const handlePhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setEditForm((f) => ({ ...f, photoDataUrl: String(reader.result) }));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PHOTO_OCTETS, usagePhoto: "portrait" })
+      .then((dataUrl) => setEditForm((f) => ({ ...f, photoDataUrl: dataUrl })))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleSaveEdit = () => {
     if (!currentUser || !editForm.displayName.trim() || !editForm.email.trim()) return;
-    updateUserAccountInfo(compte.id, editForm, currentUser.id);
+    try {
+      updateUserAccountInfo(compte.id, editForm, currentUser.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Mise à jour impossible");
+      return;
+    }
     toast.success("Utilisateur mis à jour.");
     setEditOpen(false);
   };
 
   const handleToggleActif = () => {
     if (!currentUser) return;
-    setUserAccountActif(compte.id, !actif, currentUser.id);
+    try {
+      setUserAccountActif(compte.id, !actif, currentUser.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action impossible");
+      return;
+    }
     toast.success(actif ? "Compte désactivé." : "Compte réactivé.");
   };
 
   const handleGenererPin = () => {
-    if (!currentUser) return;
+    if (!currentUser || !peutGerer) return;
     const record = genererPin(compte.id, compte.displayName, compte.identifier, currentUser.id, currentUser.name);
     envoyerMailSysteme({
       destinataireUserId: compte.id,
@@ -122,12 +135,18 @@ export default function UserDetailPage({ id }: { id: string }) {
           { label: "Fiche utilisateur" },
         ]}
         title="Fiche utilisateur"
-        actions={
+        actions={peutGerer && (
           <button onClick={openEdit} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="user-editer">
             <Pencil size={13} /> Éditer
           </button>
-        }
+        )}
       />
+
+      {!peutGerer && (
+        <AvisAccesComplet testId="user-lecture-seule">
+          Ce compte a un accès complet : seul un administrateur à accès complet peut le modifier, le bloquer ou lui envoyer un code PIN.
+        </AvisAccesComplet>
+      )}
 
       <div className="bg-card border border-border rounded-2xl p-6 grid md:grid-cols-[200px_1fr] gap-6" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-col items-center text-center gap-2">
@@ -138,7 +157,7 @@ export default function UserDetailPage({ id }: { id: string }) {
           )}
           <span className="font-mono text-xs text-primary font-semibold">{compte.identifier}</span>
           <p className="font-bold text-foreground">{compte.displayName}</p>
-          <button
+          {peutGerer && <button
             onClick={handleToggleActif}
             title={actif ? "Bloque immédiatement toute session déjà ouverte, pas seulement les prochaines connexions" : undefined}
             className={cn(
@@ -149,7 +168,7 @@ export default function UserDetailPage({ id }: { id: string }) {
           >
             {actif ? <ShieldOff size={13} /> : <ShieldCheck size={13} />}
             {actif ? "Désactiver le compte" : "Réactiver le compte"}
-          </button>
+          </button>}
         </div>
 
         <div className="space-y-3">
@@ -196,7 +215,7 @@ export default function UserDetailPage({ id }: { id: string }) {
             )}
           </div>
 
-          <div className="border-t border-border pt-3 mt-3">
+          {peutGerer && <div className="border-t border-border pt-3 mt-3">
             <button onClick={handleGenererPin} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="user-generer-pin">
               <KeyRound size={13} /> Générer code pin activation
             </button>
@@ -205,7 +224,7 @@ export default function UserDetailPage({ id }: { id: string }) {
                 Code envoyé : <span className="font-mono font-bold" data-testid="user-dernier-pin">{dernierPin}</span> (aussi visible dans Mails envoyés)
               </p>
             )}
-          </div>
+          </div>}
 
           <div className="border-t border-border pt-3 mt-3">
             <p className="text-xs font-semibold text-muted-foreground mb-1.5">Droits d'accès</p>
@@ -235,25 +254,25 @@ export default function UserDetailPage({ id }: { id: string }) {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
-            <input value={editForm.displayName} onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-nom" />
+            <label htmlFor="user-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
+            <input id="user-detail-champ-1" value={editForm.displayName} onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-nom" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
-            <input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-email" />
+            <label htmlFor="user-detail-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
+            <input id="user-detail-champ-2" type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-email" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-            <input value={editForm.telephone} onChange={(e) => setEditForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-telephone" />
+            <label htmlFor="user-detail-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input id="user-detail-champ-3" value={editForm.telephone} onChange={(e) => setEditForm((f) => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
-            <input value={editForm.fonction} onChange={(e) => setEditForm((f) => ({ ...f, fonction: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-fonction" />
+            <label htmlFor="user-detail-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Fonction</label>
+            <input id="user-detail-champ-4" value={editForm.fonction} onChange={(e) => setEditForm((f) => ({ ...f, fonction: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-fonction" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
-            <select value={editForm.roleId} onChange={(e) => setEditForm((f) => ({ ...f, roleId: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-role-select">
-              <option value="">Aucun — accès complet</option>
+            <label htmlFor="user-detail-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Rôle (droits d'accès)</label>
+            <select id="user-detail-champ-5" value={editForm.roleId} onChange={(e) => setEditForm((f) => ({ ...f, roleId: e.target.value }))} disabled={!peutChangerRole} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60" data-testid="user-edit-role-select">
+              <option value="" disabled={!acteurAccesComplet && compte.role === "admin"}>Aucun — accès complet</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
             </select>
           </div>

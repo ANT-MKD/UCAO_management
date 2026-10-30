@@ -1,5 +1,6 @@
+import { ecrireStockage, lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import {
   ClipboardList,
   Send,
@@ -17,9 +18,12 @@ import {
   HelpCircle,
   MessageSquare,
   PieChart as PieChartIcon,
+  Paperclip,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { addStudentRequest, cancelStudentRequest, type StudentRequestRecord } from "@/data/studentStore";
+import { addStudentRequest, cancelStudentRequest, TAILLE_MAX_PIECE_DEMANDE, type StudentRequestRecord } from "@/data/studentStore";
+import { useCahiers, useNotes } from "@/hooks/useStudentStore";
+import { getAssiduiteRowsPourEtudiant } from "@/data/assiduiteEngine";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentRequests } from "@/hooks/useStudentStore";
 import { PORTEE_LABELS, type PorteeDerogation } from "@/data/derogationPaiementStore";
@@ -27,6 +31,10 @@ import { KPICard } from "@/components/admin/KPICard";
 import { FormModal } from "@/components/admin/FormModal";
 import { requestsLastSeenKey } from "@/components/layout/StudentLayout";
 import { cn, formatDate } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
+import { libelleTypeNote, valeurNote } from "@/lib/portailEtudiant";
+import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { toast } from "sonner";
 
 type ReqType = StudentRequestRecord["type"];
 type ReqStatus = StudentRequestRecord["status"];
@@ -87,7 +95,7 @@ export default function StudentRequestsPage() {
    * (StudentLayout.tsx), jamais une donnée métier persistée dans studentStore. */
   useEffect(() => {
     if (!currentUser) return;
-    localStorage.setItem(requestsLastSeenKey(currentUser.id), new Date().toISOString());
+    ecrireStockage(requestsLastSeenKey(currentUser.id), new Date().toISOString());
   }, [currentUser, myRequests]);
 
   const [tab, setTab] = useState<"toutes" | "attente" | "validees" | "refusees" | "annulees">("toutes");
@@ -100,6 +108,47 @@ export default function StudentRequestsPage() {
   const [porteeRallonge, setPorteeRallonge] = useState<PorteeDerogation>("reinscription");
   const [dateFinSouhaitee, setDateFinSouhaitee] = useState("");
   const [sent, setSent] = useState(false);
+  const [absenceCahierId, setAbsenceCahierId] = useState("");
+  const [noteId, setNoteId] = useState("");
+  const [attestationType, setAttestationType] = useState<"scolarite" | "inscription">("scolarite");
+  const [pieceJointe, setPieceJointe] = useState<StudentRequestRecord["pieceJointe"]>();
+  const [erreurPiece, setErreurPiece] = useState("");
+
+  // Types proposés : ceux dont le module est ouvert par l'établissement (une réclamation de note
+  // n'a pas de sens si les notes sont masquées, un justificatif si les absences le sont).
+  const features = usePortalFeatures();
+  const typesDisponibles = useMemo(() => REQUEST_TYPES.filter((t) => {
+    if (t.value === "reclamation_note") return features["student-notes"] !== false;
+    if (t.value === "justificatif_absence") return features["student-absences"] !== false;
+    if (t.value === "demande_rallonge") return features["student-frais-impaye"] !== false || features["student-payer-factures"] !== false;
+    return true;
+  }), [features]);
+
+  // Ce que la demande vise réellement : une absence non justifiée, une note publiée — sauf celles
+  // qui ont déjà une demande en cours de traitement (pas de doublon dans la file du secrétariat).
+  const cahiers = useCahiers();
+  const notes = useNotes();
+  const demandesEnCours = useMemo(() => myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours"), [myRequests]);
+  const absencesEnTraitement = useMemo(
+    () => new Set(demandesEnCours.filter((r) => r.type === "justificatif_absence" && r.absenceCahierId).map((r) => r.absenceCahierId as string)),
+    [demandesEnCours],
+  );
+  const notesEnTraitement = useMemo(
+    () => new Set(demandesEnCours.filter((r) => r.type === "reclamation_note" && r.noteId).map((r) => r.noteId as string)),
+    [demandesEnCours],
+  );
+  const absencesNonJustifiees = useMemo(
+    () => (currentUser?.linkedId ? getAssiduiteRowsPourEtudiant(currentUser.linkedId).filter((r) => !r.justifie && !absencesEnTraitement.has(r.cahierId)) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentUser?.linkedId, cahiers, absencesEnTraitement],
+  );
+  const notesPubliees = useMemo(
+    () => notes.filter((n) => n.etudiantId === currentUser?.linkedId && n.statut === "publie" && !notesEnTraitement.has(n.id)),
+    [notes, currentUser?.linkedId, notesEnTraitement],
+  );
+  const libelleAbsence = (r: (typeof absencesNonJustifiees)[number]) =>
+    `${r.type === "retard" ? "Retard" : "Absence"} du ${formatDate(r.date)} ${r.heureDebut}–${r.heureFin} — ${r.ec}`;
+  const libelleNote = (n: (typeof notesPubliees)[number]) => `${n.ec} — ${libelleTypeNote(n.type, n.session)} : ${valeurNote(n)}`;
 
   const total = myRequests.length;
   const enAttente = myRequests.filter((r) => r.status === "nouveau" || r.status === "en_cours").length;
@@ -132,27 +181,92 @@ export default function StudentRequestsPage() {
 
   const detail = myRequests.find((r) => r.id === detailId) ?? null;
 
-  const openNewRequest = (t: ReqType) => {
+  const openNewRequest = (t: ReqType, cible?: { absence?: string; note?: string }) => {
     setType(t);
     setSubject("");
     setMessage("");
     setDateFinSouhaitee("");
+    setAbsenceCahierId(cible?.absence ?? "");
+    setNoteId(cible?.note ?? "");
+    setAttestationType("scolarite");
+    setPieceJointe(undefined);
+    setErreurPiece("");
     setShowNewRequest(true);
   };
 
+  // Ouverture directe depuis « Absences » (Demander une justification) ou « Notes » (Réclamer).
+  const search = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const t = params.get("type") as ReqType | null;
+    if (t && typesDisponibles.some((x) => x.value === t)) {
+      const absence = params.get("absence") ?? undefined;
+      const note = params.get("note") ?? undefined;
+      if (absence && absencesEnTraitement.has(absence)) toast.info("Un justificatif pour cette absence est déjà en cours de traitement.");
+      if (note && notesEnTraitement.has(note)) toast.info("Une réclamation sur cette note est déjà en cours de traitement.");
+      openNewRequest(t, {
+        absence: absence && !absencesEnTraitement.has(absence) ? absence : undefined,
+        note: note && !notesEnTraitement.has(note) ? note : undefined,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  // Objet proposé à partir de l'absence ou de la note choisie (modifiable).
+  useEffect(() => {
+    if (type === "justificatif_absence") {
+      const r = absencesNonJustifiees.find((x) => x.cahierId === absenceCahierId);
+      if (r) setSubject(`Justificatif — ${libelleAbsence(r)}`);
+    } else if (type === "reclamation_note") {
+      const n = notesPubliees.find((x) => x.id === noteId);
+      if (n) setSubject(`Réclamation — ${libelleNote(n)}`);
+    } else if (type === "attestation") {
+      setSubject(attestationType === "inscription" ? "Attestation d'inscription" : "Certificat de scolarité");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, absenceCahierId, noteId, attestationType, showNewRequest]);
+
+  const choisirPiece = (file: File | undefined) => {
+    setErreurPiece("");
+    if (!file) { setPieceJointe(undefined); return; }
+    // Les photos sont recompressées ; un PDF est limité à TAILLE_MAX_PIECE_DEMANDE.
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PIECE_DEMANDE, usagePhoto: "document" })
+      .then((dataUrl) => setPieceJointe({ nom: file.name, type: dataUrl.startsWith("data:image/jpeg") ? "image/jpeg" : file.type, dataUrl }))
+      .catch((err) => { setPieceJointe(undefined); setErreurPiece(err instanceof Error ? err.message : "Fichier illisible."); });
+  };
+
   const estRallonge = type === "demande_rallonge";
+  // La cible doit être l'une des absences ou notes encore proposées (pas une déjà en traitement,
+  // même arrivée par un lien « Demander une justification »).
+  const cibleManquante =
+    (type === "justificatif_absence" && !absencesNonJustifiees.some((r) => r.cahierId === absenceCahierId)) ||
+    (type === "reclamation_note" && !notesPubliees.some((n) => n.id === noteId));
 
   const handleSubmit = () => {
     if (!currentUser?.linkedId || !subject.trim() || !message.trim()) return;
     if (estRallonge && !dateFinSouhaitee) return;
-    addStudentRequest({
-      studentId: currentUser.linkedId,
-      type,
-      subject: subject.trim(),
-      message: message.trim(),
-      porteeRallonge: estRallonge ? porteeRallonge : undefined,
-      dateFinSouhaitee: estRallonge ? dateFinSouhaitee : undefined,
-    });
+    if (cibleManquante) return;
+    const absence = absencesNonJustifiees.find((x) => x.cahierId === absenceCahierId);
+    const note = notesPubliees.find((x) => x.id === noteId);
+    try {
+      addStudentRequest({
+        studentId: currentUser.linkedId,
+        type,
+        subject: subject.trim(),
+        message: message.trim(),
+        porteeRallonge: estRallonge ? porteeRallonge : undefined,
+        dateFinSouhaitee: estRallonge ? dateFinSouhaitee : undefined,
+        absenceCahierId: type === "justificatif_absence" ? absence?.cahierId : undefined,
+        absenceLibelle: type === "justificatif_absence" && absence ? libelleAbsence(absence) : undefined,
+        noteId: type === "reclamation_note" ? note?.id : undefined,
+        noteLibelle: type === "reclamation_note" && note ? libelleNote(note) : undefined,
+        attestationType: type === "attestation" ? attestationType : undefined,
+        pieceJointe: type !== "attestation" && type !== "demande_rallonge" ? pieceJointe : undefined,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Demande refusée.");
+      return;
+    }
     setShowNewRequest(false);
     setSent(true);
     setTimeout(() => setSent(false), 2500);
@@ -192,7 +306,7 @@ export default function StudentRequestsPage() {
         <KPICard icon={Ban} label="Annulées" value={annulees} accentColor="#94a3b8" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             <div className="p-4 border-b border-border space-y-3">
@@ -222,7 +336,7 @@ export default function StudentRequestsPage() {
               </div>
               <div className="relative sm:max-w-[280px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher une demande"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Rechercher une demande..."
@@ -285,7 +399,7 @@ export default function StudentRequestsPage() {
             <h3 className="text-sm font-bold text-foreground mb-1">Faire une nouvelle demande</h3>
             <p className="text-xs text-muted-foreground mb-4">Sélectionnez le type de demande que vous souhaitez effectuer.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {REQUEST_TYPES.map((t) => (
+              {typesDisponibles.map((t) => (
                 <button
                   key={t.value}
                   type="button"
@@ -362,7 +476,7 @@ export default function StudentRequestsPage() {
           <div className="rounded-2xl border border-border bg-card p-5">
             <h3 className="text-sm font-bold text-foreground mb-3">Délais moyens de traitement</h3>
             <div className="space-y-2.5">
-              {REQUEST_TYPES.map((t) => {
+              {typesDisponibles.map((t) => {
                 const avg = averageDelaiJours(allRequests, t.value);
                 return (
                   <div key={t.value} className="flex items-center justify-between gap-2 text-xs">
@@ -379,14 +493,58 @@ export default function StudentRequestsPage() {
       <FormModal open={showNewRequest} onClose={() => setShowNewRequest(false)} title="Nouvelle demande" subtitle="Déposez une demande au secrétariat">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de demande</label>
-            <select value={type} onChange={(e) => setType(e.target.value as ReqType)} className={inputClass} data-testid="requete-type">
-              {REQUEST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            <label htmlFor="student-requests-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de demande</label>
+            <select id="student-requests-champ-1" value={type} onChange={(e) => setType(e.target.value as ReqType)} className={inputClass} data-testid="requete-type">
+              {typesDisponibles.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
+          {type === "attestation" && (
+            <div>
+              <label htmlFor="student-requests-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Document souhaité</label>
+              <select id="student-requests-champ-2" value={attestationType} onChange={(e) => setAttestationType(e.target.value as "scolarite" | "inscription")} className={inputClass} data-testid="requete-attestation-type">
+                <option value="scolarite">Certificat de scolarité</option>
+                <option value="inscription">Attestation d&apos;inscription</option>
+              </select>
+            </div>
+          )}
+          {type === "justificatif_absence" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Absence à justifier *</label>
+              {absencesNonJustifiees.length === 0 ? (
+                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">
+                  {absencesEnTraitement.size > 0 ? "Vos absences non justifiées ont déjà un justificatif en cours de traitement." : "Aucune absence non justifiée à votre dossier."}
+                </p>
+              ) : (
+                <select aria-label="Choisir l&apos;absence" value={absenceCahierId} onChange={(e) => setAbsenceCahierId(e.target.value)} className={inputClass} data-testid="requete-absence">
+                  <option value="">Choisir l&apos;absence…</option>
+                  {absencesNonJustifiees.map((r) => <option key={r.id} value={r.cahierId}>{libelleAbsence(r)}</option>)}
+                </select>
+              )}
+              {absencesNonJustifiees.length > 0 && absencesEnTraitement.size > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1" data-testid="requete-absences-en-traitement">
+                  {absencesEnTraitement.size} absence{absencesEnTraitement.size > 1 ? "s ont" : " a"} déjà un justificatif en cours de traitement et n&apos;{absencesEnTraitement.size > 1 ? "apparaissent" : "apparaît"} pas ici.
+                </p>
+              )}
+            </div>
+          )}
+          {type === "reclamation_note" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note contestée *</label>
+              {notesPubliees.length === 0 ? (
+                <p className="text-sm text-muted-foreground rounded-xl border border-border p-3">
+                  {notesEnTraitement.size > 0 ? "Vos notes publiées ont déjà une réclamation en cours de traitement." : "Aucune note publiée à votre dossier."}
+                </p>
+              ) : (
+                <select aria-label="Choisir la note" value={noteId} onChange={(e) => setNoteId(e.target.value)} className={inputClass} data-testid="requete-note">
+                  <option value="">Choisir la note…</option>
+                  {notesPubliees.map((n) => <option key={n.id} value={n.id}>{libelleNote(n)}</option>)}
+                </select>
+              )}
+            </div>
+          )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
-            <input
+            <label htmlFor="student-requests-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet</label>
+            <input id="student-requests-champ-3"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Ex: Justificatif absence du 12/01"
@@ -395,8 +553,8 @@ export default function StudentRequestsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Message</label>
-            <textarea
+            <label htmlFor="student-requests-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Message</label>
+            <textarea id="student-requests-champ-4"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Décrivez votre demande..."
@@ -404,23 +562,36 @@ export default function StudentRequestsPage() {
               data-testid="requete-message"
             />
           </div>
+          {type !== "attestation" && !estRallonge && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Pièce jointe {type === "justificatif_absence" ? "(certificat médical, convocation…)" : "(facultative)"}
+              </label>
+              <label className="flex items-center gap-2 px-3 py-2.5 text-sm border border-dashed border-border rounded-xl cursor-pointer hover:bg-muted">
+                <Paperclip size={14} className="text-muted-foreground" />
+                <span className="truncate">{pieceJointe ? pieceJointe.nom : "Joindre un PDF (800 Ko max.) ou une photo"}</span>
+                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => choisirPiece(e.target.files?.[0])} data-testid="requete-piece" />
+              </label>
+              {erreurPiece && <p className="text-xs text-red-600 mt-1">{erreurPiece}</p>}
+            </div>
+          )}
           {estRallonge && (
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Portée souhaitée</label>
-                <select value={porteeRallonge} onChange={(e) => setPorteeRallonge(e.target.value as PorteeDerogation)} className={inputClass} data-testid="requete-portee">
+                <label htmlFor="student-requests-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Portée souhaitée</label>
+                <select id="student-requests-champ-5" value={porteeRallonge} onChange={(e) => setPorteeRallonge(e.target.value as PorteeDerogation)} className={inputClass} data-testid="requete-portee">
                   {Object.entries(PORTEE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin souhaitée</label>
-                <input type="date" value={dateFinSouhaitee} onChange={(e) => setDateFinSouhaitee(e.target.value)} className={inputClass} data-testid="requete-date-fin" />
+                <label htmlFor="student-requests-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin souhaitée</label>
+                <input id="student-requests-champ-6" type="date" value={dateFinSouhaitee} onChange={(e) => setDateFinSouhaitee(e.target.value)} className={inputClass} data-testid="requete-date-fin" />
               </div>
             </div>
           )}
           <button
             onClick={handleSubmit}
-            disabled={!subject.trim() || !message.trim() || (estRallonge && !dateFinSouhaitee)}
+            disabled={!subject.trim() || !message.trim() || (estRallonge && !dateFinSouhaitee) || cibleManquante}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
             data-testid="requete-envoyer"
           >
@@ -445,7 +616,20 @@ export default function StudentRequestsPage() {
                   {PORTEE_LABELS[detail.porteeRallonge]} · jusqu'au {formatDate(detail.dateFinSouhaitee)}
                 </p>
               )}
+              {(detail.absenceLibelle || detail.noteLibelle) && (
+                <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">Concerne : {detail.absenceLibelle ?? detail.noteLibelle}</p>
+              )}
+              {detail.pieceJointe && (
+                <a href={detail.pieceJointe.dataUrl} download={detail.pieceJointe.nom} className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline mt-2">
+                  <Paperclip size={12} /> {detail.pieceJointe.nom}
+                </a>
+              )}
             </div>
+            {detail.attestationNumero && (
+              <Link href="/student/documents" className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-900 p-3 text-sm text-emerald-700 dark:text-emerald-300 hover:underline">
+                <FileText size={14} /> Document {detail.attestationNumero} disponible dans « Mes documents »
+              </Link>
+            )}
             {detail.resolution && (
               <div className="rounded-xl border border-border p-4">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Réponse du secrétariat</p>

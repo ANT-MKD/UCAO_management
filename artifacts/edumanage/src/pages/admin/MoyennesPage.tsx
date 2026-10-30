@@ -2,14 +2,15 @@ import { useState, useMemo, Fragment } from "react";
 import { ChevronDown, ChevronRight, BarChart3, X } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
-import { FILIERES, SEMESTRES, ANNEES_ACADEMIQUES } from "@/data/mockData";
+import { FILIERES, SEMESTRES } from "@/data/mockData";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
+import { useStudentStore, useNotes, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { computeBulletin } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise } from "@/data/bulletinEngine";
 import { resoudreMention } from "@/data/mentionsStore";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const MENTION_COLORS: Record<string, string> = {
   "Très Bien": "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300",
@@ -28,7 +29,11 @@ export default function MoyennesPage() {
   useEvaluations(); // souscription pour re-rendre quand les poids/évaluations changent
   useMentions(); // souscription pour re-rendre quand les mentions/appréciations changent
 
-  const [selectedAnnee, setSelectedAnnee] = useState("2025-2026");
+  const anneesAcademiques = useAnneesAcademiques();
+  // S'ouvre sur l'année académique courante (Années académiques → « Définir comme courante »).
+  const [selectedAnnee, setSelectedAnnee] = useState(
+    () => anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneesAcademiques[0]?.libelle ?? "",
+  );
   const [selectedFiliere, setSelectedFiliere] = useState("");
   const [selectedClasse, setSelectedClasse] = useState("");
   const [selectedSemestreId, setSelectedSemestreId] = useState("");
@@ -58,12 +63,12 @@ export default function MoyennesPage() {
     const rows = roster.map((e) => {
       const bulletin = computeBulletin(e.id, selectedClasse, classeObj.filiereId, classeObj.niveau, semestre.alias);
       const moyenneGenerale = bulletin.moyenneSession;
-      const mention = moyenneGenerale !== undefined ? resoudreMention("moyenneSession", moyenneGenerale, moyenneGenerale >= 10).mention : undefined;
-      const statut = moyenneGenerale !== undefined ? (moyenneGenerale >= 10 ? "Admis" : "Ajourné") : undefined;
+      const mention = moyenneGenerale !== undefined ? resoudreMention("moyenneSession", moyenneGenerale, moyenneGenerale >= bulletin.moyennePassage).mention : undefined;
+      const statut = moyenneGenerale !== undefined ? (moyenneGenerale >= bulletin.moyennePassage ? "Admis" : "Ajourné") : undefined;
       return {
         id: e.id, etudiant: `${e.prenom} ${e.nom}`, matricule: e.matricule,
         moyenneGenerale, credits: bulletin.creditsObtenus, creditsTotal: bulletin.creditsTotal,
-        mention, statut, ues: bulletin.ues,
+        mention, statut, ues: bulletin.ues, moyennePassage: bulletin.moyennePassage,
       };
     });
     const classes_ = [...rows].filter((r) => r.moyenneGenerale !== undefined).sort((a, b) => b.moyenneGenerale! - a.moyenneGenerale!);
@@ -101,32 +106,32 @@ export default function MoyennesPage() {
       {/* Filters */}
       <div className="bg-card border border-border rounded-xl p-4 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap gap-3">
-          <select value={selectedAnnee} onChange={(e) => { setSelectedAnnee(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
-            {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+          <select aria-label="Année académique" value={selectedAnnee} onChange={(e) => { setSelectedAnnee(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
+            {anneesAcademiques.filter((a) => !a.archivee || a.libelle === selectedAnnee).map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
           </select>
-          <select value={selectedFiliere} onChange={(e) => { setSelectedFiliere(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
+          <select aria-label="Toutes les filières" value={selectedFiliere} onChange={(e) => { setSelectedFiliere(e.target.value); setSelectedClasse(""); setSelectedSemestreId(""); }} className={inputClass}>
             <option value="">Toutes les filières</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
           </select>
-          <select value={selectedClasse} onChange={(e) => { setSelectedClasse(e.target.value); setSelectedSemestreId(""); }} className={inputClass} data-testid="moyennes-classe">
+          <select aria-label="Sélectionner une classe" value={selectedClasse} onChange={(e) => { setSelectedClasse(e.target.value); setSelectedSemestreId(""); }} className={inputClass} data-testid="moyennes-classe">
             <option value="">Sélectionner une classe</option>
             {filteredClasses.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
-          <select value={selectedSemestreId} onChange={(e) => setSelectedSemestreId(e.target.value)} disabled={!classeObj} className={cn(inputClass, "disabled:opacity-50")} data-testid="moyennes-session">
+          <select aria-label="Sélectionner une session" value={selectedSemestreId} onChange={(e) => setSelectedSemestreId(e.target.value)} disabled={!classeObj} className={cn(inputClass, "disabled:opacity-50")} data-testid="moyennes-session">
             <option value="">Sélectionner une session</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
-          <select value={mentionFilter} onChange={(e) => setMentionFilter(e.target.value)} className={inputClass}>
+          <select aria-label="Toutes mentions" value={mentionFilter} onChange={(e) => setMentionFilter(e.target.value)} className={inputClass}>
             <option value="">Toutes mentions</option>
             {["Très Bien", "Bien", "Assez Bien", "Passable", "Ajourné"].map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
-          <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
+          <select aria-label="Tous statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass}>
             <option value="">Tous statuts</option>
             <option value="Admis">Admis</option>
             <option value="Ajourné">Ajourné</option>
           </select>
-          <input type="number" min={0} max={20} step={0.5} value={moyenneMin} onChange={(e) => setMoyenneMin(e.target.value)} placeholder="Moy. min" className={inputClass + " w-28"} />
-          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher étudiant…" className={inputClass + " min-w-[180px]"} />
+          <input aria-label="Moy. min" type="number" min={0} max={20} step={0.5} value={moyenneMin} onChange={(e) => setMoyenneMin(e.target.value)} placeholder="Moy. min" className={inputClass + " w-28"} />
+          <input aria-label="Rechercher étudiant" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher étudiant…" className={inputClass + " min-w-[180px]"} />
           {(mentionFilter || statutFilter || moyenneMin || searchQuery) && (
             <button onClick={() => { setMentionFilter(""); setStatutFilter(""); setMoyenneMin(""); setSearchQuery(""); }} className="flex items-center gap-1 px-3 py-2 text-xs text-muted-foreground hover:text-foreground border border-border rounded-xl">
               <X size={12} /> Effacer
@@ -143,7 +148,7 @@ export default function MoyennesPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <KPICard icon={BarChart3} label="Moyenne promo" value={avgPromo.toFixed(2)} accentColor="#4f46e5" />
+            <KPICard icon={BarChart3} label="Moyenne promo" value={formatNote(avgPromo)} accentColor="#4f46e5" />
             <KPICard icon={BarChart3} label="% Admis" value={`${pctAdmis}%`} accentColor="#10b981" />
             <KPICard icon={BarChart3} label="% Ajournés" value={`${pctAjournes}%`} accentColor="#ef4444" />
             <KPICard icon={BarChart3} label="Mentions TB" value={tb} accentColor="#f59e0b" />
@@ -193,8 +198,8 @@ export default function MoyennesPage() {
                           <div className="text-[10px] font-mono text-muted-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{m.matricule}</div>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={cn("font-bold text-base", m.moyenneGenerale === undefined ? "text-muted-foreground" : m.moyenneGenerale >= 10 ? "text-emerald-600" : "text-red-500")}>
-                            {m.moyenneGenerale !== undefined ? m.moyenneGenerale.toFixed(2) : "En attente"}
+                          <span className={cn("font-bold text-base", m.moyenneGenerale === undefined ? "text-muted-foreground" : m.moyenneGenerale >= m.moyennePassage ? "text-emerald-600" : "text-red-500")}>
+                            {m.moyenneGenerale !== undefined ? formatNote(m.moyenneGenerale) : "En attente"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -227,11 +232,11 @@ export default function MoyennesPage() {
                                 {m.ues.map((ue) => (
                                   <div key={ue.id} className="flex flex-col items-center gap-1 bg-card border border-border rounded-xl px-4 py-3">
                                     <div className="text-[10px] text-muted-foreground">{ue.code}</div>
-                                    <div className={cn("font-bold text-base", ue.moyenne === undefined ? "text-muted-foreground" : ue.moyenne >= 10 ? "text-emerald-600" : "text-red-500")}>
-                                      {ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}
+                                    <div className={cn("font-bold text-base", ue.moyenne === undefined ? "text-muted-foreground" : ueAcquise(ue) ? "text-emerald-600" : "text-red-500")}>
+                                      {formatNote(ue.moyenne)}
                                     </div>
-                                    <div className={cn("text-[9px] font-medium px-1.5 rounded", ue.moyenne === undefined ? "text-muted-foreground" : ue.validee ? "text-emerald-600" : "text-red-500")}>
-                                      {ue.moyenne === undefined ? "EN ATTENTE" : ue.validee ? "VALIDÉ" : "AJOURNÉ"}
+                                    <div className={cn("text-[9px] font-medium px-1.5 rounded", ue.moyenne === undefined ? "text-muted-foreground" : ue.validee || ue.valideeParCompensation ? "text-emerald-600" : "text-red-500")}>
+                                      {libelleResultatUe(ue).replace(/^UE /, "").toUpperCase()}
                                     </div>
                                   </div>
                                 ))}

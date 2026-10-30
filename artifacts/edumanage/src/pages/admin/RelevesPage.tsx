@@ -8,7 +8,7 @@ import { useReleves, useStudentStore, useAnneesAcademiques, useNotes } from "@/h
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import type { ReleveRecord, EtudiantRecord } from "@/data/studentStore";
-import { computeBulletin, type UeMoyenne } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise, type UeMoyenne } from "@/data/bulletinEngine";
 import { resoudreMention } from "@/data/mentionsStore";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
@@ -23,6 +23,7 @@ import { getEtablissement } from "@/data/etablissementStore";
 import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
 import { formatDate, cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 type ReleverEntry = ReleveRecord;
 
@@ -30,6 +31,7 @@ export interface BulletinResolu {
   etudiant: EtudiantRecord;
   ues: UeMoyenne[];
   moyenne: number;
+  moyennePassage: number;
   mention: string;
   creditsObtenus: number;
   creditsTotal: number;
@@ -62,7 +64,13 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
   const etudiant = etudiants.find((e) => e.id === entry.etudiantId);
   if (!etudiant) return undefined;
   const filiereObj = FILIERES.find((f) => f.code === entry.filiere) ?? FILIERES.find((f) => f.id === etudiant.filiereId);
-  const semestreObj = SEMESTRES.find((s) => `${s.nom} (${s.alias})` === entry.semestre);
+  // Le libellé « Semestre 5 (S5) » existe dans chaque filière : on prend celui de la filière et
+  // du niveau de l'étudiant, sinon la délibération (cherchée par id de semestre) n'est pas trouvée.
+  const memeLibelle = (s: (typeof SEMESTRES)[number]) => `${s.nom} (${s.alias})` === entry.semestre;
+  const semestreObj = filiereObj
+    ? SEMESTRES.find((s) => memeLibelle(s) && s.filiere === filiereObj.code && s.niveau === etudiant.niveau)
+      ?? SEMESTRES.find((s) => memeLibelle(s) && s.filiere === filiereObj.code)
+    : undefined;
   if (!filiereObj || !semestreObj) return undefined;
 
   const bulletin = computeBulletin(etudiant.id, etudiant.classeId, filiereObj.id, etudiant.niveau, semestreObj.alias);
@@ -78,8 +86,11 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
 
   // Décision réelle du jury (jamais un seuil moyenne >= 10 fabriqué) : lit la délibération
   // effectivement tenue pour cette classe/semestre, y compris une correction manuelle du jury.
+  // Seule une délibération clôturée fait foi : tant que le jury siège (ou a rouvert la session),
+  // ses décisions sont provisoires et ne paraissent ni sur le bulletin ni sur le portail étudiant.
   const deliberation = getDeliberationForClasseSemestre(etudiant.classeId, semestreObj.id);
-  const ligne = deliberation?.lignes.find((l) => l.etudiantId === etudiant.id);
+  const juryEnCours = !!deliberation && deliberation.statut !== "cloturee";
+  const ligne = juryEnCours ? undefined : deliberation?.lignes.find((l) => l.etudiantId === etudiant.id);
   const decision = ligne?.decisionFinale;
   const niveauObj = NIVEAUX.find((n) => n.filiereId === filiereObj.id && n.alias === etudiant.niveau);
 
@@ -87,14 +98,16 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
     etudiant,
     ues: bulletin.ues,
     moyenne: bulletin.moyenneSession,
-    mention: resoudreMention("moyenneSession", bulletin.moyenneSession, bulletin.moyenneSession >= 10).mention ?? "—",
+    moyennePassage: bulletin.moyennePassage,
+    mention: resoudreMention("moyenneSession", bulletin.moyenneSession, bulletin.moyenneSession >= bulletin.moyennePassage).mention ?? "—",
     creditsObtenus: bulletin.creditsObtenus,
     creditsTotal: bulletin.creditsTotal,
-    rang: rangIndex >= 0 ? rangIndex + 1 : undefined,
+    // Le rang, comme la décision, n'est communiqué qu'après la clôture du jury (règle UCAO).
+    rang: deliberation?.statut === "cloturee" && rangIndex >= 0 ? rangIndex + 1 : undefined,
     totalClasse: moyennesClasse.length,
     semestreAlias: semestreObj.alias,
     decision,
-    decisionLabel: decision ? DECISION_LABELS[decision] : "Non délibéré",
+    decisionLabel: decision ? DECISION_LABELS[decision] : juryEnCours ? "Délibération en cours" : "Non délibéré",
     appreciation: decision ? APPRECIATION_PAR_DECISION[decision] : "En attente de délibération",
     filiereNomComplet: filiereObj.nom,
     niveauLabel: niveauObj?.nom ?? etudiant.niveau,
@@ -122,19 +135,19 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 
   let tableRows = "";
   resolved.ues.forEach((ue) => {
-    const ueResultat = ue.moyenne !== undefined ? (ue.validee ? "UE Acquise" : "UE Non Acquise") : "";
+    const ueResultat = libelleResultatUe(ue);
     tableRows += `
       <tr class="ue-row">
         <td>${ue.code} - ${ue.libelle}</td>
-        <td class="c">${ue.moyenne !== undefined ? ue.moyenne.toFixed(2) : "—"}</td>
+        <td class="c">${formatNote(ue.moyenne)}</td>
         <td class="c">${ue.credits}</td>
-        <td class="c" style="color:${ue.validee ? "#166534" : "#991b1b"};">${ueResultat}</td>
+        <td class="c" style="color:${ueAcquise(ue) ? "#166534" : "#991b1b"};">${ueResultat}</td>
       </tr>`;
     ue.ecs.forEach((ec) => {
       tableRows += `
         <tr>
           <td class="ec-label">${ec.libelle}</td>
-          <td class="c">${ec.moyenne !== undefined ? ec.moyenne.toFixed(2) : "—"}</td>
+          <td class="c">${formatNote(ec.moyenne)}</td>
           <td class="c"></td>
           <td class="c"></td>
         </tr>`;
@@ -224,9 +237,9 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
     <tfoot>
       <tr>
         <td>Moyenne ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</td>
-        <td class="c">${moy.toFixed(2)}</td>
+        <td class="c">${formatNote(moy)}</td>
         <td class="c">${creditsObtenus}/${creditsTotal}</td>
-        <td class="c"></td>
+        <td class="c">${resolved.decision === "admis" && resolved.mention !== "—" ? `Mention ${resolved.mention}` : ""}</td>
       </tr>
     </tfoot>
   </table>
@@ -262,9 +275,12 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 </html>`;
 }
 
-function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
+function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined, pourEtudiant = false) {
   if (estActionInterdite(entry.etudiantId, "impression_bulletin")) {
-    toast.error(`Impression bloquée pour ${entry.etudiant} — un motif de blocage l'interdit (voir Paramètres → Motifs de blocage).`);
+    // L'étudiant n'a pas accès aux Paramètres : on lui dit à qui s'adresser, pas où cliquer côté admin.
+    toast.error(pourEtudiant
+      ? "Impression bloquée — un motif de blocage administratif l'interdit. Contactez le service scolarité (Messagerie)."
+      : `Impression bloquée pour ${entry.etudiant} — un motif de blocage l'interdit (voir Paramètres → Motifs de blocage).`);
     return;
   }
   const html = buildPrintHtml(entry, resolved);
@@ -279,7 +295,7 @@ function printReleve(entry: ReleverEntry, resolved: BulletinResolu | undefined) 
  * où un bulletin doit être prévisualisé (Relevés, Génération, et le portail étudiant) : l'aperçu
  * est donc toujours pixel pour pixel identique au document réellement imprimé, plus de gabarit
  * React dupliqué qui pourrait diverger. */
-export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: ReleverEntry; resolved: BulletinResolu | undefined; onClose: () => void }) {
+export function BulletinPreviewModal({ entry, resolved, onClose, pourEtudiant = false }: { entry: ReleverEntry; resolved: BulletinResolu | undefined; onClose: () => void; pourEtudiant?: boolean }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -288,7 +304,7 @@ export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: Rele
             <h3 className="text-base font-bold text-gray-900 dark:text-white">Aperçu — Relevé de Notes Officiel</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{entry.etudiant} · {entry.matricule} · {entry.semestre}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X size={16} className="text-gray-500" />
           </button>
         </div>
@@ -306,7 +322,7 @@ export function BulletinPreviewModal({ entry, resolved, onClose }: { entry: Rele
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">Fermer</button>
             {resolved && (
-              <button onClick={() => printReleve(entry, resolved)} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+              <button onClick={() => printReleve(entry, resolved, pourEtudiant)} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
                 <Printer size={14} /> Imprimer / Exporter PDF
               </button>
             )}
@@ -389,7 +405,7 @@ export default function RelevesPage() {
       render: (row) => {
         const g = row as unknown as BulletinGenerationRecord;
         return (
-          <button onClick={() => openGeneration(g.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`generation-ouvrir-${g.id}`}>
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={() => openGeneration(g.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors" data-testid={`generation-ouvrir-${g.id}`}>
             <Eye size={14} />
           </button>
         );
@@ -419,7 +435,7 @@ export default function RelevesPage() {
       {mode === "liste" && (
         <>
           <div className="mb-4 max-w-sm">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Intitulé génération, session..." className={inputClass} data-testid="generation-recherche" />
+            <input aria-label="Intitulé génération, session" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Intitulé génération, session..." className={inputClass} data-testid="generation-recherche" />
           </div>
           <DataTable
             columns={columns}
@@ -566,8 +582,8 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
       <h3 className="text-sm font-bold text-foreground">Nouvelle génération bulletin</h3>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-        <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="generation-filiere">
+        <label htmlFor="releves-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+        <select id="releves-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="generation-filiere">
           <option value="">Sélectionner</option>
           {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
         </select>
@@ -575,15 +591,15 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-          <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-annee">
+          <label htmlFor="releves-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+          <select id="releves-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-annee">
             <option value="">Sélectionner</option>
             {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-          <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-niveau">
+          <label htmlFor="releves-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+          <select id="releves-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-niveau">
             <option value="">Sélectionner</option>
             {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
           </select>
@@ -592,16 +608,16 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-          <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-classe">
+          <label htmlFor="releves-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+          <select id="releves-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-classe">
             <option value="">Sélectionner</option>
             <option value={TOUTES_LES_CLASSES}>Générer pour toutes les classes</option>
             {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-          <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-semestre">
+          <label htmlFor="releves-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+          <select id="releves-champ-5" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="generation-semestre">
             <option value="">Sélectionner</option>
             {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
           </select>
@@ -696,7 +712,7 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/40 border-b border-border">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Etudiant</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Étudiant</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Suggestion</th>
               <th className="px-5 py-3"></th>
             </tr>
@@ -718,7 +734,7 @@ function ConsultationGeneration({ generationId }: { generationId: string }) {
                       : "—"}
                 </td>
                 <td className="px-5 py-3 text-right">
-                  <button
+                  <button aria-label="Voir le détail" title="Voir le détail"
                     onClick={() => handlePreview(e)}
                     disabled={e.statut !== "succes"}
                     className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"

@@ -4,16 +4,20 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, ENSEIGNANTS } from "@/data/mockData";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { deleteEvaluation, type EvaluationRecord } from "@/data/evaluationStore";
+import { type EvaluationRecord } from "@/data/evaluationStore";
+import { verifierSuppressionEvaluation, supprimerEvaluation } from "@/data/suppressionReferentiel";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNotes, useStudentStore } from "@/hooks/useStudentStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 function noteTypeFor(type: EvaluationRecord["type"]): "CC" | "EF" {
   return type === "devoir" ? "CC" : "EF";
 }
 
 export default function DevoirDetailPage({ id }: { id: string }) {
+  const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const evaluations = useEvaluations();
   const notes = useNotes();
@@ -57,8 +61,12 @@ export default function DevoirDetailPage({ id }: { id: string }) {
     .sort((a, b) => `${a.etudiant.nom}${a.etudiant.prenom}`.localeCompare(`${b.etudiant.nom}${b.etudiant.prenom}`));
 
   const handleDelete = () => {
-    if (!confirm(`Supprimer l'évaluation ${evaluation.code} (${evaluation.type === "devoir" ? "Devoir" : "Examen"}) ? Cette action est définitive.`)) return;
-    deleteEvaluation(evaluation.id);
+    const v = verifierSuppressionEvaluation(evaluation.id);
+    if (!v.ok) { toast.error(v.reason, { duration: 10000 }); return; }
+    const brouillons = v.notesBrouillon ? ` Les ${v.notesBrouillon} note(s) en brouillon seront aussi supprimées.` : "";
+    if (!confirm(`Supprimer l'évaluation ${evaluation.code} (${evaluation.type === "devoir" ? "Devoir" : "Examen"}) ?${brouillons} Cette action est définitive.`)) return;
+    const res = supprimerEvaluation(evaluation.id, currentUser?.id ?? "admin");
+    if (!res.ok) { toast.error(res.reason); return; }
     toast.success("Évaluation supprimée");
     setLocation("/admin/evaluation/devoir");
   };
@@ -99,7 +107,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
         <div className="bg-card border border-border rounded-xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center gap-2 px-5 py-3 bg-primary/10 border-b border-border">
             <ClipboardList size={16} className="text-primary" />
-            <h3 className="font-bold text-foreground text-sm">Code {evaluation.type === "devoir" ? "devoir" : "examen"} : {evaluation.code} effectué le : {evaluation.dateCreation}</h3>
+            <h3 className="font-bold text-foreground text-sm">Code {evaluation.type === "devoir" ? "devoir" : "examen"} : {evaluation.code} effectué le {formatDate(evaluation.dateCreation)}</h3>
           </div>
           <div className="px-5 py-2">
             {infoRow("Type évaluation", `${evaluation.type === "devoir" ? "Devoir" : "Examen"}${evaluation.session === "rattrapage" ? " (Rattrapage)" : ""}`)}
@@ -109,7 +117,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
                 <div className="flex gap-4 text-xs">
                   <span className="text-muted-foreground">Note min : <strong className="text-foreground">{stats.min}</strong></span>
                   <span className="text-muted-foreground">Note max : <strong className="text-foreground">{stats.max}</strong></span>
-                  <span className="text-muted-foreground">Moyenne : <strong className="text-foreground">{stats.moyenne.toFixed(1)}</strong></span>
+                  <span className="text-muted-foreground">Moyenne : <strong className="text-foreground">{formatNote(stats.moyenne)}</strong></span>
                 </div>
               ) : (
                 <span className="flex items-center gap-1.5 text-xs text-amber-600"><AlertTriangle size={12} /> Pas de fiche de notes</span>
@@ -143,7 +151,7 @@ export default function DevoirDetailPage({ id }: { id: string }) {
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", note.note >= 10 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300" : "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300")}>
-                      {note.note.toFixed(1)}
+                      {formatNote(note.note)}
                     </span>
                   </td>
                 </tr>

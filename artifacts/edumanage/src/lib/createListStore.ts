@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 /** Fabrique de store générique pour une liste de paramétrage (code/intitulé + champs propres),
  * persistée en localStorage avec CRUD add/update/remove et souscription useSyncExternalStore. */
 export function createListStore<T extends { id: string }>(storageKey: string, seed: T[]) {
@@ -25,7 +26,7 @@ export function createListStore<T extends { id: string }>(storageKey: string, se
     // Object.is et ne re-rend pas si getAll() renvoie la même référence.
     store = store.slice();
     if (typeof window !== "undefined") {
-      localStorage.setItem(storageKey, JSON.stringify(store));
+      ecrireStockage(storageKey, JSON.stringify(store));
     }
     notify();
   }

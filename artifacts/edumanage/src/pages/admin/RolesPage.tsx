@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Plus, Eye, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { FormModal } from "@/components/admin/FormModal";
 import { useRoles } from "@/hooks/useRoleStore";
@@ -22,6 +23,7 @@ export default function RolesPage() {
   const [, setLocation] = useLocation();
   const roles = useRoles();
   const comptes = useUserAccounts();
+  const gestion = currentUser?.role === "admin" && !currentUser.roleId;
   const totalPages = collectAllLeaves().length;
 
   const [open, setOpen] = useState(false);
@@ -110,12 +112,18 @@ export default function RolesPage() {
         breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Les rôles" }]}
         title="Les rôles"
         subtitle="Un rôle donne accès à un sous-ensemble des pages du menu — les comptes sans rôle gardent l'accès complet"
-        actions={
+        actions={gestion && (
           <button onClick={() => { setForm(EMPTY_FORM); setError(""); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" data-testid="role-ajouter">
             <Plus size={14} /> Nouveau rôle
           </button>
-        }
+        )}
       />
+
+      {!gestion && (
+        <AvisAccesComplet testId="roles-lecture-seule">
+          Consultation seulement : les rôles ne peuvent être créés ou modifiés que par un administrateur à accès complet.
+        </AvisAccesComplet>
+      )}
 
       <DataTable
         columns={columns}
@@ -129,12 +137,12 @@ export default function RolesPage() {
       <FormModal open={open} onClose={() => setOpen(false)} title="Nouveau rôle" size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code du rôle *</label>
-            <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: ROLE_SECRETARIAT" className={inputClass} data-testid="role-code" />
+            <label htmlFor="roles-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Code du rôle *</label>
+            <input id="roles-champ-1" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="ex: ROLE_SECRETARIAT" className={inputClass} data-testid="role-code" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} placeholder="ex: Gestion des étudiants et de la scolarité" className={inputClass} data-testid="role-description" />
+            <label htmlFor="roles-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
+            <textarea id="roles-champ-2" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} placeholder="ex: Gestion des étudiants et de la scolarité" className={inputClass} data-testid="role-description" />
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}

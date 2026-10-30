@@ -1,3 +1,5 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 const STORAGE_KEY = "edumanage-teacher-contracts-v1";
 
 export interface ContractLigne {
@@ -55,7 +57,7 @@ function persist() {
   // Object.is et ne re-rend pas si getTeacherContracts() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -78,6 +80,14 @@ export function makeContractNumero(): string {
   return `CTR-${String(seq).padStart(4, "0")}`;
 }
 
+const dateFr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+
+/** Prévient le professeur sur son portail (contrat, avenant, résiliation). */
+function notifierProfesseur(teacherId: string, message: string) {
+  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === teacherId);
+  if (compte) pushNotificationEtPersister(compte.id, message);
+}
+
 export function addTeacherContract(
   payload: Omit<TeacherContractRecord, "id" | "createdAt" | "avenants" | "resilie">,
 ): TeacherContractRecord {
@@ -90,6 +100,7 @@ export function addTeacherContract(
   };
   store.push(record);
   persist();
+  notifierProfesseur(record.teacherId, `Nouveau contrat ${record.id} (${record.annee}) du ${dateFr(record.dateDebut)} au ${dateFr(record.dateFin)} — ${montantTotal(record).toLocaleString("fr-FR")} F CFA. Consultez « Mon contrat ».`);
   return record;
 }
 
@@ -119,6 +130,7 @@ export function addAvenant(
     avenants: [...contract.avenants, avenant],
   };
   persist();
+  notifierProfesseur(contract.teacherId, `Avenant n° ${avenant.numero} à votre contrat ${contract.id} : fin au ${dateFr(payload.dateFin)} — ${payload.motif}.`);
   return store[idx];
 }
 
@@ -132,6 +144,7 @@ export function resilierContract(id: string, motif: string): TeacherContractReco
     motifResiliation: motif,
   };
   persist();
+  notifierProfesseur(store[idx].teacherId, `Votre contrat ${id} a été résilié${motif.trim() ? ` : ${motif.trim()}` : ""}.`);
   return store[idx];
 }
 

@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useRef, useState } from "react";
 import {
   Upload, Trash2, Download, ExternalLink, Search, LayoutGrid, List, Library, BookOpen,
@@ -10,7 +11,7 @@ import { useClasses } from "@/hooks/useStructureStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { useRessourcesPedagogiques } from "@/hooks/useRessourcePedagogiqueStore";
 import {
-  addRessourcePedagogique, deleteRessourcePedagogique, TAILLE_MAX_RESSOURCE_OCTETS,
+  addRessourcePedagogique, deleteRessourcePedagogique, peutSupprimerRessource, TAILLE_MAX_RESSOURCE_OCTETS,
   type RessourcePedagogiqueRecord,
 } from "@/data/ressourcePedagogiqueStore";
 import { formatTailleRessource, RESSOURCE_TYPE_STYLES, detecterTypeRessource } from "@/lib/ressourceUtils";
@@ -34,7 +35,7 @@ export default function TeacherRessourcesPage() {
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
   // Mes modules : les EC dont je suis responsable, et les classes de leur filière/niveau.
-  const mesEcs = useMemo(() => (myTeacher ? ecs.filter((e) => matchesProf(myTeacher, e.responsable)) : []), [ecs, myTeacher]);
+  const mesEcs = useMemo(() => (myTeacher ? ecs.filter((e) => matchesProf(myTeacher, e.responsable, e.responsableId)) : []), [ecs, myTeacher]);
   const mesFiliereNiveau = useMemo(() => {
     const paires = new Set<string>();
     for (const e of mesEcs) {
@@ -152,12 +153,8 @@ export default function TeacherRessourcesPage() {
     const classe = classes.find((c) => c.id === formClasseId);
     if (!classe) { toast.error("Sélectionnez une classe."); return; }
     if (!formTitre.trim()) { toast.error("Indiquez un titre avant d'ajouter un fichier."); return; }
-    if (file.size > TAILLE_MAX_RESSOURCE_OCTETS) {
-      toast.error(`Fichier trop lourd (max ${Math.round(TAILLE_MAX_RESSOURCE_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_RESSOURCE_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => {
       const ec = ecsDeLaClasseFormulaire.find((e) => e.id === formEcId);
       addRessourcePedagogique({
         classeId: classe.id,
@@ -167,21 +164,33 @@ export default function TeacherRessourcesPage() {
         titre: formTitre.trim(),
         description: formDescription.trim() || undefined,
         nom: file.name,
-        dataUrl: String(reader.result),
-        tailleOctets: file.size,
+        dataUrl: dataUrl,
+        tailleOctets: Math.round(dataUrl.length * 0.75),
         ajoutePar: currentUser.name,
       }, currentUser.id);
       toast.success("Ressource ajoutée.");
       resetForm();
       setModalOpen(false);
-    };
-    reader.readAsDataURL(file);
+    })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   }
 
+  // Suppression : seulement ses propres ressources, et après confirmation.
+  const [aSupprimer, setASupprimer] = useState<RessourcePedagogiqueRecord | null>(null);
+  const estMienne = (r: RessourcePedagogiqueRecord) => !!currentUser && peutSupprimerRessource(r, currentUser.id);
   function handleDelete(id: string) {
-    if (!currentUser) return;
-    deleteRessourcePedagogique(id, currentUser.id);
-    toast.success("Ressource supprimée.");
+    const r = ressources.find((x) => x.id === id);
+    if (r) setASupprimer(r);
+  }
+  function confirmerSuppression() {
+    if (!currentUser || !aSupprimer) return;
+    try {
+      deleteRessourcePedagogique(aSupprimer.id, currentUser.id);
+      toast.success("Ressource supprimée.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Suppression impossible.");
+    }
+    setASupprimer(null);
   }
 
   function renderCarte(r: RessourcePedagogiqueRecord) {
@@ -198,15 +207,18 @@ export default function TeacherRessourcesPage() {
             <div className="min-w-0 flex-1">
               <h3 className="font-bold text-sm text-foreground leading-tight truncate">{r.titre}</h3>
               <p className="text-[11px] text-muted-foreground truncate">{r.classe}{r.ec && ` — ${r.ec}`}</p>
+              {!estMienne(r) && <p className="text-[10px] text-muted-foreground truncate">Déposée par {r.ajoutePar}</p>}
             </div>
-            <button
-              type="button"
-              onClick={() => handleDelete(r.id)}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0"
-              data-testid={`teacher-ressource-supprimer-${r.id}`}
-            >
-              <Trash2 size={13} />
-            </button>
+            {estMienne(r) && (
+              <button aria-label={`Supprimer « ${r.titre} »`} title="Supprimer"
+                type="button"
+                onClick={() => handleDelete(r.id)}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0"
+                data-testid={`teacher-ressource-supprimer-${r.id}`}
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
           {r.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{r.description}</p>}
           <p className="text-[11px] text-muted-foreground">
@@ -242,17 +254,19 @@ export default function TeacherRessourcesPage() {
         <span className="text-[11px] text-muted-foreground flex-shrink-0 hidden sm:block">{formatDate(r.ajouteLe.slice(0, 10))}</span>
         <span className="text-[11px] text-muted-foreground flex-shrink-0 w-16 text-right hidden sm:block">{r.url ? "Lien" : formatTailleRessource(r.tailleOctets || 0)}</span>
         {r.url ? (
-          <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-ouvrir-${r.id}`}>
+          <a aria-label="Ouvrir" title="Ouvrir" href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-ouvrir-${r.id}`}>
             <ExternalLink size={14} />
           </a>
         ) : (
-          <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-telecharger-${r.id}`}>
+          <a aria-label="Télécharger" title="Télécharger" href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`teacher-ressource-telecharger-${r.id}`}>
             <Download size={14} />
           </a>
         )}
-        <button type="button" onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`teacher-ressource-supprimer-${r.id}`}>
-          <Trash2 size={14} />
-        </button>
+        {estMienne(r) && (
+          <button aria-label={`Supprimer « ${r.titre} »`} title="Supprimer" type="button" onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`teacher-ressource-supprimer-${r.id}`}>
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     );
   }
@@ -325,7 +339,7 @@ export default function TeacherRessourcesPage() {
                 <div className="flex flex-wrap gap-3">
                   <div className="relative flex-1 min-w-[200px]">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
+                    <input aria-label="Rechercher une ressource, un cours"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Rechercher une ressource, un cours…"
@@ -333,7 +347,7 @@ export default function TeacherRessourcesPage() {
                       data-testid="teacher-ressources-recherche"
                     />
                   </div>
-                  <select
+                  <select aria-label="Trier les ressources"
                     value={tri}
                     onChange={(e) => setTri(e.target.value as "recent" | "nom" | "taille")}
                     className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -349,6 +363,9 @@ export default function TeacherRessourcesPage() {
                         key={mode}
                         type="button"
                         onClick={() => setVue(mode)}
+                        aria-label={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
+                        aria-pressed={vue === mode}
+                        title={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
                         className={cn("p-2 rounded-md transition-colors", vue === mode ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
                         data-testid={`teacher-ressources-vue-${mode}`}
                       >
@@ -418,8 +435,8 @@ export default function TeacherRessourcesPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Classe <span className="text-red-500">*</span></label>
-            <select
+            <label htmlFor="teacher-ressources-champ-1" className={labelClass}>Classe <span className="text-red-500">*</span></label>
+            <select id="teacher-ressources-champ-1"
               value={formClasseId}
               onChange={(e) => { setFormClasseId(e.target.value); setFormEcId(""); }}
               className={inputClass}
@@ -432,8 +449,8 @@ export default function TeacherRessourcesPage() {
             </select>
           </div>
           <div>
-            <label className={labelClass}>Module (EC) — optionnel</label>
-            <select
+            <label htmlFor="teacher-ressources-champ-2" className={labelClass}>Module (EC) — optionnel</label>
+            <select id="teacher-ressources-champ-2"
               value={formEcId}
               onChange={(e) => setFormEcId(e.target.value)}
               disabled={!formClasseId}
@@ -447,8 +464,8 @@ export default function TeacherRessourcesPage() {
             </select>
           </div>
           <div>
-            <label className={labelClass}>Titre <span className="text-red-500">*</span></label>
-            <input
+            <label htmlFor="teacher-ressources-champ-3" className={labelClass}>Titre <span className="text-red-500">*</span></label>
+            <input id="teacher-ressources-champ-3"
               value={formTitre}
               onChange={(e) => setFormTitre(e.target.value)}
               placeholder="ex: Polycopié Chapitre 3"
@@ -457,8 +474,8 @@ export default function TeacherRessourcesPage() {
             />
           </div>
           <div>
-            <label className={labelClass}>Description</label>
-            <input
+            <label htmlFor="teacher-ressources-champ-4" className={labelClass}>Description</label>
+            <input id="teacher-ressources-champ-4"
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               placeholder="Optionnel"
@@ -490,8 +507,8 @@ export default function TeacherRessourcesPage() {
             </div>
           ) : (
             <div>
-              <label className={labelClass}>URL <span className="text-red-500">*</span></label>
-              <input
+              <label htmlFor="teacher-ressources-champ-5" className={labelClass}>URL <span className="text-red-500">*</span></label>
+              <input id="teacher-ressources-champ-5"
                 value={formUrl}
                 onChange={(e) => setFormUrl(e.target.value)}
                 placeholder="https://…"
@@ -508,6 +525,15 @@ export default function TeacherRessourcesPage() {
               </button>
             </div>
           )}
+        </div>
+      </FormModal>
+      <FormModal open={!!aSupprimer} onClose={() => setASupprimer(null)} title="Supprimer la ressource" subtitle={aSupprimer?.titre} size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Les étudiants de {aSupprimer?.classe} ne pourront plus la consulter ni la télécharger.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setASupprimer(null)} className="px-4 py-2 border border-border rounded-xl text-sm">Annuler</button>
+            <button type="button" onClick={confirmerSuppression} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700" data-testid="teacher-ressource-confirmer-suppression">Supprimer</button>
+          </div>
         </div>
       </FormModal>
     </div>

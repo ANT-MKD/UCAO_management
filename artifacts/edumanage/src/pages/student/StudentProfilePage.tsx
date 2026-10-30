@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,6 +23,9 @@ import {
   Moon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { telephoneValide, TELEPHONE_EXEMPLE } from "@/lib/telephone";
+import { statutEtudiant } from "@/lib/portailEtudiant";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { updateEtudiantInfos, changeOwnPassword, type EtudiantInfosPayload, type AuditLogRecord } from "@/data/studentStore";
@@ -35,13 +39,6 @@ import { cn, formatDate } from "@/lib/utils";
 
 type Tab = "personnelles" | "academiques" | "securite" | "preferences";
 
-const STATUT_STYLES: Record<string, { label: string; className: string }> = {
-  inscrit: { label: "Étudiant actif", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
-  preinscrit: { label: "Préinscrit", className: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
-  suspendu: { label: "Suspendu", className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
-  abandon: { label: "Dossier abandonné", className: "bg-muted text-muted-foreground" },
-};
-
 const ACTION_INFO: Record<string, { label: string; icon: React.ElementType }> = {
   login: { label: "Connexion réussie", icon: LogIn },
   send_message: { label: "Message envoyé", icon: Send },
@@ -54,7 +51,7 @@ const ACTION_INFO: Record<string, { label: string; icon: React.ElementType }> = 
 function activityLabel(log: AuditLogRecord): { label: string; icon: React.ElementType; showMeta: boolean } {
   const info = ACTION_INFO[log.action];
   if (info) return { ...info, showMeta: log.action === "create_request" || log.action === "cancel_request" };
-  return { label: log.action, icon: FileText, showMeta: false };
+  return { label: "Autre action enregistrée", icon: FileText, showMeta: false };
 }
 
 function activityDateLabel(dateStr: string): string {
@@ -118,7 +115,7 @@ export default function StudentProfilePage() {
 
   if (!student) return <p className="text-sm text-muted-foreground">Profil introuvable.</p>;
 
-  const statutStyle = STATUT_STYLES[student.statut] ?? { label: student.statut, className: "bg-muted text-muted-foreground" };
+  const statutStyle = statutEtudiant(student.statut);
 
   const personnellesCompletes = !!(student.adresse && student.lieuNaissance && student.nationalite && student.cni);
   const academiquesCompletes = !!student.classeId;
@@ -136,13 +133,17 @@ export default function StudentProfilePage() {
 
   const handlePhoto = (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { usagePhoto: "portrait" })
+      .then((dataUrl) => setPhotoDataUrl(dataUrl))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleSaveInfos = () => {
     if (!currentUser) return;
+    if (!telephoneValide(telephone) || !telephoneValide(telTuteur)) {
+      toast.error(`Numéro de téléphone invalide — saisissez 8 à 15 chiffres, par exemple ${TELEPHONE_EXEMPLE}.`);
+      return;
+    }
     const payload: EtudiantInfosPayload = {
       adresse: adresse.trim() || undefined,
       telephone: telephone.trim() || undefined,
@@ -157,8 +158,13 @@ export default function StudentProfilePage() {
 
   const handleChangePassword = () => {
     if (!currentUser) return;
-    if (newPassword.length < 6) {
-      toast.error("Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    // Même règle qu'à la première connexion (passwordPolicy) : pas un simple remplissage d'espaces.
+    if (!isPasswordValid(newPassword)) {
+      toast.error(`Le nouveau mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()} (hors espaces).`);
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("Le nouveau mot de passe doit être différent de l'actuel.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -282,7 +288,7 @@ export default function StudentProfilePage() {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4 min-w-0">
           {tab === "personnelles" && (
             <div className="rounded-2xl border border-border bg-card p-5">
@@ -491,31 +497,31 @@ export default function StudentProfilePage() {
       <FormModal open={showEditModal} onClose={() => setShowEditModal(false)} title="Modifier mes informations" subtitle="Seuls les champs de contact peuvent être modifiés ici">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Photo</label>
+            <label htmlFor="student-profile-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Photo</label>
             <div className="flex items-center gap-3">
               <UserAvatar name={`${student.prenom} ${student.nom}`} src={photoDataUrl} size="md" />
               <label className="px-3 py-2 rounded-xl border border-border text-xs font-medium cursor-pointer hover:bg-muted">
                 Choisir une photo
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="profil-photo-input" />
+                <input id="student-profile-champ-1" type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="profil-photo-input" />
               </label>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-            <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="profil-telephone" />
+            <label htmlFor="student-profile-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input id="student-profile-champ-2" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="profil-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-            <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="profil-adresse" />
+            <label htmlFor="student-profile-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+            <input id="student-profile-champ-3" value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="profil-adresse" />
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du tuteur</label>
-              <input value={nomTuteur} onChange={(e) => setNomTuteur(e.target.value)} className={inputClass} data-testid="profil-tuteur-nom" />
+              <label htmlFor="student-profile-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du tuteur</label>
+              <input id="student-profile-champ-4" value={nomTuteur} onChange={(e) => setNomTuteur(e.target.value)} className={inputClass} data-testid="profil-tuteur-nom" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone du tuteur</label>
-              <input value={telTuteur} onChange={(e) => setTelTuteur(e.target.value)} className={inputClass} data-testid="profil-tuteur-tel" />
+              <label htmlFor="student-profile-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone du tuteur</label>
+              <input id="student-profile-champ-5" value={telTuteur} onChange={(e) => setTelTuteur(e.target.value)} className={inputClass} data-testid="profil-tuteur-tel" />
             </div>
           </div>
           <button onClick={handleSaveInfos} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="profil-enregistrer">
@@ -527,16 +533,16 @@ export default function StudentProfilePage() {
       <FormModal open={showPasswordModal} onClose={() => setShowPasswordModal(false)} title="Changer mon mot de passe">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe actuel</label>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} data-testid="mdp-actuel" />
+            <label htmlFor="student-profile-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe actuel</label>
+            <input id="student-profile-champ-6" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} data-testid="mdp-actuel" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nouveau mot de passe</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} data-testid="mdp-nouveau" />
+            <label htmlFor="student-profile-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Nouveau mot de passe</label>
+            <input id="student-profile-champ-7" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} data-testid="mdp-nouveau" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
+            <label htmlFor="student-profile-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
+            <input id="student-profile-champ-8" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
           </div>
           <button onClick={handleChangePassword} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="mdp-enregistrer">
             Changer le mot de passe

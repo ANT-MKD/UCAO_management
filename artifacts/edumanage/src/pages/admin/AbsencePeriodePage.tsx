@@ -105,52 +105,52 @@ export default function AbsencePeriodePage() {
       <div className="bg-card border border-border rounded-xl p-5 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="periode-filiere">
+            <label htmlFor="absence-periode-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+            <select id="absence-periode-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="periode-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-            <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-annee">
+            <label htmlFor="absence-periode-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+            <select id="absence-periode-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-niveau">
+            <label htmlFor="absence-periode-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="absence-periode-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-            <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-classe">
+            <label htmlFor="absence-periode-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+            <select id="absence-periode-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-classe">
               <option value="">Sélectionner</option>
               {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-            <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-semestre">
+            <label htmlFor="absence-periode-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+            <select id="absence-periode-champ-5" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="periode-semestre">
               <option value="">Sélectionner</option>
               {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date début *</label>
-            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} data-testid="periode-date-debut" />
+            <label htmlFor="absence-periode-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Date début *</label>
+            <input id="absence-periode-champ-6" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={inputClass} data-testid="periode-date-debut" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date fin *</label>
-            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} data-testid="periode-date-fin" />
+            <label htmlFor="absence-periode-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Date fin *</label>
+            <input id="absence-periode-champ-7" type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} data-testid="periode-date-fin" />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
-          <textarea value={motif} onChange={(e) => setMotif(e.target.value)} rows={3} placeholder="Veuillez saisir le motif de l'absence svp!!!" className={inputClass} data-testid="periode-motif" />
+          <label htmlFor="absence-periode-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
+          <textarea id="absence-periode-champ-8" value={motif} onChange={(e) => setMotif(e.target.value)} rows={3} placeholder="Veuillez saisir le motif de l'absence svp!!!" className={inputClass} data-testid="periode-motif" />
         </div>
       </div>
 
@@ -196,7 +196,7 @@ export default function AbsencePeriodePage() {
                         />
                       </td>
                       <td className="px-4 py-2.5">
-                        <input
+                        <input aria-label="Ex. certificat médical"
                           disabled={!selected}
                           value={j.justificatif}
                           onChange={(ev) => setJustifications((prev) => ({ ...prev, [e.id]: { justifie: prev[e.id]?.justifie ?? false, justificatif: ev.target.value } }))}

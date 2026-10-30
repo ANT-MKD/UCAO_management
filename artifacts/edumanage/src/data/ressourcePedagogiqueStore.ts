@@ -1,4 +1,5 @@
-import { logAudit } from "./studentStore";
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { getEtudiants, getUserAccounts, logAudit, pushNotificationEtPersister } from "./studentStore";
 
 export const TAILLE_MAX_RESSOURCE_OCTETS = 800 * 1024;
 
@@ -19,6 +20,8 @@ export interface RessourcePedagogiqueRecord {
   url?: string;
   ajouteLe: string;
   ajoutePar: string;
+  /** Compte de l'auteur : seul lui (ou l'administration) peut retirer la ressource. */
+  ajouteParId?: string;
 }
 
 const STORAGE_KEY = "edumanage-ressource-pedagogique-store-v1";
@@ -50,7 +53,7 @@ function persist() {
   store = store.slice();
   parClasseCache = new Map();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -79,16 +82,34 @@ export function addRessourcePedagogique(payload: RessourcePedagogiqueInput, acto
     id: `rp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ajouteLe: new Date().toISOString(),
     ...payload,
+    ajouteParId: actorId,
   };
   store.unshift(record);
   logAudit(actorId, "add_ressource_pedagogique", "classe", payload.classeId, payload.titre);
   persist();
+  // Les étudiants de la classe sont prévenus du nouveau support.
+  const etudiants = new Set(getEtudiants().filter((e) => e.classeId === payload.classeId && e.statut !== "abandon").map((e) => e.id));
+  for (const compte of getUserAccounts().filter((u) => u.role === "student" && u.linkedId && etudiants.has(u.linkedId))) {
+    pushNotificationEtPersister(compte.id, `Nouvelle ressource pédagogique${payload.ec ? ` en ${payload.ec}` : ""} : « ${payload.titre} ».`);
+  }
   return record;
+}
+
+/** Un professeur ne retire que les ressources qu'il a déposées ; l'administration, toutes. */
+export function peutSupprimerRessource(ressource: Pick<RessourcePedagogiqueRecord, "ajouteParId" | "ajoutePar">, actorId: string): boolean {
+  const acteur = getUserAccounts().find((u) => u.id === actorId);
+  if (!acteur) return false;
+  if (acteur.role === "admin") return true;
+  return ressource.ajouteParId ? ressource.ajouteParId === actorId : ressource.ajoutePar === acteur.displayName;
 }
 
 export function deleteRessourcePedagogique(id: string, actorId: string): void {
   const ressource = store.find((r) => r.id === id);
+  if (!ressource) return;
+  if (!peutSupprimerRessource(ressource, actorId)) {
+    throw new Error("Vous ne pouvez supprimer que les ressources que vous avez déposées.");
+  }
   store = store.filter((r) => r.id !== id);
-  if (ressource) logAudit(actorId, "delete_ressource_pedagogique", "classe", ressource.classeId, ressource.titre);
+  logAudit(actorId, "delete_ressource_pedagogique", "classe", ressource.classeId, ressource.titre);
   persist();
 }

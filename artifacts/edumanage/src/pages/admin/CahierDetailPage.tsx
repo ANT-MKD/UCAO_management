@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier, getCahierStatsForEc } from "@/data/studentStore";
-import { cn } from "@/lib/utils";
+import { cn, formatDate, formatShortDate } from "@/lib/utils";
+import { LIBELLE_ETAT_SEANCE, LIBELLE_STATUT_CAHIER } from "@/lib/cahierLibelles";
 
 const STATUT_CLS: Record<string, string> = {
   soumis: "bg-amber-50 text-amber-700",
@@ -38,8 +39,8 @@ export default function CahierDetailPage({ id }: { id: string }) {
 
   function act(approve: boolean) {
     if (!currentUser || !c) return;
-    validateCahier(c.id, currentUser.id, approve);
-    toast.success(approve ? "Cahier validé — prêt pour vacations" : "Cahier rejeté");
+    const pointage = validateCahier(c.id, currentUser.id, approve);
+    toast.success(approve ? `Cahier validé${pointage ? ` — pointage de ${pointage.volumePointe} h en attente de confirmation` : ""}` : "Cahier rejeté");
   }
 
   return (
@@ -55,10 +56,10 @@ export default function CahierDetailPage({ id }: { id: string }) {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Cahiers de séance" }, { label: c.sujet || c.ec }]}
         title={c.sujet || c.ec}
-        subtitle={`${c.date} · ${c.classe} · ${c.prof}`}
+        subtitle={`${formatShortDate(c.date)} · ${c.classe} · ${c.prof}`}
         actions={
           <span className={cn("text-xs px-3 py-1.5 rounded-full font-medium h-fit", STATUT_CLS[c.statut] || "bg-muted")}>
-            {c.statut} · {c.etatSeance}
+            {LIBELLE_STATUT_CAHIER[c.statut] ?? c.statut} · {LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance}
           </span>
         }
       />
@@ -87,10 +88,10 @@ export default function CahierDetailPage({ id }: { id: string }) {
             ["Enseignant", c.prof],
             ["Salle", c.salle || "—"],
             ["Classe", c.classe],
-            ["Date", c.date],
+            ["Date", formatDate(c.date)],
             ["Horaire", `${c.heureDebut || "—"} – ${c.heureFin || "—"}`],
             ["Type", c.typeSeance],
-            ["État séance", c.etatSeance],
+            ["État séance", LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance],
             ["Taux présence", `${c.tauxPresence}%`],
           ].map(([k, v]) => (
             <div key={k}>

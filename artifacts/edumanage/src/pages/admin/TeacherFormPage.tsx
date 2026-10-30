@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -8,6 +9,7 @@ import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
 import { creerCompteStaff } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { NIVEAUX_ETUDE, generateMatriculeEnseignant, generateMotDePasse } from "@/lib/inscriptionConstants";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 const TAILLE_MAX_PHOTO_OCTETS = 400 * 1024;
 
@@ -37,7 +39,8 @@ export default function TeacherFormPage({ id }: Props) {
   const [diplomes, setDiplomes] = useState<string[]>([""]);
   const [specialites, setSpecialites] = useState<string[]>([""]);
   const [photoDataUrl, setPhotoDataUrl] = useState("");
-  const [motDePasse, setMotDePasse] = useState("");
+  // Mot de passe provisoire toujours présent à la création ; changement obligatoire à la 1re connexion.
+  const [motDePasse, setMotDePasse] = useState(() => generateMotDePasse());
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -49,13 +52,9 @@ export default function TeacherFormPage({ id }: Props) {
 
   const handlePhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PHOTO_OCTETS, usagePhoto: "portrait" })
+      .then((dataUrl) => setPhotoDataUrl(dataUrl))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   useEffect(() => {
@@ -90,6 +89,7 @@ export default function TeacherFormPage({ id }: Props) {
   const onSubmit = (data: FormData) => {
     if (!currentUser) return;
     const specialitesRemplies = specialites.filter(Boolean);
+    if (specialitesRemplies.length === 0) { toast.error("Indiquez au moins une spécialité."); return; }
     const payload = {
       prenom: data.prenom.trim(),
       nom: data.nom.trim().toUpperCase(),
@@ -124,7 +124,7 @@ export default function TeacherFormPage({ id }: Props) {
             nom: payload.nom,
             identifier: matricule,
             email: payload.email,
-            password: motDePasse || "demo123",
+            password: motDePasse || generateMotDePasse(),
             telephone: payload.telephone,
             photoDataUrl: payload.photoDataUrl,
             linkedId: teacher.id,
@@ -155,6 +155,19 @@ export default function TeacherFormPage({ id }: Props) {
     setter((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const existingTeacher = id ? getTeacherById(id) : undefined;
+  if (isEdit && !existingTeacher) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Utilisateurs" }, { label: "Enseignants", href: "/admin/teachers" }, { label: "Modifier" }]}
+        title="Enseignant introuvable"
+        message="Cette fiche enseignant n'existe pas ou a été supprimée."
+        backHref="/admin/teachers"
+        backLabel="Retour aux enseignants"
+      />
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -168,7 +181,7 @@ export default function TeacherFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-6" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-6" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div>
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Identité</p>
             <div className="flex items-center gap-4 mb-4">
@@ -186,13 +199,13 @@ export default function TeacherFormPage({ id }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
-                <input {...register("prenom", { required: "Prénom requis" })} placeholder="Cheikh" className={inputClass} />
+                <label htmlFor="teacher-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Prénom *</label>
+                <input id="teacher-form-champ-1" {...register("prenom", { required: "Prénom requis" })} placeholder="Cheikh" className={inputClass} />
                 {errors.prenom && <p className="text-xs text-red-500 mt-1">{errors.prenom.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
-                <input {...register("nom", { required: "Nom requis" })} placeholder="FALL" className={`${inputClass} uppercase`} />
+                <label htmlFor="teacher-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom *</label>
+                <input id="teacher-form-champ-2" {...register("nom", { required: "Nom requis" })} placeholder="FALL" className={`${inputClass} uppercase`} />
                 {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
               </div>
               <div>
@@ -207,9 +220,9 @@ export default function TeacherFormPage({ id }: Props) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (auto)</label>
+                <label htmlFor="teacher-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (auto)</label>
                 <div className="flex gap-2">
-                  <input type="text" readOnly value={matricule} className={`${inputClass} bg-muted/50 font-mono cursor-not-allowed flex-1`} style={{ fontFamily: "JetBrains Mono, monospace" }} />
+                  <input id="teacher-form-champ-3" type="text" readOnly value={matricule} className={`${inputClass} bg-muted/50 font-mono cursor-not-allowed flex-1`} style={{ fontFamily: "JetBrains Mono, monospace" }} />
                   {!isEdit && (
                     <button type="button" onClick={() => setMatricule(generateMatriculeEnseignant())} className="p-2.5 border border-border rounded-xl hover:bg-muted" title="Régénérer">
                       <RefreshCw size={14} />
@@ -218,32 +231,32 @@ export default function TeacherFormPage({ id }: Props) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de naissance *</label>
-                <input {...register("dateNaissance", { required: "Date requise" })} type="date" className={inputClass} />
+                <label htmlFor="teacher-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de naissance *</label>
+                <input id="teacher-form-champ-4" {...register("dateNaissance", { required: "Date requise" })} type="date" className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Pays de naissance *</label>
-                <select {...register("paysNaissance", { required: true })} className={inputClass}>
+                <label htmlFor="teacher-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Pays de naissance *</label>
+                <select id="teacher-form-champ-5" {...register("paysNaissance", { required: true })} className={inputClass}>
                   {["Sénégal", "Mali", "Côte d'Ivoire", "Guinée", "Mauritanie", "France", "Autre"].map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lieu de naissance *</label>
-                <input {...register("lieuNaissance", { required: "Lieu requis" })} placeholder="Dakar" className={inputClass} />
+                <label htmlFor="teacher-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Lieu de naissance *</label>
+                <input id="teacher-form-champ-6" {...register("lieuNaissance", { required: "Lieu requis" })} placeholder="Dakar" className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nationalité *</label>
-                <input {...register("nationalite", { required: "Nationalité requise" })} placeholder="Sénégalaise" className={inputClass} />
+                <label htmlFor="teacher-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Nationalité *</label>
+                <input id="teacher-form-champ-7" {...register("nationalite", { required: "Nationalité requise" })} placeholder="Sénégalaise" className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">N° CNI / Passeport</label>
-                <input {...register("cni")} placeholder="1234567890123" className={inputClass} />
+                <label htmlFor="teacher-form-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">N° CNI / Passeport</label>
+                <input id="teacher-form-champ-8" {...register("cni")} placeholder="1234567890123" className={inputClass} />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-                <input {...register("adresse")} placeholder="Quartier, ville" className={inputClass} />
+                <label htmlFor="teacher-form-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+                <input id="teacher-form-champ-9" {...register("adresse")} placeholder="Quartier, ville" className={inputClass} />
               </div>
             </div>
           </div>
@@ -252,13 +265,13 @@ export default function TeacherFormPage({ id }: Props) {
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Contact</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email professionnel *</label>
-                <input {...register("email", { required: "Email requis", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email invalide" } })} type="email" className={inputClass} />
+                <label htmlFor="teacher-form-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Email professionnel *</label>
+                <input id="teacher-form-champ-10" {...register("email", { required: "Email requis", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email invalide" } })} type="email" className={inputClass} />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone *</label>
-                <input {...register("telephone", { required: "Téléphone requis" })} placeholder="77 123 45 67" className={inputClass} />
+                <label htmlFor="teacher-form-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone *</label>
+                <input id="teacher-form-champ-11" {...register("telephone", { required: "Téléphone requis" })} placeholder="77 123 45 67" className={inputClass} />
               </div>
             </div>
           </div>
@@ -267,14 +280,14 @@ export default function TeacherFormPage({ id }: Props) {
             <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Profil académique</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau d'étude *</label>
-                <select {...register("niveauEtude", { required: true })} className={inputClass}>
+                <label htmlFor="teacher-form-champ-12" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau d'étude *</label>
+                <select id="teacher-form-champ-12" {...register("niveauEtude", { required: true })} className={inputClass}>
                   {NIVEAUX_ETUDE.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
-                <select {...register("grade")} className={inputClass}>
+                <label htmlFor="teacher-form-champ-13" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut *</label>
+                <select id="teacher-form-champ-13" {...register("grade")} className={inputClass}>
                   <option value="Permanent">Permanent</option>
                   <option value="Vacataire">Vacataire</option>
                   <option value="Contractuel">Contractuel</option>
@@ -297,9 +310,9 @@ export default function TeacherFormPage({ id }: Props) {
               <div className="space-y-2">
                 {diplomes.map((d, i) => (
                   <div key={i} className="flex gap-2">
-                    <input value={d} onChange={(e) => updateListItem(setDiplomes, i, e.target.value)} placeholder="ex: Master en Informatique" className={inputClass} />
+                    <input aria-label={`Diplôme ${i + 1}`} value={d} onChange={(e) => updateListItem(setDiplomes, i, e.target.value)} placeholder="ex: Master en Informatique" className={inputClass} />
                     {diplomes.length > 1 && (
-                      <button type="button" onClick={() => removeListItem(setDiplomes, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
+                      <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => removeListItem(setDiplomes, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
                         <Trash2 size={14} />
                       </button>
                     )}
@@ -322,11 +335,12 @@ export default function TeacherFormPage({ id }: Props) {
                       value={s}
                       onChange={(e) => updateListItem(setSpecialites, i, e.target.value)}
                       placeholder="ex: Algorithmique & Intelligence Artificielle"
+                      aria-label={`Spécialité ${i + 1}`}
                       className={inputClass}
                       required={i === 0}
                     />
                     {specialites.length > 1 && (
-                      <button type="button" onClick={() => removeListItem(setSpecialites, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
+                      <button aria-label="Supprimer" title="Supprimer" type="button" onClick={() => removeListItem(setSpecialites, i)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl">
                         <Trash2 size={14} />
                       </button>
                     )}
@@ -339,7 +353,7 @@ export default function TeacherFormPage({ id }: Props) {
           {!isEdit && (
             <div className="border-t border-border pt-4">
               <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-2">Accès portail professeur</p>
-              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule ({matricule}) + mot de passe généré (modifiable par le professeur depuis son profil)</p>
+              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule ({matricule}) + ce mot de passe provisoire, à remettre au professeur. Il devra en choisir un nouveau à sa première connexion.</p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-xl font-mono text-sm" style={{ fontFamily: "JetBrains Mono, monospace" }}>
                   {motDePasse || "—"}
@@ -349,7 +363,7 @@ export default function TeacherFormPage({ id }: Props) {
                   onClick={() => setMotDePasse(generateMotDePasse())}
                   className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
                 >
-                  <Key size={14} /> Générer mot de passe
+                  <Key size={14} /> Regénérer
                 </button>
               </div>
             </div>

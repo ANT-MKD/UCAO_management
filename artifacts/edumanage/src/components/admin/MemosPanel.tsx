@@ -72,7 +72,7 @@ export function MemosPanel({ entiteType, entiteId }: Props) {
                     <p className="text-[10px] text-muted-foreground mt-1.5">{formatDate(m.date)} · {m.auteur}</p>
                   </div>
                 </div>
-                <button onClick={() => handleDelete(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`memo-supprimer-${m.id}`}>
+                <button aria-label="Supprimer" title="Supprimer" onClick={() => handleDelete(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`memo-supprimer-${m.id}`}>
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -84,18 +84,18 @@ export function MemosPanel({ entiteType, entiteId }: Props) {
       <FormModal open={open} onClose={() => setOpen(false)} title="Nouveau mémo" size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
-            <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as MemoType }))} className={inputClass}>
+            <label htmlFor="memos-panel-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
+            <select id="memos-panel-champ-1" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as MemoType }))} className={inputClass}>
               {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet *</label>
-            <input value={form.objet} onChange={(e) => setForm((f) => ({ ...f, objet: e.target.value }))} className={inputClass} data-testid="memo-objet" />
+            <label htmlFor="memos-panel-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet *</label>
+            <input id="memos-panel-champ-2" value={form.objet} onChange={(e) => setForm((f) => ({ ...f, objet: e.target.value }))} className={inputClass} data-testid="memo-objet" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Contenu</label>
-            <textarea value={form.contenu} onChange={(e) => setForm((f) => ({ ...f, contenu: e.target.value }))} rows={4} className={`${inputClass} resize-none`} />
+            <label htmlFor="memos-panel-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Contenu</label>
+            <textarea id="memos-panel-champ-3" value={form.contenu} onChange={(e) => setForm((f) => ({ ...f, contenu: e.target.value }))} rows={4} className={`${inputClass} resize-none`} />
           </div>
           <button onClick={handleSave} disabled={!form.objet.trim()} className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors" data-testid="memo-sauvegarder">
             Enregistrer

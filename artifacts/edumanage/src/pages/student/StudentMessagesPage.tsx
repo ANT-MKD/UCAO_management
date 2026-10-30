@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Send, Plus, ArrowLeft, Check, CheckCheck, Phone, Mail, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { sendMessage, markMessageAsRead, type MessageRecord, type UserAccountRecord } from "@/data/studentStore";
-import { useMessages, useUserAccounts } from "@/hooks/useStudentStore";
+import { sendMessage, markMessageAsRead, contactsMessagerieEtudiant, type MessageRecord, type UserAccountRecord } from "@/data/studentStore";
+import { useMessages, useUserAccounts, useSeances } from "@/hooks/useStudentStore";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FormModal } from "@/components/admin/FormModal";
 import { cn, formatDate } from "@/lib/utils";
@@ -64,10 +64,15 @@ export default function StudentMessagesPage() {
   const [newContent, setNewContent] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
 
+  // Nouveau message : l'administration et les professeurs de sa classe seulement (règle UCAO).
+  const seances = useSeances();
   const contacts = useMemo(
-    () => accounts.filter((a) => a.id !== currentUser?.id && a.actif && (a.role === "admin" || a.role === "teacher")),
-    [accounts, currentUser?.id],
+    () => (currentUser ? contactsMessagerieEtudiant(currentUser.id) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accounts, seances, currentUser?.id],
   );
+  const contactsAdministration = contacts.filter((c) => c.role === "admin");
+  const contactsProfesseurs = contacts.filter((c) => c.role === "teacher");
 
   const conversations = useMemo(() => {
     if (!currentUser) return [];
@@ -107,6 +112,18 @@ export default function StudentMessagesPage() {
     threadEndRef.current?.scrollIntoView({ block: "end" });
   }, [activeConversation?.messages.length, effectiveSelectedId]);
 
+  // Une conversation affichée est une conversation lue — y compris celle ouverte d'office à
+  // l'arrivée sur la page (sur ordinateur). Sur téléphone, le fil n'apparaît qu'après un choix
+  // dans la liste : rien n'est marqué lu tant que l'étudiant n'a rien ouvert.
+  useEffect(() => {
+    if (!currentUser || !activeConversation || activeConversation.unreadCount === 0) return;
+    const filVisible = !!selectedContactId || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+    if (!filVisible) return;
+    activeConversation.messages
+      .filter((m) => m.toUserId === currentUser.id && !m.read)
+      .forEach((m) => markMessageAsRead(m.id, currentUser.id));
+  }, [currentUser, activeConversation, selectedContactId]);
+
   const openConversation = (contactId: string) => {
     setSelectedContactId(contactId);
     if (!currentUser) return;
@@ -116,13 +133,23 @@ export default function StudentMessagesPage() {
 
   const handleReply = () => {
     if (!currentUser || !activeConversation || !draft.trim()) return;
-    sendMessage(currentUser.id, activeConversation.contactId, activeConversation.lastMessage.subject, draft.trim());
+    try {
+      sendMessage(currentUser.id, activeConversation.contactId, activeConversation.lastMessage.subject, draft.trim());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Message non envoyé.");
+      return;
+    }
     setDraft("");
   };
 
   const handleCreateConversation = () => {
     if (!currentUser || !newContactId || !newSubject.trim() || !newContent.trim()) return;
-    sendMessage(currentUser.id, newContactId, newSubject.trim(), newContent.trim());
+    try {
+      sendMessage(currentUser.id, newContactId, newSubject.trim(), newContent.trim());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Message non envoyé.");
+      return;
+    }
     toast.success("Message envoyé.");
     setSelectedContactId(newContactId);
     setShowNewMessage(false);
@@ -155,7 +182,7 @@ export default function StudentMessagesPage() {
             </div>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher une conversation"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher une conversation..."
@@ -262,6 +289,11 @@ export default function StudentMessagesPage() {
                       )}
                       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2.5", mine ? "bg-primary text-white rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm")}>
+                          {/* L'objet n'est affiché qu'en tête d'un nouveau sujet (mail de l'administration,
+                              nouveau message) : les réponses reprennent l'objet et ne le répètent pas. */}
+                          {m.subject && m.subject !== prev?.subject && (
+                            <p className={cn("text-xs font-semibold mb-1", mine ? "text-white/90" : "text-foreground")} data-testid="message-objet">{m.subject}</p>
+                          )}
                           <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
                           <div className={cn("flex items-center gap-1 mt-1 justify-end", mine ? "text-white/70" : "text-muted-foreground")}>
                             <span className="text-[10px]">{timeLabel(m.createdAt)}</span>
@@ -276,7 +308,7 @@ export default function StudentMessagesPage() {
               </div>
 
               <div className="p-3 border-t border-border flex items-end gap-2 flex-shrink-0">
-                <textarea
+                <textarea aria-label="Écrire un message"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
@@ -290,7 +322,7 @@ export default function StudentMessagesPage() {
                   className="flex-1 px-3.5 py-2.5 text-sm border border-border rounded-xl bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
                   data-testid="messagerie-saisie"
                 />
-                <button
+                <button aria-label="Envoyer" title="Envoyer"
                   type="button"
                   onClick={handleReply}
                   disabled={!draft.trim()}
@@ -344,22 +376,30 @@ export default function StudentMessagesPage() {
       <FormModal open={showNewMessage} onClose={() => setShowNewMessage(false)} title="Nouveau message" subtitle="Contactez un membre de l'administration ou un enseignant">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataire <span className="text-red-500">*</span></label>
-            <select
+            <label htmlFor="student-messages-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Destinataire <span className="text-red-500">*</span></label>
+            <select id="student-messages-champ-1"
               value={newContactId}
               onChange={(e) => setNewContactId(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
               data-testid="nouveau-message-destinataire"
             >
               <option value="">— Sélectionner —</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>
-              ))}
+              {contactsAdministration.length > 0 && (
+                <optgroup label="Administration">
+                  {contactsAdministration.map((c) => <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>)}
+                </optgroup>
+              )}
+              {contactsProfesseurs.length > 0 && (
+                <optgroup label="Professeurs de ma classe">
+                  {contactsProfesseurs.map((c) => <option key={c.id} value={c.id}>{c.displayName} — {roleLabel(c)}</option>)}
+                </optgroup>
+              )}
             </select>
+            <p className="text-[11px] text-muted-foreground mt-1">Vous pouvez écrire à l&apos;administration et aux professeurs de votre classe.</p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>
-            <input
+            <label htmlFor="student-messages-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>
+            <input id="student-messages-champ-2"
               value={newSubject}
               onChange={(e) => setNewSubject(e.target.value)}
               placeholder="Objet de votre message"
@@ -368,8 +408,8 @@ export default function StudentMessagesPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Message <span className="text-red-500">*</span></label>
-            <textarea
+            <label htmlFor="student-messages-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Message <span className="text-red-500">*</span></label>
+            <textarea id="student-messages-champ-3"
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
               placeholder="Votre message..."

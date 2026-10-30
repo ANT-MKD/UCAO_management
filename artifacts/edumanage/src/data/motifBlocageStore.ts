@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getEtudiantById, getEtudiants, logAudit } from "./studentStore";
 import { getRelanceActivePour, relanceEstExpiree } from "./relancePaiementStore";
 import { trouverDerogationIdentique } from "./derogationPaiementStore";
@@ -49,7 +50,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -85,7 +86,7 @@ export function upsertMotifBlocage(payload: MotifBlocagePayload, actorId: string
     return existing;
   }
   const motif: MotifBlocageRecord = {
-    id: `motif-${Date.now()}`,
+    id: `motif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     code: payload.code.trim(),
     intitule: payload.intitule.trim(),
     actionsInterdites: payload.actionsInterdites,

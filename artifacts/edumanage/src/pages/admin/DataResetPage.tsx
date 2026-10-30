@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, Trash2, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
+import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
 
 const PHRASE_CONFIRMATION = "REINITIALISER";
 
@@ -26,17 +28,24 @@ const DONNEES_CONSERVEES = [
 export default function DataResetPage() {
   const { currentUser } = useAuth();
   const [phrase, setPhrase] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
+  const [erreur, setErreur] = useState("");
   const [resetting, setResetting] = useState(false);
 
-  const peutConfirmer = phrase.trim().toUpperCase() === PHRASE_CONFIRMATION;
+  const accesComplet = currentUser?.role === "admin" && !currentUser.roleId;
+  const peutConfirmer = accesComplet && phrase.trim().toUpperCase() === PHRASE_CONFIRMATION && motDePasse.length > 0;
 
   const handleReset = () => {
     if (!currentUser || !peutConfirmer) return;
+    setErreur("");
     setResetting(true);
     try {
-      resetTestData(currentUser.id);
-    } catch {
-      toast.error("La réinitialisation a échoué.");
+      resetTestData(currentUser.id, motDePasse);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "La réinitialisation a échoué.";
+      setErreur(message);
+      toast.error(message);
+      setMotDePasse("");
       setResetting(false);
     }
   };
@@ -50,6 +59,8 @@ export default function DataResetPage() {
       />
 
       <div className="max-w-2xl space-y-5">
+        <EspaceStockage />
+
         <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4 flex gap-3">
           <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -80,11 +91,16 @@ export default function DataResetPage() {
           </div>
         </div>
 
+        {!accesComplet ? (
+          <AvisAccesComplet testId="reset-reserve">
+            La réinitialisation efface les données de tout l&apos;établissement : elle est réservée aux administrateurs à accès complet.
+          </AvisAccesComplet>
+        ) : (
         <div className="bg-card border border-border rounded-xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="data-reset-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Tapez <span className="font-mono font-bold text-foreground">{PHRASE_CONFIRMATION}</span> pour confirmer
           </label>
-          <input
+          <input id="data-reset-champ-1"
             value={phrase}
             onChange={(e) => setPhrase(e.target.value)}
             placeholder={PHRASE_CONFIRMATION}
@@ -92,6 +108,19 @@ export default function DataResetPage() {
             style={{ fontFamily: "JetBrains Mono, monospace" }}
             data-testid="input-confirmation-reset"
           />
+          <label htmlFor="reset-mot-de-passe" className="block text-xs font-medium text-muted-foreground mt-4 mb-1.5">
+            Votre mot de passe
+          </label>
+          <input
+            id="reset-mot-de-passe"
+            type="password"
+            autoComplete="current-password"
+            value={motDePasse}
+            onChange={(e) => { setMotDePasse(e.target.value); setErreur(""); }}
+            className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500"
+            data-testid="input-mot-de-passe-reset"
+          />
+          {erreur && <p className="text-xs text-red-600 mt-1.5" role="alert" data-testid="reset-erreur">{erreur}</p>}
           <button
             type="button"
             onClick={handleReset}
@@ -102,7 +131,31 @@ export default function DataResetPage() {
             <Trash2 size={14} /> {resetting ? "Réinitialisation…" : "Réinitialiser les données"}
           </button>
         </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Jauge de l'espace réellement occupé dans ce navigateur : au-delà de la capacité, plus aucun
+ * enregistrement ne passe (un avertissement s'affiche alors à chaque tentative). */
+function EspaceStockage() {
+  const utilise = useMemo(() => stockageUtilise(), []);
+  const pct = Math.min(100, Math.round((utilise / CAPACITE_STOCKAGE) * 100));
+  const couleur = pct >= 90 ? "bg-red-500" : pct >= 75 ? "bg-amber-500" : "bg-emerald-500";
+  const mo = (n: number) => (n / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2" data-testid="espace-stockage">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <HardDrive size={16} className="text-muted-foreground" /> Espace de stockage de ce navigateur
+        <span className="ml-auto tabular-nums">{pct} %</span>
+      </div>
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full ${couleur}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {mo(utilise)} Mo utilisés sur environ {mo(CAPACITE_STOCKAGE)} Mo. Les photos et pièces jointes (demandes, cahiers, ressources, documents) occupent l&apos;essentiel de l&apos;espace : supprimez celles devenues inutiles avant que le stockage soit plein.
+      </p>
     </div>
   );
 }

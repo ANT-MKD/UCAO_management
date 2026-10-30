@@ -159,10 +159,10 @@ export default function OrganismesPECPage() {
             </tr>
             <tr className="border-b border-border bg-card">
               <th className="px-3 py-2">
-                <input value={filterOrganisme} onChange={(e) => setFilterOrganisme(e.target.value)} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Organisme" value={filterOrganisme} onChange={(e) => setFilterOrganisme(e.target.value)} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filterTelephone} onChange={(e) => setFilterTelephone(e.target.value)} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Téléphone" value={filterTelephone} onChange={(e) => setFilterTelephone(e.target.value)} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2" />
             </tr>
@@ -237,30 +237,30 @@ export default function OrganismesPECPage() {
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">Informations de l&apos;organisme</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="organismes-p-e-c-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Intitulé <span className="text-red-500">*</span>
                 </label>
-                <input value={form.intitule} onChange={(e) => patch({ intitule: e.target.value })} className={inputClass} />
+                <input id="organismes-p-e-c-champ-1" value={form.intitule} onChange={(e) => patch({ intitule: e.target.value })} className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="organismes-p-e-c-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Adresse <span className="text-red-500">*</span>
                 </label>
-                <input value={form.adresse} onChange={(e) => patch({ adresse: e.target.value })} className={inputClass} />
+                <input id="organismes-p-e-c-champ-2" value={form.adresse} onChange={(e) => patch({ adresse: e.target.value })} className={inputClass} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-                  <input value={form.telephone} onChange={(e) => patch({ telephone: e.target.value })} className={inputClass} />
+                  <label htmlFor="organismes-p-e-c-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+                  <input id="organismes-p-e-c-champ-3" value={form.telephone} onChange={(e) => patch({ telephone: e.target.value })} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
-                  <input type="email" value={form.email} onChange={(e) => patch({ email: e.target.value })} className={inputClass} />
+                  <label htmlFor="organismes-p-e-c-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+                  <input id="organismes-p-e-c-champ-4" type="email" value={form.email} onChange={(e) => patch({ email: e.target.value })} className={inputClass} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Remarques</label>
-                <textarea value={form.remarques} onChange={(e) => patch({ remarques: e.target.value })} rows={3} className={inputClass} />
+                <label htmlFor="organismes-p-e-c-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Remarques</label>
+                <textarea id="organismes-p-e-c-champ-5" value={form.remarques} onChange={(e) => patch({ remarques: e.target.value })} rows={3} className={inputClass} />
               </div>
             </div>
           </div>
@@ -269,19 +269,19 @@ export default function OrganismesPECPage() {
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">Contact principal</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="organismes-p-e-c-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">
                   Nom <span className="text-red-500">*</span>
                 </label>
-                <input value={form.contactNom} onChange={(e) => patch({ contactNom: e.target.value })} className={inputClass} />
+                <input id="organismes-p-e-c-champ-6" value={form.contactNom} onChange={(e) => patch({ contactNom: e.target.value })} className={inputClass} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-                  <input value={form.contactTelephone} onChange={(e) => patch({ contactTelephone: e.target.value })} className={inputClass} />
+                  <label htmlFor="organismes-p-e-c-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+                  <input id="organismes-p-e-c-champ-7" value={form.contactTelephone} onChange={(e) => patch({ contactTelephone: e.target.value })} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
-                  <input type="email" value={form.contactEmail} onChange={(e) => patch({ contactEmail: e.target.value })} className={inputClass} />
+                  <label htmlFor="organismes-p-e-c-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+                  <input id="organismes-p-e-c-champ-8" type="email" value={form.contactEmail} onChange={(e) => patch({ contactEmail: e.target.value })} className={inputClass} />
                 </div>
               </div>
             </div>

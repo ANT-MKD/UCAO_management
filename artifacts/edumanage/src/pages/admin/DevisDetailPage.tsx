@@ -5,13 +5,14 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useDevisList } from "@/hooks/useDevisStore";
 import { annulerDevis } from "@/data/devisStore";
+import { formatDateGrille } from "@/data/grilleFraisStore";
 import { buildPrintDocumentHtml } from "@/lib/printDocument";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 
 function ligneDescription(intitule: string, montant: number, modalite: string, nbEcheances: number | undefined, dateLimite: string | undefined, modeleLabel: string): string {
   if (modalite === "echeances" && nbEcheances) {
     const parEcheance = Math.round(montant / nbEcheances);
-    const dateTxt = dateLimite ? ` au plus tard le ${dateLimite}` : "";
+    const dateTxt = dateLimite ? ` au plus tard le ${formatDateGrille(dateLimite)}` : "";
     return `${intitule} - ${formatCFA(montant)} payable en ${nbEcheances} échéances de ${formatCFA(parEcheance)}${dateTxt} pour le modèle de frais ${modeleLabel}`;
   }
   return `${intitule} - ${formatCFA(montant)} pour le modèle de frais ${modeleLabel} avant inscription`;
@@ -128,7 +129,7 @@ export default function DevisDetailPage({ id }: { id: string }) {
         ]}
         title={`Devis ${record.reference}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setLocation("/admin/devis")}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"

@@ -106,7 +106,7 @@ export function importStudentRows(rows: ParsedStudentRow[]): ImportStudentResult
   for (const { payload } of rows) {
     try {
       const filiere = FILIERES.find((f) => f.id === payload.filiereId);
-      const matricule = allocateMatricule(filiere?.code ?? "XXX");
+      const matricule = allocateMatricule(filiere?.code ?? "XXX", payload.annee);
       created.push(registerNewEtudiant(payload, matricule));
     } catch {
       echecs++;

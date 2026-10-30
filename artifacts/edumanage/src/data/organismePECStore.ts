@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-organismes-pec-v1";
 
 export interface OrganismePECRecord {
@@ -12,35 +13,22 @@ export interface OrganismePECRecord {
   contactEmail?: string;
 }
 
-/** Seul APES/ISAET dispose de données complètes dans nos références actuelles — les autres organismes cités (3FPT, Office national des pupilles de la nation, Mairie Thiès Ville, Mairie Mont Rolland…) sont à ajouter via le formulaire avec leurs vraies coordonnées. */
-const SEED: OrganismePECRecord[] = [
-  {
-    id: "org-pec-seed-1",
-    intitule: "APES/ISAET",
-    adresse: "Route de Mont Rolland/Thiès",
-    telephone: "+221 781820203",
-    email: "isaet@ucao.edu.sn",
-    remarques: "",
-    contactNom: "Abbé Albert SENE",
-    contactTelephone: "+221 781820203",
-    contactEmail: "tassene72@gmail.com",
-  },
-];
-
 const listeners = new Set<() => void>();
 
 function notify() {
   listeners.forEach((fn) => fn());
 }
 
+/** Une installation neuve démarre sans organisme : chacun est saisi avec ses vraies coordonnées
+ * (Finances › Organismes de prise en charge). */
 function load(): OrganismePECRecord[] {
-  if (typeof window === "undefined") return SEED;
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return SEED;
+    if (!raw) return [];
     return JSON.parse(raw) as OrganismePECRecord[];
   } catch {
-    return SEED;
+    return [];
   }
 }
 
@@ -51,7 +39,7 @@ function persist() {
   // et ne re-rend pas si getOrganismesPEC() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

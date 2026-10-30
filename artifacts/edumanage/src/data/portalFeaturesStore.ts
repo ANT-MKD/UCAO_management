@@ -1,47 +1,52 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 export type PortalWithFeatures = "student" | "teacher";
 
 export interface PortalFeatureItem {
   id: string;
   label: string;
   href: string;
+  /** Section sous laquelle regrouper l'item dans la sidebar — absent pour les items toujours hors
+   * groupe (tableau de bord, profil). */
+  group?: string;
 }
 
 /** Reflète exactement STUDENT_NAV_ITEMS de StudentLayout.tsx — jamais une liste de fonctionnalités
  * inventée séparément du vrai menu du portail. */
 export const STUDENT_PORTAL_FEATURES: PortalFeatureItem[] = [
-  { id: "student-dashboard", label: "Dashboard", href: "/student/dashboard" },
-  { id: "student-schedule", label: "Emploi du temps", href: "/student/schedule" },
-  { id: "student-cours", label: "Cours", href: "/student/cours" },
-  { id: "student-cahier", label: "Cahier de texte", href: "/student/cahier" },
-  { id: "student-ressources", label: "Ressources pédagogiques", href: "/student/ressources" },
-  { id: "student-notes", label: "Notes", href: "/student/notes" },
-  { id: "student-releves", label: "Relevés & bulletins", href: "/student/releves" },
-  { id: "student-absences", label: "Absences/retards", href: "/student/absences" },
-  { id: "student-frais-paye", label: "Frais payé", href: "/student/frais-paye" },
-  { id: "student-frais-impaye", label: "Frais impayé", href: "/student/frais-impaye" },
-  { id: "student-payer-factures", label: "Payer factures", href: "/student/payer-factures" },
-  { id: "student-messages", label: "Messagerie", href: "/student/messages" },
-  { id: "student-requests", label: "Mes demandes", href: "/student/requests" },
-  { id: "student-documents", label: "Mes documents", href: "/student/documents" },
+  { id: "student-dashboard", label: "Tableau de bord", href: "/student/dashboard" },
+  { id: "student-schedule", label: "Emploi du temps", href: "/student/schedule", group: "Enseignement" },
+  { id: "student-cours", label: "Cours", href: "/student/cours", group: "Enseignement" },
+  { id: "student-cahier", label: "Cahier de texte", href: "/student/cahier", group: "Enseignement" },
+  { id: "student-ressources", label: "Ressources pédagogiques", href: "/student/ressources", group: "Enseignement" },
+  { id: "student-notes", label: "Notes", href: "/student/notes", group: "Enseignement" },
+  { id: "student-releves", label: "Relevés & bulletins", href: "/student/releves", group: "Enseignement" },
+  { id: "student-absences", label: "Absences/retards", href: "/student/absences", group: "Enseignement" },
+  { id: "student-frais-paye", label: "Frais payés", href: "/student/frais-paye", group: "Finances" },
+  { id: "student-frais-impaye", label: "Frais impayés", href: "/student/frais-impaye", group: "Finances" },
+  { id: "student-payer-factures", label: "Payer factures", href: "/student/payer-factures", group: "Finances" },
+  { id: "student-messages", label: "Messagerie", href: "/student/messages", group: "Communication" },
+  { id: "student-requests", label: "Mes demandes", href: "/student/requests", group: "Communication" },
+  { id: "student-documents", label: "Mes documents", href: "/student/documents", group: "Communication" },
+  { id: "student-notifications", label: "Notifications", href: "/student/notifications", group: "Communication" },
   { id: "student-profile", label: "Profil", href: "/student/profile" },
 ];
 
 /** Reflète exactement NAV de TeacherLayout.tsx. */
 export const TEACHER_PORTAL_FEATURES: PortalFeatureItem[] = [
   { id: "teacher-dashboard", label: "Tableau de bord", href: "/teacher/dashboard" },
-  { id: "teacher-schedule", label: "Mon EDT", href: "/teacher/schedule" },
-  { id: "teacher-modules", label: "Mes cours", href: "/teacher/modules" },
-  { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades" },
-  { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier" },
-  { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources" },
-  { id: "teacher-absences", label: "Mes absences", href: "/teacher/absences" },
-  { id: "teacher-pointage", label: "Mon pointage", href: "/teacher/pointage" },
-  { id: "teacher-volume", label: "Mon volume horaire", href: "/teacher/volume" },
-  { id: "teacher-rallonge", label: "Demande de rallonge", href: "/teacher/rallonge" },
-  { id: "teacher-vacations", label: "Mes vacations", href: "/teacher/vacations" },
-  { id: "teacher-decomptes", label: "Mes décomptes", href: "/teacher/decomptes" },
-  { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract" },
-  { id: "teacher-messages", label: "Messagerie", href: "/teacher/messages" },
+  { id: "teacher-schedule", label: "Mon EDT", href: "/teacher/schedule", group: "Enseignement" },
+  { id: "teacher-modules", label: "Mes cours", href: "/teacher/modules", group: "Enseignement" },
+  { id: "teacher-grades", label: "Saisie notes", href: "/teacher/grades", group: "Enseignement" },
+  { id: "teacher-cahier", label: "Cahier de séance", href: "/teacher/cahier", group: "Enseignement" },
+  { id: "teacher-ressources", label: "Ressources pédagogiques", href: "/teacher/ressources", group: "Enseignement" },
+  { id: "teacher-absences", label: "Mes absences", href: "/teacher/absences", group: "Enseignement" },
+  { id: "teacher-pointage", label: "Mon pointage", href: "/teacher/pointage", group: "Finances" },
+  { id: "teacher-volume", label: "Mon volume horaire", href: "/teacher/volume", group: "Finances" },
+  { id: "teacher-rallonge", label: "Demande de rallonge", href: "/teacher/rallonge", group: "Finances" },
+  { id: "teacher-remuneration", label: "Ma rémunération", href: "/teacher/remuneration", group: "Finances" },
+  { id: "teacher-contract", label: "Mon contrat", href: "/teacher/contract", group: "Finances" },
+  { id: "teacher-messages", label: "Messagerie", href: "/teacher/messages", group: "Communication" },
+  { id: "teacher-notifications", label: "Notifications", href: "/teacher/notifications", group: "Communication" },
   { id: "teacher-profile", label: "Profil", href: "/teacher/profile" },
 ];
 
@@ -96,7 +101,7 @@ function notify() {
 function persist() {
   store = { ...store };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

@@ -1,13 +1,7 @@
-import {
-  ETUDIANTS as SEED_ETUDIANTS,
-  FILIERES,
-  NIVEAUX,
-  ANNEES_ACADEMIQUES,
-  PAIEMENTS as SEED_PAIEMENTS,
-  NOTES as SEED_NOTES,
-  SEANCES as SEED_SEANCES,
-  SEMESTRES,
-} from "./mockData";
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { telephoneValide } from "@/lib/telephone";
+import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "./mockData";
 import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
 import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
@@ -15,6 +9,9 @@ import { estAutorise } from "./communicationRolesStore";
 import { findClassePedagogique, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
+import { creerPointageDepuisCahier } from "./pointageStore";
+import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
+import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
 
 export interface EtudiantRecord {
   id: string;
@@ -56,6 +53,12 @@ export interface EtudiantRecord {
    * documentsFournis (qui ne fait que déclarer la pièce reçue, ex. à l'inscription au guichet) :
    * un id peut être dans documentsFournis sans fichier ici (déposé physiquement), jamais l'inverse. */
   documentsFichiers?: Record<string, string>;
+  /** Pièces déposées par l'étudiant depuis « Mes documents » et pas encore vérifiées par le
+   * secrétariat : elles ne comptent comme fournies (documentsFournis/documentsFichiers) qu'une
+   * fois acceptées dans le dossier de l'étudiant. */
+  piecesEnVerification?: Record<string, { dataUrl: string; deposeLe: string }>;
+  /** Dernier refus motivé d'une pièce déposée — effacé quand l'étudiant en redépose une. */
+  piecesRefusees?: Record<string, { motif: string; refuseLe: string }>;
   /** Référence vers motifBlocageStore.ts — restreint des actions précises (accès portail,
    * impression de documents) sans désactiver le dossier de l'étudiant. Absent = aucun blocage. */
   motifBlocageId?: string;
@@ -113,6 +116,10 @@ export interface AnneeAcademiqueRecord {
   cloturee?: boolean;
   /** Archivée : conservée pour consultation de l'historique, mais plus modifiable ni sélectionnable comme courante. */
   archivee?: boolean;
+  /** Date de rentrée et date de fin réelles (ISO) — même dates pour toute l'université. Absentes sur
+   * les années créées avant leur ajout : on retombe alors sur septembre → août. */
+  dateDebut?: string;
+  dateFin?: string;
 }
 
 export interface CahierPresenceEntry {
@@ -166,6 +173,8 @@ export interface CahierSeanceRecord {
   classeId: string;
   classe: string;
   prof: string;
+  /** Identifiant de la fiche enseignant (lien fiable, le nom seul pouvant être partagé). */
+  profId?: string;
   salle: string;
   salleId: string;
   /** Séance */
@@ -223,6 +232,8 @@ export interface NoteRecord {
   /** Horodatage réel de la dernière modification — absent tant que la note n'a jamais été
    * resaisie après sa création initiale. */
   dateModification?: string;
+  /** Étudiant absent à l'évaluation : « ABS », compté 0 dans les moyennes (règle UCAO). */
+  absent?: boolean;
 }
 
 export type UserRole = "admin" | "teacher" | "student";
@@ -253,6 +264,9 @@ export interface UserAccountRecord {
   /** Horodatage du dernier changement de mot de passe réel (changeOwnPassword) — absent tant que
    * le compte n'a jamais changé son mot de passe initial. */
   passwordUpdatedAt?: string;
+  /** Mot de passe provisoire (remis par l'administration, ou compte d'origine) : son titulaire doit
+   * en choisir un nouveau à la prochaine connexion avant d'accéder à son portail. */
+  doitChangerMotDePasse?: boolean;
 }
 
 export interface StudentRequestRecord {
@@ -272,7 +286,23 @@ export interface StudentRequestRecord {
    * l'étudiant ; utilisées pour générer la vraie dérogation de paiement à la validation. */
   porteeRallonge?: PorteeDerogation;
   dateFinSouhaitee?: string;
+  /** Justificatif d'absence : l'absence visée (cahier de séance où elle a été constatée). Valider
+   * la demande justifie réellement cette absence. */
+  absenceCahierId?: string;
+  absenceLibelle?: string;
+  /** Réclamation de note : la note contestée. */
+  noteId?: string;
+  noteLibelle?: string;
+  /** Attestation : le document demandé, puis celui réellement généré. */
+  attestationType?: "scolarite" | "inscription";
+  attestationId?: string;
+  attestationNumero?: string;
+  /** Pièce jointe déposée par l'étudiant (certificat médical, convocation…). */
+  pieceJointe?: { nom: string; type: string; dataUrl: string };
 }
+
+/** Taille maximale d'une pièce jointe de demande : les données restent dans le navigateur. */
+export const TAILLE_MAX_PIECE_DEMANDE = 800 * 1024;
 
 export interface MessageRecord {
   id: string;
@@ -290,9 +320,15 @@ export interface NotificationRecord {
   message: string;
   createdAt: string;
   read: boolean;
+  /** Date de lecture : une notification lue depuis plus de 90 jours est purgée au chargement. */
+  readAt?: string;
   /** Rangée sans être supprimée — jamais posée automatiquement, seulement par une action
    * explicite de l'utilisateur sur sa page Notifications. */
   archived?: boolean;
+  /** Famille de notifications fusionnées tant qu'elles ne sont pas lues (ex. une par note
+   * publiée → « 6 nouvelles notes publiées ») ; nombre = événements regroupés. */
+  groupe?: string;
+  nombre?: number;
 }
 
 export interface AuditLogRecord {
@@ -320,6 +356,8 @@ export interface SeanceRecord {
   salle: string;
   salleId: string;
   prof: string;
+  /** Identifiant de la fiche enseignant — absent sur les séances créées avant son ajout. */
+  profId?: string;
   type: string;
   annee: string;
 }
@@ -385,119 +423,26 @@ function parseMatriculeYear(matricule: string): number {
   return m ? Number(m[1]) : new Date().getFullYear();
 }
 
-function buildSeedInscriptions(etudiants: EtudiantRecord[]): InscriptionRecord[] {
-  const rows: InscriptionRecord[] = [];
-  for (const e of etudiants) {
-    rows.push({
-      id: `ins-${e.id}-2025`,
-      etudiantId: e.id,
-      annee: e.annee,
-      filiere: e.filiere,
-      filiereId: e.filiereId,
-      niveau: e.niveau,
-      classe: e.classe,
-      classeId: e.classeId,
-      statut: e.statut,
-      type: "premiere",
-      dateInscription: "2025-09-01",
-      soldeDu: e.soldeDu,
-    });
-    if (e.id === "et15") {
-      rows.push({
-        id: `ins-${e.id}-2024`,
-        etudiantId: e.id,
-        annee: "2024-2025",
-        filiere: e.filiere,
-        filiereId: e.filiereId,
-        niveau: "L2",
-        classe: "L2-INFO-A",
-        classeId: "cl3",
-        statut: "inscrit",
-        type: "premiere",
-        dateInscription: "2024-09-01",
-        soldeDu: 0,
-      });
-    }
-    if (e.id === "et7" || e.id === "et11") {
-      rows.push({
-        id: `ins-${e.id}-2024`,
-        etudiantId: e.id,
-        annee: "2024-2025",
-        filiere: e.filiere,
-        filiereId: e.filiereId,
-        niveau: "L1",
-        classe: e.id === "et7" ? "L1-INFO-A" : "L1-INFO-B",
-        classeId: e.id === "et7" ? "cl1" : "cl2",
-        statut: "inscrit",
-        type: "premiere",
-        dateInscription: "2024-09-01",
-        soldeDu: 0,
-      });
-    }
-  }
-  return rows;
-}
+/** Aucun compte n'est livré avec l'application : l'administrateur principal est créé à
+ * l'installation (installerEtablissement), avec le mot de passe qu'il choisit lui-même. Il n'existe
+ * donc aucun identifiant ni mot de passe connu à l'avance. */
+/** Hash d'un mot de passe aléatoire que personne ne connaît : un compte créé sans mot de passe
+ * remis (import Excel, conversion de devis, compte recréé) existe mais reste inaccessible tant que
+ * l'administration ne lui a pas remis un code PIN. Jamais un mot de passe devinable partagé. */
+const COMPTE_SANS_MOT_DE_PASSE_HASH = hashPassword(
+  `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`,
+);
 
-function buildMatriculeCounters(etudiants: EtudiantRecord[]): Record<string, number> {
-  const counters: Record<string, number> = {};
-  for (const e of etudiants) {
-    const parts = e.matricule.match(/^(\d{4})-([A-Z]+)-(\d+)$/);
-    if (!parts) continue;
-    const key = `${parts[1]}-${parts[2]}`;
-    const seq = Number(parts[3]);
-    counters[key] = Math.max(counters[key] ?? 0, seq);
-  }
-  return counters;
-}
-
-function seedEtudiants(): EtudiantRecord[] {
-  return SEED_ETUDIANTS.map((e) => ({
-    ...e,
-    sexe: e.sexe as "M" | "F",
-    anneePremiereInscription: parseMatriculeYear(e.matricule),
-    inscriptionUniquePayee: e.soldeDu === 0 || !["et2", "et3", "et5", "et7", "et8", "et11", "et12"].includes(e.id),
-    soldeAvoir: 0,
-  }));
-}
-
-function seedSeances(): SeanceRecord[] {
-  return SEED_SEANCES.map((s) => ({ ...s, annee: "2025-2026", semaineDu: "2026-08-24" }));
-}
-
-function seedNotes(): NoteRecord[] {
-  return SEED_NOTES.map((n) => ({
-    ...n,
-    statut: n.statut === "publie" ? "publie" : "brouillon_prof",
-    classeId: SEED_ETUDIANTS.find((e) => e.id === n.etudiantId)?.classeId ?? "",
-    annee: "2025-2026",
-    dateCreation: new Date().toISOString(),
-  }));
-}
-
-/** Seul compte préexistant : celui de l'administrateur, indispensable pour pouvoir se connecter
- * la toute première fois. Les comptes professeur et étudiant ne sont plus préchargés — ils sont
- * créés réellement (Sécurité → Ajouter un utilisateur, ou automatiquement à l'inscription d'un
- * étudiant) une fois que l'établissement a de vraies personnes à y rattacher. */
 function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
-  const users: UserAccountRecord[] = [
-    {
-      id: "u-admin-1",
-      role: "admin",
-      email: "admin@edumanage.com",
-      password: "demo123",
-      identifier: "ADM-0001",
-      displayName: "Administrateur",
-      fonction: "Direction",
-      actif: true,
-    },
-  ];
+  const users: UserAccountRecord[] = [];
 
   for (const e of etudiants) {
     users.push({
       id: `u-student-${e.id}`,
       role: "student",
       email: e.email,
-      password: "demo123",
+      password: COMPTE_SANS_MOT_DE_PASSE_HASH,
+      doitChangerMotDePasse: true,
       identifier: e.matricule,
       displayName: `${e.prenom} ${e.nom}`,
       linkedId: e.id,
@@ -507,6 +452,10 @@ function seedUsers(etudiants: EtudiantRecord[]): UserAccountRecord[] {
 
   return users;
 }
+
+/** Fonction affichée pour le compte créé à l'installation (accès complet, comme tout compte
+ * d'administration sans rôle). */
+export const FONCTION_ADMIN_PRINCIPAL = "Administrateur principal";
 
 function mergeUsersWithSeed(existing: UserAccountRecord[], seed: UserAccountRecord[]): UserAccountRecord[] {
   const byEmail = new Map(seed.map((u) => [u.email.toLowerCase(), u]));
@@ -519,58 +468,38 @@ function mergeUsersWithSeed(existing: UserAccountRecord[], seed: UserAccountReco
 }
 
 function seedNotifications(): NotificationRecord[] {
-  return [
-    {
-      id: "nt-1",
-      userId: "u-admin-1",
-      message: "Bienvenue dans la messagerie interne.",
-      createdAt: new Date().toISOString(),
-      read: false,
-    },
-  ];
-}
-
-function seedPaiements(): PaiementRecord[] {
-  return SEED_PAIEMENTS.map((p, i) => ({
-    ...p,
-    numeroRecu: `RECU-2025-${String(i + 1).padStart(3, "0")}`,
-  }));
-}
-
-function seedReleves(etudiants: EtudiantRecord[]): ReleveRecord[] {
-  return etudiants.slice(0, 8).map((e, i) => ({
-    id: `rel-${e.id}`,
-    etudiantId: e.id,
-    etudiant: `${e.prenom} ${e.nom}`,
-    matricule: e.matricule,
-    classe: e.classe,
-    filiere: e.filiere,
-    semestre: "S1 2025-2026",
-    statut: i < 3 ? "envoye" : i < 6 ? "genere" : "en_attente",
-    dateGeneration: i < 6 ? "2026-01-20" : "",
-    ecId: "ec3",
-  }));
+  return [];
 }
 
 function buildFreshStore(): StoreData {
-  const etudiants = seedEtudiants();
+  // Aucune donnée d'établissement préchargée : tout part de zéro et se remplit par la saisie réelle.
   return {
-    etudiants,
-    inscriptions: buildSeedInscriptions(etudiants),
-    matriculeCounters: buildMatriculeCounters(etudiants),
-    annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: !a.actuelle && a.libelle < "2025-2026", archivee: false })),
-    paiements: seedPaiements(),
-    notes: seedNotes(),
-    seances: seedSeances(),
-    releves: seedReleves(etudiants),
-    users: seedUsers(etudiants),
+    etudiants: [],
+    inscriptions: [],
+    matriculeCounters: {},
+    annees: ANNEES_ACADEMIQUES.map((a) => ({ ...a, cloturee: false, archivee: false })),
+    paiements: [],
+    notes: [],
+    seances: [],
+    releves: [],
+    users: seedUsers([]),
     requests: [],
     messages: [],
     notifications: seedNotifications(),
     auditLogs: [],
     cahiers: [],
-    receiptCounter: SEED_PAIEMENTS.length,
+    receiptCounter: 0,
   };
+}
+
+const DUREE_CONSERVATION_NOTIFICATION_LUE_MS = 90 * 24 * 3600 * 1000;
+
+/** Les notifications s'accumulent à chaque événement (plusieurs centaines pour quelques étudiants
+ * en une année) et occupent le stockage du navigateur : celles lues depuis plus de 90 jours
+ * disparaissent. Les non lues et celles que l'utilisateur a rangées (archivées) sont gardées. */
+export function purgerNotificationsLues(notifications: NotificationRecord[], maintenant = Date.now()): NotificationRecord[] {
+  const limite = maintenant - DUREE_CONSERVATION_NOTIFICATION_LUE_MS;
+  return notifications.filter((n) => !n.read || n.archived || new Date(n.readAt ?? n.createdAt).getTime() >= limite);
 }
 
 function loadStore(): StoreData {
@@ -596,10 +525,11 @@ function loadStore(): StoreData {
           notes: parsed.notes ?? fresh.notes,
           seances: parsed.seances ?? fresh.seances,
           releves: parsed.releves ?? fresh.releves,
-          users: mergeUsersWithSeed(parsed.users ?? [], fresh.users),
+          // L'ancien libellé « Super administrateur » devient « Administrateur principal ».
+          users: mergeUsersWithSeed(parsed.users ?? [], fresh.users).map((u) => (u.fonction === "Super administrateur" ? { ...u, fonction: FONCTION_ADMIN_PRINCIPAL } : u)),
           requests: parsed.requests ?? fresh.requests,
           messages: parsed.messages ?? fresh.messages,
-          notifications: parsed.notifications ?? fresh.notifications,
+          notifications: purgerNotificationsLues(parsed.notifications ?? fresh.notifications),
           auditLogs: parsed.auditLogs ?? fresh.auditLogs,
           cahiers: parsed.cahiers ?? fresh.cahiers,
           receiptCounter: parsed.receiptCounter ?? paiements.length,
@@ -615,7 +545,7 @@ function loadStore(): StoreData {
 function writeStoreToLocalStorage(data: StoreData): boolean {
   if (typeof window === "undefined") return false;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!ecrireStockage(STORAGE_KEY, JSON.stringify(data))) return false;
     localStorage.removeItem(LEGACY_STORAGE_KEY);
     return true;
   } catch (err) {
@@ -714,7 +644,8 @@ export function resetOperationalData(keepUserId: string) {
     etudiants: [],
     inscriptions: [],
     matriculeCounters: {},
-    annees: fresh.annees,
+    // L'année en cours (et ses dates) fait partie du paramétrage : elle est conservée.
+    annees: store.annees.filter((a) => a.actuelle).map((a) => ({ ...a, cloturee: false, archivee: false })),
     paiements: [],
     notes: [],
     seances: [],
@@ -738,12 +669,13 @@ export interface AuthSessionSnapshot {
   identifier: string;
   linkedId?: string;
   roleId?: string;
+  doitChangerMotDePasse?: boolean;
 }
 
 export function saveAuthSession(user: AuthSessionSnapshot) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    ecrireStockage(AUTH_STORAGE_KEY, JSON.stringify(user));
   } catch (err) {
     console.error("[EduManage] Impossible de sauvegarder la session:", err);
   }
@@ -796,6 +728,62 @@ export function setEtudiantMotifBlocage(etudiantId: string, motifBlocageId: stri
   persist();
 }
 
+/** Vrai tant qu'aucun compte administrateur actif n'existe : la page de connexion affiche alors
+ * l'écran d'installation au lieu du formulaire de connexion. */
+export function installationRequise(): boolean {
+  return !store.users.some((u) => u.role === "admin" && u.actif !== false);
+}
+
+export interface InstallationPayload {
+  prenom: string;
+  nom: string;
+  identifier: string;
+  email: string;
+  password: string;
+  annee: { libelle: string; dateDebut: string; dateFin: string };
+}
+
+/** Première ouverture de l'application : crée l'administrateur principal (mot de passe choisi
+ * par lui-même, jamais un mot de passe par défaut) et l'année académique en cours avec ses dates.
+ * Refusé dès qu'un administrateur existe. */
+export function installerEtablissement(payload: InstallationPayload): UserAccountRecord {
+  if (!installationRequise()) throw new Error("L'application est déjà installée : connectez-vous.");
+  const motifDates = validerDatesAnnee(payload.annee.libelle, payload.annee.dateDebut, payload.annee.dateFin);
+  if (motifDates) throw new Error(motifDates);
+  const identifiant = payload.identifier.trim().toUpperCase();
+  const email = payload.email.trim().toLowerCase();
+  if (!identifiant || !email || !payload.prenom.trim() || !payload.nom.trim()) throw new Error("Renseignez tous les champs.");
+  if (payload.password.length < 8) throw new Error("Le mot de passe de l'administrateur principal doit contenir au moins 8 caractères.");
+  if (store.users.some((u) => u.identifier.toUpperCase() === identifiant || u.email.toLowerCase() === email)) {
+    throw new Error("Cet identifiant ou cet e-mail est déjà utilisé.");
+  }
+  const existante = store.annees.find((a) => a.libelle === payload.annee.libelle);
+  if (existante) {
+    store.annees = store.annees.map((a) => ({ ...a, actuelle: a.id === existante.id, ...(a.id === existante.id ? { dateDebut: payload.annee.dateDebut, dateFin: payload.annee.dateFin } : {}) }));
+  } else {
+    store.annees = [
+      ...store.annees.map((a) => ({ ...a, actuelle: false })),
+      { id: `aa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, libelle: payload.annee.libelle, actuelle: true, dateDebut: payload.annee.dateDebut, dateFin: payload.annee.dateFin },
+    ];
+  }
+  const compte: UserAccountRecord = {
+    id: store.users.some((u) => u.id === "u-admin-1") ? `u-admin-${Date.now()}` : "u-admin-1",
+    role: "admin",
+    email,
+    password: hashPassword(payload.password),
+    identifier: identifiant,
+    displayName: `${payload.prenom.trim()} ${payload.nom.trim().toUpperCase()}`,
+    fonction: FONCTION_ADMIN_PRINCIPAL,
+    actif: true,
+    doitChangerMotDePasse: false,
+    passwordUpdatedAt: new Date().toISOString(),
+  };
+  store.users = [...store.users, compte];
+  logAudit(compte.id, "installation", "user_account", compte.id, `Année ${payload.annee.libelle}`);
+  persist();
+  return compte;
+}
+
 export function getUserAccounts(): UserAccountRecord[] {
   return store.users;
 }
@@ -816,7 +804,22 @@ export function authenticateUser(identifierOrEmail: string, password: string): U
       u.identifier.toLowerCase() === q ||
       u.identifier.toUpperCase() === qMatricule,
   );
-  if (!user || user.password !== password) return null;
+  if (!user || !verifyPassword(password, user.password)) return null;
+  // Ancien mot de passe de démonstration : un compte resté dessus ne s'ouvre plus, son titulaire
+  // obtient un code auprès de l'administration. Exception : un administrateur d'avant l'installation
+  // (navigateur qui garde les anciennes données) — personne d'autre ne pourrait lui remettre un code,
+  // il entre donc une dernière fois uniquement pour choisir aussitôt son propre mot de passe.
+  if (password === "demo123") {
+    if (user.role !== "admin" || user.actif === false) return null;
+    user.doitChangerMotDePasse = true;
+    writeStoreToLocalStorage(store);
+  }
+  if (!isPasswordHashed(user.password)) {
+    // Migration transparente : un compte encore en clair (créé avant l'introduction du hachage)
+    // est rehaché dès qu'il s'authentifie avec succès, sans jamais invalider le compte existant.
+    user.password = hashPassword(password);
+    writeStoreToLocalStorage(store);
+  }
   return user;
 }
 
@@ -838,8 +841,27 @@ export function findUserAccountByIdentifier(identifierOrEmail: string): UserAcco
 export function updateUserPassword(userId: string, newPassword: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
-  user.password = newPassword;
+  user.password = hashPassword(newPassword);
+  // Mot de passe choisi par le titulaire lui-même (flux PIN) : plus rien de provisoire.
+  user.doitChangerMotDePasse = false;
+  user.passwordUpdatedAt = new Date().toISOString();
+  logAudit(userId, "reset_password_pin", "user_account", userId);
   persist();
+}
+
+/** Changement obligatoire après connexion avec un mot de passe provisoire : la session vient de
+ * prouver l'identité ; le nouveau mot de passe ne peut pas être le mot de passe initial. */
+export function definirMotDePasseDefinitif(userId: string, newPassword: string): { ok: boolean; reason?: string } {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) return { ok: false, reason: "Compte introuvable." };
+  if (newPassword === "demo123") return { ok: false, reason: "Ce mot de passe est trop connu : choisissez-en un autre." };
+  if (verifyPassword(newPassword, user.password)) return { ok: false, reason: "Le nouveau mot de passe doit être différent de l'actuel." };
+  user.password = hashPassword(newPassword);
+  user.doitChangerMotDePasse = false;
+  user.passwordUpdatedAt = new Date().toISOString();
+  logAudit(userId, "update_password", "user_account", userId);
+  persist();
+  return { ok: true };
 }
 
 /** Changement de mot de passe par le titulaire du compte lui-même — exige l'ancien mot de passe
@@ -847,9 +869,12 @@ export function updateUserPassword(userId: string, newPassword: string): void {
  * autrement). Retourne false sans rien modifier si l'ancien mot de passe est incorrect. */
 export function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): boolean {
   const user = store.users.find((u) => u.id === userId);
-  if (!user || user.password !== currentPassword) return false;
-  user.password = newPassword;
+  if (!user || !verifyPassword(currentPassword, user.password)) return false;
+  if (!isPasswordValid(newPassword)) throw new Error(`Le nouveau mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()} (hors espaces).`);
+  if (newPassword === currentPassword) throw new Error("Le nouveau mot de passe doit être différent de l'actuel.");
+  user.password = hashPassword(newPassword);
   user.passwordUpdatedAt = new Date().toISOString();
+  user.doitChangerMotDePasse = false;
   logAudit(userId, "update_password", "user_account", userId);
   persist();
   return true;
@@ -857,6 +882,42 @@ export function changeOwnPassword(userId: string, currentPassword: string, newPa
 
 export function getUserAccountById(id: string): UserAccountRecord | undefined {
   return store.users.find((u) => u.id === id);
+}
+
+/** Administrateur à accès complet : compte du portail admin sans rôle limité (Sécurité → Les
+ * rôles) — c'est le cas des administrateurs principaux de l'établissement. */
+export function aAccesComplet(userId: string | undefined): boolean {
+  const u = userId ? store.users.find((x) => x.id === userId) : undefined;
+  return !!u && u.role === "admin" && !u.roleId && u.actif !== false;
+}
+
+function estCompteAccesComplet(u: UserAccountRecord): boolean {
+  return u.role === "admin" && !u.roleId;
+}
+
+/** Actions qui touchent aux droits ou à l'ensemble des données : un compte limité par un rôle ne
+ * les fait jamais, même si son rôle lui ouvre la page (sinon il pourrait s'élever lui-même). */
+export function exigerAccesComplet(actorUserId: string | undefined, action: string): void {
+  if (!aAccesComplet(actorUserId)) throw new Error(`${action} : action réservée aux administrateurs à accès complet.`);
+}
+
+/** Un compte limité par un rôle ne modifie, ne bloque ni ne réinitialise jamais un compte à accès
+ * complet — il pourrait sinon s'en emparer (code PIN) ou écarter les administrateurs principaux. */
+export function peutGererCompte(actorUserId: string | undefined, cible: UserAccountRecord): boolean {
+  return aAccesComplet(actorUserId) || !estCompteAccesComplet(cible);
+}
+
+/** Il reste toujours au moins un administrateur à accès complet actif : sans lui, plus personne ne
+ * pourrait gérer les rôles ni débloquer un compte. */
+function seraitDernierAccesComplet(cible: UserAccountRecord): boolean {
+  return estCompteAccesComplet(cible) && cible.actif !== false
+    && !store.users.some((u) => u.id !== cible.id && estCompteAccesComplet(u) && u.actif !== false);
+}
+
+/** Confirmation d'une action sensible par le mot de passe du compte connecté. */
+export function verifierMotDePasseCompte(userId: string, motDePasse: string): boolean {
+  const user = store.users.find((u) => u.id === userId);
+  return !!user && verifyPassword(motDePasse, user.password);
 }
 
 export interface CreerCompteStaffPayload {
@@ -892,11 +953,15 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
   if (payload.role === "teacher" && payload.linkedId && store.users.some((u) => u.role === "teacher" && u.linkedId === payload.linkedId)) {
     throw new Error("Cette fiche enseignant est déjà reliée à un autre compte.");
   }
+  if (payload.role === "admin" && !payload.roleId && !aAccesComplet(creePar)) {
+    throw new Error("Seul un administrateur à accès complet peut créer un compte sans rôle (accès complet). Choisissez un rôle.");
+  }
   const account: UserAccountRecord = {
     id: `u-staff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role: payload.role,
     email: payload.email.trim(),
-    password: payload.password,
+    password: hashPassword(payload.password),
+    doitChangerMotDePasse: true,
     identifier: payload.identifier.trim(),
     displayName: `${payload.prenom.trim()} ${payload.nom.trim()}`,
     telephone: payload.telephone?.trim() || undefined,
@@ -916,6 +981,8 @@ export function creerCompteStaff(payload: CreerCompteStaffPayload, creePar: stri
 export function setUserAccountActif(userId: string, actif: boolean, actorUserId: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
+  if (!peutGererCompte(actorUserId, user)) throw new Error("Ce compte a un accès complet : seul un administrateur à accès complet peut le bloquer.");
+  if (!actif && seraitDernierAccesComplet(user)) throw new Error("C'est le dernier administrateur à accès complet : il ne peut pas être désactivé.");
   user.actif = actif;
   logAudit(actorUserId, actif ? "activate_user_account" : "deactivate_user_account", "user_account", userId);
   persist();
@@ -936,12 +1003,19 @@ export interface UpdateUserAccountInfoPayload {
 export function updateUserAccountInfo(userId: string, payload: UpdateUserAccountInfoPayload, actorUserId: string): void {
   const user = store.users.find((u) => u.id === userId);
   if (!user) return;
+  const nouveauRoleId = payload.roleId || undefined;
+  if (!peutGererCompte(actorUserId, user)) throw new Error("Ce compte a un accès complet : seul un administrateur à accès complet peut le modifier.");
+  if (nouveauRoleId !== user.roleId && !aAccesComplet(actorUserId)) {
+    if (userId === actorUserId) throw new Error("Vous ne pouvez pas changer votre propre rôle.");
+    if (user.role === "admin" && !nouveauRoleId) throw new Error("Seul un administrateur à accès complet peut donner l'accès complet.");
+  }
+  if (nouveauRoleId && seraitDernierAccesComplet(user)) throw new Error("C'est le dernier administrateur à accès complet : il doit le rester.");
   user.displayName = payload.displayName.trim();
   user.email = payload.email.trim();
   user.telephone = payload.telephone?.trim() || undefined;
   user.fonction = payload.fonction?.trim() || undefined;
   if (payload.photoDataUrl !== undefined) user.photoDataUrl = payload.photoDataUrl || undefined;
-  user.roleId = payload.roleId || undefined;
+  user.roleId = nouveauRoleId;
   logAudit(actorUserId, "update_user_account", "user_account", userId);
   persist();
 }
@@ -954,6 +1028,29 @@ export function pushNotification(userId: string, message: string) {
     createdAt: new Date().toISOString(),
     read: false,
   });
+}
+
+/** Notification regroupée : tant qu'une notification de la même famille n'est ni lue ni archivée,
+ * on la met à jour (compteur, message, date) au lieu d'en empiler une nouvelle — la publication
+ * des 12 notes d'un semestre donne une seule ligne, pas 12. Une fois lue, la suivante repart à 1. */
+export function pushNotificationGroupee(userId: string, groupe: string, messageUnitaire: string, messageGroupe: (nombre: number) => string) {
+  const idx = store.notifications.findIndex((n) => n.userId === userId && n.groupe === groupe && !n.read && !n.archived);
+  if (idx < 0) {
+    store.notifications.unshift({
+      id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      userId,
+      message: messageUnitaire,
+      createdAt: new Date().toISOString(),
+      read: false,
+      groupe,
+      nombre: 1,
+    });
+    return;
+  }
+  const existante = store.notifications[idx];
+  const nombre = (existante.nombre ?? 1) + 1;
+  store.notifications.splice(idx, 1);
+  store.notifications.unshift({ ...existante, message: messageGroupe(nombre), nombre, createdAt: new Date().toISOString() });
 }
 
 /** Pour un appelant externe au module (AuthContext.tsx, mailEnvoyeStore.ts, TeacherAbsencePage.tsx...)
@@ -1001,8 +1098,18 @@ export function getAnneesAcademiques() {
   return store.annees;
 }
 
-export function allocateMatricule(filiereCode: string, anneePremiere?: number): string {
-  const year = anneePremiere ?? new Date().getFullYear();
+/** Année portée par le matricule : la première année civile de l'année académique d'inscription
+ * (2026 pour 2026-2027), pas l'année du calendrier au jour de la saisie — un étudiant inscrit en
+ * janvier 2027 pour 2026-2027 appartient à la promotion 2026. À défaut, l'année académique en cours. */
+function anneeDuMatricule(anneeAcademique?: string): number {
+  for (const libelle of [anneeAcademique, getAnneeActuelle()]) {
+    if (libelle && /^\d{4}-\d{4}$/.test(libelle)) return Number(libelle.slice(0, 4));
+  }
+  return new Date().getFullYear();
+}
+
+export function allocateMatricule(filiereCode: string, anneeAcademique?: string): string {
+  const year = anneeDuMatricule(anneeAcademique);
   const key = `${year}-${filiereCode}`;
   const next = (store.matriculeCounters[key] ?? 0) + 1;
   store.matriculeCounters[key] = next;
@@ -1010,8 +1117,8 @@ export function allocateMatricule(filiereCode: string, anneePremiere?: number): 
   return `${year}-${filiereCode}-${String(next).padStart(4, "0")}`;
 }
 
-export function peekNextMatricule(filiereCode: string, anneePremiere?: number): string {
-  const year = anneePremiere ?? new Date().getFullYear();
+export function peekNextMatricule(filiereCode: string, anneeAcademique?: string): string {
+  const year = anneeDuMatricule(anneeAcademique);
   const key = `${year}-${filiereCode}`;
   const next = (store.matriculeCounters[key] ?? 0) + 1;
   return `${year}-${filiereCode}-${String(next).padStart(4, "0")}`;
@@ -1080,8 +1187,8 @@ export interface NewEtudiantPayload {
   photoDataUrl?: string;
   typeAdmission?: "nouveau" | "transfert";
   documentsFournis?: string[];
-  /** Mot de passe affiché à l'admin à l'inscription (bouton "Générer mot de passe"). Absent =
-   * "demo123" par défaut (compte de démonstration, jamais communiqué à un vrai étudiant). */
+  /** Mot de passe provisoire affiché à l'admin à l'inscription, à remettre à l'étudiant. Absent
+   * (import Excel, conversion de devis) = compte inaccessible jusqu'à la remise d'un code PIN. */
   motDePasse?: string;
 }
 
@@ -1131,7 +1238,10 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
       id: `u-student-${etudiant.id}`,
       role: "student",
       email: etudiant.email,
-      password: payload.motDePasse || "demo123",
+      // Mot de passe remis par l'administration = provisoire (à changer à la 1re connexion) ; sans
+      // mot de passe remis, le compte attend un code PIN de l'administration.
+      password: payload.motDePasse ? hashPassword(payload.motDePasse) : COMPTE_SANS_MOT_DE_PASSE_HASH,
+      doitChangerMotDePasse: true,
       identifier: etudiant.matricule,
       displayName: `${etudiant.prenom} ${etudiant.nom}`,
       linkedId: etudiant.id,
@@ -1175,24 +1285,73 @@ export interface EtudiantInfosPayload {
 export function updateEtudiantInfos(etudiantId: string, payload: EtudiantInfosPayload, actorId: string): void {
   const etudiant = store.etudiants.find((e) => e.id === etudiantId);
   if (!etudiant) return;
+  if (!telephoneValide(payload.telephone ?? "") || !telephoneValide(payload.telTuteur ?? "")) {
+    throw new Error("Numéro de téléphone invalide — saisissez 8 à 15 chiffres.");
+  }
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...payload } : e));
   logAudit(actorId, "update_etudiant_infos", "etudiant", etudiantId);
   persist();
 }
 
-/** Dépôt d'une pièce d'inscription par l'étudiant lui-même (portail, "Mes documents") — marque la
- * pièce comme fournie (documentsFournis) et conserve le scan (documentsFichiers), pour qu'un
- * document manquant à l'inscription puisse être régularisé sans repasser par le guichet. Le
- * secrétariat le retrouve ensuite dans le Dossier étudiant (onglet Documents). */
-export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileDataUrl: string, actorId: string): void {
+/** Dépôt d'une pièce d'inscription par l'étudiant lui-même (portail, "Mes documents") : la pièce
+ * part en vérification (piecesEnVerification) et le secrétariat est prévenu. Elle ne devient
+ * « fournie » qu'une fois acceptée dans le Dossier étudiant (verifierPieceEtudiant) — un dépôt
+ * n'est jamais validé d'office. */
+export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileDataUrl: string, actorId: string, libellePiece = docId): void {
   const etudiant = store.etudiants.find((e) => e.id === etudiantId);
   if (!etudiant) return;
-  const documentsFournis = etudiant.documentsFournis?.includes(docId)
-    ? etudiant.documentsFournis
-    : [...(etudiant.documentsFournis ?? []), docId];
-  const documentsFichiers = { ...(etudiant.documentsFichiers ?? {}), [docId]: fileDataUrl };
-  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, documentsFournis, documentsFichiers } : e));
+  if (etudiant.documentsFournis?.includes(docId)) throw new Error("Cette pièce figure déjà comme fournie à votre dossier.");
+  const piecesEnVerification = { ...(etudiant.piecesEnVerification ?? {}), [docId]: { dataUrl: fileDataUrl, deposeLe: new Date().toISOString() } };
+  const piecesRefusees = { ...(etudiant.piecesRefusees ?? {}) };
+  delete piecesRefusees[docId];
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, piecesEnVerification, piecesRefusees } : e));
   logAudit(actorId, "upload_document", "etudiant", etudiantId, docId);
+  for (const admin of store.users.filter((u) => u.role === "admin" && u.actif !== false)) {
+    pushNotification(admin.id, `Pièce à vérifier : ${etudiant.prenom} ${etudiant.nom} (${etudiant.matricule}) a déposé « ${libellePiece} ».`);
+  }
+  persist();
+}
+
+/** Vérification par le secrétariat d'une pièce déposée par l'étudiant : acceptée, elle devient
+ * fournie avec son scan ; refusée, elle reste manquante avec le motif, que l'étudiant voit dans
+ * « Mes documents » avant d'en redéposer une. L'étudiant est notifié dans les deux cas. */
+export function verifierPieceEtudiant(
+  etudiantId: string,
+  docId: string,
+  decision: "accepter" | "refuser",
+  actorId: string,
+  options: { motif?: string; libellePiece?: string } = {},
+): void {
+  const etudiant = store.etudiants.find((e) => e.id === etudiantId);
+  const piece = etudiant?.piecesEnVerification?.[docId];
+  if (!etudiant || !piece) throw new Error("Aucune pièce en attente de vérification pour ce document.");
+  const motif = options.motif?.trim();
+  if (decision === "refuser" && !motif) throw new Error("Indiquez le motif du refus : l'étudiant le verra.");
+  const libelle = options.libellePiece ?? docId;
+  const piecesEnVerification = { ...(etudiant.piecesEnVerification ?? {}) };
+  delete piecesEnVerification[docId];
+  const piecesRefusees = { ...(etudiant.piecesRefusees ?? {}) };
+  let maj: Partial<EtudiantRecord> = { piecesEnVerification };
+  if (decision === "accepter") {
+    delete piecesRefusees[docId];
+    maj = {
+      ...maj,
+      piecesRefusees,
+      documentsFournis: etudiant.documentsFournis?.includes(docId) ? etudiant.documentsFournis : [...(etudiant.documentsFournis ?? []), docId],
+      documentsFichiers: { ...(etudiant.documentsFichiers ?? {}), [docId]: piece.dataUrl },
+    };
+  } else {
+    piecesRefusees[docId] = { motif: motif as string, refuseLe: new Date().toISOString() };
+    maj = { ...maj, piecesRefusees };
+  }
+  store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...maj } : e));
+  logAudit(actorId, decision === "accepter" ? "accept_document" : "refuse_document", "etudiant", etudiantId, motif ? `${libelle} — motif : ${motif}` : libelle);
+  const compte = store.users.find((u) => u.role === "student" && u.linkedId === etudiantId);
+  if (compte) {
+    pushNotification(compte.id, decision === "accepter"
+      ? `Votre pièce « ${libelle} » a été acceptée : elle figure désormais comme fournie à votre dossier.`
+      : `Votre pièce « ${libelle} » a été refusée — motif : ${motif}. Vous pouvez en déposer une nouvelle depuis Mes documents.`);
+  }
   persist();
 }
 
@@ -1223,7 +1382,7 @@ function creerInscriptionEtMettreAJourEtudiant(
   const classe = getClasseById(payload.classeId);
 
   const inscription: InscriptionRecord = {
-    id: `ins-${payload.etudiantId}-${payload.annee}-${Date.now()}`,
+    id: `ins-${payload.etudiantId}-${payload.annee}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     etudiantId: payload.etudiantId,
     annee: payload.annee,
     filiere: filiere?.code ?? etudiant.filiere,
@@ -1286,9 +1445,17 @@ export function promoteAcademicYear(
   const nextLabel = nextAnneeLabel(source.libelle);
   const exists = store.annees.some((a) => a.libelle === nextLabel);
   if (!exists) {
+    // Reprend les dates de l'année source décalées d'un an (rentrée le même jour l'an prochain) —
+    // modifiables ensuite depuis Années académiques si le calendrier change.
     store.annees = [
       ...store.annees,
-      { id: `aa-${Date.now()}`, libelle: nextLabel, actuelle: false },
+      {
+        id: `aa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        libelle: nextLabel,
+        actuelle: false,
+        dateDebut: source.dateDebut ? decalerDUnAn(source.dateDebut) : undefined,
+        dateFin: source.dateFin ? decalerDUnAn(source.dateFin) : undefined,
+      },
     ];
   }
 
@@ -1408,9 +1575,20 @@ export function setAnneeActuelle(id: string) {
   persist();
 }
 
-export function addAnneeAcademique(libelle: string) {
-  store.annees = [...store.annees, { id: `aa-${Date.now()}`, libelle, actuelle: false }];
+export function addAnneeAcademique(libelle: string, dates?: { dateDebut: string; dateFin: string }) {
+  store.annees = [...store.annees, { id: `aa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, libelle, actuelle: false, ...dates }];
   persist();
+}
+
+/** Renseigne ou corrige la rentrée et la fin d'une année ; refuse des dates incohérentes. */
+export function setDatesAnnee(id: string, dateDebut: string, dateFin: string): { ok: boolean; reason?: string } {
+  const annee = store.annees.find((a) => a.id === id);
+  if (!annee) return { ok: false, reason: "Année académique introuvable." };
+  const erreur = validerDatesAnnee(annee.libelle, dateDebut, dateFin);
+  if (erreur) return { ok: false, reason: erreur };
+  store.annees = store.annees.map((a) => (a.id === id ? { ...a, dateDebut, dateFin } : a));
+  persist();
+  return { ok: true };
 }
 
 export function archiveAnnee(id: string) {
@@ -1424,7 +1602,7 @@ export function desarchiverAnnee(id: string) {
 }
 
 export function getAnneeActuelle(): string {
-  return store.annees.find((a) => a.actuelle)?.libelle ?? "2025-2026";
+  return store.annees.find((a) => a.actuelle)?.libelle ?? "";
 }
 
 // ——— Paiements ———
@@ -1491,7 +1669,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
       : etudiant.soldeDu;
 
   const paiement: PaiementRecord = {
-    id: `pa-${Date.now()}`,
+    id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     date: payload.date,
     etudiant: `${etudiant.prenom} ${etudiant.nom}`,
     etudiantId: etudiant.id,
@@ -1677,7 +1855,7 @@ export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord |
     if (ins) ins.soldeDu = etudiant.soldeDu;
     const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
     if (studentUser) {
-      pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} (${nouveauMontantPaye} FCFA au total)`);
+      pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} : ${nouveauMontantPaye.toLocaleString("fr-FR")} F CFA réglés à ce jour sur cette facture`);
     }
   }
 
@@ -1898,11 +2076,48 @@ export function getEffectiveNote(etudiantId: string, classeId: string, ecId: str
   return matches.find((n) => n.session === undefined) ?? matches[0];
 }
 
-export function deleteNote(id: string): void {
+/** Une note validée ou publiée compte déjà dans les résultats : sa suppression exige un motif et
+ * reste tracée au journal d'audit avec l'ancienne valeur (qui, quand, quelle note, pourquoi). */
+export function noteOfficielle(note: Pick<NoteRecord, "statut">): boolean {
+  return note.statut === "publie" || note.statut === "valide_admin";
+}
+
+const LIBELLE_STATUT_NOTE: Record<NoteRecord["statut"], string> = {
+  brouillon_prof: "brouillon",
+  soumis_admin: "soumise",
+  valide_admin: "validée",
+  publie: "publiée",
+};
+
+function decrireNote(n: NoteRecord): string {
+  const type = `${n.type === "CC" ? "Devoir" : "Examen"}${n.session === "rattrapage" ? " de rattrapage" : ""}`;
+  return `${n.etudiant} (${n.matricule}) — ${n.ec} — ${type} : ${String(n.note).replace(".", ",")} (${LIBELLE_STATUT_NOTE[n.statut]})`;
+}
+
+export function deleteNote(id: string, par: string, motif?: string): void {
   const note = store.notes.find((n) => n.id === id);
-  if (note) assertAnneeModifiable(note.annee);
+  if (!note) return;
+  assertAnneeModifiable(note.annee);
+  if (noteOfficielle(note) && !motif?.trim()) {
+    throw new Error("Indiquez le motif : cette note est déjà validée ou publiée.");
+  }
   store.notes = store.notes.filter((n) => n.id !== id);
-  persist();
+  logAudit(par, "suppression_note", "note", id, `${decrireNote(note)}${motif?.trim() ? ` — motif : ${motif.trim()}` : ""}`);
+}
+
+/** Notes rattachées à une évaluation (via evaluationId). */
+export function getNotesEvaluation(evaluationId: string): NoteRecord[] {
+  return store.notes.filter((n) => n.evaluationId === evaluationId);
+}
+
+/** Retire les notes encore en brouillon ou soumises d'une évaluation supprimée (les notes
+ * validées ou publiées bloquent la suppression en amont). Renvoie le nombre de notes retirées. */
+export function deleteNotesNonOfficiellesEvaluation(evaluationId: string): number {
+  const avant = store.notes.length;
+  store.notes = store.notes.filter((n) => n.evaluationId !== evaluationId || noteOfficielle(n));
+  const retirees = avant - store.notes.length;
+  if (retirees) persist();
+  return retirees;
 }
 
 export interface GridNoteInput {
@@ -1943,7 +2158,7 @@ export function saveNotesGrid(
         existing.dateModification = new Date().toISOString();
       } else {
         store.notes.push({
-          id: `no-${input.etudiantId}-${ecId}-${type}-${session ?? "normale"}-${Date.now()}`,
+          id: `no-${input.etudiantId}-${ecId}-${type}-${session ?? "normale"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           etudiant: `${etudiant.prenom} ${etudiant.nom}`,
           etudiantId: etudiant.id,
           matricule: etudiant.matricule,
@@ -1980,6 +2195,12 @@ export interface EvaluationGridInput {
   absent?: boolean;
 }
 
+/** Note validée par la scolarité ou publiée : elle fait foi, le professeur ne la modifie plus
+ * directement (il passe par une demande de correction, voir correctionNoteStore.ts). */
+export function noteEstOfficielle(n: Pick<NoteRecord, "statut">): boolean {
+  return n.statut === "valide_admin" || n.statut === "publie";
+}
+
 /** Sauvegarde les notes d'une évaluation précise (evaluationId), en plus du type CC/EF hérité
  * (conservé pour l'affichage des pages qui ne connaissent que le rôle, pas l'évaluation exacte).
  * Contrairement à saveNotesGrid — qui matche par (étudiant, EC, type, session) et donc écrase
@@ -1994,31 +2215,59 @@ export function saveNoteEvaluationGrid(
   session: "rattrapage" | undefined,
   inputs: EvaluationGridInput[],
   publish: boolean,
+  options: {
+    /** Note maximale de la filière (Paramétrage scolarité) — 20 par défaut. */
+    bareme?: number;
+    /** Portail professeur : les notes validées ou publiées ne sont jamais réécrites (ni remises
+     * en brouillon), et une case vidée retire la note encore en brouillon ou soumise. */
+    respecterVerrou?: boolean;
+  } = {},
 ): void {
   const annee = getAnneeActuelle();
   assertAnneeModifiable(annee);
   const type = role === "devoir" ? "CC" : "EF";
   const statut = publish ? "publie" as const : "brouillon_prof" as const;
+  const bareme = options.bareme ?? 20;
+
+  // Toutes les notes sont vérifiées avant d'en enregistrer une seule.
+  for (const input of inputs) {
+    if (input.absent || input.note === undefined || Number.isNaN(input.note)) continue;
+    if (input.note < 0 || input.note > bareme) {
+      const etudiant = getEtudiantById(input.etudiantId);
+      throw new Error(`Note invalide pour ${etudiant ? `${etudiant.prenom} ${etudiant.nom}` : "un étudiant"} : ${String(input.note).replace(".", ",")} — elle doit être comprise entre 0 et ${bareme}.`);
+    }
+  }
 
   for (const input of inputs) {
     const etudiant = getEtudiantById(input.etudiantId);
-    if (!etudiant || input.absent || input.note === undefined || Number.isNaN(input.note)) continue;
-
+    if (!etudiant) continue;
     const existing = store.notes.find((n) => n.etudiantId === input.etudiantId && n.evaluationId === evaluationId);
+    if (existing && options.respecterVerrou && noteEstOfficielle(existing)) continue;
+    const vide = !input.absent && (input.note === undefined || Number.isNaN(input.note));
+    if (vide) {
+      // Case vidée : la note encore modifiable est retirée (portail professeur uniquement).
+      if (existing && options.respecterVerrou) store.notes = store.notes.filter((n) => n.id !== existing.id);
+      continue;
+    }
+    // Absent : « ABS », compté 0.
+    const valeur = input.absent ? 0 : (input.note as number);
+
     if (existing) {
-      existing.note = input.note;
+      existing.note = valeur;
+      existing.absent = input.absent ? true : undefined;
       existing.statut = statut;
       existing.dateModification = new Date().toISOString();
     } else {
       store.notes.push({
-        id: `no-${input.etudiantId}-${evaluationId}-${Date.now()}`,
+        id: `no-${input.etudiantId}-${evaluationId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         etudiant: `${etudiant.prenom} ${etudiant.nom}`,
         etudiantId: etudiant.id,
         matricule: etudiant.matricule,
         ec: ecLabel,
         ecId,
         type,
-        note: input.note,
+        note: valeur,
+        absent: input.absent ? true : undefined,
         statut,
         classeId,
         annee,
@@ -2033,6 +2282,30 @@ export function saveNoteEvaluationGrid(
     generateRelevesForClasseEc(classeId, ecId);
   }
   persist();
+}
+
+/** Correction d'une note officielle (validée ou publiée) acceptée par la scolarité : la note
+ * change de valeur sans changer de statut, la correction est inscrite au journal avec l'ancienne
+ * et la nouvelle valeur, et l'étudiant est prévenu si la note lui était déjà publiée. */
+export function corrigerNoteOfficielle(noteId: string, nouvelleNote: number, absent: boolean, actorUserId: string, motif: string): NoteRecord {
+  const note = store.notes.find((n) => n.id === noteId);
+  if (!note) throw new Error("Note introuvable.");
+  assertAnneeModifiable(note.annee);
+  const libelle = (n: number, abs?: boolean) => (abs ? "ABS" : String(n).replace(".", ","));
+  const avant = libelle(note.note, note.absent);
+  note.note = absent ? 0 : nouvelleNote;
+  note.absent = absent ? true : undefined;
+  note.dateModification = new Date().toISOString();
+  const apres = libelle(note.note, note.absent);
+  const typeLabel = note.type === "EF" ? "Examen" : note.type === "CC" ? "Contrôle continu" : note.type;
+  logAudit(actorUserId, "correction_note", "note", note.id, `${note.etudiant} (${note.matricule}) — ${note.ec} — ${typeLabel} : ${avant} → ${apres} — motif : ${motif}`);
+  if (note.statut === "publie") {
+    generateRelevesForClasseEc(note.classeId, note.ecId);
+    const compte = store.users.find((u) => u.role === "student" && u.linkedId === note.etudiantId);
+    if (compte) pushNotification(compte.id, `Note corrigée — ${note.ec} (${typeLabel}) : ${avant} → ${apres}.`);
+  }
+  persist();
+  return note;
 }
 
 export function publishNotesForClasseEc(classeId: string, ecId: string, session?: "rattrapage"): number {
@@ -2052,7 +2325,9 @@ export function publishNotesForClasseEc(classeId: string, ecId: string, session?
   if (notifNote?.actif && notifNote.envoyerEtudiant) {
     for (const n of publiees) {
       const studentUser = store.users.find((u) => u.linkedId === n.etudiantId && u.role === "student");
-      if (studentUser) pushNotification(studentUser.id, `Nouvelle note publiée — ${n.ec}`);
+      if (studentUser) {
+        pushNotificationGroupee(studentUser.id, "notes-publiees", `Nouvelle note publiée — ${n.ec}`, (nb) => `${nb} nouvelles notes publiées — dernière : ${n.ec}`);
+      }
     }
   }
   persist();
@@ -2197,11 +2472,70 @@ export interface NewSeancePayload {
   classeId: string;
   salleId: string;
   prof: string;
+  profId?: string;
   jour: number;
   semaineDu: string;
   heureDebut: string;
   heureFin: string;
   type: string;
+}
+
+/** « lundi 21/09 à 08:00 » — date réelle du créneau (semaine + jour), au lieu du numéro de jour. */
+function libelleCreneau(seance: Pick<SeanceRecord, "semaineDu" | "jour" | "heureDebut">): string {
+  const d = new Date(`${seance.semaineDu}T12:00:00`);
+  d.setDate(d.getDate() + (seance.jour - 1));
+  const jour = d.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  return `${jour} à ${seance.heureDebut}`;
+}
+
+/** Compte du professeur d'une séance : celui relié à sa fiche enseignant ; à défaut d'identifiant
+ * (ancienne donnée), celui dont le nom complet est exactement celui de la séance — jamais le seul
+ * nom de famille. */
+function compteProfDeSeance(seance: Pick<SeanceRecord, "prof" | "profId">): UserAccountRecord | undefined {
+  return store.users.find(
+    (u) => u.role === "teacher" && (seance.profId ? u.linkedId === seance.profId : u.displayName.trim().toLowerCase() === seance.prof.trim().toLowerCase()),
+  );
+}
+
+/** Prévient les étudiants de la classe et le professeur d'un changement d'emploi du temps, selon
+ * le réglage NOTIFICATION_UPDATE_EDT. `autresProfs` : ancien professeur d'une séance réattribuée. */
+function notifierChangementEdt(
+  seance: SeanceRecord,
+  messageEtudiant: string,
+  messageProf: string,
+  autresProfs: Pick<SeanceRecord, "prof" | "profId">[] = [],
+  /** Création de créneau : regroupée (la construction d'un emploi du temps en crée des dizaines).
+   * Modifications et annulations restent une notification chacune. */
+  regroupement?: { groupe: string; etudiant: (nombre: number) => string; prof: (nombre: number) => string },
+) {
+  const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
+  if (!notifEdt?.actif) return;
+  if (notifEdt.envoyerEtudiant) {
+    const studentUsers = store.users.filter(
+      (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === seance.classeId),
+    );
+    for (const u of studentUsers) {
+      if (regroupement) pushNotificationGroupee(u.id, regroupement.groupe, messageEtudiant, regroupement.etudiant);
+      else pushNotification(u.id, messageEtudiant);
+    }
+  }
+  if (notifEdt.envoyerProfesseur) {
+    const deja = new Set<string>();
+    for (const p of [seance, ...autresProfs]) {
+      const compte = compteProfDeSeance(p);
+      if (compte && !deja.has(compte.id)) {
+        deja.add(compte.id);
+        if (regroupement) pushNotificationGroupee(compte.id, regroupement.groupe, messageProf, regroupement.prof);
+        else pushNotification(compte.id, messageProf);
+      }
+    }
+  }
+}
+
+/** Un cahier de textes déjà soumis pour cette séance parle d'un jour, d'une heure et d'une salle
+ * précis : la modifier ou l'annuler casserait silencieusement ce lien. */
+function cahierSoumisPourSeance(id: string): boolean {
+  return store.cahiers.some((c) => c.seanceId === id && c.statut !== "brouillon");
 }
 
 export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; conflicts: ReturnType<typeof detectScheduleConflicts> } {
@@ -2231,29 +2565,23 @@ export function addSeance(payload: NewSeancePayload): { seance?: SeanceRecord; c
     salle: salle?.nom ?? "",
     salleId: payload.salleId,
     prof: payload.prof,
+    profId: payload.profId,
     type: payload.type,
     annee: getAnneeActuelle(),
   };
   store.seances.push(seance);
 
-  // Notifier étudiants de la classe + enseignant
-  const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
-  if (notifEdt?.actif && notifEdt.envoyerEtudiant) {
-    const studentUsers = store.users.filter(
-      (u) => u.role === "student" && store.etudiants.some((e) => e.id === u.linkedId && e.classeId === payload.classeId),
-    );
-    for (const u of studentUsers) {
-      pushNotification(u.id, `EDT mis à jour : ${seance.ec} (${seance.jour}/${seance.heureDebut}) — ${seance.salle}`);
-    }
-  }
-  if (notifEdt?.actif && notifEdt.envoyerProfesseur) {
-    const teacherUser = store.users.find(
-      (u) => u.role === "teacher" && (u.displayName.includes(payload.prof.split(" ").slice(-1)[0] ?? "") || payload.prof.includes(u.displayName.split(" ").slice(-1)[0] ?? "")),
-    );
-    if (teacherUser) {
-      pushNotification(teacherUser.id, `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${seance.salle}`);
-    }
-  }
+  notifierChangementEdt(
+    seance,
+    `Emploi du temps : ${seance.ec} le ${libelleCreneau(seance)} — ${seance.salle}`,
+    `Nouveau créneau : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)} — ${seance.salle}`,
+    [],
+    {
+      groupe: "edt-nouveaux-creneaux",
+      etudiant: (nb) => `Emploi du temps : ${nb} nouveaux créneaux ajoutés — dernier : ${seance.ec} le ${libelleCreneau(seance)}`,
+      prof: (nb) => `${nb} nouveaux créneaux à votre emploi du temps — dernier : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)}`,
+    },
+  );
 
   persist();
   return { seance, conflicts: [] };
@@ -2270,8 +2598,7 @@ export function updateSeancePosition(
 
   // Un cahier de textes déjà soumis pour cette séance parle d'un jour/heure précis — la
   // déplacer casserait silencieusement ce lien (le cahier resterait daté de l'ancien créneau).
-  const cahierExistant = store.cahiers.some((c) => c.seanceId === id && c.statut !== "brouillon");
-  if (cahierExistant) {
+  if (cahierSoumisPourSeance(id)) {
     return {
       ok: false,
       conflicts: [{
@@ -2286,11 +2613,101 @@ export function updateSeancePosition(
   const conflicts = detectScheduleConflicts(store.seances, candidate, id);
   if (conflicts.length > 0) return { ok: false, conflicts };
 
+  const avant = libelleCreneau(seance);
+  const finAvant = seance.heureFin;
   seance.jour = jour;
   seance.heureDebut = heureDebut;
   seance.heureFin = heureFin;
+  const apres = libelleCreneau(seance);
+  if (avant !== apres || finAvant !== heureFin) {
+    notifierChangementEdt(
+      seance,
+      `Cours déplacé : ${seance.ec} — ${avant} → ${apres} (${seance.heureDebut}–${seance.heureFin}) — ${seance.salle}`,
+      `Créneau déplacé : ${seance.ec} — ${seance.classe} — ${avant} → ${apres} — ${seance.salle}`,
+    );
+  }
   persist();
   return { ok: true, conflicts: [] };
+}
+
+export interface ModifierSeancePayload {
+  salleId: string;
+  prof: string;
+  profId?: string;
+  jour: number;
+  semaineDu: string;
+  heureDebut: string;
+  heureFin: string;
+  type: string;
+}
+
+/** Modifie une séance planifiée (date, horaire, salle, professeur, type) : mêmes contrôles de
+ * conflit qu'à la création, et étudiants + professeur(s) prévenus de ce qui change. */
+export function modifierSeance(
+  id: string,
+  patch: ModifierSeancePayload,
+  acteurId: string,
+): { ok: boolean; conflicts: ReturnType<typeof detectScheduleConflicts> } {
+  const seance = store.seances.find((s) => s.id === id);
+  if (!seance) return { ok: false, conflicts: [] };
+  if (cahierSoumisPourSeance(id)) {
+    return { ok: false, conflicts: [{ type: "cahier", seanceId: id, label: "Un cahier de textes a déjà été soumis pour cette séance — elle ne peut plus être modifiée" }] };
+  }
+  const salle = getSalleById(patch.salleId);
+  const candidate: SeanceSlot = { ...seance, ...patch, salle: salle?.nom };
+  const conflicts = detectScheduleConflicts(store.seances, candidate, id);
+  if (conflicts.length > 0) return { ok: false, conflicts };
+
+  const avant = { ...seance };
+  // Même enseignant resaisi sans identifiant : on garde le lien existant plutôt que de le perdre.
+  if (!patch.profId && avant.profId && patch.prof.trim().toLowerCase() === avant.prof.trim().toLowerCase()) {
+    patch = { ...patch, profId: avant.profId };
+  }
+  const changements: string[] = [];
+  const creneauAvant = `${libelleCreneau(avant)}–${avant.heureFin}`;
+  Object.assign(seance, { ...patch, salle: salle?.nom ?? seance.salle });
+  const creneauApres = `${libelleCreneau(seance)}–${seance.heureFin}`;
+  if (creneauAvant !== creneauApres) changements.push(`${creneauAvant} → ${creneauApres}`);
+  if (avant.salleId !== seance.salleId) changements.push(`salle ${avant.salle} → ${seance.salle}`);
+  const changeProf = avant.profId && seance.profId
+    ? avant.profId !== seance.profId
+    : avant.prof.trim().toLowerCase() !== seance.prof.trim().toLowerCase();
+  if (changeProf) changements.push(`professeur ${avant.prof} → ${seance.prof}`);
+  if (avant.type !== seance.type) changements.push(`type ${avant.type} → ${seance.type}`);
+  store.seances = [...store.seances];
+  logAudit(acteurId, "modifier_seance", "seance", id, changements.join(" ; "));
+  if (changements.length > 0) {
+    const detail = changements.join(" ; ");
+    notifierChangementEdt(
+      seance,
+      `Cours modifié : ${seance.ec} — ${detail}`,
+      `Séance modifiée : ${seance.ec} — ${seance.classe} — ${detail}`,
+      changeProf ? [avant] : [],
+    );
+  }
+  persist();
+  return { ok: true, conflicts: [] };
+}
+
+/** Annule une séance planifiée : elle disparaît de l'emploi du temps et les étudiants comme le
+ * professeur sont prévenus, avec le motif s'il est donné. Refusé si un cahier a déjà été soumis
+ * (la séance a eu lieu). */
+export function annulerSeance(id: string, motif: string, acteurId: string): { ok: boolean; reason?: string } {
+  const seance = store.seances.find((s) => s.id === id);
+  if (!seance) return { ok: false, reason: "Séance introuvable." };
+  if (cahierSoumisPourSeance(id)) return { ok: false, reason: "Un cahier de textes a déjà été soumis pour cette séance : elle a eu lieu et ne peut plus être annulée." };
+  // Brouillons de cahier de cette séance : ils n'ont plus d'objet.
+  store.cahiers = store.cahiers.filter((c) => c.seanceId !== id);
+  store.seances = store.seances.filter((s) => s.id !== id);
+  const suffixe = motif.trim() ? ` Motif : ${motif.trim()}.` : "";
+  notifierChangementEdt(
+    seance,
+    `Cours annulé : ${seance.ec} du ${libelleCreneau(seance)} — ${seance.salle}.${suffixe}`,
+    `Séance annulée : ${seance.ec} — ${seance.classe} — ${libelleCreneau(seance)}.${suffixe}`,
+  );
+  logAudit(acteurId, "annuler_seance", "seance", id, `${seance.ec} ${seance.classe} ${libelleCreneau(seance)}${suffixe}`);
+  persist();
+  return { ok: true };
 }
 
 /** Duplique toutes les séances d'une semaine vers une autre — le point de départ du travail
@@ -2311,9 +2728,20 @@ export function getStudentRequests(): StudentRequestRecord[] {
 }
 
 export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "updatedAt" | "status">): StudentRequestRecord {
+  // Une seule demande en cours de traitement par absence ou par note : un doublon encombrerait
+  // la file du secrétariat et resterait « Nouveau » une fois l'original traité.
+  if (payload.type === "justificatif_absence" && !payload.absenceCahierId) throw new Error("Choisissez l'absence à justifier.");
+  if (payload.type === "reclamation_note" && !payload.noteId) throw new Error("Choisissez la note contestée.");
+  const enCours = store.requests.filter((r) => r.studentId === payload.studentId && (r.status === "nouveau" || r.status === "en_cours"));
+  if (payload.type === "justificatif_absence" && payload.absenceCahierId && enCours.some((r) => r.type === "justificatif_absence" && r.absenceCahierId === payload.absenceCahierId)) {
+    throw new Error("Un justificatif pour cette absence est déjà en cours de traitement.");
+  }
+  if (payload.type === "reclamation_note" && payload.noteId && enCours.some((r) => r.type === "reclamation_note" && r.noteId === payload.noteId)) {
+    throw new Error("Une réclamation sur cette note est déjà en cours de traitement.");
+  }
   const now = new Date().toISOString();
   const req: StudentRequestRecord = {
-    id: `req-${Date.now()}`,
+    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     createdAt: now,
     updatedAt: now,
     status: "nouveau",
@@ -2357,6 +2785,13 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
   req.handledBy = handledBy;
   req.resolution = resolution;
 
+  // Justificatif accepté : l'absence visée devient réellement justifiée (assiduité, heures non
+  // justifiées, portail de l'étudiant), sans ressaisie dans « Nouvelle assiduité ».
+  if (status === "valide" && req.type === "justificatif_absence" && req.absenceCahierId) {
+    const motif = [resolution?.trim(), req.pieceJointe ? `pièce : ${req.pieceJointe.nom}` : ""].filter(Boolean).join(" — ");
+    justifierPresenceCahier(req.absenceCahierId, req.studentId, motif || `Justifiée (demande « ${req.subject} »)`, true);
+  }
+
   if (status === "valide" && req.type === "demande_rallonge") {
     const etudiant = store.etudiants.find((e) => e.id === req.studentId);
     const personnel = store.users.find((u) => u.id === handledBy);
@@ -2376,8 +2811,18 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
   }
 
   const studentUser = store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
-  if (studentUser) pushNotification(studentUser.id, `Votre demande "${req.subject}" est ${status}.`);
+  const etat = status === "valide" ? "a été acceptée" : status === "rejete" ? "a été refusée" : status === "en_cours" ? "est en cours de traitement" : "a été mise à jour";
+  if (studentUser) pushNotification(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
   logAudit(handledBy, "update_request", "request", id, status);
+  persist();
+}
+
+/** Relie à la demande l'attestation générée pour y répondre (lien visible des deux côtés). */
+export function rattacherAttestationDemande(id: string, attestationId: string, numero: string): void {
+  const req = store.requests.find((r) => r.id === id);
+  if (!req) return;
+  req.attestationId = attestationId;
+  req.attestationNumero = numero;
   persist();
 }
 
@@ -2391,7 +2836,53 @@ export function getMessages(): MessageRecord[] {
   return store.messages;
 }
 
+/** Professeurs (comptes actifs) qui enseignent réellement dans une classe : un créneau d'emploi du
+ * temps, une évaluation, ou la responsabilité d'un EC de la filière et du niveau de la classe —
+ * rattachés par identifiant, ou à défaut par le nom complet (anciennes données). */
+export function comptesProfsDeLaClasse(classeId: string): UserAccountRecord[] {
+  const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+  const ids = new Set<string>();
+  const noms = new Set<string>();
+  const ajouter = (id: string | undefined, nom: string | undefined) => {
+    if (id) ids.add(id);
+    else if (nom?.trim()) noms.add(norm(nom));
+  };
+  for (const se of store.seances) if (se.classeId === classeId) ajouter(se.profId, se.prof);
+  for (const ev of getEvaluations()) if (ev.classeId === classeId) ajouter(ev.professeurId, ev.professeur);
+  const classe = getClasseById(classeId);
+  if (classe) {
+    const ueIds = new Set(getUes().filter((u) => u.filiereId === classe.filiereId && u.niveau === classe.niveau).map((u) => u.id));
+    for (const ec of getEcs()) if (ueIds.has(ec.ueId)) ajouter(ec.responsableId, ec.responsable);
+  }
+  return store.users.filter((u) => {
+    if (u.role !== "teacher" || u.actif === false) return false;
+    if (u.linkedId && ids.has(u.linkedId)) return true;
+    const nom = norm(u.displayName);
+    const inverse = nom.split(" ").reverse().join(" ");
+    return noms.has(nom) || noms.has(inverse);
+  });
+}
+
+/** Destinataires qu'un étudiant peut choisir pour un nouveau message : l'administration (scolarité,
+ * caisse…) et les professeurs de sa classe — pas les autres professeurs de l'établissement. */
+export function contactsMessagerieEtudiant(userId: string): UserAccountRecord[] {
+  const compte = store.users.find((u) => u.id === userId);
+  const etudiant = compte?.linkedId ? store.etudiants.find((e) => e.id === compte.linkedId) : undefined;
+  const admins = store.users.filter((u) => u.role === "admin" && u.actif !== false && u.id !== userId);
+  return [...admins, ...(etudiant?.classeId ? comptesProfsDeLaClasse(etudiant.classeId) : [])];
+}
+
 export function sendMessage(fromUserId: string, toUserId: string, subject: string, content: string): MessageRecord {
+  // Un étudiant écrit à l'administration et aux professeurs de sa classe ; il peut toujours répondre
+  // à quelqu'un qui lui a écrit le premier (conversation déjà ouverte).
+  const auteur = store.users.find((u) => u.id === fromUserId);
+  if (auteur?.role === "student") {
+    const autorise = contactsMessagerieEtudiant(fromUserId).some((u) => u.id === toUserId);
+    const conversationOuverte = store.messages.some((m) => m.fromUserId === toUserId && m.toUserId === fromUserId);
+    if (!autorise && !conversationOuverte) {
+      throw new Error("Vous pouvez écrire à l'administration et aux professeurs de votre classe uniquement.");
+    }
+  }
   const msg: MessageRecord = {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     fromUserId,
@@ -2428,6 +2919,7 @@ export function getNotifications(): NotificationRecord[] {
 export function markNotificationRead(notificationId: string, userId: string) {
   const n = store.notifications.find((x) => x.id === notificationId && x.userId === userId);
   if (!n) return;
+  if (!n.read) n.readAt = new Date().toISOString();
   n.read = true;
   persist();
 }
@@ -2437,6 +2929,7 @@ export function markAllNotificationsRead(userId: string) {
   for (const n of store.notifications) {
     if (n.userId === userId && !n.read) {
       n.read = true;
+      n.readAt = new Date().toISOString();
       changed = true;
     }
   }
@@ -2447,7 +2940,10 @@ export function archiveNotification(notificationId: string, userId: string, arch
   const n = store.notifications.find((x) => x.id === notificationId && x.userId === userId);
   if (!n) return;
   n.archived = archived;
-  if (archived) n.read = true;
+  if (archived && !n.read) {
+    n.read = true;
+    n.readAt = new Date().toISOString();
+  }
   persist();
 }
 
@@ -2563,23 +3059,56 @@ export interface CahierSubmitPayload {
   cahierId?: string;
 }
 
+/** Date réelle d'une séance : le lundi de sa semaine + son jour (1 = lundi … 6 = samedi). */
+export function dateDeLaSeance(seance: Pick<SeanceRecord, "semaineDu" | "jour">): string {
+  const d = new Date(`${seance.semaineDu}T12:00:00`);
+  d.setDate(d.getDate() + (seance.jour - 1));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Cahier « de secours » saisi par l'administration faute de cahier du professeur
+ * (creerCahierSecoursAdmin) : le vrai cahier du professeur reste prioritaire sur lui. */
+function estCahierSecours(c: Pick<CahierSeanceRecord, "sujet" | "resume">): boolean {
+  return !c.sujet && c.resume.startsWith("Assiduité saisie par l'administration");
+}
+
 export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRecord {
   const seance = store.seances.find((s) => s.id === payload.seanceId);
   if (!seance) throw new Error("Séance introuvable");
+
+  // Un cahier décrit la séance réellement tenue : à sa date, une seule fois, et jamais à l'avance.
+  const dateSeance = dateDeLaSeance(seance);
+  const dateCahier = payload.date || dateSeance;
+  const dateFr = (iso: string) => iso.split("-").reverse().join("/");
+  if (dateCahier !== dateSeance) {
+    throw new Error(`La date du cahier doit être celle de la séance : le ${dateFr(dateSeance)}.`);
+  }
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  if (!payload.asDraft && payload.etatSeance === "realisee" && dateCahier > aujourdHui) {
+    throw new Error(`La séance du ${dateFr(dateCahier)} n'a pas encore eu lieu : enregistrez-la comme « préparée » ou en brouillon.`);
+  }
+  const dejaSoumis = store.cahiers.find((c) =>
+    c.id !== payload.cahierId && c.seanceId === payload.seanceId && c.date === dateCahier &&
+    c.statut !== "brouillon" && c.statut !== "rejete" && !estCahierSecours(c),
+  );
+  if (dejaSoumis) {
+    throw new Error(`Un cahier a déjà été soumis pour cette séance le ${dateFr(dateCahier)} : ouvrez-le pour le modifier.`);
+  }
 
   const ec = getEcs().find((e) => e.id === seance.ecId);
   const ue = getUes().find((u) => u.id === ec?.ueId);
   const classe = getClasseById(seance.classeId);
   const salle = getSalleById(seance.salleId);
 
-  const presents = payload.presences.filter((p) => p.statut === "present").length;
+  // Un retard compte comme une présence (règle UCAO, voir estPresentALaSeance).
+  const presents = payload.presences.filter((p) => p.statut === "present" || p.statut === "retard").length;
   const total = payload.presences.length || 1;
   const tauxPresence = Math.round((presents / total) * 1000) / 10;
   const absents = payload.presences.filter((p) => p.statut === "absent").map((p) => p.etudiantId);
   const retards = payload.presences.filter((p) => p.statut === "retard").map((p) => p.etudiantId);
 
   const base: CahierSeanceRecord = {
-    id: payload.cahierId || `cah-${Date.now()}`,
+    id: payload.cahierId || `cah-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     seanceId: payload.seanceId,
     annee: seance.annee || getAnneeActuelle(),
     semestre: ue?.semestre || "",
@@ -2594,6 +3123,7 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
     classeId: seance.classeId,
     classe: seance.classe,
     prof: payload.prof,
+    profId: seance.profId,
     salle: salle?.nom || seance.salle,
     salleId: seance.salleId,
     date: payload.date || new Date().toISOString().slice(0, 10),
@@ -2631,13 +3161,13 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
 
   if (!payload.asDraft) {
     const admin = store.users.find((u) => u.role === "admin");
-    if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date})`);
+    if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date.split("-").reverse().join("/")})`);
 
     const notifAbsence = getNotificationEvenementielleParCode("NOTIFICATION_ABSENCE");
     if (notifAbsence?.actif && notifAbsence.envoyerEtudiant) {
       for (const etudiantId of absents) {
         const studentUser = store.users.find((u) => u.linkedId === etudiantId && u.role === "student");
-        if (studentUser) pushNotification(studentUser.id, `Absence constatée en ${base.ec} le ${base.date}`);
+        if (studentUser) pushNotification(studentUser.id, `Absence constatée en ${base.ec} le ${base.date.split("-").reverse().join("/")}`);
       }
     }
   }
@@ -2645,17 +3175,31 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   return normalizeCahier(base);
 }
 
-export function validateCahier(id: string, actorUserId: string, approve: boolean) {
+/** Renvoie le pointage créé automatiquement (séance réalisée validée), s'il y en a un. */
+export function validateCahier(id: string, actorUserId: string, approve: boolean): { volumePointe: number } | undefined {
   const row = store.cahiers.find((c) => c.id === id);
-  if (!row) return;
+  if (!row) return undefined;
   row.statut = approve ? "valide" : "rejete";
   row.validatedBy = actorUserId;
-  const teacher = store.users.find((u) => u.role === "teacher" && u.displayName.includes(row.prof.split(" ").slice(-1)[0] ?? ""));
+  const seance = store.seances.find((x) => x.id === row.seanceId);
+  const profId = row.profId ?? seance?.profId;
+  const teacher = compteProfDeSeance({ prof: row.prof, profId });
+  // Séance réalisée et validée : le pointage est préparé, il ne reste qu'à le confirmer.
+  const pointage = approve && row.etatSeance === "realisee"
+    ? creerPointageDepuisCahier(row, profId ?? teacher?.linkedId ?? "")
+    : undefined;
+  const dateFr = row.date.split("-").reverse().join("/");
   if (teacher) {
-    pushNotification(teacher.id, `Cahier ${row.ec} ${approve ? "validé" : "rejeté"} — transmission comptabilité ${approve ? "possible" : "bloquée"}`);
+    pushNotification(
+      teacher.id,
+      approve
+        ? `Cahier ${row.ec} du ${dateFr} validé${pointage ? ` — ${pointage.volumePointe} h transmises au pointage` : ""}`
+        : `Cahier ${row.ec} du ${dateFr} rejeté — à corriger avant transmission au pointage`,
+    );
   }
   logAudit(actorUserId, approve ? "validate_cahier" : "reject_cahier", "cahier", id);
   persist();
+  return pointage;
 }
 
 /** Marque une absence/retard déjà signalé par le prof dans son cahier comme justifié (ou non),

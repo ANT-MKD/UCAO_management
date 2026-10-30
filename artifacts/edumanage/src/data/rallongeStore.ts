@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getTeacherVolume, makeTeacherVolumeId, upsertTeacherVolumes } from "@/data/teacherVolumeStore";
 import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
 
@@ -19,6 +20,7 @@ export interface RallongeRecord {
   motifRejet?: string;
   origine: RallongeOrigine;
   createdAt: string;
+  dateTraitement?: string;
 }
 
 const listeners = new Set<() => void>();
@@ -45,7 +47,7 @@ function persist() {
   // Object.is et ne re-rend pas si getRallonges() renvoie la même référence.
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -66,6 +68,10 @@ export function makeRallongeId(): string {
 export function addRallonge(
   payload: Omit<RallongeRecord, "id" | "statut" | "createdAt">,
 ): RallongeRecord {
+  // Une seule demande en attente par cours : la suivante attend la décision sur la première.
+  if (store.some((r) => r.teacherId === payload.teacherId && r.ecId === payload.ecId && r.classeId === payload.classeId && r.annee === payload.annee && r.statut === "soumis")) {
+    throw new Error("Une demande de rallonge est déjà en attente pour ce cours : attendez la décision de l'administration.");
+  }
   const record: RallongeRecord = {
     ...payload,
     id: makeRallongeId(),
@@ -95,6 +101,7 @@ export function updateRallongeStatut(
     ...store[idx],
     statut,
     motifRejet: statut === "rejete" ? motifRejet?.trim() || store[idx].motifRejet : undefined,
+    dateTraitement: new Date().toISOString(),
   };
   store[idx] = record;
 

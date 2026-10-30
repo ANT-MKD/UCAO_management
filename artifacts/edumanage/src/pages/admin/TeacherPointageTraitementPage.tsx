@@ -11,6 +11,7 @@ import {
 import { updatePointageStatut, type PointageRecord, type PointageStatut } from "@/data/pointageStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import {
@@ -18,7 +19,7 @@ import {
   teacherDisplayLabel,
   type EnseignantRecord,
 } from "@/lib/teacherUtils";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 
 type TraitementStatut = "" | "soumis" | "valide" | "rejete";
 
@@ -166,8 +167,17 @@ export default function TeacherPointageTraitementPage() {
   const pendingCount = pointages.filter((p) => p.statut === "soumis").length;
   const hasActiveRefinement = hasAnyCriterion(applied) || quickSearch.trim() !== "";
 
+  /** Le professeur apprend sur son portail que son pointage est validé ou rejeté (avec le motif). */
+  const notifierProfesseur = (id: string, message: (p: PointageRecord, date: string) => string) => {
+    const p = pointages.find((x) => x.id === id);
+    if (!p) return;
+    const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === p.teacherId);
+    if (compte) pushNotificationEtPersister(compte.id, message(p, p.date.slice(0, 10).split("-").reverse().join("/")));
+  };
+
   const handleValidate = (id: string) => {
     updatePointageStatut(id, "valide");
+    notifierProfesseur(id, (p, date) => `Pointage du ${date} (${p.heureDebut}–${p.heureFin}, ${p.volumePointe} h) validé.`);
     toast.success("Pointage validé");
   };
 
@@ -178,6 +188,7 @@ export default function TeacherPointageTraitementPage() {
       return;
     }
     updatePointageStatut(rejectId, "rejete", motifRejet.trim());
+    notifierProfesseur(rejectId, (p, date) => `Pointage du ${date} (${p.heureDebut}–${p.heureFin}) rejeté : ${motifRejet.trim()}.`);
     toast.success("Pointage rejeté");
     setRejectId(null);
     setMotifRejet("");
@@ -207,7 +218,7 @@ export default function TeacherPointageTraitementPage() {
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input aria-label="Rechercher un professeur (nom, matricule)"
             type="search"
             value={quickSearch}
             onChange={(e) => setQuickSearch(e.target.value)}
@@ -285,7 +296,7 @@ export default function TeacherPointageTraitementPage() {
                 const salle = salles.find((s) => s.id === p.salleId);
                 return (
                   <tr key={p.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap">{p.date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatShortDate(p.date)}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">
                         {teacher ? `${teacher.prenom} ${teacher.nom}` : p.teacherId}
@@ -368,7 +379,7 @@ export default function TeacherPointageTraitementPage() {
           <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
             <h2 className="text-base font-semibold mb-1">Rejeter le pointage</h2>
             <p className="text-xs text-muted-foreground mb-4">Le motif sera visible dans la liste de traitement.</p>
-            <textarea
+            <textarea aria-label="Motif du rejet"
               value={motifRejet}
               onChange={(e) => setMotifRejet(e.target.value)}
               rows={3}
@@ -490,8 +501,8 @@ function AdvancedSearchModal({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+              <select id="teacher-pointage-traitement-champ-1"
                 value={draft.filiereId}
                 onChange={(e) =>
                   patch({
@@ -512,8 +523,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année</label>
+              <select id="teacher-pointage-traitement-champ-2"
                 value={draft.annee}
                 onChange={(e) => patch({ annee: e.target.value, classeId: "" })}
                 className={inputClass}
@@ -527,8 +538,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveaux</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveaux</label>
+              <select id="teacher-pointage-traitement-champ-3"
                 value={draft.niveauId}
                 onChange={(e) => patch({ niveauId: e.target.value, classeId: "" })}
                 className={inputClass}
@@ -543,8 +554,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+              <select id="teacher-pointage-traitement-champ-4"
                 value={draft.classeId}
                 onChange={(e) => patch({ classeId: e.target.value })}
                 className={inputClass}
@@ -559,8 +570,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
+              <select id="teacher-pointage-traitement-champ-5"
                 value={draft.semestreId}
                 onChange={(e) => patch({ semestreId: e.target.value })}
                 className={inputClass}
@@ -575,8 +586,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+              <select id="teacher-pointage-traitement-champ-6"
                 value={draft.statut}
                 onChange={(e) => patch({ statut: e.target.value as TraitementStatut })}
                 className={inputClass}
@@ -588,8 +599,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique</label>
-              <select
+              <label htmlFor="teacher-pointage-traitement-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique</label>
+              <select id="teacher-pointage-traitement-champ-7"
                 value={draft.anneeAcademique}
                 onChange={(e) => patch({ anneeAcademique: e.target.value })}
                 className={inputClass}
@@ -603,8 +614,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début</label>
-              <input
+              <label htmlFor="teacher-pointage-traitement-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début</label>
+              <input id="teacher-pointage-traitement-champ-8"
                 type="date"
                 value={draft.dateDebut}
                 onChange={(e) => patch({ dateDebut: e.target.value })}
@@ -612,8 +623,8 @@ function AdvancedSearchModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin</label>
-              <input
+              <label htmlFor="teacher-pointage-traitement-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin</label>
+              <input id="teacher-pointage-traitement-champ-9"
                 type="date"
                 value={draft.dateFin}
                 onChange={(e) => patch({ dateFin: e.target.value })}
@@ -623,10 +634,10 @@ function AdvancedSearchModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
+            <label htmlFor="teacher-pointage-traitement-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-              <input
+              <input id="teacher-pointage-traitement-champ-10"
                 type="search"
                 value={teacherQuery}
                 onChange={(e) => {

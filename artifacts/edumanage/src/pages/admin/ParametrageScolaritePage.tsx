@@ -1,6 +1,10 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { Settings2, Pencil, RotateCcw, Download, AlertTriangle } from "lucide-react";
+import { Settings2, Pencil, RotateCcw, Download, AlertTriangle, Calculator, Sigma } from "lucide-react";
+import { Link } from "wouter";
+import { useSyncExternalStore } from "react";
+import { getReglements, subscribeReglements, reglementPour } from "@/data/reglementCalculStore";
+import { getAnneeActuelle } from "@/data/studentStore";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
@@ -11,6 +15,9 @@ import {
   updateScolariteConfig,
   updateValeursParDefaut,
   appliquerValeursParDefaut,
+  updateReglesCalcul,
+  REGLES_CALCUL_DEFAUT,
+  type ReglesCalcul,
   type ScolariteConfigRecord,
   type ScolariteConfigPatch,
 } from "@/data/scolariteConfigStore";
@@ -24,13 +31,33 @@ export default function ParametrageScolaritePage() {
   const { currentUser } = useAuth();
   const configs = useScolariteConfigs();
   const valeursParDefaut = useValeursParDefautScolarite();
+  useSyncExternalStore(subscribeReglements, getReglements, getReglements);
+  const anneeEnCours = getAnneeActuelle();
 
   const [editing, setEditing] = useState<ScolariteConfigRecord | null>(null);
   const [form, setForm] = useState<ScolariteConfigPatch>(EMPTY_FORM);
   const [defautModalOpen, setDefautModalOpen] = useState(false);
   const [defautForm, setDefautForm] = useState<ScolariteConfigPatch>(EMPTY_FORM);
 
+  const [reglesPour, setReglesPour] = useState<ScolariteConfigRecord | null>(null);
+  const [regles, setRegles] = useState<ReglesCalcul>(REGLES_CALCUL_DEFAUT);
+  const [erreurRegles, setErreurRegles] = useState("");
+
   const auteur = () => currentUser?.name ?? "Administration";
+
+  const ouvrirRegles = (r: ScolariteConfigRecord) => {
+    setReglesPour(r);
+    setRegles({ ...REGLES_CALCUL_DEFAUT, ...(r.reglesCalcul ?? {}) });
+    setErreurRegles("");
+  };
+
+  const enregistrerRegles = () => {
+    if (!reglesPour) return;
+    const res = updateReglesCalcul(reglesPour.id, regles, auteur());
+    if (!res.ok) { setErreurRegles(res.reason ?? "Règles invalides."); return; }
+    toast.success(`Règles de calcul enregistrées — ${reglesPour.filiere}`);
+    setReglesPour(null);
+  };
 
   const openEdit = (r: ScolariteConfigRecord) => {
     setEditing(r);
@@ -81,7 +108,7 @@ export default function ParametrageScolaritePage() {
   const eliminatoireChangeeVersHaut = !!editing && form.moyenneEliminatoire > 0 && form.moyenneEliminatoire !== editing.moyenneEliminatoire;
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "filiere", header: "Programme", sortable: true, render: (r) => <span className="font-medium text-foreground">{r.filiere as string}</span> },
+    { key: "filiere", header: "Programme", sortable: true, render: (r) => <span className="font-medium text-foreground block min-w-[240px]">{r.filiere as string}</span> },
     { key: "noteBareme", header: "Note B.", sortable: true, render: (r) => <span>{r.noteBareme as number}</span> },
     {
       key: "cumulCredit",
@@ -100,6 +127,21 @@ export default function ParametrageScolaritePage() {
       render: (r) => {
         const v = r.moyenneEliminatoire as number;
         return v > 0 ? <span className="text-amber-700 dark:text-amber-300 font-medium">{v}</span> : <span className="text-muted-foreground">{v}</span>;
+      },
+    },
+    {
+      key: "regles",
+      header: "Règles de calcul",
+      render: (row) => {
+        const r = row as unknown as ScolariteConfigRecord;
+        const perso = r.reglesCalcul && Object.entries(r.reglesCalcul).some(([k, v]) => REGLES_CALCUL_DEFAUT[k as keyof ReglesCalcul] !== v);
+        const reglement = reglementPour(r.filiereId, anneeEnCours);
+        return (
+          <div className="flex flex-wrap gap-1">
+            <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", perso ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{perso ? "Personnalisées" : "Par défaut"}</span>
+            {reglement && <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" title={`Règlement ${anneeEnCours}`}>{reglement.nom}</span>}
+          </div>
+        );
       },
     },
     {
@@ -123,14 +165,34 @@ export default function ParametrageScolaritePage() {
       render: (row) => {
         const r = row as unknown as ScolariteConfigRecord;
         return (
-          <button
-            onClick={(e) => { e.stopPropagation(); openEdit(r); }}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-            aria-label="Modifier"
-            data-testid={`scolarite-config-editer-${r.id}`}
-          >
-            <Pencil size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); openEdit(r); }}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Modifier"
+              data-testid={`scolarite-config-editer-${r.id}`}
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); ouvrirRegles(r); }}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Règles de calcul"
+              title="Règles de calcul"
+              data-testid={`scolarite-config-regles-${r.id}`}
+            >
+              <Calculator size={14} />
+            </button>
+            <Link
+              href={`/admin/scolarite/formules?filiere=${r.filiereId}`}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Règlement de calcul"
+              title="Règlement de calcul de l'année"
+              data-testid={`scolarite-config-formules-${r.id}`}
+            >
+              <Sigma size={14} />
+            </Link>
+          </div>
         );
       },
     },
@@ -141,9 +203,9 @@ export default function ParametrageScolaritePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Scolarité" }, { label: "Paramétrage scolarité" }]}
         title="Paramétrage scolarité"
-        subtitle="Barème de notation, cumul des crédits, moyenne de passage et moyenne éliminatoire par programme"
+        subtitle="Barème, crédits, moyennes de passage et règles de calcul (validation, rattrapage, compensation, absences) par programme"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={exportExcel}
               className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
@@ -173,6 +235,69 @@ export default function ParametrageScolaritePage() {
       />
 
       <FormModal
+        open={!!reglesPour}
+        onClose={() => setReglesPour(null)}
+        title={reglesPour ? `Règles de calcul — ${reglesPour.filiere}` : ""}
+        subtitle="Selon le règlement des études de l'établissement. Les valeurs proposées au départ sont les règles de l'UCAO."
+      >
+        <div className="space-y-5 text-sm">
+          <fieldset className="space-y-3">
+            <legend className="font-semibold text-foreground mb-1">Validation</legend>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <ChampNombre id="regle-seuil-ec" label="Moyenne pour valider un EC" aide="L'EC et ses crédits sont acquis à partir de cette moyenne." valeur={regles.seuilValidationEc} pas={0.25} onChange={(v) => setRegles((r) => ({ ...r, seuilValidationEc: v }))} />
+              <ChampNombre id="regle-seuil-ue" label="Moyenne pour valider une UE" aide="Les EC d'une même UE se compensent entre eux." valeur={regles.seuilValidationUe} pas={0.25} onChange={(v) => setRegles((r) => ({ ...r, seuilValidationUe: v }))} />
+              <ChampNombre id="regle-plancher" label="Note plancher d'un EC (0 = aucune)" aide="En dessous, l'UE n'est pas validée même si sa moyenne l'est." valeur={regles.noteEliminatoireEc} pas={0.25} onChange={(v) => setRegles((r) => ({ ...r, noteEliminatoireEc: v }))} />
+              <label className="flex items-start gap-2 cursor-pointer self-end pb-1">
+                <input type="checkbox" checked={regles.creditsParCompensation} onChange={(e) => setRegles((r) => ({ ...r, creditsParCompensation: e.target.checked }))} className="rounded mt-0.5" data-testid="regle-compensation" />
+                <span>
+                  <span className="font-medium text-foreground">Compensation entre UE</span>
+                  <span className="block text-xs text-muted-foreground">Semestre à la moyenne de passage, sans note sous le plancher : tous les crédits sont acquis.</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="font-semibold text-foreground mb-1">Notes et rattrapage</legend>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <ChampNombre id="regle-poids-cc" label="Poids du contrôle continu par défaut (%)" aide={`L'examen compte pour ${Math.max(0, 100 - regles.poidsDevoirDefaut)} %. Utilisé quand l'évaluation n'a pas de poids.`} valeur={regles.poidsDevoirDefaut} pas={5} onChange={(v) => setRegles((r) => ({ ...r, poidsDevoirDefaut: v }))} />
+              <div>
+                <label htmlFor="regle-rattrapage" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de rattrapage</label>
+                <select id="regle-rattrapage" value={regles.regleRattrapage} onChange={(e) => setRegles((r) => ({ ...r, regleRattrapage: e.target.value as ReglesCalcul["regleRattrapage"] }))} className={inputClass} data-testid="regle-rattrapage">
+                  <option value="remplace">Remplace la note d&apos;examen</option>
+                  <option value="meilleure">Si meilleure que l&apos;examen</option>
+                  <option value="plafonnee">Remplace l&apos;examen, plafonnée</option>
+                </select>
+              </div>
+              {regles.regleRattrapage === "plafonnee" && (
+                <ChampNombre id="regle-plafond" label="Plafond de la note de rattrapage" aide="Par exemple 10 : un 14 au rattrapage est retenu à 10." valeur={regles.plafondRattrapage} pas={0.5} onChange={(v) => setRegles((r) => ({ ...r, plafondRattrapage: v }))} />
+              )}
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="font-semibold text-foreground mb-1">Délibération</legend>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <ChampNombre id="regle-marge" label="Marge ouvrant le rattrapage (points)" aide="Avec 10 de moyenne de passage et 2 points : rattrapage de 8 à 9,99." valeur={regles.margeRattrapage} pas={0.5} onChange={(v) => setRegles((r) => ({ ...r, margeRattrapage: v }))} />
+              <ChampNombre id="regle-absences" label="Heures d'absence avant exclusion (0 = jamais)" aide="Absences non justifiées. Avec 0, les absences servent seulement au jury (repêchage)." valeur={regles.heuresAbsenceExclusion} pas={1} onChange={(v) => setRegles((r) => ({ ...r, heuresAbsenceExclusion: v }))} />
+              <ChampNombre id="regle-dette" label="Passage avec dette à partir de (crédits de l'année, 0 = jamais)" aide="Ex. 42 sur 60 : l'étudiant passe au niveau supérieur et rattrape ses UE non acquises." valeur={regles.creditsPassageAvecDette} pas={1} onChange={(v) => setRegles((r) => ({ ...r, creditsPassageAvecDette: v }))} />
+            </div>
+          </fieldset>
+
+          {erreurRegles && (
+            <p className="flex items-start gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2" role="alert"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> {erreurRegles}</p>
+          )}
+          <div className="flex flex-wrap justify-between gap-2">
+            <button type="button" onClick={() => setRegles(REGLES_CALCUL_DEFAUT)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted"><RotateCcw size={13} /> Revenir aux valeurs d&apos;origine</button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setReglesPour(null)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted">Annuler</button>
+              <button type="button" onClick={enregistrerRegles} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90" data-testid="regles-enregistrer">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      </FormModal>
+
+      <FormModal
         open={!!editing}
         onClose={() => setEditing(null)}
         title={editing ? `Modifier — ${editing.filiere}` : ""}
@@ -180,8 +305,8 @@ export default function ParametrageScolaritePage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
+            <input id="parametrage-scolarite-champ-1"
               type="number" min={0} value={form.noteBareme}
               onChange={(e) => setForm((f) => ({ ...f, noteBareme: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-config-bareme"
@@ -196,16 +321,16 @@ export default function ParametrageScolaritePage() {
             Cumul des crédits entre semestres
           </label>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
+            <input id="parametrage-scolarite-champ-2"
               type="number" min={0} step={0.5} value={form.moyennePassage}
               onChange={(e) => setForm((f) => ({ ...f, moyennePassage: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-config-moyenne-passage"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
+            <input id="parametrage-scolarite-champ-3"
               type="number" min={0} step={0.5} value={form.moyenneEliminatoire}
               onChange={(e) => setForm((f) => ({ ...f, moyenneEliminatoire: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-config-moyenne-eliminatoire"
@@ -244,8 +369,8 @@ export default function ParametrageScolaritePage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Note de base (barème)</label>
+            <input id="parametrage-scolarite-champ-4"
               type="number" min={0} value={defautForm.noteBareme}
               onChange={(e) => setDefautForm((f) => ({ ...f, noteBareme: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-defaut-bareme"
@@ -260,16 +385,16 @@ export default function ParametrageScolaritePage() {
             Cumul des crédits entre semestres
           </label>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne de passage</label>
+            <input id="parametrage-scolarite-champ-5"
               type="number" min={0} step={0.5} value={defautForm.moyennePassage}
               onChange={(e) => setDefautForm((f) => ({ ...f, moyennePassage: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-defaut-moyenne-passage"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
-            <input
+            <label htmlFor="parametrage-scolarite-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyenne éliminatoire</label>
+            <input id="parametrage-scolarite-champ-6"
               type="number" min={0} step={0.5} value={defautForm.moyenneEliminatoire}
               onChange={(e) => setDefautForm((f) => ({ ...f, moyenneEliminatoire: Number(e.target.value) }))}
               className={inputClass} data-testid="scolarite-defaut-moyenne-eliminatoire"
@@ -280,6 +405,16 @@ export default function ParametrageScolaritePage() {
           </button>
         </div>
       </FormModal>
+    </div>
+  );
+}
+
+function ChampNombre({ id, label, aide, valeur, pas, onChange }: { id: string; label: string; aide: string; valeur: number; pas: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
+      <input id={id} type="number" min={0} step={pas} value={valeur} onChange={(e) => onChange(Number(e.target.value))} className={inputClass} data-testid={id} />
+      <p className="text-[11px] text-muted-foreground mt-1">{aide}</p>
     </div>
   );
 }

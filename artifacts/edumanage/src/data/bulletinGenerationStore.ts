@@ -1,5 +1,6 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { computeBulletin } from "./bulletinEngine";
-import { upsertReleve } from "./studentStore";
+import { getUserAccounts, pushNotificationEtPersister, upsertReleve } from "./studentStore";
 import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
 
 const STORAGE_KEY = "edumanage-bulletin-generation-store-v1";
@@ -65,7 +66,7 @@ let store: Persisted = load();
 function persist() {
   store = { ...store, generations: store.generations.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -149,6 +150,8 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
         annee: input.annee,
       });
       releveId = releve.id;
+      const compte = getUserAccounts().find((u) => u.role === "student" && u.linkedId === e.id);
+      if (compte) pushNotificationEtPersister(compte.id, `Votre relevé de notes ${input.semestreLabel} (${input.annee}) est disponible dans « Relevés & bulletins ».`);
     }
     return {
       etudiantId: e.id,

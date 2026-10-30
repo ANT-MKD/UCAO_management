@@ -15,6 +15,7 @@ import { makeTeacherRateId, type ModePaiementProf } from "@/data/teacherRateStor
 import { makeTeacherCourseStatusId } from "@/data/teacherCourseStatusStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
 import { buildTeacherCourses, niveauLabel } from "@/lib/teacherCourseUtils";
+import { tauxHoraireApplicable } from "@/lib/decompteEligibility";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
@@ -57,7 +58,7 @@ export default function DecompteATermeFormPage() {
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -81,7 +82,9 @@ export default function DecompteATermeFormPage() {
 
       const rateId = makeTeacherRateId(selected.id, course.ecId, course.classeId, anneeScolaire);
       const rate = teacherRates.find((r) => r.id === rateId);
-      if (!rate || !rate.modePaiement || rate.montant == null) continue;
+      // Sans taux saisi pour le cours, le taux horaire de la fiche du professeur s'applique.
+      const taux = tauxHoraireApplicable(selected, rate);
+      if (!taux) continue;
 
       const classe = classes.find((c) => c.id === course.classeId);
       const ec = ecs.find((e) => e.id === course.ecId);
@@ -90,7 +93,7 @@ export default function DecompteATermeFormPage() {
       const classeTxt = classe?.nom ?? "";
       const semestreTxt = ue?.semestre ?? "";
 
-      if (rate.modePaiement === "taux_horaire") {
+      if (taux !== "forfait") {
         const coursPointages = pointages.filter(
           (p) =>
             p.teacherId === selected.id &&
@@ -101,8 +104,8 @@ export default function DecompteATermeFormPage() {
             !sourceIdsDejaDecomptes.has(p.id),
         );
         for (const p of coursPointages) {
-          const montantBrut = p.volumePointe * (rate.montant ?? 0);
-          const abattementMontant = (montantBrut * rate.tauxAbatt) / 100;
+          const montantBrut = p.volumePointe * taux.montant;
+          const abattementMontant = (montantBrut * taux.tauxAbatt) / 100;
           lines.push({
             sourceId: p.id,
             mode: "taux_horaire",
@@ -116,12 +119,12 @@ export default function DecompteATermeFormPage() {
             anneeLabel: anneeScolaire,
             semestreLabel: semestreTxt,
             montantBrut,
-            abattementPct: rate.tauxAbatt,
+            abattementPct: taux.tauxAbatt,
             abattementMontant,
             montantNet: montantBrut - abattementMontant,
           });
         }
-      } else if (rate.modePaiement === "forfait") {
+      } else if (rate && rate.montant != null) {
         const sourceId = `aterme-forfait:${selected.id}:${course.ecId}:${course.classeId}:${anneeScolaire}`;
         if (sourceIdsDejaDecomptes.has(sourceId)) continue;
         const coursPointages = pointages.filter(
@@ -225,12 +228,12 @@ export default function DecompteATermeFormPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="decompte-a-terme-form-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="decompte-a-terme-form-champ-1"
               type="search"
               value={query}
               onChange={(e) => {

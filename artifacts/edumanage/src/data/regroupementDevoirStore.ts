@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getTypesEvaluation } from "./typeEvaluationStore";
 
 const STORAGE_KEY = "edumanage-regroupement-devoir-store-v1";
@@ -46,7 +47,7 @@ let store: RegroupementDevoirRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -78,7 +79,7 @@ export function upsertRegroupementDevoir(payload: RegroupementDevoirPayload, id?
     persist();
     return existing;
   }
-  const record: RegroupementDevoirRecord = { id: `regroupement-devoir-${Date.now()}`, ...payload };
+  const record: RegroupementDevoirRecord = { id: `regroupement-devoir-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

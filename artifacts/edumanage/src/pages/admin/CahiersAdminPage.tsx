@@ -6,7 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCahiers } from "@/hooks/useStudentStore";
 import { validateCahier } from "@/data/studentStore";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
+import { LIBELLE_ETAT_SEANCE, LIBELLE_STATUT_CAHIER } from "@/lib/cahierLibelles";
 
 const STATUT_CLS: Record<string, string> = {
   soumis: "bg-amber-50 text-amber-700",
@@ -48,8 +49,8 @@ export default function CahiersAdminPage() {
 
   function act(id: string, approve: boolean) {
     if (!currentUser) return;
-    validateCahier(id, currentUser.id, approve);
-    toast.success(approve ? "Cahier validé — prêt pour vacations" : "Cahier rejeté");
+    const pointage = validateCahier(id, currentUser.id, approve);
+    toast.success(approve ? `Cahier validé${pointage ? ` — pointage de ${pointage.volumePointe} h en attente de confirmation` : ""}` : "Cahier rejeté");
   }
 
   return (
@@ -75,33 +76,33 @@ export default function CahiersAdminPage() {
         <div className="bg-card border border-border rounded-xl mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
-              <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Classe</label>
-              <select value={classeFilter} onChange={(e) => setClasseFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+              <label htmlFor="cahiers-admin-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Classe</label>
+              <select id="cahiers-admin-champ-1" value={classeFilter} onChange={(e) => setClasseFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
                 <option value="">Toutes</option>
                 {classes.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Professeur</label>
-              <select value={profFilter} onChange={(e) => setProfFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+              <label htmlFor="cahiers-admin-champ-2" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Professeur</label>
+              <select id="cahiers-admin-champ-2" value={profFilter} onChange={(e) => setProfFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
                 <option value="">Tous</option>
                 {profs.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Filière</label>
-              <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+              <label htmlFor="cahiers-admin-champ-3" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Filière</label>
+              <select id="cahiers-admin-champ-3" value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
                 <option value="">Toutes</option>
                 {filieres.map((f) => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Du</label>
-              <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background" />
+              <label htmlFor="cahiers-admin-champ-4" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Du</label>
+              <input id="cahiers-admin-champ-4" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background" />
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Au</label>
-              <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background" />
+              <label htmlFor="cahiers-admin-champ-5" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Au</label>
+              <input id="cahiers-admin-champ-5" type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background" />
             </div>
           </div>
           {nbFiltresActifs > 0 && (
@@ -156,11 +157,11 @@ export default function CahiersAdminPage() {
               <div>
                 <p className="font-bold text-sm">{c.sujet || c.ec}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {c.date} · {c.classe} · {c.prof} · {c.typeSeance} · {c.heureDebut}–{c.heureFin}
+                  {formatShortDate(c.date)} · {c.classe} · {c.prof} · {c.typeSeance} · {c.heureDebut}–{c.heureFin}
                 </p>
               </div>
               <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium h-fit", STATUT_CLS[c.statut] || "bg-muted")}>
-                {c.statut} · {c.etatSeance}
+                {LIBELLE_STATUT_CAHIER[c.statut] ?? c.statut} · {LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance}
               </span>
             </div>
             <p className="text-sm mt-2 line-clamp-2 text-muted-foreground">{c.resume || c.activite}</p>

@@ -1,5 +1,7 @@
+import { reglesDeCalcul, getScolariteConfigs, subscribeScolariteConfigs } from "./scolariteConfigStore";
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { atteint } from "@/lib/notes";
 import { FILIERES } from "./mockData";
-import { getScolariteConfigs } from "./scolariteConfigStore";
 
 const STORAGE_KEY = "edumanage-regles-validation-store-v1";
 
@@ -21,25 +23,35 @@ export interface RegleValidationRecord {
   modifieLe?: string;
 }
 
-function seed(): RegleValidationRecord[] {
-  const configs = getScolariteConfigs();
+/** Règles de l'UCAO (système LMD) : semestre validé avec ses 30 crédits, année validée avec 60
+ * crédits, licence avec 180 — la validation se fait par les crédits, pas par la moyenne. */
+const CREDITS_PAR_TYPE: Record<TypeRegleValidation, number> = { semestre: 30, annee: 60, programme: 180 };
+
+/** Critères par défaut d'un type de règle. Une filière hors LMD (Paramétrage scolarité « Cumul
+ * crédit » = Non) reste validée à la moyenne. */
+function criteresParDefaut(filiereId: string, type: TypeRegleValidation): Pick<RegleValidationRecord, "validationParCredit" | "validationParMoyenne" | "creditPassage"> {
+  const lmd = getScolariteConfigs().find((c) => c.filiereId === filiereId)?.cumulCredit ?? true;
+  return lmd
+    ? { validationParCredit: true, validationParMoyenne: false, creditPassage: CREDITS_PAR_TYPE[type] }
+    : { validationParCredit: false, validationParMoyenne: true, creditPassage: 0 };
+}
+
+function reglesPour(f: { id: string; nom: string }): RegleValidationRecord[] {
+  const config = getScolariteConfigs().find((c) => c.filiereId === f.id);
   const types: TypeRegleValidation[] = ["semestre", "annee", "programme"];
-  return FILIERES.flatMap((f) => {
-    const config = configs.find((c) => c.filiereId === f.id);
-    // Le type "semestre" reprend exactement le comportement historique des Délibérations
-    // (validation par moyenne uniquement) pour ne rien changer tant que rien n'est reconfiguré.
-    return types.map((type): RegleValidationRecord => ({
+  return types.map((type): RegleValidationRecord => ({
       id: `regle-val-${f.id}-${type}`,
       filiereId: f.id,
       filiere: f.nom,
       type,
-      validationParCredit: type === "semestre" ? false : (config?.cumulCredit ?? true),
-      validationParMoyenne: true,
-      creditPassage: 0,
+      ...criteresParDefaut(f.id, type),
       moyennePassage: config?.moyennePassage ?? 10,
       moyenneEliminatoire: config?.moyenneEliminatoire ?? 0,
     }));
-  });
+}
+
+function seed(): RegleValidationRecord[] {
+  return FILIERES.flatMap(reglesPour);
 }
 
 const listeners = new Set<() => void>();
@@ -53,7 +65,9 @@ function load(): RegleValidationRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RegleValidationRecord[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : seed();
+    if (!Array.isArray(parsed) || parsed.length === 0) return seed();
+    // Une règle jamais modifiée par un administrateur suit les critères par défaut en vigueur.
+    return parsed.map((r) => (r.modifiePar ? r : { ...r, ...criteresParDefaut(r.filiereId, r.type) }));
   } catch {
     return seed();
   }
@@ -61,13 +75,43 @@ function load(): RegleValidationRecord[] {
 
 let store: RegleValidationRecord[] = load();
 
+/** Suit Paramétrage scolarité : une filière nouvellement configurée reçoit ses trois règles, et un
+ * changement de moyenne de passage / éliminatoire y est répercuté sur les règles qui avaient encore
+ * l'ancienne valeur (une règle réglée à part dans Paramétrage bulletins reste telle quelle). */
+const derniersSeuils = new Map(getScolariteConfigs().map((c) => [c.filiereId, { passage: c.moyennePassage, eliminatoire: c.moyenneEliminatoire }]));
+function suivreConfigsScolarite() {
+  let change = false;
+  for (const c of getScolariteConfigs()) {
+    if (!store.some((r) => r.filiereId === c.filiereId)) {
+      store = [...store, ...reglesPour({ id: c.filiereId, nom: c.filiere })];
+      change = true;
+    }
+    const avant = derniersSeuils.get(c.filiereId);
+    if (avant && (avant.passage !== c.moyennePassage || avant.eliminatoire !== c.moyenneEliminatoire)) {
+      store = store.map((r) => {
+        if (r.filiereId !== c.filiereId) return r;
+        const maj = { ...r };
+        if (r.moyennePassage === avant.passage) maj.moyennePassage = c.moyennePassage;
+        if (r.moyenneEliminatoire === avant.eliminatoire) maj.moyenneEliminatoire = c.moyenneEliminatoire;
+        return maj;
+      });
+      change = true;
+    }
+    derniersSeuils.set(c.filiereId, { passage: c.moyennePassage, eliminatoire: c.moyenneEliminatoire });
+  }
+  if (change) persist();
+}
+
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
+
+suivreConfigsScolarite();
+subscribeScolariteConfigs(suivreConfigsScolarite);
 
 export function subscribeReglesValidation(fn: () => void) {
   listeners.add(fn);
@@ -103,7 +147,7 @@ export function upsertRegleValidation(payload: RegleValidationPayload, id: strin
     persist();
     return existing;
   }
-  const record: RegleValidationRecord = { id: `regle-val-${Date.now()}`, filiere, modifiePar, modifieLe, ...payload };
+  const record: RegleValidationRecord = { id: `regle-val-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, filiere, modifiePar, modifieLe, ...payload };
   store.unshift(record);
   persist();
   return record;
@@ -123,13 +167,15 @@ export function decideValidation(
   absencesHeures: number,
   regle: RegleValidationRecord,
 ): "admis" | "ajourne" | "rattrapage" | "exclu" {
-  if (absencesHeures > 10) return "exclu";
-  if (regle.moyenneEliminatoire > 0 && moyenne < regle.moyenneEliminatoire) return "exclu";
+  // Seuil d'absences et marge de rattrapage : règles de calcul de la filière (Paramétrage scolarité).
+  const { heuresAbsenceExclusion, margeRattrapage } = reglesDeCalcul(regle.filiereId);
+  if (heuresAbsenceExclusion > 0 && absencesHeures > heuresAbsenceExclusion) return "exclu";
+  if (regle.moyenneEliminatoire > 0 && !atteint(moyenne, regle.moyenneEliminatoire)) return "exclu";
 
-  const okMoyenne = !regle.validationParMoyenne || moyenne >= regle.moyennePassage;
+  const okMoyenne = !regle.validationParMoyenne || atteint(moyenne, regle.moyennePassage);
   const okCredit = !regle.validationParCredit || creditsObtenus >= regle.creditPassage;
 
   if (okMoyenne && okCredit) return "admis";
-  if (regle.validationParMoyenne && !okMoyenne && okCredit && moyenne >= regle.moyennePassage - 2) return "rattrapage";
+  if (regle.validationParMoyenne && !okMoyenne && okCredit && atteint(moyenne, regle.moyennePassage - margeRattrapage)) return "rattrapage";
   return "ajourne";
 }

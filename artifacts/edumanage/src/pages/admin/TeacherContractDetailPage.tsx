@@ -35,7 +35,7 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
     return (
       <div>
         <PageHeader
-          breadcrumb={[{ label: "Accueil" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
+          breadcrumb={[{ label: "Admin" }, { label: "Professeurs" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
           title="Contrat introuvable"
         />
         <div className="bg-card border border-dashed border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
@@ -78,13 +78,14 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
     <div>
       <PageHeader
         breadcrumb={[
-          { label: "Accueil" },
+          { label: "Admin" },
+          { label: "Professeurs" },
           { label: "Les contrats Professeur", href: "/admin/teachers/contracts" },
           { label: contract.id },
         ]}
         title={`Contrat ${contract.id}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => printContract(contract, teacher, printRows, statut)}
@@ -226,7 +227,7 @@ export default function TeacherContractDetailPage({ id }: { id: string }) {
           <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
             <h2 className="text-base font-semibold mb-1">Résilier le contrat {contract.id}</h2>
             <p className="text-xs text-muted-foreground mb-4">Cette action est définitive.</p>
-            <textarea
+            <textarea aria-label="Motif de la résiliation"
               value={motifResiliation}
               onChange={(e) => setMotifResiliation(e.target.value)}
               rows={3}

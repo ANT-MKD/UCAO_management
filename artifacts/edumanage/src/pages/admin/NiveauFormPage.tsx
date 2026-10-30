@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES } from "@/data/mockData";
 import { addNiveau, updateNiveau, getNiveauById } from "@/data/niveauStore";
 import { useCycles } from "@/hooks/useAcademicSettingsStore";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   nom: string;
@@ -35,7 +36,7 @@ export default function NiveauFormPage({ id }: Props) {
           creditDetteMin: existing.creditDetteMin ?? 0,
           creditsRequisEntree: existing.creditsRequisEntree ?? "",
         }
-      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "", passageConditionnelAutorise: false, creditDetteMin: 0, creditsRequisEntree: "" },
+      : { nom: "", alias: "", cycleId: cycles[0]?.id ?? "", filiereId: "", passageConditionnelAutorise: false, creditDetteMin: 42, creditsRequisEntree: "" },
   });
   const passageConditionnelAutorise = watch("passageConditionnelAutorise");
 
@@ -63,6 +64,18 @@ export default function NiveauFormPage({ id }: Props) {
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Niveaux", href: "/admin/niveaux" }, { label: "Modifier" }]}
+        title="Niveau introuvable"
+        message="Ce niveau n'existe pas ou a été supprimé."
+        backHref="/admin/niveaux"
+        backLabel="Retour aux niveaux"
+      />
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -76,29 +89,29 @@ export default function NiveauFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du niveau *</label>
-              <input {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: Licence 1" className={inputClass} />
+              <label htmlFor="niveau-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom du niveau *</label>
+              <input id="niveau-form-champ-1" {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: Licence 1" className={inputClass} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Alias *</label>
-              <input {...register("alias", { required: "Alias requis", maxLength: { value: 8, message: "Maximum 8 caractères" } })} placeholder="ex: L1" className={`${inputClass} uppercase font-mono`} />
+              <label htmlFor="niveau-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Alias *</label>
+              <input id="niveau-form-champ-2" {...register("alias", { required: "Alias requis", maxLength: { value: 8, message: "Maximum 8 caractères" } })} placeholder="ex: L1" className={`${inputClass} uppercase font-mono`} />
               {errors.alias && <p className="text-xs text-red-500 mt-1">{errors.alias.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle LMD *</label>
-              <select {...register("cycleId", { required: "Cycle requis" })} className={inputClass}>
+              <label htmlFor="niveau-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Cycle LMD *</label>
+              <select id="niveau-form-champ-3" {...register("cycleId", { required: "Cycle requis" })} className={inputClass}>
                 <option value="">Sélectionner un cycle</option>
                 {cycles.map((c) => <option key={c.id} value={c.id}>{c.intitule}</option>)}
               </select>
               {errors.cycleId && <p className="text-xs text-red-500 mt-1">{errors.cycleId.message}</p>}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-              <select {...register("filiereId", { required: "Filière requise" })} className={inputClass}>
+              <label htmlFor="niveau-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+              <select id="niveau-form-champ-4" {...register("filiereId", { required: "Filière requise" })} className={inputClass}>
                 <option value="">Sélectionner une filière</option>
                 {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
               </select>
@@ -109,22 +122,27 @@ export default function NiveauFormPage({ id }: Props) {
           <div className="pt-4 border-t border-border space-y-4">
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Passage vers le niveau supérieur</h3>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits cumulés requis pour intégrer ce niveau</label>
-              <input
-                type="number" min={0} step={1} {...register("creditsRequisEntree")}
+              <label htmlFor="niveau-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits cumulés requis pour intégrer ce niveau</label>
+              <input id="niveau-form-champ-5"
+                type="number" min={0} step={1} {...register("creditsRequisEntree", { min: { value: 0, message: "Saisissez un nombre positif." } })}
                 placeholder="ex: 120 pour L3 — laisser vide si aucun contrôle"
                 className={inputClass}
               />
+              {errors.creditsRequisEntree && <p className="text-xs text-red-500 mt-1">{errors.creditsRequisEntree.message}</p>}
               <p className="text-[11px] text-muted-foreground mt-1">Si renseigné, l&apos;inscription à ce niveau est bloquée tant que l&apos;étudiant n&apos;a pas ce total de crédits validés sur son parcours (toutes années confondues).</p>
             </div>
             <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
               <input type="checkbox" {...register("passageConditionnelAutorise")} className="w-4 h-4 rounded border-border" />
-              Autoriser le passage conditionnel (AJAC) depuis ce niveau
+              Seuil de passage avec dette propre à ce niveau
             </label>
+            {!passageConditionnelAutorise && (
+              <p className="text-[11px] text-muted-foreground -mt-2">Non coché : la règle de la filière s&apos;applique (Paramétrage scolarité → Règles de calcul, 42 crédits par défaut).</p>
+            )}
             {passageConditionnelAutorise && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour le passage conditionnel</label>
-                <input type="number" min={0} step={1} {...register("creditDetteMin")} placeholder="ex: 42 sur 60" className={inputClass} />
+                <label htmlFor="niveau-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Crédits minimum pour passer avec dette (0 = jamais pour ce niveau)</label>
+                <input id="niveau-form-champ-6" type="number" min={0} step={1} {...register("creditDetteMin", { min: { value: 0, message: "Saisissez un nombre positif." } })} placeholder="ex: 42 sur 60" className={inputClass} />
+                {errors.creditDetteMin && <p className="text-xs text-red-500 mt-1">{errors.creditDetteMin.message}</p>}
                 <p className="text-[11px] text-muted-foreground mt-1">En dessous de ce seuil, l&apos;étudiant redouble ce niveau plutôt que de monter avec dette.</p>
               </div>
             )}

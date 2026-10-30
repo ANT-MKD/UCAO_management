@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Megaphone, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
 import { usePublicites } from "@/hooks/usePubliciteStore";
-import { getPublicitesActives, TYPE_CONTENU_LABELS, TYPE_CONTENU_LIEN_LABEL } from "@/data/publiciteStore";
+import { getPublicitesActives, TYPE_CONTENU_LIEN_LABEL } from "@/data/publiciteStore";
 import type { UserRole } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,8 @@ export function PubliciteBanner({ profil }: { profil: UserRole }) {
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">{TYPE_CONTENU_LABELS[current.typeContenu]}</span>
+          {/* Le type technique (URL, document…) ne parle qu'à l'administration : l'usager voit une annonce. */}
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">Annonce</span>
           {visibles.length > 1 && <span className="text-[10px] text-muted-foreground">{(index % visibles.length) + 1}/{visibles.length}</span>}
         </div>
         <p className="text-sm font-semibold text-foreground mt-0.5">{current.titre}</p>
@@ -49,10 +50,10 @@ export function PubliciteBanner({ profil }: { profil: UserRole }) {
       <div className="flex items-center gap-1 flex-shrink-0">
         {visibles.length > 1 && (
           <>
-            <button onClick={() => setIndex((i) => (i - 1 + visibles.length) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-precedent">
+            <button aria-label="Précédent" title="Précédent" onClick={() => setIndex((i) => (i - 1 + visibles.length) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-precedent">
               <ChevronLeft size={14} />
             </button>
-            <button onClick={() => setIndex((i) => (i + 1) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-suivant">
+            <button aria-label="Suivant" title="Suivant" onClick={() => setIndex((i) => (i + 1) % visibles.length)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground" data-testid="publicite-suivant">
               <ChevronRight size={14} />
             </button>
           </>

@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
@@ -17,6 +18,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
+import { telephoneValide, TELEPHONE_EXEMPLE } from "@/lib/telephone";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { updateTeacher, type TeacherInput } from "@/data/teacherStore";
@@ -34,10 +37,17 @@ const ACTION_INFO: Record<string, { label: string; icon: React.ElementType }> = 
   send_message: { label: "Message envoyé", icon: Send },
   update_teacher: { label: "Informations personnelles modifiées", icon: Edit },
   update_password: { label: "Mot de passe modifié", icon: KeyRound },
+  add_ressource_pedagogique: { label: "Ressource pédagogique ajoutée", icon: Edit },
+  delete_ressource_pedagogique: { label: "Ressource pédagogique supprimée", icon: Edit },
+  demande_correction_note: { label: "Correction de note demandée", icon: Edit },
+  justificatif_absence_prof: { label: "Justificatif d'absence envoyé", icon: Edit },
+  add_document: { label: "Document ajouté", icon: Edit },
+  delete_document: { label: "Document supprimé", icon: Edit },
 };
 
+/** Libellé lisible d'une action du journal — jamais le code technique (ex. « add_ressource_pedagogique »). */
 function activityLabel(log: AuditLogRecord): { label: string; icon: React.ElementType } {
-  return ACTION_INFO[log.action] ?? { label: log.action, icon: Edit };
+  return ACTION_INFO[log.action] ?? { label: "Autre action enregistrée", icon: Edit };
 }
 
 function activityDateLabel(dateStr: string): string {
@@ -94,13 +104,17 @@ export default function TeacherProfilePage() {
 
   const handlePhoto = (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { usagePhoto: "portrait" })
+      .then((dataUrl) => setPhotoDataUrl(dataUrl))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleSaveInfos = () => {
     if (!currentUser) return;
+    if (!telephoneValide(telephone)) {
+      toast.error(`Numéro de téléphone invalide — saisissez 8 à 15 chiffres, par exemple ${TELEPHONE_EXEMPLE}.`);
+      return;
+    }
     const patch: Partial<TeacherInput> = {
       telephone: telephone.trim() || undefined,
       adresse: adresse.trim() || undefined,
@@ -113,8 +127,13 @@ export default function TeacherProfilePage() {
 
   const handleChangePassword = () => {
     if (!currentUser) return;
-    if (newPassword.length < 6) {
-      toast.error("Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    // Même règle qu'à la première connexion (passwordPolicy) : pas un simple remplissage d'espaces.
+    if (!isPasswordValid(newPassword)) {
+      toast.error(`Le nouveau mot de passe doit contenir ${PASSWORD_HINT.toLowerCase()} (hors espaces).`);
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("Le nouveau mot de passe doit être différent de l'actuel.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -345,22 +364,22 @@ export default function TeacherProfilePage() {
       <FormModal open={showEditModal} onClose={() => setShowEditModal(false)} title="Modifier mes informations">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Photo</label>
+            <label htmlFor="teacher-profile-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Photo</label>
             <div className="flex items-center gap-3">
               <UserAvatar name={`${teacher.prenom} ${teacher.nom}`} src={photoDataUrl} size="md" />
               <label className="px-3 py-2 rounded-xl border border-border text-xs font-medium cursor-pointer hover:bg-muted">
                 Choisir une photo
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="profil-photo-input" />
+                <input id="teacher-profile-champ-1" type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} data-testid="profil-photo-input" />
               </label>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
-            <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="profil-telephone" />
+            <label htmlFor="teacher-profile-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Téléphone</label>
+            <input id="teacher-profile-champ-2" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} data-testid="profil-telephone" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
-            <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="profil-adresse" />
+            <label htmlFor="teacher-profile-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Adresse</label>
+            <input id="teacher-profile-champ-3" value={adresse} onChange={(e) => setAdresse(e.target.value)} className={inputClass} data-testid="profil-adresse" />
           </div>
           <button onClick={handleSaveInfos} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="profil-enregistrer">
             Enregistrer
@@ -371,16 +390,16 @@ export default function TeacherProfilePage() {
       <FormModal open={showPasswordModal} onClose={() => setShowPasswordModal(false)} title="Changer mon mot de passe">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe actuel</label>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} data-testid="mdp-actuel" />
+            <label htmlFor="teacher-profile-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Mot de passe actuel</label>
+            <input id="teacher-profile-champ-4" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} data-testid="mdp-actuel" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nouveau mot de passe</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} data-testid="mdp-nouveau" />
+            <label htmlFor="teacher-profile-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Nouveau mot de passe</label>
+            <input id="teacher-profile-champ-5" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} data-testid="mdp-nouveau" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
+            <label htmlFor="teacher-profile-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Confirmer le nouveau mot de passe</label>
+            <input id="teacher-profile-champ-6" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} data-testid="mdp-confirmer" />
           </div>
           <button onClick={handleChangePassword} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90" data-testid="mdp-enregistrer">
             Changer le mot de passe

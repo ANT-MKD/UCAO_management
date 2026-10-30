@@ -11,6 +11,7 @@ import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import {
   getTeacherRate,
   makeTeacherRateId,
+  TAUX_ABATTEMENT_DEFAUT,
   upsertTeacherRates,
   type ModePaiementProf,
   type TeacherCourseRateRecord,
@@ -56,7 +57,7 @@ export default function TeacherRatePage() {
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(teacherIdParam);
@@ -104,7 +105,7 @@ export default function TeacherRatePage() {
           volumeHoraire: c.volumeHoraire,
           modePaiement: saved?.modePaiement ?? "taux_horaire",
           montant: defaultMontant,
-          tauxAbatt: saved?.tauxAbatt != null ? String(saved.tauxAbatt) : "5.0",
+          tauxAbatt: saved?.tauxAbatt != null ? String(saved.tauxAbatt) : TAUX_ABATTEMENT_DEFAUT.toFixed(1),
         };
       }),
     );
@@ -162,12 +163,12 @@ export default function TeacherRatePage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="teacher-rate-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="teacher-rate-champ-1"
               type="search"
               value={query}
               onChange={(e) => {

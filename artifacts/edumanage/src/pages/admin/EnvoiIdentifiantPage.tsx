@@ -46,7 +46,7 @@ export default function EnvoiIdentifiantPage() {
       destinataireLabel: compte.displayName,
       destinataireEmail: compte.email,
       objet: OBJET_IDENTIFIANT,
-      message: `Bonjour ${compte.displayName},\n\nVotre identifiant de connexion : ${compte.identifier}\nPortail : ${PORTAL_LABELS[compte.role]}\n\nSi vous avez oublié votre mot de passe, utilisez "Mot de passe oublié ?" sur la page de connexion.`,
+      message: `Bonjour ${compte.displayName},\n\nVotre identifiant de connexion : ${compte.identifier}\nPortail : ${PORTAL_LABELS[compte.role]}\n\nPour obtenir ou réinitialiser votre mot de passe, cliquez sur "Mot de passe oublié ?" sur la page de connexion, puis présentez-vous au secrétariat avec une pièce d'identité pour recevoir votre code.`,
     });
   };
 
@@ -166,7 +166,7 @@ export default function EnvoiIdentifiantPage() {
       />
 
       <div className="flex items-center gap-3 mb-4">
-        <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value as typeof roleFilter); setSelected(new Set()); }} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background w-auto min-w-[180px] focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="envoi-filtre-role">
+        <select aria-label="Tous les portails" value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value as typeof roleFilter); setSelected(new Set()); }} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background w-auto min-w-[180px] focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="envoi-filtre-role">
           <option value="">Tous les portails</option>
           <option value="admin">{PORTAL_LABELS.admin}</option>
           <option value="teacher">{PORTAL_LABELS.teacher}</option>

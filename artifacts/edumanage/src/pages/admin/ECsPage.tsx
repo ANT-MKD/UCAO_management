@@ -7,11 +7,16 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { CurriculumImportButton } from "@/components/admin/CurriculumImportButton";
 import { MaquetteExportButton } from "@/components/admin/MaquetteExportButton";
-import { deleteEc, type EcRecord } from "@/data/curriculumStore";
+import { type EcRecord } from "@/data/curriculumStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useFilieres } from "@/hooks/useFiliereStore";
+import { verifierSuppressionEc, supprimerEc } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ECsPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const ecs = useEcs();
   const ues = useUes();
@@ -90,13 +95,13 @@ export default function ECsPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ecs/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ecs/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer l'EC ${r.code} ?`)) deleteEc(r.id);
+              confirmerSuppression(verifierSuppressionEc(r.id), `Supprimer l'EC ${r.code} ?`, () => supprimerEc(r.id, acteur), "EC supprimé");
             }}
-            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label={`Supprimer l'EC ${r.code}`} data-testid={`ec-supprimer-${r.id}`} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
           >
             <Trash2 size={14} />
           </button>
@@ -124,19 +129,19 @@ export default function ECsPage() {
         }
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <select className={selectClass} value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setSemestre(""); setUeId(""); }}>
+        <select aria-label="Toutes les filières" className={selectClass} value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setSemestre(""); setUeId(""); }}>
           <option value="">Toutes les filières</option>
           {filieres.map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
         </select>
-        <select className={selectClass} value={niveau} onChange={(e) => { setNiveau(e.target.value); setSemestre(""); setUeId(""); }}>
+        <select aria-label="Tous les niveaux" className={selectClass} value={niveau} onChange={(e) => { setNiveau(e.target.value); setSemestre(""); setUeId(""); }}>
           <option value="">Tous les niveaux</option>
           {niveaux.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <select className={selectClass} value={semestre} onChange={(e) => { setSemestre(e.target.value); setUeId(""); }}>
+        <select aria-label="Tous les semestres" className={selectClass} value={semestre} onChange={(e) => { setSemestre(e.target.value); setUeId(""); }}>
           <option value="">Tous les semestres</option>
           {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select className={selectClass} value={ueId} onChange={(e) => setUeId(e.target.value)}>
+        <select aria-label="Toutes les UE" className={selectClass} value={ueId} onChange={(e) => setUeId(e.target.value)}>
           <option value="">Toutes les UE</option>
           {filteredUes.map((u) => <option key={u.id} value={u.id}>{u.code} — {u.libelle}</option>)}
         </select>

@@ -139,7 +139,7 @@ export default function ReprisFraisPage() {
         if (label) return <span className="text-xs text-foreground">{label}</span>;
         if (r.statut !== "en_attente") return <span className="text-xs text-muted-foreground">—</span>;
         return (
-          <select
+          <select aria-label="Associer un étudiant"
             className="px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             defaultValue=""
             onChange={(e) => handleAssocier(r.id, e.target.value)}
@@ -197,7 +197,7 @@ export default function ReprisFraisPage() {
         title="Reprise des frais étudiants"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <select aria-label="Tous les statuts"
               value={statutFilter}
               onChange={(e) => setStatutFilter(e.target.value)}
               className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -264,8 +264,8 @@ export default function ReprisFraisPage() {
               {rejetTarget.nom} {rejetTarget.prenom} — {formatCFA(rejetTarget.montant)} ({rejetTarget.libelleAnneeScolaire}). Cette dette ne sera pas reprise.
             </p>
             <div>
-              <label className="block text-xs font-medium text-red-500 mb-1.5">Motif *</label>
-              <textarea
+              <label htmlFor="repris-frais-champ-1" className="block text-xs font-medium text-red-500 mb-1.5">Motif *</label>
+              <textarea id="repris-frais-champ-1"
                 value={motifRejet}
                 onChange={(e) => setMotifRejet(e.target.value)}
                 rows={2}

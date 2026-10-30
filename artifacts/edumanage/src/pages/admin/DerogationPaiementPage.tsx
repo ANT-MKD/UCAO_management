@@ -106,7 +106,7 @@ export default function DerogationPaiementPage() {
         title="Dérogation des paiements"
         subtitle="Autorise exceptionnellement un étudiant en impayé à poursuivre une démarche (réinscription, retrait de documents), sans réduire sa dette"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={exportExcel}
               className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"

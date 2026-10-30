@@ -49,7 +49,7 @@ export default function DerogationPaiementDetailPage({ id }: { id: string }) {
         title={`Dérogation ${record.reference}`}
         subtitle={`Accordée le ${formatDate(record.date)} par ${record.personnelLabel}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={statut} />
             <button onClick={() => setLocation("/admin/derogation-paiement")} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors">
               <ArrowLeft size={15} /> Retour
@@ -119,7 +119,7 @@ export default function DerogationPaiementDetailPage({ id }: { id: string }) {
             <p className="text-xs text-muted-foreground mb-3">
               L&apos;étudiant redeviendra soumis aux règles normales pour cette portée. Action irréversible.
             </p>
-            <textarea
+            <textarea aria-label="Motif de révocation (obligatoire)"
               value={motifRevocation}
               onChange={(e) => setMotifRevocation(e.target.value)}
               rows={2}

@@ -1,5 +1,6 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { collectAllLeaves, getLeafIdsForSection } from "@/lib/adminNavConfig";
-import { getUserAccounts, logAudit } from "./studentStore";
+import { exigerAccesComplet, getUserAccounts, logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-roles-v1";
 
@@ -54,7 +55,14 @@ function load(): RoleRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RoleRecord[];
-    return Array.isArray(parsed) ? parsed : seed();
+    if (!Array.isArray(parsed)) return seed();
+    // Page ajoutée après la création des rôles : un rôle qui voit « Les encaissements » voit aussi
+    // les paiements en ligne à vérifier (sinon la caisse ne pourrait pas les traiter).
+    return parsed.map((r) =>
+      r.accessibleItemIds.includes("fin-enc-liste") && !r.accessibleItemIds.includes("fin-enc-declares")
+        ? { ...r, accessibleItemIds: [...r.accessibleItemIds, "fin-enc-declares"] }
+        : r,
+    );
   } catch {
     return seed();
   }
@@ -70,7 +78,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -93,7 +101,10 @@ export interface RolePayload {
   description: string;
 }
 
+/** Les rôles décident de ce que chacun voit : seul un administrateur à accès complet les gère,
+ * sinon un compte limité pourrait élargir son propre rôle. */
 export function upsertRole(payload: RolePayload, auteurId: string, id?: string): RoleRecord {
+  exigerAccesComplet(auteurId, "La gestion des rôles");
   const codeLower = payload.code.trim().toLowerCase();
   const existing = id ? store.find((r) => r.id === id) : undefined;
   const conflit = store.some((r) => r.code.toLowerCase() === codeLower && r.id !== id);
@@ -107,7 +118,7 @@ export function upsertRole(payload: RolePayload, auteurId: string, id?: string):
     return existing;
   }
   const role: RoleRecord = {
-    id: `role-${Date.now()}`,
+    id: `role-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     code: payload.code.trim(),
     description: payload.description.trim(),
     accessibleItemIds: [],
@@ -122,16 +133,20 @@ export function upsertRole(payload: RolePayload, auteurId: string, id?: string):
 
 /** Jamais de suppression d'un rôle encore assigné à un compte — casserait silencieusement l'accès
  * de ces comptes à la prochaine connexion. */
-export function deleteRole(id: string): void {
+export function deleteRole(id: string, actorUserId: string): void {
+  exigerAccesComplet(actorUserId, "La gestion des rôles");
   const enUsage = getUserAccounts().some((u) => u.roleId === id);
   if (enUsage) {
     throw new Error("Ce rôle est assigné à au moins un compte — retirez l'assignation avant de le supprimer.");
   }
+  const role = store.find((r) => r.id === id);
   store = store.filter((r) => r.id !== id);
+  if (role) logAudit(actorUserId, "delete_role", "role", id, role.code);
   persist();
 }
 
 export function setRoleAccess(id: string, accessibleItemIds: string[], actorUserId: string): void {
+  exigerAccesComplet(actorUserId, "La gestion des rôles");
   const role = store.find((r) => r.id === id);
   if (!role) return;
   role.accessibleItemIds = accessibleItemIds;

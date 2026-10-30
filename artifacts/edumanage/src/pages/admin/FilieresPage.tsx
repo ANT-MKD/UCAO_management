@@ -8,16 +8,22 @@ import { DataTable, Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useFilieres } from "@/hooks/useFiliereStore";
-import { deleteFiliere, type FiliereRecord } from "@/data/filiereStore";
+import { type FiliereRecord } from "@/data/filiereStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { useStudentStore } from "@/hooks/useStudentStore";
+import { useAnneeActuelle, useStudentStore } from "@/hooks/useStudentStore";
 import { downloadFiliereTemplate, parseFiliereExcel, importFiliereRows, exportFilieresToExcel } from "@/lib/filiereImportExport";
+import { verifierSuppressionFiliere, supprimerFiliere } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function FilieresPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const filieres = useFilieres();
   const classes = useClasses();
   const etudiants = useStudentStore();
+  const anneeActuelle = useAnneeActuelle();
   const actives = filieres.filter((f) => f.statut === "actif").length;
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,7 +89,7 @@ export default function FilieresPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button
+          <button aria-label="Modifier" title="Modifier"
             onClick={(e) => { e.stopPropagation(); setLocation(`/admin/filieres/${r.id}/edit`); }}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
             data-testid={`btn-edit-${r.id}`}
@@ -93,9 +99,10 @@ export default function FilieresPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer la filière ${r.nom} ?`)) deleteFiliere(r.id);
+              confirmerSuppression(verifierSuppressionFiliere(r.id), `Supprimer la filière ${r.nom} ?`, () => supprimerFiliere(r.id, acteur), "Filière supprimée");
             }}
             className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 transition-colors text-muted-foreground hover:text-red-500"
+            aria-label={`Supprimer la filière ${r.nom}`}
             data-testid={`btn-delete-${r.id}`}
           >
             <Trash2 size={14} />
@@ -110,9 +117,9 @@ export default function FilieresPage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Filières" }]}
         title="Filières"
-        subtitle={`${filieres.length} filières configurées pour l'année 2025-2026`}
+        subtitle={`${filieres.length} filière${filieres.length > 1 ? "s" : ""} configurée${filieres.length > 1 ? "s" : ""} pour l'année ${anneeActuelle}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={downloadFiliereTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs hover:bg-muted transition-colors text-muted-foreground" title="Télécharger le modèle Excel">
               <FileSpreadsheet size={13} /> Modèle
             </button>

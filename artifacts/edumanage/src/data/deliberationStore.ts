@@ -1,6 +1,13 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
+import { tronquer } from "@/lib/notes";
 import { computeBulletinPourClasse } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
-import { decideValidation, type RegleValidationRecord } from "./reglesValidationStore";
+import { decideValidation, getRegleValidation, type RegleValidationRecord } from "./reglesValidationStore";
+import { SEMESTRES } from "./mockData";
+import { formulesPour } from "./reglementCalculStore";
+import { figerResultats, libererResultats } from "./resultatsFigesStore";
+import { executerFormule, interpreterDecisionSemestre, type FormulesCalcul } from "./formulesCalcul";
+import { ueAcquise, type BulletinEtudiant } from "./bulletinEngine";
 import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
 
 const STORAGE_KEY = "edumanage-deliberation-store-v1";
@@ -10,8 +17,8 @@ export type DecisionJury = "admis" | "ajourne" | "rattrapage" | "exclu" | "a_dec
 /** Libellés canoniques des décisions de jury — source unique réutilisée partout où une décision
  * doit être affichée (Délibération, Attestations, Relevés) pour ne jamais diverger. */
 export const DECISION_LABELS: Record<DecisionJury, string> = {
-  admis: "Admis",
-  ajourne: "Ajourné",
+  admis: "Semestre validé",
+  ajourne: "Semestre non validé",
   rattrapage: "Rattrapage",
   exclu: "Exclu",
   a_declasser: "À déclasser",
@@ -88,7 +95,7 @@ let store: Persisted = load();
 function persist() {
   store = { deliberations: store.deliberations.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -133,6 +140,18 @@ export interface ChargerDeliberationInput {
   effectuePar: string;
 }
 
+/** Décision automatique d'un semestre : formule « Décision du semestre » du règlement de l'année
+ * s'il en a une, sinon la règle de validation de la filière. */
+export function decisionSemestre(bulletin: BulletinEtudiant | undefined, absences: number, regle: RegleValidationRecord, formules: FormulesCalcul): DecisionJury {
+  const parFormule = formules.decisionSemestre && bulletin
+    ? interpreterDecisionSemestre(executerFormule("decisionSemestre", formules.decisionSemestre, {
+      CREDITS_SEMESTRE: bulletin.creditsObtenus, CREDITS_TOTAL_SEMESTRE: bulletin.creditsTotal, MOYENNE_SEMESTRE: bulletin.moyenneSession,
+      ABSENCES: absences, UE_NON_ACQUISES: bulletin.ues.filter((u) => !ueAcquise(u)).length,
+    }))
+    : undefined;
+  return parFormule ?? decideValidation(bulletin?.moyenneSession ?? 0, bulletin?.creditsObtenus ?? 0, absences, regle);
+}
+
 function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationInput, seuilEffectif?: number): DeliberationLigne {
   const bulletin = computeBulletinPourClasse(e.id, input.classeId, input.semestreAlias);
   const moyenne = bulletin?.moyenneSession ?? 0;
@@ -140,13 +159,13 @@ function calculerLigne(e: EtudiantPourDeliberation, input: ChargerDeliberationIn
 
   const declassement = detecterDeclassementEtudiant(e.id, input.classeId, input.filiereId, input.niveauAlias, input.annee, input.semestreAlias);
   const regleEffective = seuilEffectif !== undefined ? { ...input.regle, moyennePassage: seuilEffectif } : input.regle;
-  const decisionAuto: DecisionJury = declassement ? "a_declasser" : decideValidation(moyenne, bulletin?.creditsObtenus ?? 0, absences, regleEffective);
+  const decisionAuto: DecisionJury = declassement ? "a_declasser" : decisionSemestre(bulletin, absences, regleEffective, formulesPour(input.filiereId, input.annee));
 
   return {
     etudiantId: e.id,
     etudiant: `${e.prenom} ${e.nom}`,
     matricule: e.matricule,
-    moyenne: parseFloat(moyenne.toFixed(2)),
+    moyenne: tronquer(moyenne),
     creditsObtenus: bulletin?.creditsObtenus ?? 0,
     creditsTotal: bulletin?.creditsTotal ?? 0,
     absences,
@@ -215,6 +234,33 @@ export function chargerDeliberation(input: ChargerDeliberationInput): Deliberati
   return record;
 }
 
+/** Recalcule la ligne d'un seul étudiant (après un repêchage d'UE par le jury, par exemple) avec
+ * les règles en vigueur et le seuil de session éventuellement ajusté ; une décision corrigée
+ * manuellement par le jury reste celle du jury. Jamais sur une délibération clôturée. */
+export function recalculerLigneDeliberation(deliberationId: string, etudiantId: string): void {
+  const deliberation = getDeliberationById(deliberationId);
+  if (!deliberation || deliberation.statut === "cloturee") return;
+  const index = deliberation.lignes.findIndex((l) => l.etudiantId === etudiantId);
+  const regle = getRegleValidation(deliberation.filiereId, "semestre");
+  const semestreAlias = SEMESTRES.find((s) => s.id === deliberation.semestreId)?.alias;
+  if (index < 0 || !regle || !semestreAlias) return;
+  const ancienne = deliberation.lignes[index];
+  const input = {
+    filiereId: deliberation.filiereId, annee: deliberation.annee, niveauAlias: deliberation.niveau,
+    classeId: deliberation.classeId, semestreAlias, regle,
+  } as ChargerDeliberationInput;
+  const nouvelle = calculerLigne({ id: etudiantId, prenom: "", nom: "", matricule: ancienne.matricule }, input, deliberation.seuilOverride);
+  const corrigee = ancienne.decisionFinale !== ancienne.decisionAuto;
+  deliberation.lignes[index] = {
+    ...nouvelle,
+    etudiant: ancienne.etudiant,
+    decisionFinale: corrigee ? ancienne.decisionFinale : nouvelle.decisionAuto,
+    overrideRaison: corrigee ? ancienne.overrideRaison : undefined,
+    overrideModifiePar: corrigee ? ancienne.overrideModifiePar : undefined,
+  };
+  persist();
+}
+
 /** Corrige manuellement la décision d'un étudiant avant clôture — jamais après (la délibération
  * doit d'abord être rouverte). La décision automatique reste tracée dans decisionAuto. */
 export function overrideDecision(deliberationId: string, etudiantId: string, decision: DecisionJury, raison: string, modifiePar: string): void {
@@ -242,6 +288,8 @@ export function ajusterSeuilSession(
 ): void {
   const deliberation = getDeliberationById(deliberationId);
   if (!deliberation || deliberation.statut === "cloturee") return;
+  // Une décision écrite en formule ne dépend pas d'un seuil de moyenne réglable ici.
+  if (formulesPour(deliberation.filiereId, deliberation.annee).decisionSemestre) return;
   const regleAjustee: RegleValidationRecord = { ...regle, moyennePassage: nouveauSeuil };
   deliberation.lignes = deliberation.lignes.map((ligne) => {
     if (ligne.decisionAuto === "a_declasser") return ligne;
@@ -260,6 +308,16 @@ export function cloturerDeliberation(id: string): void {
   const deliberation = getDeliberationById(id);
   if (!deliberation) return;
   deliberation.statut = "cloturee";
+  // Les bulletins délibérés sont figés : plus rien ne les modifie tant que le jury reste clôturé.
+  const semestreAlias = SEMESTRES.find((s) => s.id === deliberation.semestreId)?.alias;
+  if (semestreAlias) {
+    const bulletins: Record<string, BulletinEtudiant> = {};
+    for (const l of deliberation.lignes) {
+      const b = computeBulletinPourClasse(l.etudiantId, deliberation.classeId, semestreAlias, { sansFige: true });
+      if (b) bulletins[l.etudiantId] = b;
+    }
+    figerResultats(deliberation.classeId, semestreAlias, deliberation.id, bulletins);
+  }
   persist();
 }
 
@@ -270,5 +328,7 @@ export function reouvrirDeliberation(id: string): void {
   const deliberation = getDeliberationById(id);
   if (!deliberation) return;
   deliberation.statut = "reouverte";
+  const semestreAlias = SEMESTRES.find((s) => s.id === deliberation.semestreId)?.alias;
+  if (semestreAlias) libererResultats(deliberation.classeId, semestreAlias);
   persist();
 }

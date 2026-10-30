@@ -7,6 +7,7 @@ import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { getClasseById, upsertClasse, getSalles } from "@/data/structureStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useSalles } from "@/hooks/useStructureStore";
+import { RecordNotFound } from "@/components/admin/RecordNotFound";
 
 interface FormData {
   nom: string;
@@ -43,7 +44,7 @@ export default function ClasseFormPage({ id }: Props) {
           filiereId: "",
           niveauId: "",
           max: 35,
-          annee: annees.find((a) => a.actuelle)?.libelle ?? "2025-2026",
+          annee: annees.find((a) => a.actuelle)?.libelle ?? "",
           delegue: "",
           salleParDefautId: "",
         },
@@ -74,6 +75,18 @@ export default function ClasseFormPage({ id }: Props) {
 
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
+  if (isEdit && !existing) {
+    return (
+      <RecordNotFound
+        breadcrumb={[{ label: "Admin" }, { label: "Académiques" }, { label: "Classes pédagogiques", href: "/admin/classes" }, { label: "Modifier" }]}
+        title="Classe introuvable"
+        message="Cette classe pédagogique n'existe pas ou a été supprimée."
+        backHref="/admin/classes"
+        backLabel="Retour aux classes"
+      />
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -87,45 +100,46 @@ export default function ClasseFormPage({ id }: Props) {
         }
       />
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="bg-card border border-border rounded-xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="rounded-xl border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 px-4 py-3 text-xs text-blue-800 dark:text-blue-200">
             Classe pédagogique = cohortes d'étudiants. La salle (local physique) se choisit à l'EDT ou en salle par défaut ci-dessous.
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nom de la classe *</label>
-              <input {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: LPIG1-25/26" className={`${inputClass} uppercase font-mono`} />
+              <label htmlFor="classe-form-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom de la classe *</label>
+              <input id="classe-form-champ-1" {...register("nom", { required: "Nom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} placeholder="ex: LPIG1-25/26" className={`${inputClass} uppercase font-mono`} />
               {errors.nom && <p className="text-xs text-red-500 mt-1">{errors.nom.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-              <select {...register("filiereId", { required: "Filière requise" })} onChange={(e) => { setValue("filiereId", e.target.value); setValue("niveauId", ""); }} className={inputClass}>
+              <label htmlFor="classe-form-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+              <select id="classe-form-champ-2" {...register("filiereId", { required: "Filière requise" })} onChange={(e) => { setValue("filiereId", e.target.value); setValue("niveauId", ""); }} className={inputClass}>
                 <option value="">Sélectionner</option>
                 {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
               </select>
               {errors.filiereId && <p className="text-xs text-red-500 mt-1">{errors.filiereId.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select {...register("niveauId", { required: "Niveau requis" })} className={inputClass}>
+              <label htmlFor="classe-form-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+              <select id="classe-form-champ-3" {...register("niveauId", { required: "Niveau requis" })} className={inputClass}>
                 <option value="">Sélectionner</option>
                 {filteredNiveaux.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
               </select>
               {errors.niveauId && <p className="text-xs text-red-500 mt-1">{errors.niveauId.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité max *</label>
-              <input {...register("max", { required: true, valueAsNumber: true, min: 1 })} type="number" min={1} max={200} className={inputClass} />
+              <label htmlFor="classe-form-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Capacité max *</label>
+              <input id="classe-form-champ-4" {...register("max", { required: "Capacité requise", valueAsNumber: true, min: { value: 1, message: "Entre 1 et 200 étudiants" }, max: { value: 200, message: "Entre 1 et 200 étudiants" } })} type="number" min={1} max={200} className={inputClass} />
+              {errors.max && <p className="text-xs text-red-500 mt-1">{errors.max.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique *</label>
-              <select {...register("annee")} className={inputClass}>
+              <label htmlFor="classe-form-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique *</label>
+              <select id="classe-form-champ-5" {...register("annee")} className={inputClass}>
                 {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Salle physique par défaut</label>
-              <select {...register("salleParDefautId")} className={inputClass}>
+              <label htmlFor="classe-form-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Salle physique par défaut</label>
+              <select id="classe-form-champ-6" {...register("salleParDefautId")} className={inputClass}>
                 <option value="">Aucune</option>
                 {salles.filter((s) => s.statut === "actif").map((s) => (
                   <option key={s.id} value={s.id}>{s.nom} ({s.batiment})</option>
@@ -133,8 +147,8 @@ export default function ClasseFormPage({ id }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Délégué</label>
-              <input {...register("delegue")} placeholder="Nom du délégué" className={inputClass} />
+              <label htmlFor="classe-form-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Délégué</label>
+              <input id="classe-form-champ-7" {...register("delegue")} placeholder="Nom du délégué" className={inputClass} />
             </div>
           </div>
           <div className="flex gap-3 pt-2 border-t border-border">

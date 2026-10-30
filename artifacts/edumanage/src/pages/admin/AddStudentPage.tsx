@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -82,6 +83,20 @@ interface Step5Data {
   classeIdApresPaiement: string;
 }
 
+/** Intitulé + champ : le champ est placé dans l'intitulé, qui le désigne donc (clic, lecteur
+ * d'écran). Défini hors de la page pour ne pas être recréé — et le champ remonté — à chaque rendu. */
+function InputField({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block">
+        <span className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</span>
+        {children}
+      </label>
+      {error && <p className="text-xs text-red-500 mt-1" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 export default function AddStudentPage() {
   const [, setLocation] = useLocation();
   const classes = useClasses();
@@ -93,7 +108,7 @@ export default function AddStudentPage() {
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
   const [currentStep, setCurrentStep] = useState(1);
   const [step1Data, setStep1Data] = useState<Step1Data | null>(null);
   const [step2Data, setStep2Data] = useState<Step2Data | null>(null);
@@ -120,21 +135,19 @@ export default function AddStudentPage() {
   const [documents, setDocuments] = useState<Record<string, File | null>>({});
   const [modeleFraisId, setModeleFraisId] = useState("");
   const [selectedEcheanceIds, setSelectedEcheanceIds] = useState<Set<string>>(new Set());
-  const [motDePasse, setMotDePasse] = useState("");
+  // Toujours un mot de passe provisoire : l'étudiant devra le changer à sa première connexion.
+  const [motDePasse, setMotDePasse] = useState(() => generateMotDePasse());
   const [photoDataUrl, setPhotoDataUrl] = useState("");
 
   const handlePhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > TAILLE_MAX_PHOTO_OCTETS) {
-      toast.error(`Photo trop lourde (max ${Math.round(TAILLE_MAX_PHOTO_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_PHOTO_OCTETS, usagePhoto: "portrait" })
+      .then((dataUrl) => setPhotoDataUrl(dataUrl))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const selectedFiliere = form3.watch("filiereId");
+  const anneeSaisie = form3.watch("annee");
   const typeAdmission = form2.watch("typeAdmission");
   const statutPaiementWatch = form5.watch("statutPaiement");
   const filteredNiveaux = NIVEAUX.filter((n) => n.filiereId === selectedFiliere);
@@ -213,17 +226,17 @@ export default function AddStudentPage() {
     setSelectedEcheanceIds(new Set(toutesEcheances.map((e) => e.id)));
   };
 
-  const ensureMatricule = (filiereId: string) => {
-    if (!matricule) {
-      const code = FILIERES.find((f) => f.id === filiereId)?.code;
-      if (code) setMatricule(peekNextMatricule(code));
-    }
+  // Recalculé à chaque passage de l'étape 3 : un retour arrière qui change la filière ou l'année
+  // ne doit pas laisser l'aperçu d'un matricule qui ne sera pas celui attribué.
+  const ensureMatricule = (filiereId: string, annee: string) => {
+    const code = FILIERES.find((f) => f.id === filiereId)?.code;
+    if (code) setMatricule(peekNextMatricule(code, annee));
   };
 
   const handleStep1 = form1.handleSubmit((data) => { setStep1Data(data); setCurrentStep(2); });
   const handleStep2 = form2.handleSubmit((data) => { setStep2Data(data); setCurrentStep(3); });
   const handleStep3 = form3.handleSubmit((data) => {
-    ensureMatricule(data.filiereId);
+    ensureMatricule(data.filiereId, data.annee);
     setStep3Data(data);
     setCurrentStep(4);
   });
@@ -244,7 +257,7 @@ export default function AddStudentPage() {
     const filiere = FILIERES.find((f) => f.id === step3Data.filiereId);
     const niveau = NIVEAUX.find((n) => n.id === step3Data.niveauId);
     const code = filiere?.code ?? "XXX";
-    const finalMatricule = allocateMatricule(code);
+    const finalMatricule = allocateMatricule(code, step3Data.annee);
     setMatricule(finalMatricule);
 
     const paye = step5Data.statutPaiement === "paye";
@@ -330,14 +343,6 @@ export default function AddStudentPage() {
     setLocation(`/admin/students/${etudiant.id}`);
   };
 
-  const InputField = ({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
-      {children}
-      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-    </div>
-  );
-
   const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
   return (
@@ -378,7 +383,7 @@ export default function AddStudentPage() {
       <div className="max-w-2xl mx-auto">
         {/* Étape 1 — État civil + Contacts */}
         {currentStep === 1 && (
-          <form onSubmit={handleStep1} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep1} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>État Civil</h3>
 
             <div className="flex items-center gap-4">
@@ -397,7 +402,7 @@ export default function AddStudentPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <InputField label="Prénom *" error={form1.formState.errors.prenom?.message}>
-                <input {...form1.register("prenom", { required: "Prénom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} className={inputClass} placeholder="Moussa" data-testid="input-prenom" />
+                <input aria-label="Moussa" {...form1.register("prenom", { required: "Prénom requis", minLength: { value: 2, message: "Minimum 2 caractères" } })} className={inputClass} placeholder="Moussa" data-testid="input-prenom" />
               </InputField>
               <InputField label="Nom *" error={form1.formState.errors.nom?.message}>
                 <input {...form1.register("nom", { required: "Nom requis" })} className={inputClass + " uppercase"} placeholder="SY" />
@@ -416,7 +421,7 @@ export default function AddStudentPage() {
                 <input {...form1.register("dateNaissance", { required: "Date requise" })} type="date" className={inputClass} />
               </InputField>
               <InputField label="Lieu de naissance *" error={form1.formState.errors.lieuNaissance?.message}>
-                <input {...form1.register("lieuNaissance", { required: "Lieu requis" })} className={inputClass} placeholder="Dakar" />
+                <input aria-label="Dakar" {...form1.register("lieuNaissance", { required: "Lieu requis" })} className={inputClass} placeholder="Dakar" />
               </InputField>
               <InputField label="Pays *">
                 <select {...form1.register("pays", { required: true })} className={inputClass}>
@@ -426,7 +431,7 @@ export default function AddStudentPage() {
                 </select>
               </InputField>
               <InputField label="Nationalité *">
-                <input {...form1.register("nationalite", { required: "Nationalité requise" })} className={inputClass} placeholder="Sénégalaise" />
+                <input aria-label="Sénégalaise" {...form1.register("nationalite", { required: "Nationalité requise" })} className={inputClass} placeholder="Sénégalaise" />
               </InputField>
               <InputField label="N° CNI / Passeport">
                 <input {...form1.register("cni")} className={inputClass} placeholder="1 23456789" />
@@ -443,10 +448,10 @@ export default function AddStudentPage() {
                   <input {...form1.register("telephone")} className={inputClass} placeholder="77 XXX XX XX" />
                 </InputField>
                 <InputField label="Adresse">
-                  <input {...form1.register("adresse")} className={inputClass} placeholder="Quartier, Ville" />
+                  <input aria-label="Quartier, Ville" {...form1.register("adresse")} className={inputClass} placeholder="Quartier, Ville" />
                 </InputField>
                 <InputField label="Nom du tuteur">
-                  <input {...form1.register("nomTuteur")} className={inputClass} placeholder="Mamadou SY" />
+                  <input aria-label="Mamadou SY" {...form1.register("nomTuteur")} className={inputClass} placeholder="Mamadou SY" />
                 </InputField>
                 <InputField label="Tél. tuteur">
                   <input {...form1.register("telTuteur")} className={inputClass} placeholder="77 XXX XX XX" />
@@ -462,7 +467,7 @@ export default function AddStudentPage() {
 
         {/* Étape 2 — Scolarité antérieure / Transfert */}
         {currentStep === 2 && (
-          <form onSubmit={handleStep2} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep2} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Scolarité Antérieure</h3>
             <p className="text-sm text-muted-foreground">Renseignez le parcours scolaire ou universitaire avant l'inscription dans notre établissement.</p>
 
@@ -489,7 +494,7 @@ export default function AddStudentPage() {
                   </select>
                 </InputField>
                 <InputField label="Année BAC (obtention) *" error={form2.formState.errors.anneeBac?.message}>
-                  <input {...form2.register("anneeBac", { required: "Année requise" })} type="number" min={2000} max={2026} className={inputClass} placeholder="2025" />
+                  <input {...form2.register("anneeBac", { required: "Année requise", min: { value: 2000, message: `Année entre 2000 et ${new Date().getFullYear()}` }, max: { value: new Date().getFullYear(), message: `Année entre 2000 et ${new Date().getFullYear()}` } })} type="number" min={2000} max={new Date().getFullYear()} className={inputClass} placeholder="2025" />
                 </InputField>
                 <InputField label="Dernier établissement *" error={form2.formState.errors.dernierEtablissement?.message}>
                   <input {...form2.register("dernierEtablissement", { required: "Établissement requis" })} className={inputClass + " col-span-2"} placeholder="Lycée Blaise Diagne, Dakar" />
@@ -498,16 +503,16 @@ export default function AddStudentPage() {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <InputField label="Université d'origine *">
-                  <input {...form2.register("universiteOrigine", { required: "Université requise" })} className={inputClass} placeholder="UCAD, Dakar" />
+                  <input aria-label="UCAD, Dakar" {...form2.register("universiteOrigine", { required: "Université requise" })} className={inputClass} placeholder="UCAD, Dakar" />
                 </InputField>
                 <InputField label="Filière précédente *">
-                  <input {...form2.register("filiereOrigine", { required: "Filière requise" })} className={inputClass} placeholder="Licence Informatique" />
+                  <input aria-label="Licence Informatique" {...form2.register("filiereOrigine", { required: "Filière requise" })} className={inputClass} placeholder="Licence Informatique" />
                 </InputField>
                 <InputField label="Niveau atteint *">
                   <input {...form2.register("niveauAtteint", { required: "Niveau requis" })} className={inputClass} placeholder="Licence 2" />
                 </InputField>
-                <InputField label="Crédits validés (ECTS)">
-                  <input {...form2.register("creditsValides", { valueAsNumber: true })} type="number" min={0} className={inputClass} placeholder="60" />
+                <InputField label="Crédits validés (ECTS)" error={form2.formState.errors.creditsValides?.message}>
+                  <input {...form2.register("creditsValides", { valueAsNumber: true, min: { value: 0, message: "Saisissez un nombre positif." } })} type="number" min={0} className={inputClass} placeholder="60" />
                 </InputField>
                 <InputField label="Dernier établissement *">
                   <input {...form2.register("dernierEtablissement", { required: "Établissement requis" })} className={inputClass + " col-span-2"} placeholder="Université Cheikh Anta Diop" />
@@ -528,11 +533,11 @@ export default function AddStudentPage() {
 
         {/* Étape 3 — Inscription académique */}
         {currentStep === 3 && (
-          <form onSubmit={handleStep3} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep3} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Inscription Académique</h3>
 
             <InputField label="Filière *" error={form3.formState.errors.filiereId?.message}>
-              <select {...form3.register("filiereId", { required: "Filière requise" })} className={inputClass} onChange={(e) => { form3.setValue("filiereId", e.target.value); setMatricule(""); }}>
+              <select aria-label="Sélectionner une filière" {...form3.register("filiereId", { required: "Filière requise" })} className={inputClass} onChange={(e) => { form3.setValue("filiereId", e.target.value); setMatricule(""); }}>
                 <option value="">Sélectionner une filière</option>
                 {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                   <option key={f.id} value={f.id}>{f.code} – {f.nom}</option>
@@ -567,11 +572,11 @@ export default function AddStudentPage() {
             </InputField>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (généré automatiquement)</label>
-              <input
+              <label htmlFor="add-student-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Matricule (généré automatiquement)</label>
+              <input id="add-student-champ-1"
                 type="text"
                 readOnly
-                value={selectedFiliere ? (matricule || peekNextMatricule(FILIERES.find((f) => f.id === selectedFiliere)?.code ?? "XXX")) : "—"}
+                value={selectedFiliere ? peekNextMatricule(FILIERES.find((f) => f.id === selectedFiliere)?.code ?? "XXX", anneeSaisie) : "—"}
                 className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-muted/50 font-mono cursor-not-allowed"
                 style={{ fontFamily: "JetBrains Mono, monospace" }}
               />
@@ -641,7 +646,7 @@ export default function AddStudentPage() {
 
         {/* Étape 5 — Paiement */}
         {currentStep === 5 && (
-          <form onSubmit={handleStep5} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+          <form noValidate onSubmit={handleStep5} className="bg-card border border-border rounded-2xl p-6 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <h3 className="font-bold text-foreground text-lg" style={{ fontFamily: "Outfit, sans-serif" }}>Paiement des Frais d'Inscription</h3>
 
             <InputField label="Modèle de frais *">
@@ -755,13 +760,13 @@ export default function AddStudentPage() {
                 </select>
               </InputField>
               <InputField label="N° reçu / Référence">
-                <input {...form5.register("numeroRecu")} className={inputClass + " font-mono"} placeholder="Auto si vide" style={{ fontFamily: "JetBrains Mono, monospace" }} />
+                <input aria-label="Auto si vide" {...form5.register("numeroRecu")} className={inputClass + " font-mono"} placeholder="Auto si vide" style={{ fontFamily: "JetBrains Mono, monospace" }} />
               </InputField>
             </div>
 
             {statutPaiementWatch === "paye" && (
               <InputField label="Affecter à une classe (après paiement) *">
-                <select {...form5.register("classeIdApresPaiement", { required: statutPaiementWatch === "paye" })} className={inputClass}>
+                <select aria-label="Choisir la classe pédagogique" {...form5.register("classeIdApresPaiement", { required: statutPaiementWatch === "paye" })} className={inputClass}>
                   <option value="">Choisir la classe pédagogique</option>
                   {filteredClasses.map((c) => (
                     <option key={c.id} value={c.id}>{c.nom} ({c.inscrits}/{c.max})</option>
@@ -773,7 +778,7 @@ export default function AddStudentPage() {
 
             <div className="border-t border-border pt-4">
               <p className="text-xs font-semibold text-muted-foreground mb-2">Accès portail étudiant</p>
-              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule + mot de passe généré (modifiable par l'étudiant ultérieurement)</p>
+              <p className="text-xs text-muted-foreground mb-3">Connexion : matricule + ce mot de passe provisoire, à remettre à l&apos;étudiant. Il devra en choisir un nouveau à sa première connexion.</p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-xl font-mono text-sm" style={{ fontFamily: "JetBrains Mono, monospace" }}>
                   {motDePasse || "—"}
@@ -783,7 +788,7 @@ export default function AddStudentPage() {
                   onClick={() => setMotDePasse(generateMotDePasse())}
                   className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
                 >
-                  <Key size={14} /> Générer mot de passe
+                  <Key size={14} /> Regénérer
                 </button>
               </div>
             </div>

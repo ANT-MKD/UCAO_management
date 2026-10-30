@@ -97,28 +97,28 @@ export default function EmissionMassePage() {
             </tr>
             <tr className="border-b border-border bg-card">
               <th className="px-3 py-2">
-                <input value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Référence" value={filters.reference} onChange={(e) => patchFilter({ reference: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.filiere} onChange={(e) => patchFilter({ filiere: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Filière" value={filters.filiere} onChange={(e) => patchFilter({ filiere: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.annee} onChange={(e) => patchFilter({ annee: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Année" value={filters.annee} onChange={(e) => patchFilter({ annee: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.niveau} onChange={(e) => patchFilter({ niveau: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Niveau" value={filters.niveau} onChange={(e) => patchFilter({ niveau: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.classe} onChange={(e) => patchFilter({ classe: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Classe" value={filters.classe} onChange={(e) => patchFilter({ classe: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.emisLe} onChange={(e) => patchFilter({ emisLe: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+                <input aria-label="Filtrer : Emis le" value={filters.emisLe} onChange={(e) => patchFilter({ emisLe: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.emisPar} onChange={(e) => patchFilter({ emisPar: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : Emis par" value={filters.emisPar} onChange={(e) => patchFilter({ emisPar: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.dateFacturation} onChange={(e) => patchFilter({ dateFacturation: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+                <input aria-label="Filtrer : Facturé le" value={filters.dateFacturation} onChange={(e) => patchFilter({ dateFacturation: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
               </th>
               <th className="px-3 py-2">
                 {Object.values(filters).some(Boolean) && (

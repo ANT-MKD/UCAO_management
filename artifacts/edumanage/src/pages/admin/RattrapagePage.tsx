@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
 import {
   saveNotesGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc,
-  getEffectiveNote, type GridNoteInput,
+  type GridNoteInput,
 } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
@@ -13,17 +13,17 @@ import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
-import { createEvaluation, updateEvaluation, getPoidsForClasseEc } from "@/data/evaluationStore";
+import { createEvaluation, updateEvaluation } from "@/data/evaluationStore";
+import { doitRattraperUe } from "@/data/bulletinEngine";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNote } from "@/lib/notes";
 
 type NoteEntry = { note: string; absent: boolean };
 
 const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
-const POIDS_CC_DEFAUT = 30;
-const POIDS_EXAMEN_DEFAUT = 70;
 
 export default function RattrapagePage() {
   const { currentUser } = useAuth();
@@ -68,7 +68,8 @@ export default function RattrapagePage() {
   const niveau = NIVEAUX.find((n) => n.id === niveauId);
   const semestre = SEMESTRES.find((s) => s.id === semestreId);
   const bareme = scolariteConfigs.find((c) => c.filiereId === filiereId)?.noteBareme ?? 20;
-  const moyennePassage = scolariteConfigs.find((c) => c.filiereId === filiereId)?.moyennePassage ?? 10;
+  // Règle UCAO : on rattrape toutes les matières d'une UE non acquise à la session normale.
+  const ueDuCours = UES.find((u) => u.id === ECS.find((ec) => ec.id === ecId)?.ueId);
 
   const niveauxFiliere = NIVEAUX.filter((n) => n.filiereId === filiereId);
   const classesDisponibles = CLASSES.filter(
@@ -155,18 +156,11 @@ export default function RattrapagePage() {
     const estAjoute = etudiantsAjoutesIds.has(e.id);
     return (estMembre && !etudiantsRetiresIds.has(e.id)) || estAjoute;
   });
-  const { devoir: poidsDevoirReel, examen: poidsExamenReel } = ecId ? getPoidsForClasseEc(classeId, ecId) : {};
-  const poidsCc = (poidsDevoirReel ?? POIDS_CC_DEFAUT) / 100;
-  const poidsExamen = (poidsExamenReel ?? POIDS_EXAMEN_DEFAUT) / 100;
-  // Ajourné = moyenne normale (CC + EF, tous deux déjà saisis) réellement sous la moyenne de
-  // passage. Un étudiant dont l'examen normal n'a pas encore été noté n'apparaît pas ici — ce
-  // n'est pas un cas de rattrapage, c'est une saisie normale à faire d'abord.
-  const ajournes = classeStudentsAll.filter((etu) => {
-    const cc = getEffectiveNote(etu.id, classeId, ecId, "CC")?.note;
-    const ef = getEffectiveNote(etu.id, classeId, ecId, "EF")?.note;
-    if (cc === undefined || ef === undefined) return false;
-    return cc * poidsCc + ef * poidsExamen < moyennePassage;
-  });
+  // Concerné = l'UE de ce cours n'est pas acquise à la session normale (calcul du bulletin, sans
+  // les notes de rattrapage) — ni repêchée par le jury, ni acquise une année précédente. Tant que
+  // l'UE n'a pas de moyenne, ses notes normales restent à saisir : pas encore de rattrapage.
+  const ajournes = classeStudentsAll.filter((etu) => !!niveau && !!semestre && !!ueDuCours
+    && doitRattraperUe(etu.id, classeId, filiereId, niveau.alias, semestre.alias, ueDuCours.id));
   const classeStudents = ajournes.filter((e) => {
     if (!searchStudent) return true;
     const q = searchStudent.toLowerCase();
@@ -240,30 +234,30 @@ export default function RattrapagePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Évaluation" }, { label: "Rattrapage" }]}
         title="Rattrapage"
-        subtitle="Reprise de l'examen pour les étudiants ajournés — la nouvelle note remplace l'examen normal dans le calcul final"
+        subtitle="Toutes les matières des UE non acquises — la note de rattrapage remplace l'examen si elle est meilleure (règle de la filière)"
       />
 
       <div className="grid lg:grid-cols-2 gap-5 mb-5">
         <div className="bg-card border border-border rounded-xl p-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
           <h3 className="font-semibold text-foreground text-sm">Cours à rattraper</h3>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-            <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="rattrapage-filiere">
+            <label htmlFor="rattrapage-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+            <select id="rattrapage-champ-1" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="rattrapage-filiere">
               <option value="">Sélectionner</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-              <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-annee">
+              <label htmlFor="rattrapage-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+              <select id="rattrapage-champ-2" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-annee">
                 <option value="">Sélectionner</option>
                 {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-              <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-niveau">
+              <label htmlFor="rattrapage-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+              <select id="rattrapage-champ-3" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-niveau">
                 <option value="">Sélectionner</option>
                 {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
               </select>
@@ -271,23 +265,23 @@ export default function RattrapagePage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-              <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-classe">
+              <label htmlFor="rattrapage-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+              <select id="rattrapage-champ-4" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-classe">
                 <option value="">Sélectionner</option>
                 {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-              <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-semestre">
+              <label htmlFor="rattrapage-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+              <select id="rattrapage-champ-5" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-semestre">
                 <option value="">Sélectionner</option>
                 {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
-            <select value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-cours">
+            <label htmlFor="rattrapage-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Cours *</label>
+            <select id="rattrapage-champ-6" value={ecId} onChange={(e) => handleCoursChange(e.target.value)} disabled={!semestreId} className={cn(inputClass, "disabled:opacity-50")} data-testid="rattrapage-cours">
               <option value="">Sélectionner</option>
               {coursDisponibles.map((ec) => <option key={ec.id} value={ec.id}>{ec.code} — {ec.libelle}</option>)}
             </select>
@@ -326,18 +320,18 @@ export default function RattrapagePage() {
                 <span className="font-mono text-foreground" style={{ fontFamily: "JetBrains Mono, monospace" }}>{evaluationRattrapage.code}</span>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
-                <input type="date" value={evaluationRattrapage.dateCreation} onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })} className={inputClass} data-testid="rattrapage-date-effective" />
+                <label htmlFor="rattrapage-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Date effective</label>
+                <input id="rattrapage-champ-7" type="date" value={evaluationRattrapage.dateCreation} onChange={(e) => handleUpdateDetails({ dateCreation: e.target.value })} className={inputClass} data-testid="rattrapage-date-effective" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-                <textarea value={evaluationRattrapage.description ?? ""} onChange={(e) => handleUpdateDetails({ description: e.target.value })} rows={3} className={inputClass} data-testid="rattrapage-description" />
+                <label htmlFor="rattrapage-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
+                <textarea id="rattrapage-champ-8" value={evaluationRattrapage.description ?? ""} onChange={(e) => handleUpdateDetails({ description: e.target.value })} rows={3} className={inputClass} data-testid="rattrapage-description" />
               </div>
               <div className="flex items-center justify-between text-sm pt-2 border-t border-border">
                 <span className="text-muted-foreground">Noté sur</span>
                 <span className="font-bold text-foreground">{bareme}</span>
               </div>
-              <p className="text-[11px] text-muted-foreground">Cette note remplace l&apos;examen normal ({evaluationRattrapage.poids}% de la moyenne du cours) dans le calcul final.</p>
+              <p className="text-[11px] text-muted-foreground">Cette note remplace l&apos;examen ({evaluationRattrapage.poids}% de la moyenne du cours) si elle est meilleure ; sinon l&apos;examen est conservé.</p>
               <button
                 onClick={() => setLocation(`/admin/deliberations?classeId=${classeId}&semestreId=${semestreId}`)}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-50 transition-colors"
@@ -369,14 +363,14 @@ export default function RattrapagePage() {
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp size={11} /> Moyenne</p>
               <p className={cn("text-2xl font-bold", moyenne !== null ? (moyenne >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
-                {moyenne !== null ? moyenne.toFixed(2) : "—"}
+                {formatNote(moyenne)}
               </p>
               <p className="text-[10px] text-muted-foreground">/{bareme}</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 text-center" style={{ boxShadow: "var(--shadow-sm)" }}>
               <p className="text-xs text-muted-foreground mb-1">Max / Min</p>
               <p className="text-lg font-bold text-foreground">
-                {noteMax !== null ? noteMax.toFixed(1) : "—"} <span className="text-muted-foreground text-sm">/</span> {noteMin !== null ? noteMin.toFixed(1) : "—"}
+                {formatNote(noteMax)} <span className="text-muted-foreground text-sm">/</span> {formatNote(noteMin)}
               </p>
               <p className="text-[10px] text-muted-foreground">{nbSaisis}/{classeStudents.length} saisies</p>
             </div>
@@ -400,10 +394,10 @@ export default function RattrapagePage() {
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
                   {ECS.find((e) => e.id === ecId)?.libelle} — Rattrapage
                 </h3>
-                <p className="text-xs text-muted-foreground">{ajournes.length} étudiant(s) ajourné(s) (moyenne &lt; {moyennePassage})</p>
+                <p className="text-xs text-muted-foreground">{ajournes.length} étudiant(s) dont l&apos;UE {ueDuCours ? `« ${ueDuCours.libelle} »` : ""} n&apos;est pas acquise</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <input value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
+                <input aria-label="Rechercher un étudiant" value={searchStudent} onChange={(e) => setSearchStudent(e.target.value)} placeholder="Rechercher un étudiant…" className="px-3 py-2 text-xs border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
                 {saved && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
                     <CheckCircle size={14} /> Enregistré

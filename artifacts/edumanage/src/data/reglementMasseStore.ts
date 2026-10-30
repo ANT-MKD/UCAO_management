@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { enregistrerEncaissementSurPEC, retirerEncaissementSurPEC } from "./priseEnChargeStore";
 
 const STORAGE_KEY = "edumanage-reglements-masse-v1";
@@ -53,7 +54,7 @@ function persist() {
   // et ne re-rend pas si getReglementsMasse() renvoie la même référence.
   store = { ...store, records: store.records.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

@@ -180,7 +180,7 @@ export default function PaiementsPage() {
         title="Les quittances"
         subtitle={`${paiements.length} quittances enregistrées cette année`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => exportExcel()}
               className="flex items-center gap-2 px-3.5 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors"
@@ -267,25 +267,25 @@ export default function PaiementsPage() {
             <tr className="border-b border-border bg-card">
               <th className="px-3 py-2" />
               <th className="px-3 py-2">
-                <input value={filters.numero} onChange={(e) => patchFilter({ numero: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
+                <input aria-label="Filtrer : N° quittance" value={filters.numero} onChange={(e) => patchFilter({ numero: e.target.value })} className={filterInputClass} placeholder="Filtrer…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.emise} onChange={(e) => patchFilter({ emise: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+                <input aria-label="Filtrer : Émise le" value={filters.emise} onChange={(e) => patchFilter({ emise: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.limite} onChange={(e) => patchFilter({ limite: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
+                <input aria-label="Filtrer : Date Limite" value={filters.limite} onChange={(e) => patchFilter({ limite: e.target.value })} className={filterInputClass} placeholder="jj/mm/aaaa" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.adresse} onChange={(e) => patchFilter({ adresse: e.target.value })} className={filterInputClass} placeholder="Nom, matricule…" />
+                <input aria-label="Filtrer : Adressée à" value={filters.adresse} onChange={(e) => patchFilter({ adresse: e.target.value })} className={filterInputClass} placeholder="Nom, matricule…" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.montantQuittance} onChange={(e) => patchFilter({ montantQuittance: e.target.value })} className={filterInputClass} placeholder="Montant" />
+                <input aria-label="Filtrer : Mt quittancé" value={filters.montantQuittance} onChange={(e) => patchFilter({ montantQuittance: e.target.value })} className={filterInputClass} placeholder="Montant" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.montantPaye} onChange={(e) => patchFilter({ montantPaye: e.target.value })} className={filterInputClass} placeholder="Montant" />
+                <input aria-label="Filtrer : Mt payé" value={filters.montantPaye} onChange={(e) => patchFilter({ montantPaye: e.target.value })} className={filterInputClass} placeholder="Montant" />
               </th>
               <th className="px-3 py-2">
-                <input value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass} placeholder="Statut" />
+                <input aria-label="Filtrer : Statut" value={filters.statut} onChange={(e) => patchFilter({ statut: e.target.value })} className={filterInputClass} placeholder="Statut" />
               </th>
               <th className="px-3 py-2">
                 {(Object.values(filters).some(Boolean)) && (
@@ -356,14 +356,14 @@ export default function PaiementsPage() {
               Page {currentPage} / {totalPages} — {filtered.length} quittance(s)
             </span>
             <div className="flex gap-1">
-              <button
+              <button aria-label="Précédent" title="Précédent"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
               >
                 <ChevronLeft size={14} />
               </button>
-              <button
+              <button aria-label="Suivant" title="Suivant"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"

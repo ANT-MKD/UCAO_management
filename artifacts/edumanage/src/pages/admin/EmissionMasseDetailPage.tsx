@@ -119,7 +119,7 @@ export default function EmissionMasseDetailPage({ id }: { id: string }) {
         ]}
         title={`Émission ${record.reference}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setLocation("/admin/emissions-masse")}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm hover:bg-muted transition-colors"

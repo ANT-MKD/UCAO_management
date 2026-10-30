@@ -57,12 +57,12 @@ export default function TeacherModulesPage() {
     const ue = ues.find((u) => u.id === ec?.ueId);
     const classe = classes.find((c) => c.id === course.classeId);
 
-    const mesSeances = seances.filter((s) => s.ecId === course.ecId && s.classeId === course.classeId && s.annee === annee && myTeacher && matchesProf(myTeacher, s.prof));
+    const mesSeances = seances.filter((s) => s.ecId === course.ecId && s.classeId === course.classeId && s.annee === annee && myTeacher && matchesProf(myTeacher, s.prof, s.profId));
     // Même définition de "séance réalisée" que getCahierStatsForEc (Cahier de séance) : état
     // "réalisée" ET statut soumis/validé — un brouillon ou une séance seulement préparée ne
     // compte pas encore comme faite, pour que la progression affichée ici et sur Cahier de
     // séance ne se contredisent jamais.
-    const mesCahiers = cahiers.filter((c) => c.ecId === course.ecId && c.classeId === course.classeId && c.annee === annee && myTeacher && matchesProf(myTeacher, c.prof) && c.etatSeance === "realisee" && (c.statut === "soumis" || c.statut === "valide"));
+    const mesCahiers = cahiers.filter((c) => c.ecId === course.ecId && c.classeId === course.classeId && c.annee === annee && myTeacher && matchesProf(myTeacher, c.prof, c.profId) && c.etatSeance === "realisee" && (c.statut === "soumis" || c.statut === "valide"));
     const vhRealise = myTeacher
       ? pointages.filter((p) => p.teacherId === myTeacher.id && p.ecId === course.ecId && p.classeId === course.classeId && p.annee === annee && p.statut === "valide").reduce((s, p) => s + p.volumePointe, 0)
       : 0;
@@ -149,7 +149,7 @@ export default function TeacherModulesPage() {
       <div className="grid lg:grid-cols-[1fr_300px] gap-5">
         <div className="space-y-5 min-w-0">
           <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-            <KPICard icon={BookOpen} label="Total de mes cours" value={courses.length} subtitle="ce semestre" accentColor="#2563eb" />
+            <KPICard icon={BookOpen} label="Total de mes cours" value={courses.length} subtitle="cette année" accentColor="#2563eb" />
             <KPICard icon={Layers} label="Classes concernées" value={classesConcernees.size} subtitle="au total" accentColor="#10b981" />
             <KPICard icon={Clock} label="Heures enseignées" value={`${heuresEnseignees} h`} subtitle="cette année" accentColor="#f59e0b" />
             <KPICard icon={GraduationCap} label="Étudiants concernés" value={etudiantsConcernes} subtitle="au total" accentColor="#8b5cf6" />
@@ -158,24 +158,24 @@ export default function TeacherModulesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher un cours, un module"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Rechercher un cours, un module…"
                 className="w-full pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
-            <select value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <select aria-label="Toutes les filières" value={filiereFilter} onChange={(e) => setFiliereFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Toutes les filières</option>
               {filieresDisponibles.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
-            <select value={niveauFilter} onChange={(e) => setNiveauFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <select aria-label="Tous les niveaux" value={niveauFilter} onChange={(e) => setNiveauFilter(e.target.value)} className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Tous les niveaux</option>
               {niveauxDisponibles.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <div className="flex border border-border rounded-xl overflow-hidden">
-              <button type="button" onClick={() => setViewMode("grille")} className={cn("p-2.5", viewMode === "grille" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><LayoutGrid size={15} /></button>
-              <button type="button" onClick={() => setViewMode("liste")} className={cn("p-2.5", viewMode === "liste" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><List size={15} /></button>
+              <button type="button" aria-label="Affichage en grille" aria-pressed={viewMode === "grille"} onClick={() => setViewMode("grille")} className={cn("p-2.5", viewMode === "grille" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><LayoutGrid size={15} /></button>
+              <button type="button" aria-label="Affichage en liste" aria-pressed={viewMode === "liste"} onClick={() => setViewMode("liste")} className={cn("p-2.5", viewMode === "liste" ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground")}><List size={15} /></button>
             </div>
           </div>
 

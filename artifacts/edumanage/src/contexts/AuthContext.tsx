@@ -27,6 +27,8 @@ interface User {
   linkedId?: string;
   avatar?: string;
   roleId?: string;
+  /** Connecté avec un mot de passe provisoire : accès aux portails bloqué jusqu'au changement. */
+  doitChangerMotDePasse?: boolean;
 }
 
 interface AuthContextType {
@@ -34,6 +36,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (identifierOrEmail: string, password: string) => User | null;
   logout: () => void;
+  /** À appeler après un changement de mot de passe obligatoire réussi. */
+  confirmerMotDePasseChange: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -41,6 +45,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   login: () => null,
   logout: () => {},
+  confirmerMotDePasseChange: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -55,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       identifier: saved.identifier,
       linkedId: saved.linkedId,
       roleId: saved.roleId,
+      doitChangerMotDePasse: saved.doitChangerMotDePasse,
     };
   });
 
@@ -108,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Le portail ${PORTAL_LABELS[account.role]} est actuellement désactivé (Sécurité → Portails). Contactez l'administration.`);
     }
     if (account.actif === false) {
-      throw new Error("Ce compte a été désactivé (Sécurité → Liste des utilisateurs). Contactez l'administration.");
+      throw new Error("Ce compte a été désactivé. Contactez l'administration de l'établissement.");
     }
     if (account.role === "student" && account.linkedId && estActionInterdite(account.linkedId, "portail_etudiant")) {
       const motif = motifBlocagePortailPour(account.linkedId);
@@ -126,10 +132,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       identifier: account.identifier,
       linkedId: account.linkedId,
       roleId: account.roleId,
+      // Mot de passe provisoire remis par l'administration : il faut en choisir un autre avant
+      // d'entrer dans le portail.
+      doitChangerMotDePasse: account.doitChangerMotDePasse === true,
     };
     setCurrentUser(user);
     saveAuthSession(user);
     return user;
+  };
+
+  const confirmerMotDePasseChange = () => {
+    if (!currentUser) return;
+    const user = { ...currentUser, doitChangerMotDePasse: false };
+    setCurrentUser(user);
+    saveAuthSession(user);
   };
 
   const logout = () => {
@@ -138,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout, confirmerMotDePasseChange }}>
       {children}
     </AuthContext.Provider>
   );

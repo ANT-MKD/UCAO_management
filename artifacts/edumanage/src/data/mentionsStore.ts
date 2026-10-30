@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import type { NiveauMethodeCalcul } from "@/lib/bulletinCalculs";
 
 const STORAGE_KEY = "edumanage-mentions-store-v1";
@@ -74,7 +75,7 @@ let store: MentionRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -109,7 +110,7 @@ export function upsertMention(payload: MentionPayload, id?: string): MentionReco
     persist();
     return existing;
   }
-  const record: MentionRecord = { id: `mention-${Date.now()}`, ...payload };
+  const record: MentionRecord = { id: `mention-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

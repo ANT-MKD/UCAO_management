@@ -1,14 +1,40 @@
 import { getUes, getEcs } from "./curriculumStore";
-import { getEffectiveNote, getNoteForEvaluation, getInscriptionsByEtudiant } from "./studentStore";
+import { getEffectiveNote, getNoteForEvaluation, getInscriptionsByEtudiant, getNotes } from "./studentStore";
 import { getPoidsForClasseEc, getEvaluationsForClasseEc, resolveRoleEvaluation, getRattrapageEvaluation, type EvaluationRecord } from "./evaluationStore";
 import { getClasseById } from "./structureStore";
 import { estEcRetireePourEtudiant } from "./portefeuilleCoursStore";
-import { getConfigForFiliere, resolveCodeMethodeCalcul } from "./scolariteConfigStore";
+import { getConfigForFiliere, resolveCodeMethodeCalcul, reglesDeCalcul, type ReglesCalcul } from "./scolariteConfigStore";
 import { NIVEAUX, SEMESTRES } from "./mockData";
-import { appliquerMethodeCalcul, type ElementPondere } from "@/lib/bulletinCalculs";
+import { appliquerMethodeCalcul, CODE_MOYENNE_EC_SEMESTRE, type ElementPondere } from "@/lib/bulletinCalculs";
+import { atteint } from "@/lib/notes";
+import { getRepechageUe } from "./repechageStore";
+import { formulesPour } from "./reglementCalculStore";
+import { bulletinFige } from "./resultatsFigesStore";
+import { executerFormule, interpreterCredits, type FormulesCalcul } from "./formulesCalcul";
+import type { Valeur } from "@/lib/formules";
 
-const POIDS_CC_DEFAUT = 30;
-const POIDS_EXAMEN_DEFAUT = 70;
+/** Résultat numérique d'une formule (une valeur non numérique compte comme « en attente »). */
+const enNombre = (v: Valeur): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/** Options de calcul : `sessionNormale` ignore les notes de rattrapage (sert à dire qui doit aller
+ * au rattrapage) ; `sansCapitalisation` ne reprend pas les UE acquises les années précédentes. */
+export interface OptionsBulletin {
+  sessionNormale?: boolean;
+  sansCapitalisation?: boolean;
+  /** Formules à essayer à la place du règlement de l'année (comparaison avant/après). */
+  formules?: FormulesCalcul;
+  /** Recalcule même si le jury de la session est clôturé (sert à figer les résultats). */
+  sansFige?: boolean;
+}
+
+/** Note d'examen retenue quand un rattrapage existe, selon la règle de la filière. Règle UCAO
+ * (« meilleure ») : la note de rattrapage remplace l'examen seulement si elle est supérieure. */
+function examenApresRattrapage(examenNormal: number | undefined, rattrapage: number, regles: ReglesCalcul): number {
+  if (regles.regleRattrapage === "meilleure" && examenNormal !== undefined) return Math.max(rattrapage, examenNormal);
+  if (regles.regleRattrapage === "plafonnee") return Math.min(rattrapage, regles.plafondRattrapage);
+  return rattrapage;
+}
+
 
 /** Moyenne pondérée par le poids de chaque évaluation d'un même rôle (devoir ou examen) — la
  * généralisation naturelle du cas à une seule évaluation (qui redonne alors exactement sa note,
@@ -27,12 +53,17 @@ function moyennePondereeEvaluations(elements: { note: number; poids: number }[])
  * évaluation compte pour de vrai — plusieurs devoirs (Regroupement type de devoir) se combinent
  * en une moyenne pondérée par leur poids au lieu de s'écraser les uns les autres. Le rattrapage,
  * quand il existe, remplace entièrement le(s) examen(s) normal(aux), comme avant. */
-function resolveEcComposite(etudiantId: string, classeId: string, ecId: string): { cc?: number; ef?: number } {
+function resolveEcComposite(etudiantId: string, classeId: string, ecId: string, regles: ReglesCalcul, sessionNormale = false): { cc?: number; ef?: number; examen?: number; rattrapage?: number } {
   const evaluations = getEvaluationsForClasseEc(classeId, ecId);
   if (evaluations.length === 0) {
+    const notesEf = getNotes().filter((n) => n.etudiantId === etudiantId && n.classeId === classeId && n.ecId === ecId && n.type === "EF");
+    const efNormal = notesEf.find((n) => n.session === undefined)?.note;
+    const efRattrapage = sessionNormale ? undefined : notesEf.find((n) => n.session === "rattrapage")?.note;
     return {
       cc: getEffectiveNote(etudiantId, classeId, ecId, "CC")?.note,
-      ef: getEffectiveNote(etudiantId, classeId, ecId, "EF")?.note,
+      ef: efRattrapage !== undefined ? examenApresRattrapage(efNormal, efRattrapage, regles) : efNormal,
+      examen: efNormal,
+      rattrapage: efRattrapage,
     };
   }
 
@@ -56,28 +87,34 @@ function resolveEcComposite(etudiantId: string, classeId: string, ecId: string):
   // jamais en plus — getEffectiveNote("EF") préfère déjà le rattrapage sur l'examen normal.
   const rattrapage = getRattrapageEvaluation(classeId, ecId, evaluations[0].semestreId);
   const rattrapageNote = rattrapage ? getEffectiveNote(etudiantId, classeId, ecId, "EF") : undefined;
-  const rattrapageActif = rattrapageNote?.session === "rattrapage";
+  const rattrapageActif = !sessionNormale && rattrapageNote?.session === "rattrapage";
 
   const cc = composite(devoirEvals, "devoir");
-  const ef = rattrapageActif ? rattrapageNote!.note : composite(examenEvals, "examen");
+  const examenNormal = examenEvals.length > 0
+    ? moyennePondereeEvaluations(examenEvals.map((ev) => ({ note: getNoteForEvaluation(etudiantId, ev.id)?.note, poids: ev.poids })).filter((x): x is { note: number; poids: number } => x.note !== undefined))
+      ?? (examenEvals.length === 1 ? getNotes().find((n) => n.etudiantId === etudiantId && n.classeId === classeId && n.ecId === ecId && n.type === "EF" && n.session === undefined)?.note : undefined)
+    : undefined;
+  // Règle de rattrapage de la filière (Paramétrage scolarité → Règles de calcul).
+  const ef = rattrapageActif ? examenApresRattrapage(examenNormal, rattrapageNote!.note, regles) : sessionNormale ? examenNormal : composite(examenEvals, "examen");
 
-  return { cc, ef };
+  return { cc, ef, examen: examenNormal ?? (rattrapageActif ? undefined : ef), rattrapage: rattrapageActif ? rattrapageNote!.note : undefined };
 }
 
 /** Poids global du côté devoir et du côté examen pour un EC : somme des poids de toutes les
  * évaluations de chaque rôle (au lieu du poids d'une seule, historique) — dans le cas courant à
  * une évaluation par rôle, c'est exactement son poids, donc identique à avant. */
-function resolvePoidsRoles(classeId: string, ecId: string): { poidsDevoir?: number; poidsExamen?: number } {
+function resolvePoidsRoles(classeId: string, ecId: string): { poidsDevoir?: number; poidsExamen?: number; examenSeul?: boolean } {
   const evaluations = getEvaluationsForClasseEc(classeId, ecId);
   if (evaluations.length === 0) {
     const { devoir, examen } = getPoidsForClasseEc(classeId, ecId);
     return { poidsDevoir: devoir, poidsExamen: examen };
   }
   const sommePoids = (evals: EvaluationRecord[]) => (evals.length > 0 ? evals.reduce((s, e) => s + e.poids, 0) : undefined);
-  return {
-    poidsDevoir: sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "devoir")),
-    poidsExamen: sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "examen")),
-  };
+  const poidsDevoir = sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "devoir"));
+  const poidsExamen = sommePoids(evaluations.filter((e) => resolveRoleEvaluation(e) === "examen"));
+  // EC évalué uniquement par examen : l'examen compte pour 100 %. L'inverse (devoirs sans examen)
+  // reste « en attente » — c'est le cas normal d'un examen pas encore planifié.
+  return { poidsDevoir, poidsExamen, examenSeul: poidsDevoir === undefined && poidsExamen !== undefined };
 }
 
 export interface EcMoyenne {
@@ -101,6 +138,12 @@ export interface UeMoyenne {
   moyenne?: number;
   creditsObtenus: number;
   validee: boolean;
+  /** UE non validée en elle-même, mais dont les crédits sont acquis par compensation du semestre. */
+  valideeParCompensation?: boolean;
+  /** UE acquise par décision du jury (repêchage) : `validee` est vrai, la moyenne reste la vraie. */
+  valideeParJury?: { motif: string; decideLe: string };
+  /** Redoublant : UE déjà acquise lors d'une année précédente, reprise telle quelle. */
+  capitalisee?: { annee: string };
 }
 
 export interface BulletinEtudiant {
@@ -108,6 +151,8 @@ export interface BulletinEtudiant {
   moyenneSession?: number;
   creditsObtenus: number;
   creditsTotal: number;
+  /** Moyenne de passage de la filière (Paramétrage scolarité) — seuil d'affichage « admis ». */
+  moyennePassage: number;
 }
 
 /** Moteur de calcul du bulletin réel d'un étudiant pour une classe et une session, à partir
@@ -123,8 +168,17 @@ export function computeBulletin(
   filiereId: string,
   niveauAlias: string,
   semestreAlias: string,
+  options: OptionsBulletin = {},
 ): BulletinEtudiant {
+  // Jury clôturé : le bulletin délibéré fait foi, quoi qu'il change ensuite.
+  if (!options.sessionNormale && !options.formules && !options.sansFige) {
+    const fige = bulletinFige(etudiantId, classeId, semestreAlias);
+    if (fige) return fige;
+  }
   const config = getConfigForFiliere(filiereId);
+  const regles = reglesDeCalcul(filiereId);
+  // Formules du règlement de l'année de la classe (une filière sans règlement suit ses réglages).
+  const formules = options.formules ?? formulesPour(filiereId, getClasseById(classeId)?.annee);
   const codeMoyUe = resolveCodeMethodeCalcul(config, "moyenneUe");
   const codeMoySession = resolveCodeMethodeCalcul(config, "moyenneSession");
 
@@ -136,44 +190,112 @@ export function computeBulletin(
     // ne doit plus jamais compter ni rester "en attente" indéfiniment dans son bulletin.
     const ecsUe = ecsAll.filter((ec) => ec.ueId === ue.id && !estEcRetireePourEtudiant(etudiantId, classeId, ec.id));
     const ecs: EcMoyenne[] = ecsUe.map((ec): EcMoyenne => {
-      const { cc, ef } = resolveEcComposite(etudiantId, classeId, ec.id);
-      const { poidsDevoir: devoir, poidsExamen: examen } = resolvePoidsRoles(classeId, ec.id);
-      const poidsCc = (devoir ?? POIDS_CC_DEFAUT) / 100;
-      const poidsExamen = (examen ?? POIDS_EXAMEN_DEFAUT) / 100;
-      const moyenne = cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;
-      const validee = moyenne !== undefined && moyenne >= 10;
+      const { cc, ef, examen: examenSession, rattrapage } = resolveEcComposite(etudiantId, classeId, ec.id, regles, options.sessionNormale);
+      const { poidsDevoir: devoir, poidsExamen: examen, examenSeul } = resolvePoidsRoles(classeId, ec.id);
+      const poidsCc = (devoir ?? regles.poidsDevoirDefaut) / 100;
+      const poidsExamen = (examen ?? 100 - regles.poidsDevoirDefaut) / 100;
+      const moyenne = formules.noteEc
+        // Matière évaluée par examen seul : aucun devoir, l'examen pèse 100 %.
+        ? enNombre(executerFormule("noteEc", formules.noteEc, {
+          DEVOIR: examenSeul ? 0 : cc, EXAMEN: examenSession, RATTRAPAGE: rattrapage, EXAMEN_RETENU: ef,
+          POIDS_DEVOIR: examenSeul ? 0 : poidsCc, POIDS_EXAMEN: examenSeul ? 1 : poidsExamen,
+          CREDITS_MATIERE: ec.credits,
+        }))
+        : examenSeul ? ef : cc !== undefined && ef !== undefined ? cc * poidsCc + ef * poidsExamen : undefined;
+      const validee = moyenne !== undefined && atteint(moyenne, regles.seuilValidationEc);
       return { id: ec.id, code: ec.code, libelle: ec.libelle, credits: ec.credits, cc, ef, moyenne, creditsObtenus: validee ? ec.credits : 0, validee };
     });
     const elementsUe: ElementPondere[] = ecs
       .filter((l) => l.moyenne !== undefined)
       .map((l) => {
         const ec = ecsUe.find((e) => e.id === l.id);
-        return { moyenne: l.moyenne!, coeff: ec?.coeff ?? l.credits, credits: l.credits };
+        return { moyenne: l.moyenne!, credits: ec?.credits ?? l.credits };
       });
-    const moyenneUe = appliquerMethodeCalcul("moyenneUe", codeMoyUe, elementsUe);
-    const valideeUe = moyenneUe !== undefined && moyenneUe >= 10;
-    return { id: ue.id, code: ue.code, libelle: ue.libelle, credits: ue.credits, ecs, moyenne: moyenneUe, creditsObtenus: valideeUe ? ue.credits : 0, validee: valideeUe };
+    const notees = ecs.filter((l) => l.moyenne !== undefined);
+    const moyenneUe = formules.moyenneUe
+      ? enNombre(executerFormule("moyenneUe", formules.moyenneUe, {
+        MATIERES: notees.map((l) => l.moyenne!), CREDITS_MATIERES: notees.map((l) => l.credits),
+        NB_MATIERES: ecs.length, CREDITS_UE: ue.credits,
+      }))
+      : appliquerMethodeCalcul("moyenneUe", codeMoyUe, elementsUe);
+    // Note plancher : un EC en dessous empêche la compensation au sein de l'UE.
+    const sousPlancher = regles.noteEliminatoireEc > 0 && ecs.some((l) => l.moyenne !== undefined && !atteint(l.moyenne, regles.noteEliminatoireEc));
+    let valideeUe = moyenneUe !== undefined && atteint(moyenneUe, regles.seuilValidationUe) && !sousPlancher;
+    let creditsUe = valideeUe ? ue.credits : 0;
+    if (formules.creditsUe) {
+      // Formule de la filière : un nombre de crédits (UE acquise s'il les a tous) ou VRAI/FAUX.
+      const r = executerFormule("creditsUe", formules.creditsUe, {
+        MOYENNE_UE: moyenneUe, CREDITS_UE: ue.credits, MATIERES: notees.map((l) => l.moyenne!),
+        NOTE_MIN: notees.length ? Math.min(...notees.map((l) => l.moyenne!)) : undefined, NB_MATIERES: ecs.length,
+      });
+      creditsUe = interpreterCredits(r, ue.credits) ?? 0;
+      valideeUe = typeof r === "boolean" ? r : ue.credits > 0 && creditsUe >= ue.credits;
+    }
+    const base: UeMoyenne = { id: ue.id, code: ue.code, libelle: ue.libelle, credits: ue.credits, ecs, moyenne: moyenneUe, creditsObtenus: creditsUe, validee: valideeUe };
+    if (valideeUe) return base;
+    // Repêchage décidé par le jury pour cette UE (jamais pour le calcul « session normale »).
+    const repechage = options.sessionNormale ? undefined : getRepechageUe(etudiantId, classeId, ue.id);
+    if (repechage) return { ...base, validee: true, creditsObtenus: ue.credits, valideeParJury: { motif: repechage.motif, decideLe: repechage.decideLe } };
+    // Redoublant : une UE acquise une année précédente au même niveau est reprise telle quelle.
+    const acquise = options.sansCapitalisation ? undefined : ueAcquiseAnneePrecedente(etudiantId, classeId, filiereId, niveauAlias, semestreAlias, ue.id);
+    if (acquise) return { ...acquise.ue, capitalisee: { annee: acquise.annee } };
+    return base;
   });
 
-  const elementsSession: ElementPondere[] = ues
-    .filter((u) => u.moyenne !== undefined)
-    .map((u) => {
-      const ueRecord = uesSession.find((ue) => ue.id === u.id);
-      return { moyenne: u.moyenne!, coeff: ueRecord?.coeff ?? u.credits, credits: u.credits };
-    });
-  const moyenneSession = appliquerMethodeCalcul("moyenneSession", codeMoySession, elementsSession);
-  const creditsObtenus = ues.reduce((s, u) => s + u.creditsObtenus, 0);
+  const elementsSession: ElementPondere[] = codeMoySession === CODE_MOYENNE_EC_SEMESTRE
+    ? ues.flatMap((u) => u.ecs).filter((l) => l.moyenne !== undefined).map((l) => ({ moyenne: l.moyenne!, credits: l.credits }))
+    : ues
+      .filter((u) => u.moyenne !== undefined)
+      .map((u) => {
+        const ueRecord = uesSession.find((ue) => ue.id === u.id);
+        return { moyenne: u.moyenne!, credits: ueRecord?.credits ?? u.credits };
+      });
+  const ecsNotes = ues.flatMap((u) => u.ecs).filter((l) => l.moyenne !== undefined);
+  const uesNotees = ues.filter((u) => u.moyenne !== undefined);
+  const moyenneSession = formules.moyenneSemestre
+    ? enNombre(executerFormule("moyenneSemestre", formules.moyenneSemestre, {
+      MATIERES_SEMESTRE: ecsNotes.map((l) => l.moyenne!), CREDITS_MATIERES_SEMESTRE: ecsNotes.map((l) => l.credits),
+      UES: uesNotees.map((u) => u.moyenne!), CREDITS_UES: uesNotees.map((u) => u.credits),
+      CREDITS_SEMESTRE: ues.reduce((s, u) => s + u.creditsObtenus, 0),
+    }))
+    : appliquerMethodeCalcul("moyenneSession", codeMoySession, elementsSession);
   const creditsTotal = ues.reduce((s, u) => s + u.credits, 0);
 
-  return { ues, moyenneSession, creditsObtenus, creditsTotal };
+  // Compensation entre UE : semestre complet, moyenne ≥ moyenne de passage et aucune note sous le
+  // plancher → tous les crédits du semestre sont acquis (si la filière l'a choisi).
+  const toutesNotees = ues.length > 0 && ues.every((u) => u.ecs.every((l) => l.moyenne !== undefined));
+  const aucunSousPlancher = regles.noteEliminatoireEc <= 0 || ues.every((u) => u.ecs.every((l) => l.moyenne === undefined || atteint(l.moyenne, regles.noteEliminatoireEc)));
+  const valideParCompensation = regles.creditsParCompensation && toutesNotees && aucunSousPlancher
+    && moyenneSession !== undefined && atteint(moyenneSession, config?.moyennePassage ?? 10);
+  const uesFinales = valideParCompensation
+    ? ues.map((u) => (u.validee ? u : { ...u, creditsObtenus: u.credits, valideeParCompensation: true }))
+    : ues;
+  const creditsObtenus = uesFinales.reduce((s, u) => s + u.creditsObtenus, 0);
+
+  return { ues: uesFinales, moyenneSession, creditsObtenus, creditsTotal, moyennePassage: config?.moyennePassage ?? 10 };
+}
+
+/** UE acquise par l'étudiant lors d'une inscription antérieure au même niveau (redoublement) :
+ * l'UE est capitalisée, il ne la repasse pas. On remonte les années de la plus récente à la plus
+ * ancienne ; chaque année précédente applique elle-même la même règle. */
+function ueAcquiseAnneePrecedente(etudiantId: string, classeId: string, filiereId: string, niveauAlias: string, semestreAlias: string, ueId: string): { ue: UeMoyenne; annee: string } | undefined {
+  const anneeCourante = getClasseById(classeId)?.annee;
+  if (!anneeCourante) return undefined;
+  const precedentes = getInscriptionsByEtudiant(etudiantId)
+    .filter((i) => i.filiereId === filiereId && i.niveau === niveauAlias && i.classeId !== classeId && i.annee < anneeCourante);
+  for (const insc of precedentes) {
+    const ue = computeBulletin(etudiantId, insc.classeId, filiereId, niveauAlias, semestreAlias).ues.find((u) => u.id === ueId);
+    if (ue && (ue.validee || ue.valideeParCompensation)) return { ue: { ...ue, creditsObtenus: ue.credits }, annee: insc.annee };
+  }
+  return undefined;
 }
 
 /** Variante pratique pour itérer tout le monde d'une classe : dérive filiereId/niveau de la
  * classe elle-même plutôt que de les faire fournir par l'appelant. */
-export function computeBulletinPourClasse(etudiantId: string, classeId: string, semestreAlias: string): BulletinEtudiant | undefined {
+export function computeBulletinPourClasse(etudiantId: string, classeId: string, semestreAlias: string, options: OptionsBulletin = {}): BulletinEtudiant | undefined {
   const classe = getClasseById(classeId);
   if (!classe) return undefined;
-  return computeBulletin(etudiantId, classeId, classe.filiereId, classe.niveau, semestreAlias);
+  return computeBulletin(etudiantId, classeId, classe.filiereId, classe.niveau, semestreAlias, options);
 }
 
 export interface MoyenneAnnuelle {
@@ -195,7 +317,7 @@ export function computeMoyenneAnnuelle(etudiantId: string, classeId: string, fil
   const bulletins = semestres.map((s) => computeBulletin(etudiantId, classeId, filiereId, niveauAlias, s.alias));
   const elements: ElementPondere[] = bulletins
     .filter((b) => b.moyenneSession !== undefined)
-    .map((b) => ({ moyenne: b.moyenneSession!, coeff: b.creditsTotal, credits: b.creditsTotal }));
+    .map((b) => ({ moyenne: b.moyenneSession!, credits: b.creditsTotal }));
 
   const moyenne = appliquerMethodeCalcul("moyenneAnnee", codeMoyAnnee, elements);
   const creditsObtenus = bulletins.reduce((s, b) => s + b.creditsObtenus, 0);
@@ -261,8 +383,32 @@ export function computeMoyenneProgramme(etudiantId: string, filiereId: string): 
 
   const elements: ElementPondere[] = anneesRetenues
     .filter((a) => a.moyenne !== undefined)
-    .map((a) => ({ moyenne: a.moyenne!, coeff: 1, credits: a.credits }));
+    .map((a) => ({ moyenne: a.moyenne!, credits: a.credits }));
   const moyenne = appliquerMethodeCalcul("moyenneProgramme", codeMoyProgramme, elements);
 
   return { moyenne, anneesRetenues: anneesRetenues.map(({ annee, niveau, moyenne }) => ({ annee, niveau, moyenne })) };
+}
+
+/** Libellé du résultat d'une UE, identique sur le relevé, le bulletin et le portail étudiant. */
+export function libelleResultatUe(ue: UeMoyenne): string {
+  if (ue.moyenne === undefined && !ue.capitalisee) return "En attente";
+  if (ue.valideeParJury) return "UE acquise par décision du jury";
+  if (ue.capitalisee) return `UE acquise en ${ue.capitalisee.annee}`;
+  if (ue.valideeParCompensation) return "UE acquise par compensation";
+  return ue.validee ? "UE acquise" : "UE non acquise";
+}
+
+/** Vrai si l'UE rapporte ses crédits (acquise, repêchée, capitalisée ou compensée). */
+export function ueAcquise(ue: UeMoyenne): boolean {
+  return ue.validee || !!ue.valideeParCompensation;
+}
+
+/** Règle UCAO du rattrapage : l'étudiant repasse toutes les matières d'une UE non acquise à la
+ * session normale — sauf si le jury l'a repêchée ou s'il l'a acquise une année précédente. Tant
+ * que l'UE n'a pas de moyenne, ses notes normales restent à saisir : pas encore de rattrapage. */
+export function doitRattraperUe(etudiantId: string, classeId: string, filiereId: string, niveauAlias: string, semestreAlias: string, ueId: string): boolean {
+  const ue = computeBulletin(etudiantId, classeId, filiereId, niveauAlias, semestreAlias, { sessionNormale: true }).ues.find((u) => u.id === ueId);
+  if (!ue || ue.moyenne === undefined) return false;
+  if (ue.validee || ue.valideeParCompensation || ue.capitalisee) return false;
+  return !getRepechageUe(etudiantId, classeId, ueId);
 }

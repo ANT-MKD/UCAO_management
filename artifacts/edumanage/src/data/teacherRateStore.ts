@@ -1,6 +1,10 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-rates-v1";
 
 export type ModePaiementProf = "" | "taux_horaire" | "forfait";
+
+/** Abattement proposé tant qu'aucun n'a été saisi pour un cours (en %). */
+export const TAUX_ABATTEMENT_DEFAUT = 5;
 
 export interface TeacherCourseRateRecord {
   id: string;
@@ -34,7 +38,7 @@ let store: TeacherCourseRateRecord[] = load();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

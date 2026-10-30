@@ -14,10 +14,13 @@ import { useDeliberationsAnnuelles } from "@/hooks/useDeliberationAnnuelleStore"
 import {
   chargerDeliberationAnnuelle, overrideDecisionAnnuelle, cloturerDeliberationAnnuelle, reouvrirDeliberationAnnuelle,
   DECISION_ANNUELLE_LABELS,
-  type DeliberationAnnuelleRecord, type DecisionAnnuelle,
+  type DeliberationAnnuelleRecord, type DeliberationAnnuelleLigne, type DecisionAnnuelle,
 } from "@/data/deliberationAnnuelleStore";
+import { formatNote } from "@/lib/notes";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
+import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
+import { MotifModal } from "@/components/admin/MotifModal";
 
 const DECISION_CONFIG: Record<DecisionAnnuelle, { label: string; color: string; bg: string; icon: React.ElementType; border: string }> = {
   admis: { label: DECISION_ANNUELLE_LABELS.admis, color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/50", icon: CheckCircle2, border: "border-emerald-200 dark:border-emerald-800" },
@@ -38,8 +41,13 @@ function Badge({ children, tone = "muted" }: { children: React.ReactNode; tone?:
   return <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap", tones[tone])}>{children}</span>;
 }
 
+/** L'UCAO ne calcule pas de moyenne annuelle : on montre chaque semestre (moyenne, crédits). */
+function resumeSemestres(l: DeliberationAnnuelleLigne): string {
+  if (!l.semestres || l.semestres.length === 0) return formatNote(l.moyenneAnnuelle);
+  return l.semestres.map((s) => `${s.semestreAlias} : ${formatNote(s.moyenne)} (${s.creditsObtenus}/${s.creditsTotal} cr.)`).join(" · ");
+}
+
 function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const rows = deliberation.lignes
     .map((l) => {
       const cfg = DECISION_CONFIG[l.decisionFinale];
@@ -47,7 +55,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:10px;">${l.matricule}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${l.etudiant}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${l.moyenneAnnuelle.toFixed(2)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${resumeSemestres(l)}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${l.creditsObtenus}/${l.creditsTotal}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;">${cfg.label.toUpperCase()}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:10px;">${dette}</td>
@@ -66,6 +74,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
     .sig-box { border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-family: Arial, sans-serif; font-size: 10px; color: #6b7280; }
   </style>
   </head><body>
+    ${enteteEtablissementHtml()}
     <h1>Procès-verbal de délibération annuelle</h1>
     <div class="meta">
       <strong>Filière :</strong> ${deliberation.filiere} — ${deliberation.niveauLabel} — ${deliberation.annee}<br/>
@@ -74,13 +83,13 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
       <strong>Statut :</strong> ${deliberation.statut === "cloturee" ? "Clôturée" : deliberation.statut === "reouverte" ? "Réouverte" : "En cours"}
     </div>
     <table>
-      <thead><tr><th>Matricule</th><th>Étudiant</th><th style="text-align:center;">Moyenne</th><th style="text-align:center;">Crédits</th><th style="text-align:center;">Décision</th><th>UE en dette</th></tr></thead>
+      <thead><tr><th>Matricule</th><th>Étudiant</th><th style="text-align:center;">Semestres</th><th style="text-align:center;">Crédits de l'année</th><th style="text-align:center;">Décision</th><th>UE en dette</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="signatures">
       <div class="sig-box">Le Président du jury<br/><br/><br/>Signature</div>
       <div class="sig-box">Le Secrétaire<br/><br/><br/>Signature</div>
-      <div class="sig-box">Fait le ${now}</div>
+      <div class="sig-box">${faitALe()}</div>
     </div>
     <script>window.onload = function(){ window.print(); }</script>
   </body></html>`;
@@ -133,7 +142,7 @@ export default function DeliberationAnnuellePage() {
       render: (row) => {
         const d = row as unknown as DeliberationAnnuelleRecord;
         return (
-          <button onClick={() => open(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors">
+          <button aria-label="Voir le détail" title="Voir le détail" onClick={() => open(d.id)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors">
             <Eye size={14} />
           </button>
         );
@@ -146,7 +155,7 @@ export default function DeliberationAnnuellePage() {
       <PageHeader
         breadcrumb={[{ label: "Admin" }, { label: "Évaluations" }, { label: "Délibération annuelle" }]}
         title="Délibération annuelle"
-        subtitle="Bilan de l'année : moyenne annuelle, crédits cumulés, passage conditionnel (AJAC)"
+        subtitle="Bilan de l'année sur les crédits des deux semestres : admis (60 crédits), passage avec dette (42 crédits par défaut), redoublement"
         actions={
           mode === "liste" ? (
             <button onClick={() => setMode("form")} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
@@ -163,7 +172,7 @@ export default function DeliberationAnnuellePage() {
       {mode === "liste" && (
         <>
           <div className="mb-4 max-w-sm">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, utilisateur..." className={inputClass} />
+            <input aria-label="Classe, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, utilisateur..." className={inputClass} />
           </div>
           <DataTable columns={columns} data={filtered as unknown as Record<string, unknown>[]} emptyMessage="Aucune délibération annuelle — lancez-en une nouvelle." />
         </>
@@ -267,31 +276,31 @@ function NouvelleDeliberationAnnuelleForm({ annees, classes, niveaux, etudiants,
     <div className="max-w-3xl bg-card border border-border rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-sm)" }}>
       <h3 className="text-sm font-bold text-foreground">Délibération annuelle</h3>
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-        <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); }} className={inputClass}>
+        <label htmlFor="deliberation-annuelle-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+        <select id="deliberation-annuelle-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setClasseId(""); }} className={inputClass}>
           <option value="">Sélectionner</option>
           {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.nom} — {f.code}</option>)}
         </select>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-          <select value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")}>
+          <label htmlFor="deliberation-annuelle-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+          <select id="deliberation-annuelle-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setClasseId(""); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")}>
             <option value="">Sélectionner</option>
             {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-          <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")}>
+          <label htmlFor="deliberation-annuelle-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+          <select id="deliberation-annuelle-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setClasseId(""); }} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")}>
             <option value="">Sélectionner</option>
             {niveauxDisponibles.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
           </select>
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-        <select value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")}>
+        <label htmlFor="deliberation-annuelle-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+        <select id="deliberation-annuelle-champ-4" value={classeId} onChange={(e) => setClasseId(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")}>
           <option value="">Sélectionner</option>
           {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
         </select>
@@ -324,12 +333,15 @@ function DetailDeliberationAnnuelle({
   const deliberations = useDeliberationsAnnuelles();
   const deliberation = deliberations.find((d) => d.id === deliberationId);
   const [decisionFilter, setDecisionFilter] = useState("");
+  const [correction, setCorrection] = useState<{ etudiantId: string; etudiant: string; decision: DecisionAnnuelle; decisionAuto: DecisionAnnuelle } | null>(null);
 
   if (!deliberation) {
     return <div className="bg-card border border-border rounded-xl p-10 text-center text-sm text-muted-foreground">Délibération introuvable.</div>;
   }
 
   const cloture = deliberation.statut === "cloturee";
+  const regleAnnee = reglesValidation.find((r) => r.filiereId === deliberation.filiereId && r.type === "annee");
+  const creditsAnnee = regleAnnee?.validationParCredit ? regleAnnee.creditPassage : 60;
   const displayedLignes = decisionFilter ? deliberation.lignes.filter((l) => l.decisionFinale === decisionFilter) : deliberation.lignes;
 
   const stats = {
@@ -341,9 +353,11 @@ function DetailDeliberationAnnuelle({
   };
   const tauxReussite = stats.total > 0 ? Math.round(((stats.admis + stats.avecDette) / stats.total) * 100) : 0;
 
+  /** Revenir à la décision calculée ne demande rien ; une correction manuelle demande son motif. */
   const handleOverride = (etudiantId: string, decision: DecisionAnnuelle, decisionAuto: DecisionAnnuelle) => {
-    const raison = decision !== decisionAuto ? (window.prompt("Motif de la correction manuelle (optionnel) :") ?? "") : "";
-    overrideDecisionAnnuelle(deliberationId, etudiantId, decision, raison, auteur);
+    if (decision === decisionAuto) { overrideDecisionAnnuelle(deliberationId, etudiantId, decision, "", auteur); return; }
+    const etudiant = deliberation.lignes.find((l) => l.etudiantId === etudiantId)?.etudiant ?? "";
+    setCorrection({ etudiantId, etudiant, decision, decisionAuto });
   };
 
   const handleRecharger = () => {
@@ -435,7 +449,7 @@ function DetailDeliberationAnnuelle({
             <Scale size={16} className="text-primary" />
             <h3 className="text-sm font-bold text-foreground">Bilan annuel des étudiants</h3>
           </div>
-          <select value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background">
+          <select aria-label="Statut" value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)} className="px-3 py-2 text-xs border border-border rounded-xl bg-background">
             <option value="">Statut</option>
             <option value="admis">Admis</option>
             <option value="admis_avec_dette">Admis avec dette</option>
@@ -448,10 +462,10 @@ function DetailDeliberationAnnuelle({
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 <th className="text-left text-xs font-semibold text-muted-foreground px-5 py-3">Étudiant</th>
-                <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Moyenne annuelle</th>
+                <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Semestres</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Crédits</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-5 py-3">Décision</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground px-3 py-3">UE en dette</th>
+                <th className="text-left text-xs font-semibold text-muted-foreground px-3 py-3">UE non acquises (à rattraper)</th>
                 <th className="text-center text-xs font-semibold text-muted-foreground px-3 py-3">Détails</th>
               </tr>
             </thead>
@@ -463,8 +477,8 @@ function DetailDeliberationAnnuelle({
                 return (
                   <tr key={l.etudiantId} className={cn("border-b border-border last:border-0", i % 2 === 0 ? "bg-background" : "bg-muted/20")}>
                     <td className="px-5 py-3"><div className="font-semibold text-sm text-foreground">{l.matricule} - {l.etudiant}</div></td>
-                    <td className="px-3 py-3 text-center"><span className={cn("text-sm font-bold font-mono", l.moyenneAnnuelle >= 10 ? "text-emerald-600" : "text-red-600")}>{l.moyenneAnnuelle.toFixed(2)}</span></td>
-                    <td className="px-3 py-3 text-center text-sm">{l.creditsObtenus}/{l.creditsTotal}</td>
+                    <td className="px-3 py-3 text-center text-xs text-muted-foreground" data-testid={`deliberation-annuelle-semestres-${l.etudiantId}`}>{resumeSemestres(l)}</td>
+                    <td className="px-3 py-3 text-center"><span className={cn("text-sm font-bold font-mono", l.creditsObtenus >= creditsAnnee ? "text-emerald-600" : "text-red-600")}>{l.creditsObtenus}/{l.creditsTotal}</span></td>
                     <td className="px-5 py-3">
                       {editing && !cloture ? (
                         <div className="flex items-center gap-1 justify-center flex-wrap">
@@ -509,6 +523,20 @@ function DetailDeliberationAnnuelle({
           </table>
         </div>
       </div>
+
+      <MotifModal
+        open={!!correction}
+        title="Correction manuelle de la décision annuelle"
+        description={correction && <>Décision de <strong>{correction.etudiant}</strong> : {DECISION_CONFIG[correction.decisionAuto].label} → <strong>{DECISION_CONFIG[correction.decision].label}</strong>.</>}
+        libelleConfirmer="Corriger la décision"
+        placeholder="ex : décision du jury après examen du dossier"
+        onCancel={() => setCorrection(null)}
+        onConfirm={(motif) => {
+          if (correction) overrideDecisionAnnuelle(deliberationId, correction.etudiantId, correction.decision, motif, auteur);
+          setCorrection(null);
+        }}
+        testId="correction-decision-annuelle"
+      />
     </div>
   );
 }
@@ -523,7 +551,7 @@ function DrillDownEtudiantAnnuel({ deliberationId, etudiantId, onClose }: { deli
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h3 className="text-base font-bold text-foreground">Bilan annuel — {ligne?.etudiant ?? ""}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
+          <button aria-label="Fermer" title="Fermer" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X size={16} /></button>
         </div>
         <div className="p-6 space-y-4">
           {!ligne ? (

@@ -1,14 +1,17 @@
 ﻿import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, Pencil, Trash2, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, ListPlus } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { KPICard } from "@/components/admin/KPICard";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { CurriculumImportButton } from "@/components/admin/CurriculumImportButton";
 import { MaquetteExportButton } from "@/components/admin/MaquetteExportButton";
-import { deleteUe, type UeRecord } from "@/data/curriculumStore";
+import { type UeRecord } from "@/data/curriculumStore";
 import { useUes, useEcs } from "@/hooks/useCurriculumStore";
 import { FILIERES } from "@/data/mockData";
+import { verifierSuppressionUe, supprimerUe } from "@/data/suppressionReferentiel";
+import { confirmerSuppression } from "@/lib/suppression";
+import { useAuth } from "@/contexts/AuthContext";
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   Obligatoire: { bg: "#eff6ff", color: "#2563eb" },
@@ -20,6 +23,8 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 export default function UEsPage() {
+  const { currentUser } = useAuth();
+  const acteur = currentUser?.id ?? "admin";
   const [, setLocation] = useLocation();
   const ues = useUes();
   const ecs = useEcs();
@@ -66,13 +71,24 @@ export default function UEsPage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <button onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ues/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button aria-label="Modifier" title="Modifier" onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ues/${r.id}/edit`); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setLocation(`/admin/ecs/new?ue=${r.id}`); }}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+            title="Ajouter un EC à cette UE"
+            aria-label="Ajouter un EC à cette UE"
+            data-testid={`ue-ajouter-ec-${r.id}`}
+          >
+            <ListPlus size={14} />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer l'UE ${r.code} et ses EC ?`)) deleteUe(r.id);
+              confirmerSuppression(verifierSuppressionUe(r.id), `Supprimer l'UE ${r.code} et ses EC ?`, () => supprimerUe(r.id, acteur), "UE supprimée");
             }}
             className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label={`Supprimer l'UE ${r.code}`}
+            data-testid={`ue-supprimer-${r.id}`}
           >
             <Trash2 size={14} />
           </button>
@@ -100,15 +116,15 @@ export default function UEsPage() {
         }
       />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-        <select className={selectClass} value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setSemestre(""); }}>
+        <select aria-label="Toutes les filières" className={selectClass} value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); setSemestre(""); }}>
           <option value="">Toutes les filières</option>
           {FILIERES.map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
         </select>
-        <select className={selectClass} value={niveau} onChange={(e) => { setNiveau(e.target.value); setSemestre(""); }}>
+        <select aria-label="Tous les niveaux" className={selectClass} value={niveau} onChange={(e) => { setNiveau(e.target.value); setSemestre(""); }}>
           <option value="">Tous les niveaux</option>
           {niveaux.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <select className={selectClass} value={semestre} onChange={(e) => setSemestre(e.target.value)}>
+        <select aria-label="Tous les semestres" className={selectClass} value={semestre} onChange={(e) => setSemestre(e.target.value)}>
           <option value="">Tous les semestres</option>
           {semestres.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>

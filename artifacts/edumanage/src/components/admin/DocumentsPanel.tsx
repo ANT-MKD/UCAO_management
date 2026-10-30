@@ -1,3 +1,4 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useRef } from "react";
 import { Upload, Trash2, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
@@ -22,23 +23,19 @@ export function DocumentsPanel({ entiteType, entiteId }: Props) {
 
   const handleFile = (file: File | undefined) => {
     if (!file || !currentUser) return;
-    if (file.size > TAILLE_MAX_DOCUMENT_OCTETS) {
-      toast.error(`Fichier trop lourd (max ${Math.round(TAILLE_MAX_DOCUMENT_OCTETS / 1024)} Ko).`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
+    lireFichierPourStockage(file, { maxOctets: TAILLE_MAX_DOCUMENT_OCTETS, usagePhoto: "document" })
+      .then((dataUrl) => {
       addDocument({
         entiteType,
         entiteId,
         nom: file.name,
-        dataUrl: String(reader.result),
-        tailleOctets: file.size,
+        dataUrl: dataUrl,
+        tailleOctets: Math.round(dataUrl.length * 0.75),
         ajoutePar: currentUser.name,
       }, currentUser.id);
       toast.success("Document ajouté.");
-    };
-    reader.readAsDataURL(file);
+    })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -71,10 +68,10 @@ export function DocumentsPanel({ entiteType, entiteId }: Props) {
                 <div className="text-sm font-medium text-foreground truncate">{d.nom}</div>
                 <div className="text-[10px] text-muted-foreground">{formatTaille(d.tailleOctets)} · {formatDate(d.ajouteLe.slice(0, 10))} · {d.ajoutePar}</div>
               </div>
-              <a href={d.dataUrl} download={d.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`document-telecharger-${d.id}`}>
+              <a aria-label="Télécharger" title="Télécharger" href={d.dataUrl} download={d.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`document-telecharger-${d.id}`}>
                 <Download size={14} />
               </a>
-              <button onClick={() => handleDelete(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`document-supprimer-${d.id}`}>
+              <button aria-label="Supprimer" title="Supprimer" onClick={() => handleDelete(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 flex-shrink-0" data-testid={`document-supprimer-${d.id}`}>
                 <Trash2 size={14} />
               </button>
             </div>

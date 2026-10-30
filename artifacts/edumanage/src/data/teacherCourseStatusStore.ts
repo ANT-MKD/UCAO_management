@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-course-status-v1";
 
 export type TypeComptabilisation = "" | "normal" | "a_terme";
@@ -32,7 +33,7 @@ let store: TeacherCourseStatusRecord[] = load();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }

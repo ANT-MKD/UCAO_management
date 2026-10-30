@@ -110,7 +110,7 @@ export default function TeacherContractAvenantPage({ id }: { id: string }) {
     return (
       <div>
         <PageHeader
-          breadcrumb={[{ label: "Accueil" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
+          breadcrumb={[{ label: "Admin" }, { label: "Professeurs" }, { label: "Les contrats Professeur", href: "/admin/teachers/contracts" }]}
           title="Contrat introuvable"
         />
       </div>
@@ -148,7 +148,8 @@ export default function TeacherContractAvenantPage({ id }: { id: string }) {
     <div>
       <PageHeader
         breadcrumb={[
-          { label: "Accueil" },
+          { label: "Admin" },
+          { label: "Professeurs" },
           { label: "Les contrats Professeur", href: "/admin/teachers/contracts" },
           { label: contract.id, href: `/admin/teachers/contracts/${contract.id}` },
           { label: "Nouvel avenant" },
@@ -160,17 +161,17 @@ export default function TeacherContractAvenantPage({ id }: { id: string }) {
       <div className="bg-card border border-border rounded-xl p-6 space-y-4 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            <label htmlFor="teacher-contract-avenant-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
               Nouvelle fin de contrat <span className="text-red-500">*</span>
             </label>
-            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} />
+            <input id="teacher-contract-avenant-champ-1" type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={inputClass} />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="teacher-contract-avenant-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Motif de l&apos;avenant <span className="text-red-500">*</span>
           </label>
-          <textarea
+          <textarea id="teacher-contract-avenant-champ-2"
             value={motif}
             onChange={(e) => setMotif(e.target.value)}
             rows={3}

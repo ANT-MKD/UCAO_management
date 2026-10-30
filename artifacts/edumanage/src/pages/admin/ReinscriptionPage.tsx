@@ -6,7 +6,6 @@ import {
   CreditCard, GraduationCap,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { StatusBadge } from "@/components/admin/StatusBadge";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { getGrilleFrais } from "@/data/grilleFraisStore";
@@ -23,13 +22,15 @@ import {
   emettreQuittanceBrute,
   type EtudiantRecord,
 } from "@/data/studentStore";
-import { checkReinscriptionEligibility, getDerniereLigneDeliberation } from "@/data/reinscriptionEligibility";
+import { checkReinscriptionEligibility, getDerniereDecisionAnnuelle, getDerniereLigneDeliberation, LIBELLE_DECISION_REINSCRIPTION } from "@/data/reinscriptionEligibility";
+import { DECISION_ANNUELLE_LABELS } from "@/data/deliberationAnnuelleStore";
 import { DECISION_LABELS } from "@/data/deliberationStore";
 import { useAnneeActuelle } from "@/hooks/useStudentStore";
 import { useDerogationsPaiement } from "@/hooks/useDerogationPaiementStore";
 import { derogationActivePour } from "@/data/derogationPaiementStore";
 import { cn, formatCFA, formatShortDate } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNote } from "@/lib/notes";
 
 const STEPS = [
   { id: 1, label: "Recherche", icon: Search },
@@ -127,7 +128,9 @@ export default function ReinscriptionPage() {
       : Math.round(fraisRef.scolariteAnnuelle / 10);
   }, [fraisRef, form4.watch("modeScolarite")]);
 
-  const ligneDeliberation = student ? getDerniereLigneDeliberation(student.id) : undefined;
+  // Le passage se décide sur l'année : le jury de semestre ne sert de repère qu'en l'absence de délibération annuelle.
+  const decisionAnnuelle = student ? getDerniereDecisionAnnuelle(student.id) : undefined;
+  const ligneDeliberation = student && !decisionAnnuelle ? getDerniereLigneDeliberation(student.id) : undefined;
   const niveauCible = NIVEAUX.find((n) => n.id === selectedNiveau);
   const eligibility = student ? checkReinscriptionEligibility(student.id, niveauCible) : null;
   const derogations = useDerogationsPaiement();
@@ -320,11 +323,23 @@ export default function ReinscriptionPage() {
               )}
             </div>
             <div className="rounded-xl border border-border p-4 bg-card">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Dernière délibération</p>
-              {ligneDeliberation ? (
-                <p className="text-sm">
-                  Statut : <StatusBadge status={ligneDeliberation.decisionFinale === "admis" ? "actif" : "suspendu"} />
-                  {" · "}{DECISION_LABELS[ligneDeliberation.decisionFinale]} · Moyenne : {ligneDeliberation.moyenne.toFixed(2)}
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                {decisionAnnuelle ? `Délibération annuelle ${decisionAnnuelle.annee}` : "Dernière délibération de semestre"}
+              </p>
+              {decisionAnnuelle ? (
+                <p className="text-sm" data-testid="reinscription-deliberation">
+                  <span className={cn("font-semibold", decisionAnnuelle.ligne.decisionFinale === "admis" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+                    {DECISION_ANNUELLE_LABELS[decisionAnnuelle.ligne.decisionFinale]}
+                  </span>
+                  {" · "}{decisionAnnuelle.ligne.creditsObtenus}/{decisionAnnuelle.ligne.creditsTotal} crédits de l&apos;année
+                </p>
+              ) : ligneDeliberation ? (
+                <p className="text-sm" data-testid="reinscription-deliberation">
+                  <span className={cn("font-semibold", ligneDeliberation.decisionFinale === "admis" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+                    {DECISION_LABELS[ligneDeliberation.decisionFinale]}
+                  </span>
+                  {" · "}Moyenne : {formatNote(ligneDeliberation.moyenne)}
+                  <span className="block text-xs text-muted-foreground mt-0.5">L&apos;année n&apos;a pas encore été délibérée.</span>
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Pas encore de délibération enregistrée</p>
@@ -332,6 +347,19 @@ export default function ReinscriptionPage() {
             </div>
           </div>
 
+          {eligibility && (
+            <div className={cn(
+              "rounded-xl p-3 text-xs",
+              eligibility.decision === "allowed" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+              eligibility.decision === "conditional" && "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
+              eligibility.decision === "blocked" && "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
+            )} data-testid="reinscription-decision">
+              <p className="font-semibold mb-1">Réinscription : {LIBELLE_DECISION_REINSCRIPTION[eligibility.decision]}</p>
+              <ul className="list-disc ml-4">
+                {eligibility.reasons.map((r) => <li key={r}>{r}</li>)}
+              </ul>
+            </div>
+          )}
           <div className="flex gap-3">
             <button onClick={() => setCurrentStep(1)} className="flex-1 py-2.5 border border-border rounded-xl text-sm hover:bg-muted">
               Retour
@@ -339,36 +367,25 @@ export default function ReinscriptionPage() {
             <button
               onClick={() => setCurrentStep(3)}
               disabled={eligibility?.decision === "blocked"}
-              className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 flex items-center justify-center gap-2"
+              title={eligibility?.decision === "blocked" ? "Réinscription bloquée : voir les motifs ci-dessus" : undefined}
+              className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 flex items-center justify-center gap-2 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
+              data-testid="reinscription-continuer"
             >
               Continuer <ArrowRight size={15} />
             </button>
           </div>
-          {eligibility && (
-            <div className={cn(
-              "rounded-xl p-3 text-xs",
-              eligibility.decision === "allowed" && "bg-emerald-50 text-emerald-700",
-              eligibility.decision === "conditional" && "bg-amber-50 text-amber-800",
-              eligibility.decision === "blocked" && "bg-red-50 text-red-700",
-            )}>
-              <p className="font-semibold mb-1">Décision: {eligibility.decision}</p>
-              <ul className="list-disc ml-4">
-                {eligibility.reasons.map((r) => <li key={r}>{r}</li>)}
-              </ul>
-            </div>
-          )}
         </div>
       )}
 
       {currentStep === 3 && student && (
-        <form onSubmit={handleStep3} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
+        <form noValidate onSubmit={handleStep3} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
           <h3 className="font-bold flex items-center gap-2">
             <GraduationCap size={18} className="text-primary" /> Inscription académique {anneeActuelle}
           </h3>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-            <select {...form3.register("filiereId", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+            <select id="reinscription-champ-1" {...form3.register("filiereId", { required: true })} className={inputClass}>
               <option value="">— Choisir —</option>
               {FILIERES.filter((f) => f.statut === "actif").map((f) => (
                 <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>
@@ -377,8 +394,8 @@ export default function ReinscriptionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-            <select {...form3.register("niveauId", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+            <select id="reinscription-champ-2" {...form3.register("niveauId", { required: true })} className={inputClass}>
               <option value="">— Choisir —</option>
               {niveauxFiliere.map((n) => (
                 <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>
@@ -387,8 +404,8 @@ export default function ReinscriptionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-            <select {...form3.register("classeId", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+            <select id="reinscription-champ-3" {...form3.register("classeId", { required: true })} className={inputClass}>
               <option value="">— Choisir —</option>
               {classesDispo.map((c) => (
                 <option key={c.id} value={c.id}>{c.nom} ({c.inscrits}/{c.max})</option>
@@ -397,8 +414,8 @@ export default function ReinscriptionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut inscription</label>
-            <select {...form3.register("statut", { required: true })} className={inputClass}>
+            <label htmlFor="reinscription-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut inscription</label>
+            <select id="reinscription-champ-4" {...form3.register("statut", { required: true })} className={inputClass}>
               {STATUTS_INSCRIPTION.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
@@ -417,7 +434,7 @@ export default function ReinscriptionPage() {
       )}
 
       {currentStep === 4 && student && (
-        <form onSubmit={handleStep4} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
+        <form noValidate onSubmit={handleStep4} className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-4">
           <h3 className="font-bold flex items-center gap-2">
             <CreditCard size={18} className="text-primary" /> Paiement scolarité uniquement
           </h3>
@@ -427,8 +444,8 @@ export default function ReinscriptionPage() {
           </p>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Mode scolarité</label>
-            <select {...form4.register("modeScolarite")} className={inputClass}>
+            <label htmlFor="reinscription-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Mode scolarité</label>
+            <select id="reinscription-champ-5" {...form4.register("modeScolarite")} className={inputClass}>
               {MODES_SCOLARITE.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
@@ -442,22 +459,22 @@ export default function ReinscriptionPage() {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé</label>
-            <input type="number" {...form4.register("montant", { valueAsNumber: true })} className={inputClass} />
+            <label htmlFor="reinscription-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Montant versé</label>
+            <input id="reinscription-champ-6" type="number" {...form4.register("montant", { valueAsNumber: true })} className={inputClass} />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen</label>
-              <select {...form4.register("moyenPaiement")} className={inputClass}>
+              <label htmlFor="reinscription-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Moyen</label>
+              <select id="reinscription-champ-7" {...form4.register("moyenPaiement")} className={inputClass}>
                 {modesPaiement.map((m) => (
                   <option key={m.id} value={m.intitule}>{m.intitule}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
-              <select {...form4.register("statutPaiement")} className={inputClass}>
+              <label htmlFor="reinscription-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Statut</label>
+              <select id="reinscription-champ-8" {...form4.register("statutPaiement")} className={inputClass}>
                 {STATUTS_PAIEMENT.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { getEtudiantById, getUserAccounts, logAudit } from "./studentStore";
 import { envoyerMailSysteme } from "./mailEnvoyeStore";
 
@@ -36,7 +37,7 @@ let store: RelanceRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -76,7 +77,7 @@ export function envoyerRelancePaiement(etudiantId: string, delaiJours: number, a
 
   store = store.map((r) => (r.etudiantId === etudiantId && r.statut === "active" ? { ...r, statut: "annulee" as const } : r));
   const record: RelanceRecord = {
-    id: `relance-${Date.now()}`,
+    id: `relance-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     etudiantId,
     dateEnvoi: now.toISOString().slice(0, 10),
     dateEcheance,

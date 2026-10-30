@@ -130,23 +130,23 @@ export default function BasculeAnneePage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5 space-y-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
-          <select value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="bascule-annee-programme">
+          <label htmlFor="bascule-annee-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Programme *</label>
+          <select id="bascule-annee-champ-1" value={filiereId} onChange={(e) => { setFiliereId(e.target.value); setNiveauId(""); setSelectedIds(new Set()); }} className={inputClass} data-testid="bascule-annee-programme">
             <option value="">Sélectionner</option>
             {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
           </select>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
-            <select value={annee} onChange={(e) => { setAnnee(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="bascule-annee-annee">
+            <label htmlFor="bascule-annee-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Choix année scolaire *</label>
+            <select id="bascule-annee-champ-2" value={annee} onChange={(e) => { setAnnee(e.target.value); setSelectedIds(new Set()); }} className={inputClass} data-testid="bascule-annee-annee">
               <option value="">Sélectionner</option>
               {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-            <select value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSelectedIds(new Set()); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bascule-annee-niveau">
+            <label htmlFor="bascule-annee-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+            <select id="bascule-annee-champ-3" value={niveauId} onChange={(e) => { setNiveauId(e.target.value); setSelectedIds(new Set()); }} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bascule-annee-niveau">
               <option value="">Sélectionner</option>
               {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
             </select>
@@ -172,15 +172,15 @@ export default function BasculeAnneePage() {
           <>
             <div className="p-5 border-b border-border grid sm:grid-cols-3 gap-4 items-end bg-muted/20">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau cible *</label>
-                <select value={niveauCibleId} onChange={(e) => setNiveauCibleId(e.target.value)} className={inputClass} data-testid="bascule-annee-niveau-cible">
+                <label htmlFor="bascule-annee-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau cible *</label>
+                <select id="bascule-annee-champ-4" value={niveauCibleId} onChange={(e) => setNiveauCibleId(e.target.value)} className={inputClass} data-testid="bascule-annee-niveau-cible">
                   <option value="">Sélectionner</option>
                   {NIVEAUX.filter((n) => n.filiereId === filiereId).map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année cible *</label>
-                <select value={anneeCible} onChange={(e) => setAnneeCible(e.target.value)} className={inputClass} data-testid="bascule-annee-annee-cible">
+                <label htmlFor="bascule-annee-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Année cible *</label>
+                <select id="bascule-annee-champ-5" value={anneeCible} onChange={(e) => setAnneeCible(e.target.value)} className={inputClass} data-testid="bascule-annee-annee-cible">
                   <option value="">Sélectionner</option>
                   {[...ANNEES_ACADEMIQUES.map((a) => a.libelle), anneeSuivante(annee)]
                     .filter((v, i, arr) => v && arr.indexOf(v) === i)

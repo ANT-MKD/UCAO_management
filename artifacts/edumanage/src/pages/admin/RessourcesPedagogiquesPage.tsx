@@ -31,8 +31,8 @@ export default function RessourcesPedagogiquesPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe pédagogique <span className="text-red-500">*</span></label>
-          <select
+          <label htmlFor="ressources-pedagogiques-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe pédagogique <span className="text-red-500">*</span></label>
+          <select id="ressources-pedagogiques-champ-1"
             value={classeId}
             onChange={(e) => { setClasseId(e.target.value); setEcId(""); }}
             className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -45,8 +45,8 @@ export default function RessourcesPedagogiquesPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Module (EC) — optionnel</label>
-          <select
+          <label htmlFor="ressources-pedagogiques-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Module (EC) — optionnel</label>
+          <select id="ressources-pedagogiques-champ-2"
             value={ecId}
             onChange={(e) => setEcId(e.target.value)}
             disabled={!classeId}
@@ -90,11 +90,11 @@ export default function RessourcesPedagogiquesPage() {
                       {r.description && <div className="text-xs text-muted-foreground mt-0.5">{r.description}</div>}
                     </div>
                     {r.url ? (
-                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-ouvrir-${r.id}`}>
+                      <a aria-label="Ouvrir" title="Ouvrir" href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-ouvrir-${r.id}`}>
                         <ExternalLink size={14} />
                       </a>
                     ) : (
-                      <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-telecharger-${r.id}`}>
+                      <a aria-label="Télécharger" title="Télécharger" href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary flex-shrink-0" data-testid={`ressource-telecharger-${r.id}`}>
                         <Download size={14} />
                       </a>
                     )}

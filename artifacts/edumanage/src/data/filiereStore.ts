@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 
 export interface FiliereRecord {
@@ -56,7 +57,7 @@ refreshSnapshot();
 
 function persist() {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filieres));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(filieres));
   }
   refreshSnapshot();
   notify();

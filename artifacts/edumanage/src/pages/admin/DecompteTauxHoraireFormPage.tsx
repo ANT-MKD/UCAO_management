@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
-import { Search, FileCheck2 } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Search, FileCheck2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ENSEIGNANTS } from "@/data/mockData";
@@ -11,30 +11,13 @@ import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import { useTeacherCourseStatuses } from "@/hooks/useTeacherCourseStatusStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useDecomptes } from "@/hooks/useDecompteStore";
-import { makeTeacherRateId } from "@/data/teacherRateStore";
-import { makeTeacherCourseStatusId } from "@/data/teacherCourseStatusStore";
+import { useVacations } from "@/hooks/useVacationStore";
 import { getPointageIdsDejaDecomptes, genererDecompte, type DecompteLigne } from "@/data/decompteStore";
-import { buildTeacherCourses, niveauLabel } from "@/lib/teacherCourseUtils";
+import { findVacationChevauchantDecompte } from "@/lib/remunerationOverlap";
+import { analyserDecompteTauxHoraire, type DiagnosticDecompte, type EligibleDecompteLine } from "@/lib/decompteEligibility";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatShortDate, cn } from "@/lib/utils";
-
-interface EligibleLine {
-  pointageId: string;
-  ecId: string;
-  classeId: string;
-  coursLabel: string;
-  duree: number;
-  date: string;
-  niveauLabel: string;
-  classeLabel: string;
-  anneeLabel: string;
-  semestreLabel: string;
-  montantBrut: number;
-  abattementPct: number;
-  abattementMontant: number;
-  montantNet: number;
-}
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -50,13 +33,14 @@ export default function DecompteTauxHoraireFormPage() {
   const teacherCourseStatuses = useTeacherCourseStatuses();
   const pointages = usePointages();
   const decomptes = useDecomptes();
+  const vacations = useVacations();
   const teachers = ENSEIGNANTS as EnseignantRecord[];
   const anneesAcademiques = useAnneesAcademiques();
   const anneeOptions = useMemo(
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -69,52 +53,12 @@ export default function DecompteTauxHoraireFormPage() {
 
   const pointageIdsDejaDecomptes = useMemo(() => getPointageIdsDejaDecomptes(), [decomptes]);
 
-  const eligibleLines: EligibleLine[] = useMemo(() => {
-    if (!selected) return [];
-    const courseItems = buildTeacherCourses(selected, seances, ecs, ues, classes, anneeScolaire);
-    const lines: EligibleLine[] = [];
-    for (const course of courseItems) {
-      const rateId = makeTeacherRateId(selected.id, course.ecId, course.classeId, anneeScolaire);
-      const rate = teacherRates.find((r) => r.id === rateId);
-      if (!rate || rate.modePaiement !== "taux_horaire" || rate.montant == null) continue;
-      const statusId = makeTeacherCourseStatusId(selected.id, course.ecId, course.classeId, anneeScolaire);
-      const status = teacherCourseStatuses.find((s) => s.id === statusId);
-      if (status?.typeComptabilisation === "a_terme") continue; // ces cours passent par le décompte "À terme"
-      const classe = classes.find((c) => c.id === course.classeId);
-      const ec = ecs.find((e) => e.id === course.ecId);
-      const ue = ec ? ues.find((u) => u.id === ec.ueId) : undefined;
-      const coursPointages = pointages.filter(
-        (p) =>
-          p.teacherId === selected.id &&
-          p.ecId === course.ecId &&
-          p.classeId === course.classeId &&
-          p.annee === anneeScolaire &&
-          p.statut === "valide" &&
-          !pointageIdsDejaDecomptes.has(p.id),
-      );
-      for (const p of coursPointages) {
-        const montantBrut = p.volumePointe * (rate.montant ?? 0);
-        const abattementMontant = (montantBrut * rate.tauxAbatt) / 100;
-        lines.push({
-          pointageId: p.id,
-          ecId: course.ecId,
-          classeId: course.classeId,
-          coursLabel: course.coursLabel,
-          duree: p.volumePointe,
-          date: p.date,
-          niveauLabel: classe ? niveauLabel(classe.niveau) : "",
-          classeLabel: classe?.nom ?? "",
-          anneeLabel: anneeScolaire,
-          semestreLabel: ue?.semestre ?? "",
-          montantBrut,
-          abattementPct: rate.tauxAbatt,
-          abattementMontant,
-          montantNet: montantBrut - abattementMontant,
-        });
-      }
-    }
-    return lines.sort((a, b) => a.date.localeCompare(b.date));
+  const analyse = useMemo(() => {
+    if (!selected) return null;
+    return analyserDecompteTauxHoraire(selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes);
   }, [selected, seances, ecs, ues, classes, anneeScolaire, teacherRates, teacherCourseStatuses, pointages, pointageIdsDejaDecomptes]);
+  const eligibleLines: EligibleDecompteLine[] = analyse?.lines ?? [];
+  const tauxFicheUtilise = eligibleLines.some((l) => l.sourceTaux === "fiche");
 
   const pickTeacher = (t: EnseignantRecord) => {
     setSelectedId(t.id);
@@ -136,6 +80,11 @@ export default function DecompteTauxHoraireFormPage() {
     if (checked.size === eligibleLines.length) setChecked(new Set());
     else setChecked(new Set(eligibleLines.map((l) => l.pointageId)));
   };
+
+  const vacationChevauchante = useMemo(
+    () => (selected ? findVacationChevauchantDecompte(selected.id, eligibleLines.map((l) => l.date), vacations) : undefined),
+    [selected, eligibleLines, vacations],
+  );
 
   const selectedLines = eligibleLines.filter((l) => checked.has(l.pointageId));
   const totalBrut = selectedLines.reduce((s, l) => s + l.montantBrut, 0);
@@ -183,12 +132,12 @@ export default function DecompteTauxHoraireFormPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-foreground whitespace-nowrap">
+          <label htmlFor="decompte-taux-horaire-form-champ-1" className="text-sm font-medium text-foreground whitespace-nowrap">
             Professeur <span className="text-red-500">*</span>
           </label>
           <div className="relative flex-1 min-w-[280px] max-w-2xl">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <input
+            <input id="decompte-taux-horaire-form-champ-1"
               type="search"
               value={query}
               onChange={(e) => {
@@ -239,16 +188,32 @@ export default function DecompteTauxHoraireFormPage() {
         </div>
       </div>
 
+      {selected && vacationChevauchante && (
+        <div className="flex items-start gap-2 p-3 mb-5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl">
+          <AlertTriangle size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-800 dark:text-amber-400">
+            {selected.prenom} {selected.nom} a déjà une vacation enregistrée pour {vacationChevauchante.mois}, qui chevauche des séances proposées ici — vérifiez qu&apos;il ne s&apos;agit pas d&apos;un double paiement avant de générer ce décompte.
+          </p>
+        </div>
+      )}
+
       {!selected ? (
         <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">
           Sélectionnez un professeur pour afficher ses pointages validés éligibles au décompte
         </div>
       ) : eligibleLines.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-xl py-20 text-center text-sm text-muted-foreground">
-          Aucun pointage validé, payé au taux horaire et non encore décompté pour {selected.prenom} {selected.nom} sur {anneeScolaire}
+        <div className="bg-card border border-dashed border-border rounded-xl py-12 px-6 text-center text-sm text-muted-foreground" data-testid="decompte-aucune-ligne">
+          <p>Aucun pointage à payer au taux horaire pour {selected.prenom} {selected.nom} sur {anneeScolaire}.</p>
+          {analyse && <RaisonsExclusion diagnostic={analyse.diagnostic} className="mt-4 max-w-xl mx-auto text-left" />}
         </div>
       ) : (
         <>
+          {analyse && <RaisonsExclusion diagnostic={analyse.diagnostic} className="mb-4" />}
+          {tauxFicheUtilise && (
+            <p className="text-xs text-muted-foreground mb-3" data-testid="decompte-taux-fiche">
+              Pour les cours sans taux propre, le taux horaire de la fiche du professeur ({formatCFA(Number(selected.tauxHoraire) || 0)} / h) et l&apos;abattement par défaut s&apos;appliquent. Pour un autre montant : <Link href="/admin/teachers/rates" className="text-primary hover:underline">Professeurs › Taux horaire / Forfait</Link>.
+            </p>
+          )}
           <div className="bg-muted/60 border border-border rounded-t-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm font-semibold text-foreground">
               {selected.matricule} — {selected.prenom} {selected.nom}
@@ -335,6 +300,46 @@ export default function DecompteTauxHoraireFormPage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+const pluriel = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
+
+/** Pointages validés mais absents de ce décompte, avec la raison et l'endroit où agir. */
+function RaisonsExclusion({ diagnostic, className }: { diagnostic: DiagnosticDecompte; className?: string }) {
+  const raisons: { texte: string; lien?: { href: string; libelle: string } }[] = [];
+  if (diagnostic.sansTaux) raisons.push({
+    texte: `${pluriel(diagnostic.sansTaux, "pointage validé attend", "pointages validés attendent")} un taux : aucun taux horaire n'est défini pour ces cours, ni sur la fiche du professeur.`,
+    lien: { href: "/admin/teachers/rates", libelle: "Définir le taux (Professeurs › Taux horaire / Forfait)" },
+  });
+  if (diagnostic.forfait) raisons.push({
+    texte: `${pluriel(diagnostic.forfait, "pointage concerne un cours payé", "pointages concernent des cours payés")} au forfait.`,
+    lien: { href: "/admin/decomptes/forfait/new", libelle: "Décompte au forfait" },
+  });
+  if (diagnostic.aTerme) raisons.push({
+    texte: `${pluriel(diagnostic.aTerme, "pointage concerne un cours comptabilisé", "pointages concernent des cours comptabilisés")} à terme.`,
+    lien: { href: "/admin/decomptes/a-terme/new", libelle: "Décompte à terme" },
+  });
+  if (diagnostic.enAttente) raisons.push({
+    texte: `${pluriel(diagnostic.enAttente, "pointage attend", "pointages attendent")} encore ${diagnostic.enAttente > 1 ? "leur" : "sa"} validation.`,
+    lien: { href: "/admin/teachers/pointage", libelle: "Valider les pointages" },
+  });
+  if (diagnostic.horsCours) raisons.push({
+    texte: `${pluriel(diagnostic.horsCours, "pointage validé porte", "pointages validés portent")} sur un cours qui n'existe plus cette année (EC ou classe supprimée, ou séances retirées de l'emploi du temps).`,
+  });
+  if (raisons.length === 0) return null;
+  return (
+    <div className={cn("rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-4 space-y-2", className)} data-testid="decompte-raisons">
+      {raisons.map((r) => (
+        <div key={r.texte} className="flex gap-2 text-sm text-amber-900 dark:text-amber-200">
+          <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+          <p>
+            {r.texte}
+            {r.lien && <> <Link href={r.lien.href} className="font-medium underline">{r.lien.libelle}</Link></>}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }

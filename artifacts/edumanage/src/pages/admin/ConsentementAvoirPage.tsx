@@ -140,7 +140,7 @@ export default function ConsentementAvoirPage() {
             <div className="max-w-xl">
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Nom, prénom ou matricule"
                   autoFocus
                   type="search"
                   placeholder="Nom, prénom ou matricule..."

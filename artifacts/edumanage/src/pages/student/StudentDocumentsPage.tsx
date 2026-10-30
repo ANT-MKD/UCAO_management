@@ -1,6 +1,7 @@
+import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { FileText, Printer, Eye, X, GraduationCap, Building2, BadgeCheck, ClipboardList, Search, Upload, CheckCircle2, AlertCircle, FolderOpen, MessageSquare } from "lucide-react";
+import { FileText, Printer, Eye, X, GraduationCap, Building2, BadgeCheck, ClipboardList, Search, Upload, CheckCircle2, AlertCircle, FolderOpen, MessageSquare, Hourglass, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore } from "@/hooks/useStudentStore";
@@ -13,6 +14,7 @@ import { DOCUMENTS_INSCRIPTION } from "@/lib/inscriptionConstants";
 import { FormModal } from "@/components/admin/FormModal";
 import { KPICard } from "@/components/admin/KPICard";
 import { cn, formatDate } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const ACTION_IMPRESSION: Record<AttestationType, string> = {
   scolarite: "impression_certificat_scolarite",
@@ -56,6 +58,7 @@ export default function StudentDocumentsPage() {
 
   const piecesFournies = DOCUMENTS_INSCRIPTION.filter((d) => student?.documentsFournis?.includes(d.id));
   const piecesManquantes = DOCUMENTS_INSCRIPTION.filter((d) => !student?.documentsFournis?.includes(d.id));
+  const piecesAVerifier = piecesManquantes.filter((d) => !!student?.piecesEnVerification?.[d.id]).length;
 
   const q = query.trim().toLowerCase();
   const attestationsAffichees = tab === "pieces" ? [] : mesAttestations.filter((a) => a.typeLabel.toLowerCase().includes(q));
@@ -88,15 +91,21 @@ export default function StudentDocumentsPage() {
 
   const handleFile = (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setUploadFile({ name: file.name, dataUrl: String(reader.result) });
-    reader.readAsDataURL(file);
+    lireFichierPourStockage(file, { usagePhoto: "document" })
+      .then((dataUrl) => setUploadFile({ name: file.name, dataUrl: dataUrl }))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
   const handleDeposer = () => {
     if (!currentUser || !student || !uploadDocId || !uploadFile) return;
-    deposerDocumentEtudiant(student.id, uploadDocId, uploadFile.dataUrl, currentUser.id);
-    toast.success("Document déposé — il apparaît désormais comme fourni.");
+    const libelle = DOCUMENTS_INSCRIPTION.find((d) => d.id === uploadDocId)?.label ?? uploadDocId;
+    try {
+      deposerDocumentEtudiant(student.id, uploadDocId, uploadFile.dataUrl, currentUser.id, libelle);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Dépôt impossible.");
+      return;
+    }
+    toast.success("Document déposé — le service scolarité va le vérifier. Vous serez prévenu(e) de sa décision.");
     setUploadDocId(null);
     setUploadFile(null);
   };
@@ -117,10 +126,10 @@ export default function StudentDocumentsPage() {
         <KPICard icon={FileText} label="Total documents" value={totalDocuments} accentColor="#4f46e5" />
         <KPICard icon={BadgeCheck} label="Attestations générées" value={mesAttestations.length} accentColor="#2563eb" />
         <KPICard icon={CheckCircle2} label="Pièces fournies" value={piecesFournies.length} subtitle={`sur ${DOCUMENTS_INSCRIPTION.length}`} accentColor="#10b981" />
-        <KPICard icon={AlertCircle} label="Pièces manquantes" value={piecesManquantes.length} accentColor={piecesManquantes.length > 0 ? "#f59e0b" : "#10b981"} />
+        <KPICard icon={AlertCircle} label="Pièces manquantes" value={piecesManquantes.length} subtitle={piecesAVerifier > 0 ? `dont ${piecesAVerifier} en vérification` : undefined} accentColor={piecesManquantes.length > 0 ? "#f59e0b" : "#10b981"} />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-3 min-w-0">
           <div className="rounded-2xl border border-border bg-card p-3 space-y-2.5">
             <div className="flex flex-wrap gap-1">
@@ -141,7 +150,7 @@ export default function StudentDocumentsPage() {
             </div>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input aria-label="Rechercher un document"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher un document..."
@@ -182,7 +191,7 @@ export default function StudentDocumentsPage() {
                           </p>
                           {doc.type === "reussite" && doc.moyenneConstatee !== undefined && (
                             <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                              <BadgeCheck size={12} className="text-emerald-600" /> Moyenne {doc.moyenneConstatee.toFixed(2)}/20
+                              <BadgeCheck size={12} className="text-emerald-600" /> Moyenne {formatNote(doc.moyenneConstatee)}/20
                             </p>
                           )}
                           <div className="flex gap-2 mt-3">
@@ -206,16 +215,25 @@ export default function StudentDocumentsPage() {
                   <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border">
                     {piecesAffichees.map((doc) => {
                       const fournie = !!student.documentsFournis?.includes(doc.id);
-                      const fichier = student.documentsFichiers?.[doc.id];
+                      const enVerification = student.piecesEnVerification?.[doc.id];
+                      const refus = student.piecesRefusees?.[doc.id];
+                      const fichier = student.documentsFichiers?.[doc.id] ?? enVerification?.dataUrl;
+                      const etat = fournie
+                        ? { texte: "Fournie", icone: <CheckCircle2 size={16} className="text-emerald-600" />, fond: "bg-emerald-50 dark:bg-emerald-950" }
+                        : enVerification
+                          ? { texte: `Déposée le ${formatDate(enVerification.deposeLe)} — en cours de vérification`, icone: <Hourglass size={16} className="text-sky-600" />, fond: "bg-sky-50 dark:bg-sky-950" }
+                          : refus
+                            ? { texte: `Refusée — motif : ${refus.motif}`, icone: <XCircle size={16} className="text-red-600" />, fond: "bg-red-50 dark:bg-red-950" }
+                            : { texte: "Manquante", icone: <AlertCircle size={16} className="text-amber-600" />, fond: "bg-amber-50 dark:bg-amber-950" };
                       return (
                         <div key={doc.id} className="flex items-center justify-between gap-3 p-3.5" data-testid={`piece-${doc.id}`}>
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", fournie ? "bg-emerald-50 dark:bg-emerald-950" : "bg-amber-50 dark:bg-amber-950")}>
-                              {fournie ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertCircle size={16} className="text-amber-600" />}
+                            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", etat.fond)}>
+                              {etat.icone}
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">{doc.label}</p>
-                              <p className="text-[11px] text-muted-foreground">{fournie ? "Fournie" : "Manquante"}</p>
+                              <p className={cn("text-[11px]", refus && !fournie && !enVerification ? "text-red-600 dark:text-red-400" : "text-muted-foreground")} data-testid={`piece-etat-${doc.id}`}>{etat.texte}</p>
                             </div>
                           </div>
                           <div className="flex gap-2 flex-shrink-0">
@@ -224,9 +242,9 @@ export default function StudentDocumentsPage() {
                                 <Eye size={12} /> Voir
                               </button>
                             )}
-                            {!fournie && (
+                            {!fournie && !enVerification && (
                               <button type="button" onClick={() => openUploadModal(doc.id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors" data-testid={`piece-deposer-${doc.id}`}>
-                                <Upload size={12} /> Déposer
+                                <Upload size={12} /> {refus ? "Redéposer" : "Déposer"}
                               </button>
                             )}
                           </div>
@@ -275,7 +293,7 @@ export default function StudentDocumentsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
               <h3 className="font-bold flex items-center gap-2 text-gray-900"><FileText size={18} /> Aperçu — {preview.typeLabel}</h3>
-              <button type="button" onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
+              <button aria-label="Fermer" title="Fermer" type="button" onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
             </div>
             <iframe title="Aperçu attestation" srcDoc={buildAttestationHtml(preview)} className="flex-1 w-full" data-testid="document-preview-iframe" />
             <div className="p-4 flex gap-2 justify-end border-t flex-shrink-0">

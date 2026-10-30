@@ -82,17 +82,18 @@ export default function NouvelleReprisFraisPage() {
         </div>
 
         <div className="flex items-center gap-4 mb-4">
-          <label className="text-sm text-muted-foreground w-24 flex-shrink-0">Fichier</label>
-          <div className="flex-1 flex items-center gap-2">
+          <label className="text-sm text-muted-foreground w-16 sm:w-24 flex-shrink-0">Fichier</label>
+          <div className="flex-1 min-w-0 flex items-center gap-2">
             <input
               readOnly
+              aria-label="Fichier choisi"
               value={fileName}
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-l-xl bg-background"
+              className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-l-xl bg-background"
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-muted border border-border rounded-r-xl text-sm hover:bg-muted/70 transition-colors -ml-2"
+              className="px-4 py-2 bg-muted border border-border rounded-r-xl text-sm hover:bg-muted/70 transition-colors -ml-2 flex-shrink-0"
               data-testid="reprise-frais-selectionner"
             >
               Sélectionner
@@ -156,7 +157,7 @@ export default function NouvelleReprisFraisPage() {
                           {matched ? (
                             <span className="text-xs text-emerald-700">{matched.matricule} - {matched.prenom} {matched.nom}</span>
                           ) : (
-                            <select
+                            <select aria-label="Associer un étudiant"
                               className="px-2 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                               defaultValue=""
                               onChange={(e) => updateAssociation(l.key, e.target.value)}

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type ContactRole = "pere" | "mere" | "tuteur" | "autre";
@@ -44,7 +45,7 @@ let store: ContactRecord[] = load();
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -65,7 +66,7 @@ export function getContactsPourEtudiant(etudiantId: string): ContactRecord[] {
 export type ContactInput = Omit<ContactRecord, "id">;
 
 export function addContact(payload: ContactInput, actorId: string): ContactRecord {
-  const record: ContactRecord = { id: `ct-${Date.now()}`, ...payload };
+  const record: ContactRecord = { id: `ct-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.push(record);
   logAudit(actorId, "add_contact", "etudiant", payload.etudiantId, `${CONTACT_ROLE_LABELS[payload.role]} — ${payload.nomComplet}`);
   persist();

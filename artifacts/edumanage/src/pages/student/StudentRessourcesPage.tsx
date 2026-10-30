@@ -134,11 +134,11 @@ export default function StudentRessourcesPage() {
         <span className="text-[11px] text-muted-foreground flex-shrink-0 hidden sm:block">{formatDate(r.ajouteLe.slice(0, 10))}</span>
         <span className="text-[11px] text-muted-foreground flex-shrink-0 w-14 text-right hidden sm:block">{r.url ? "Lien" : formatTailleRessource(r.tailleOctets || 0)}</span>
         {r.url ? (
-          <a href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-ouvrir-${r.id}`}>
+          <a aria-label="Ouvrir" title="Ouvrir" href={r.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-ouvrir-${r.id}`}>
             <ExternalLink size={14} />
           </a>
         ) : (
-          <a href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-telecharger-${r.id}`}>
+          <a aria-label="Télécharger" title="Télécharger" href={r.dataUrl} download={r.nom} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 flex-shrink-0" data-testid={`etudiant-ressource-telecharger-${r.id}`}>
             <Download size={14} />
           </a>
         )}
@@ -191,7 +191,7 @@ export default function StudentRessourcesPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
@@ -211,7 +211,7 @@ export default function StudentRessourcesPage() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-[200px]">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input aria-label="Rechercher un document, un cours"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Rechercher un document, un cours…"
@@ -221,6 +221,7 @@ export default function StudentRessourcesPage() {
               </div>
               {onglet === "toutes" && (
                 <select
+                  aria-label="Trier les ressources"
                   value={tri}
                   onChange={(e) => setTri(e.target.value as "recent" | "nom" | "taille")}
                   className="px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -238,6 +239,9 @@ export default function StudentRessourcesPage() {
                     type="button"
                     onClick={() => setVue(mode)}
                     className={cn("p-2 rounded-md transition-colors", vue === mode ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground")}
+                    aria-label={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
+                    aria-pressed={vue === mode}
+                    title={mode === "grille" ? "Affichage en grille" : "Affichage en liste"}
                     data-testid={`ressources-vue-${mode}`}
                   >
                     <Icon size={15} />

@@ -1,9 +1,11 @@
+import { getEtudiantById } from "@/data/studentStore";
 import { Suspense, lazy } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
+import { AlerteStockage } from "@/components/AlerteStockage";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -20,6 +22,7 @@ const queryClient = new QueryClient();
 // Lazy load pages
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const ChangerMotDePassePage = lazy(() => import("@/pages/ChangerMotDePassePage"));
 
 // Admin pages
 const DashboardPage = lazy(() => import("@/pages/admin/DashboardPage"));
@@ -88,6 +91,7 @@ const TeacherFormPage = lazy(() => import("@/pages/admin/TeacherFormPage"));
 
 // Évaluations
 const NotesPage = lazy(() => import("@/pages/admin/NotesPage"));
+const ATraiterPage = lazy(() => import("@/pages/admin/ATraiterPage"));
 const NotesEtudiantPage = lazy(() => import("@/pages/admin/NotesEtudiantPage"));
 const BulletinEtudiantPage = lazy(() => import("@/pages/admin/BulletinEtudiantPage"));
 const RattrapagePage = lazy(() => import("@/pages/admin/RattrapagePage"));
@@ -102,6 +106,7 @@ const NouvelleAssiduitePage = lazy(() => import("@/pages/admin/NouvelleAssiduite
 const AbsencePeriodePage = lazy(() => import("@/pages/admin/AbsencePeriodePage"));
 const AbsencePeriodeListPage = lazy(() => import("@/pages/admin/AbsencePeriodeListPage"));
 const ParametrageScolaritePage = lazy(() => import("@/pages/admin/ParametrageScolaritePage"));
+const FormulesCalculPage = lazy(() => import("@/pages/admin/FormulesCalculPage"));
 const ParametrageBulletinPage = lazy(() => import("@/pages/admin/ParametrageBulletinPage"));
 const ParametrageCommunicationPage = lazy(() => import("@/pages/admin/ParametrageCommunicationPage"));
 const MailsEnvoyesPage = lazy(() => import("@/pages/admin/MailsEnvoyesPage"));
@@ -139,6 +144,7 @@ const RemboursementAvoirFormPage = lazy(() => import("@/pages/admin/Remboursemen
 const RemboursementAvoirDetailPage = lazy(() => import("@/pages/admin/RemboursementAvoirDetailPage"));
 const FactureAutreServiceDetailPage = lazy(() => import("@/pages/admin/FactureAutreServiceDetailPage"));
 const EncaissementsPage = lazy(() => import("@/pages/admin/EncaissementsPage"));
+const PaiementsDeclaresPage = lazy(() => import("@/pages/admin/PaiementsDeclaresPage"));
 const DecomptesPage = lazy(() => import("@/pages/admin/DecomptesPage"));
 const DecompteTauxHoraireFormPage = lazy(() => import("@/pages/admin/DecompteTauxHoraireFormPage"));
 const DecompteForfaitFormPage = lazy(() => import("@/pages/admin/DecompteForfaitFormPage"));
@@ -196,8 +202,6 @@ const EnvoiIdentifiantPage = lazy(() => import("@/pages/admin/EnvoiIdentifiantPa
 const PortailsPage = lazy(() => import("@/pages/admin/PortailsPage"));
 const PinActivationPage = lazy(() => import("@/pages/admin/PinActivationPage"));
 const DataResetPage = lazy(() => import("@/pages/admin/DataResetPage"));
-const DemoSeedPage = lazy(() => import("@/pages/admin/DemoSeedPage"));
-const AdminComingSoonPage = lazy(() => import("@/pages/admin/AdminComingSoonPage"));
 const MessagesPage = lazy(() => import("@/pages/admin/MessagesPage"));
 const RequestsPage = lazy(() => import("@/pages/admin/RequestsPage"));
 const StudentDashboardPage = lazy(() => import("@/pages/student/StudentDashboardPage"));
@@ -218,8 +222,7 @@ const TeacherRessourcesPage = lazy(() => import("@/pages/teacher/TeacherRessourc
 const TeacherAbsencesPage = lazy(() => import("@/pages/teacher/TeacherAbsencesPage"));
 const TeacherPointagePage = lazy(() => import("@/pages/teacher/TeacherPointagePage"));
 const TeacherVolumeHorairePage = lazy(() => import("@/pages/teacher/TeacherVolumeHorairePage"));
-const TeacherVacationsPage = lazy(() => import("@/pages/teacher/TeacherVacationsPage"));
-const TeacherDecomptesPage = lazy(() => import("@/pages/teacher/TeacherDecomptesPage"));
+const TeacherRemunerationPage = lazy(() => import("@/pages/teacher/TeacherRemunerationPage"));
 const TeacherMessagesPage = lazy(() => import("@/pages/teacher/TeacherMessagesPage"));
 const TeacherProfilePage = lazy(() => import("@/pages/teacher/TeacherProfilePage"));
 const TeacherNotificationsPage = lazy(() => import("@/pages/teacher/TeacherNotificationsPage"));
@@ -241,6 +244,23 @@ function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-[400px]">
       <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function NotFound() {
+  const { currentUser } = useAuth();
+  const homeHref = currentUser ? homeForRole(currentUser.role) : "/login";
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-center gap-3 px-4 bg-background">
+      <p className="text-5xl font-semibold text-muted-foreground">404</p>
+      <h1 className="text-lg font-semibold text-foreground">Page introuvable</h1>
+      <p className="text-sm text-muted-foreground max-w-md">
+        Cette adresse ne correspond à aucune page. Vérifiez le lien ou revenez à l&apos;accueil.
+      </p>
+      <Link href={homeHref} className="mt-2 text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted">
+        {currentUser ? "Retour au tableau de bord" : "Aller à la connexion"}
+      </Link>
     </div>
   );
 }
@@ -287,10 +307,21 @@ function useRoleGuard(): boolean {
   return role.accessibleItemIds.includes(leafId);
 }
 
+/** Accueil du portail propre à chaque rôle — cible des redirections quand un compte tente d'ouvrir
+ * le portail d'un autre rôle ou une adresse inconnue. */
+function homeForRole(role: string): string {
+  if (role === "admin") return "/admin/dashboard";
+  if (role === "teacher") return "/teacher/dashboard";
+  return "/student/dashboard";
+}
+
 function Admin({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = useRoleGuard();
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
+  // Un compte étudiant ou professeur n'a jamais accès au portail Admin, quelle que soit l'URL tapée.
+  if (currentUser.role !== "admin") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <AdminLayout>
       <Suspense fallback={<PageLoader />}>{allowed ? children : <AccessDenied />}</Suspense>
@@ -312,6 +343,18 @@ function Student({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("student");
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
+  if (currentUser.role !== "student") return <Redirect to={homeForRole(currentUser.role)} />;
+  // Compte étudiant qui ne correspond à aucune fiche : on n'affiche rien plutôt que de risquer les
+  // données d'un autre étudiant (les pages du portail retombaient sur la première fiche).
+  if (!currentUser.linkedId || !getEtudiantById(currentUser.linkedId)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center gap-3 px-4 bg-background">
+        <h1 className="text-lg font-semibold text-foreground">Dossier étudiant introuvable</h1>
+        <p className="text-sm text-muted-foreground max-w-md">Ce compte n&apos;est relié à aucun dossier étudiant. Contactez l&apos;administration pour qu&apos;elle rattache votre compte à votre dossier.</p>
+      </div>
+    );
+  }
   return (
     <StudentLayout>
       <Suspense fallback={<PageLoader />}>
@@ -327,6 +370,8 @@ function Teacher({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const allowed = usePortalFeatureGuard("teacher");
   if (!currentUser) return <Redirect to="/login" />;
+  if (currentUser.doitChangerMotDePasse) return <Redirect to="/changer-mot-de-passe" />;
+  if (currentUser.role !== "teacher") return <Redirect to={homeForRole(currentUser.role)} />;
   return (
     <Suspense fallback={<PageLoader />}>
       <TeacherLayoutMod>
@@ -411,6 +456,9 @@ function AppRouter() {
 
       {/* Planning */}
       <Route path="/admin/schedule/new">
+        <Admin><ScheduleFormPage /></Admin>
+      </Route>
+      <Route path="/admin/schedule/seance/:id">
         <Admin><ScheduleFormPage /></Admin>
       </Route>
       <Route path="/admin/schedule/parametrage/:section">
@@ -653,6 +701,9 @@ function AppRouter() {
       <Route path="/admin/scolarite/parametrage">
         <Admin><ParametrageScolaritePage /></Admin>
       </Route>
+      <Route path="/admin/scolarite/formules">
+        <Admin><FormulesCalculPage /></Admin>
+      </Route>
       <Route path="/admin/bulletins/parametrage">
         <Admin><ParametrageBulletinPage /></Admin>
       </Route>
@@ -832,6 +883,12 @@ function AppRouter() {
       <Route path="/admin/prises-en-charge">
         <Admin><PriseEnChargePage /></Admin>
       </Route>
+      <Route path="/admin/a-traiter">
+        <Admin><ATraiterPage /></Admin>
+      </Route>
+      <Route path="/admin/paiements-declares">
+        <Admin><PaiementsDeclaresPage /></Admin>
+      </Route>
       <Route path="/admin/encaissements">
         <Admin><EncaissementsPage /></Admin>
       </Route>
@@ -886,12 +943,6 @@ function AppRouter() {
       <Route path="/admin/security/reinitialisation-donnees">
         <Admin><DataResetPage /></Admin>
       </Route>
-      <Route path="/admin/security/donnees-demo">
-        <Admin><DemoSeedPage /></Admin>
-      </Route>
-      <Route path="/admin/wip/:pageId">
-        {(p) => <Admin><AdminComingSoonPage pageId={p.pageId} /></Admin>}
-      </Route>
       <Route path="/admin/messages">
         <Admin><MessagesPage /></Admin>
       </Route>
@@ -907,6 +958,9 @@ function AppRouter() {
       {/* ===== NON-ADMIN ROUTES ===== */}
       <Route path="/login">
         <Suspense fallback={<PageLoader />}><LoginPage /></Suspense>
+      </Route>
+      <Route path="/changer-mot-de-passe">
+        <Suspense fallback={<PageLoader />}><ChangerMotDePassePage /></Suspense>
       </Route>
       <Route path="/teacher/dashboard">
         <Teacher><TeacherDashboardPage /></Teacher>
@@ -947,11 +1001,14 @@ function AppRouter() {
       <Route path="/teacher/volume">
         <Teacher><TeacherVolumeHorairePage /></Teacher>
       </Route>
+      <Route path="/teacher/remuneration">
+        <Teacher><TeacherRemunerationPage /></Teacher>
+      </Route>
       <Route path="/teacher/vacations">
-        <Teacher><TeacherVacationsPage /></Teacher>
+        <Redirect to="/teacher/remuneration" />
       </Route>
       <Route path="/teacher/decomptes">
-        <Teacher><TeacherDecomptesPage /></Teacher>
+        <Redirect to="/teacher/remuneration" />
       </Route>
       <Route path="/teacher/messages">
         <Teacher><TeacherMessagesPage /></Teacher>
@@ -1017,9 +1074,9 @@ function AppRouter() {
         <Suspense fallback={<PageLoader />}><LandingPage /></Suspense>
       </Route>
 
-      {/* Catch-all */}
+      {/* Catch-all : adresse inconnue → page 404 (et non plus le tableau de bord Admin pour tout le monde) */}
       <Route>
-        <Redirect to="/admin/dashboard" />
+        <NotFound />
       </Route>
     </Switch>
   );
@@ -1036,6 +1093,7 @@ function App() {
             </WouterRouter>
             <Toaster />
             <SonnerToaster />
+            <AlerteStockage />
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>

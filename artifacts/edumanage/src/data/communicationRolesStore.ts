@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-communication-roles-v1";
 
 /** Les 3 onglets de la référence (Validateur Messages, Validateur demande rallonge, Destinataires
@@ -37,7 +38,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -69,7 +70,7 @@ export interface CommunicationRolePayload {
 }
 
 export function ajouterCommunicationRole(payload: CommunicationRolePayload): CommunicationRoleRecord {
-  const record: CommunicationRoleRecord = { id: `com-role-${Date.now()}`, ...payload };
+  const record: CommunicationRoleRecord = { id: `com-role-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.unshift(record);
   persist();
   return record;

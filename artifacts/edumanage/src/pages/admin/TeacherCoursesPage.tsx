@@ -8,6 +8,7 @@ import { ENSEIGNANTS, NIVEAUX } from "@/data/mockData";
 import { useSeances } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { formatShortDate } from "@/lib/utils";
+import { matchesProf, type EnseignantRecord } from "@/lib/teacherUtils";
 
 type Enseignant = (typeof ENSEIGNANTS)[0];
 
@@ -27,18 +28,7 @@ interface TeacherCourseRow {
   searchBlob: string;
 }
 
-function stripTitle(prenom: string): string {
-  return prenom.replace(/^(Pr\.|Dr\.|M\.|Me\.)\s*/i, "").trim();
-}
 
-function matchesProf(enseignant: Enseignant, profLabel: string): boolean {
-  const clean = stripTitle(enseignant.prenom);
-  const full = `${clean} ${enseignant.nom}`.toLowerCase();
-  const label = profLabel.trim().toLowerCase();
-  if (label === full) return true;
-  const first = clean.split(/\s+/)[0]?.toLowerCase() ?? "";
-  return label.includes(enseignant.nom.toLowerCase()) && (!!first && label.includes(first));
-}
 
 /** Date d'ajout dérivée de l'année du matricule (ENS-YYYY-NNN) — pas de champ dédié en base. */
 function dateAjoutFromMatricule(matricule: string): { display: string; sort: string } {
@@ -83,7 +73,7 @@ export default function TeacherCoursesPage() {
       const cours: CoursDispense[] = [];
 
       for (const s of seances) {
-        if (!matchesProf(ens, s.prof)) continue;
+        if (!matchesProf(ens as unknown as EnseignantRecord, s.prof, s.profId)) continue;
         const classe = classeById.get(s.classeId);
         const filiere = classe?.filiere ?? "";
         const annee = s.annee || classe?.annee || "";

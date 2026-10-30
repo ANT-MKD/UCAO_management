@@ -24,13 +24,15 @@ const STATUT_CONFIG: Record<MailEnvoyeRecord["statut"], { label: string; cls: st
 export default function ValidationMailsPage() {
   const { currentUser } = useAuth();
   const mails = useMailsEnvoyes();
-  useCommunicationRoles();
+  const rolesCommunication = useCommunicationRoles();
   const [preview, setPreview] = useState<MailEnvoyeRecord | null>(null);
   const [rejetTarget, setRejetTarget] = useState<MailEnvoyeRecord | null>(null);
   const [motif, setMotif] = useState("");
 
   const enAttente = useMemo(() => mails.filter((m) => m.statut === "en_attente_validation"), [mails]);
-  const peutValider = currentUser ? estAutorise("validateur_message", currentUser.id) : false;
+  // Sans validateur désigné, tout administrateur peut débloquer les mails restés en attente.
+  const aucunValidateur = !rolesCommunication.some((r) => r.role === "validateur_message");
+  const peutValider = aucunValidateur || (currentUser ? estAutorise("validateur_message", currentUser.id) : false);
 
   const handleValider = (mail: MailEnvoyeRecord) => {
     if (!currentUser) return;
@@ -139,8 +141,8 @@ export default function ValidationMailsPage() {
 
       <FormModal open={!!rejetTarget} onClose={() => { setRejetTarget(null); setMotif(""); }} title="Rejeter ce mail" subtitle={rejetTarget?.objet}>
         <div className="space-y-3">
-          <label className="block text-xs font-medium text-muted-foreground">Motif du rejet</label>
-          <textarea value={motif} onChange={(e) => setMotif(e.target.value)} className="w-full min-h-[100px] px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="validation-motif-rejet" />
+          <label htmlFor="validation-mails-champ-1" className="block text-xs font-medium text-muted-foreground">Motif du rejet</label>
+          <textarea id="validation-mails-champ-1" value={motif} onChange={(e) => setMotif(e.target.value)} className="w-full min-h-[100px] px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="validation-motif-rejet" />
           <p className="text-[11px] text-muted-foreground">L'auteur et les destinataires alert désignés (Paramétrage communication) seront notifiés.</p>
           <button onClick={handleRejeter} className="w-full px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-colors" data-testid="validation-confirmer-rejet">
             Confirmer le rejet

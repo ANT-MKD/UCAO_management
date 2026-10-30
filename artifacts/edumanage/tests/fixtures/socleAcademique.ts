@@ -1,3 +1,6 @@
+/** Jeu d'essai des tests : filières, niveaux, semestres, maquettes UE/EC, classes et salles
+ * réalistes, créés avec les vraies fonctions de l'application. Ne fait plus partie de l'application
+ * elle-même (qui démarre vide) : il ne sert qu'aux tests automatiques. */
 import { addTeacher } from "@/data/teacherStore";
 import { addFiliere, getFiliereByCode } from "@/data/filiereStore";
 import { addNiveau, getNiveaux } from "@/data/niveauStore";
@@ -5,9 +8,10 @@ import { addSemestre, getSemestres } from "@/data/semestreStore";
 import { importCurriculumRows } from "@/data/curriculumStore";
 import { cycleStore } from "@/data/academicSettingsStore";
 import { upsertClasse, upsertSalle, getSalles, findClassePedagogique } from "@/data/structureStore";
-import { nomClasseStandard } from "@/data/studentStore";
+import { nomClasseStandard, getAnneeActuelle } from "@/data/studentStore";
 
-const ANNEE_DEMO = "2025-2026";
+/** Année des classes générées : l'année en cours de l'établissement de test. */
+const anneeDemo = () => getAnneeActuelle() || "2025-2026";
 
 /** Bâtiment unique : RDC (administration, aucune salle de cours dédiée) + 1er étage (R1-01..05)
  * + 2e étage (R2-01..05). Idempotent — une salle dont le nom existe déjà n'est pas recréée. */
@@ -170,7 +174,7 @@ export function genererDonneesAcademiques(actorId: string): ResultatSeedFiliere[
       cycleId: cycleLicence?.id,
       cycle: cycleLicence?.intitule,
       typeProgramme: "semestriel",
-      anneesActives: [ANNEE_DEMO],
+      anneesActives: [anneeDemo()],
       nbClasses: 0,
       nbEtudiants: 0,
     });
@@ -213,13 +217,13 @@ export function genererDonneesAcademiques(actorId: string): ResultatSeedFiliere[
 
     let classesCount = 0;
     for (const nd of niveauxDef) {
-      if (findClassePedagogique(filiere.id, nd.alias, ANNEE_DEMO)) continue;
+      if (findClassePedagogique(filiere.id, nd.alias, anneeDemo())) continue;
       upsertClasse({
-        nom: nomClasseStandard(filiere.code, nd.alias, ANNEE_DEMO),
+        nom: nomClasseStandard(filiere.code, nd.alias, anneeDemo()),
         filiereId: filiere.id,
         niveauId: niveauxCrees[nd.alias].id,
         max: 40,
-        annee: ANNEE_DEMO,
+        annee: anneeDemo(),
       });
       classesCount++;
     }

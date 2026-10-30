@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import { FILIERES, NIVEAUX } from "./mockData";
 import { getClasses } from "./structureStore";
 import type { EtudiantRecord } from "./studentStore";
@@ -78,7 +79,7 @@ let store: Persisted = load();
 function persist() {
   store = { externes: store.externes.slice(), internes: store.internes.slice(), personnalises: store.personnalises.slice() };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -107,7 +108,7 @@ export function upsertGroupeExterne(payload: GroupeExternePayload, id?: string):
     persist();
     return existing;
   }
-  const record: GroupeExterneRecord = { id: `grp-ext-${Date.now()}`, ...payload };
+  const record: GroupeExterneRecord = { id: `grp-ext-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.externes.unshift(record);
   persist();
   return record;
@@ -206,7 +207,7 @@ export function upsertGroupePersonnalise(payload: GroupePersonnalisePayload, id?
     persist();
     return existing;
   }
-  const record: GroupePersonnaliseRecord = { id: `grp-perso-${Date.now()}`, ...payload };
+  const record: GroupePersonnaliseRecord = { id: `grp-perso-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...payload };
   store.personnalises.unshift(record);
   persist();
   return record;

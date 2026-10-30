@@ -34,9 +34,12 @@ export function KPICard({
       className={cn(
         "relative bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200",
         "hover:-translate-y-1 hover:shadow-xl",
-        onClick && "cursor-pointer"
+        onClick && "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
       )}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       style={{ boxShadow: "var(--shadow-sm)" }}
       data-testid="kpi-card"
     >
@@ -70,9 +73,12 @@ export function KPICard({
           )}
         </div>
 
-        {/* Value */}
+        {/* Valeur toujours entière (jamais « 800 000 F… ») : la taille baisse pour les montants longs. */}
         <div
-          className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-none truncate"
+          className={cn(
+            "font-extrabold text-foreground tracking-tight leading-tight tabular-nums",
+            String(value).length > 11 ? "text-lg sm:text-xl" : String(value).length > 7 ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl",
+          )}
           style={{ fontFamily: "Outfit, sans-serif" }}
         >
           {value}

@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-login-security-v1";
 
 export const MAX_TENTATIVES = 5;
@@ -31,7 +32,7 @@ let store: SecurityState = load();
 function persist() {
   store = { ...store };
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
 }
 

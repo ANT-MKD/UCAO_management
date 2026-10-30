@@ -14,7 +14,9 @@ import {
   makeLigneGrilleFraisId,
   calculerEcheances,
   nbEcheancesEffectif,
-  resoudreDateJourMois,
+  resoudreDateGrille,
+  periodeAnneeScolaire,
+  decalerLigneGrille,
   type GrilleFraisRecord,
   type LigneGrilleFrais,
   type EcheancePersonnalisee,
@@ -23,6 +25,7 @@ import {
 import { parseGrilleFraisExcel, downloadGrilleFraisTemplate, exportGrillesFraisExcel } from "@/lib/grilleFraisImport";
 import { niveauLabel } from "@/lib/teacherCourseUtils";
 import { formatCFA, cn } from "@/lib/utils";
+import { formatDateCourte, premiereAnneeCivile } from "@/lib/anneeAcademique";
 
 const inputClass =
   "w-full px-2.5 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -47,7 +50,7 @@ export default function GrilleFraisPage() {
     () => [...anneesAcademiques].sort((a, b) => b.libelle.localeCompare(a.libelle)).map((a) => a.libelle),
     [anneesAcademiques],
   );
-  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "2025-2026";
+  const defaultAnnee = anneesAcademiques.find((a) => a.actuelle)?.libelle ?? anneeOptions[0] ?? "";
 
   const [filiereId, setFiliereId] = useState("");
   const [niveau, setNiveau] = useState("");
@@ -75,6 +78,9 @@ export default function GrilleFraisPage() {
   const dupNiveauxDisponibles = useMemo(() => NIVEAUX.filter((n) => n.filiereId === dupFiliereId), [dupFiliereId]);
 
   const combinaisonComplete = !!filiereId && !!niveau && !!annee && !!modeleFraisId;
+  // Période de l'année de la grille (rentrée → fin, ou 1er sept. → 31 août si non renseignée) :
+  // bornes des dates d'échéance et valeurs proposées par défaut.
+  const periode = useMemo(() => (annee ? periodeAnneeScolaire(annee) : undefined), [annee, anneesAcademiques]);
 
   useEffect(() => {
     if (!combinaisonComplete) {
@@ -152,14 +158,22 @@ export default function GrilleFraisPage() {
     );
   };
 
-  /** Garde-fou : avec dateDebut ET dateLimite renseignées, la date de fin résolue (selon l'année
-   * scolaire) doit tomber après la date de début — sinon l'échéancier calculé serait inversé. */
-  const periodeInversee = (l: LigneGrilleFrais): boolean => {
-    if (l.modalite !== "echeances" || !l.dateDebut || !l.dateLimite) return false;
-    const debut = resoudreDateJourMois(annee, l.dateDebut);
-    const fin = resoudreDateJourMois(annee, l.dateLimite);
-    if (!debut || !fin) return false;
-    return debut >= fin;
+  /** Contrôle des dates d'une ligne à échéances : chaque date (début, fin, échéances personnalisées)
+   * doit tomber dans l'année de la grille, et la fin après le début. Renvoie le motif, ou null. */
+  const erreurDatesLigne = (l: LigneGrilleFrais): string | null => {
+    if (l.modalite !== "echeances" || !periode) return null;
+    const hors = (d: string) => d < periode.debut || d > periode.fin;
+    const borne = `${formatDateCourte(periode.debut)} → ${formatDateCourte(periode.fin)}`;
+    if (l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0) {
+      const dehors = l.echeancesPersonnalisees.find((e) => e.date && hors(e.date));
+      return dehors ? `Échéance du ${formatDateCourte(dehors.date)} hors de l'année ${annee} (${borne})` : null;
+    }
+    const debut = l.dateDebut ? resoudreDateGrille(annee, l.dateDebut) : undefined;
+    const fin = l.dateLimite ? resoudreDateGrille(annee, l.dateLimite) : undefined;
+    if (debut && hors(debut)) return `Date début hors de l'année ${annee} (${borne})`;
+    if (fin && hors(fin)) return `Date fin hors de l'année ${annee} (${borne})`;
+    if (debut && fin && debut >= fin) return "La date de fin doit être après la date de début";
+    return null;
   };
 
   const handleSave = () => {
@@ -176,8 +190,9 @@ export default function GrilleFraisPage() {
       toast.error("Chaque échéance personnalisée doit avoir une date et un montant supérieur à 0");
       return;
     }
-    if (lignes.some(periodeInversee)) {
-      toast.error("La date de début doit être avant la date de fin (une fois rattachées à l'année scolaire) pour chaque ligne à échéances");
+    const ligneEnErreur = lignes.find((l) => erreurDatesLigne(l));
+    if (ligneEnErreur) {
+      toast.error(`${ligneEnErreur.intitule || "Ligne sans intitulé"} : ${erreurDatesLigne(ligneEnErreur)}`);
       return;
     }
     upsertGrilleFrais({
@@ -212,7 +227,11 @@ export default function GrilleFraisPage() {
       niveau: dupNiveau,
       annee: dupAnnee,
       modeleFraisId: dupModeleFraisId,
-      lignes: duplicateTarget.lignes.map((l) => ({ ...l, id: makeLigneGrilleFraisId() })),
+      // Les dates complètes suivent la nouvelle année (grille 2025-2026 copiée en 2026-2027 → +1 an).
+      lignes: duplicateTarget.lignes.map((l) => ({
+        ...decalerLigneGrille(l, (premiereAnneeCivile(dupAnnee) - premiereAnneeCivile(duplicateTarget.annee)) || 0),
+        id: makeLigneGrilleFraisId(),
+      })),
     });
     toast.success("Grille dupliquée");
     setDuplicateTarget(null);
@@ -317,7 +336,7 @@ export default function GrilleFraisPage() {
               </tr>
               <tr className="border-b border-border bg-card">
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.filiereId} onChange={(e) => patchOverviewFilter({ filiereId: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Filière" value={overviewFilters.filiereId} onChange={(e) => patchOverviewFilter({ filiereId: e.target.value })} className={filterInputClass}>
                     <option value="">Toutes</option>
                     {FILIERES.map((f) => (
                       <option key={f.id} value={f.id}>{f.code}</option>
@@ -325,7 +344,7 @@ export default function GrilleFraisPage() {
                   </select>
                 </th>
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.niveau} onChange={(e) => patchOverviewFilter({ niveau: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Niveau" value={overviewFilters.niveau} onChange={(e) => patchOverviewFilter({ niveau: e.target.value })} className={filterInputClass}>
                     <option value="">Tous</option>
                     {[...new Set(grillesFrais.map((g) => g.niveau))].map((n) => (
                       <option key={n} value={n}>{niveauLabel(n)}</option>
@@ -333,7 +352,7 @@ export default function GrilleFraisPage() {
                   </select>
                 </th>
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.annee} onChange={(e) => patchOverviewFilter({ annee: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Année" value={overviewFilters.annee} onChange={(e) => patchOverviewFilter({ annee: e.target.value })} className={filterInputClass}>
                     <option value="">Toutes</option>
                     {anneeOptions.map((a) => (
                       <option key={a} value={a}>{a}</option>
@@ -341,7 +360,7 @@ export default function GrilleFraisPage() {
                   </select>
                 </th>
                 <th className="px-3 py-2">
-                  <select value={overviewFilters.modeleFraisId} onChange={(e) => patchOverviewFilter({ modeleFraisId: e.target.value })} className={filterInputClass}>
+                  <select aria-label="Filtrer : Modèle de frais" value={overviewFilters.modeleFraisId} onChange={(e) => patchOverviewFilter({ modeleFraisId: e.target.value })} className={filterInputClass}>
                     <option value="">Tous</option>
                     {modelesFrais.map((m) => (
                       <option key={m.id} value={m.id}>{m.intitule}</option>
@@ -393,10 +412,10 @@ export default function GrilleFraisPage() {
 
       <div className="bg-card border border-border rounded-xl p-5 mb-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ boxShadow: "var(--shadow-sm)" }}>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Filière <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="grille-frais-champ-1"
             value={filiereId}
             onChange={(e) => { setFiliereId(e.target.value); setNiveau(""); }}
             className={inputClass}
@@ -409,10 +428,10 @@ export default function GrilleFraisPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Niveau <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="grille-frais-champ-2"
             value={niveau}
             onChange={(e) => setNiveau(e.target.value)}
             className={inputClass}
@@ -426,20 +445,20 @@ export default function GrilleFraisPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Année scolaire <span className="text-red-500">*</span>
           </label>
-          <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-annee">
+          <select id="grille-frais-champ-3" value={annee} onChange={(e) => setAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-annee">
             {anneeOptions.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          <label htmlFor="grille-frais-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">
             Modèle de frais <span className="text-red-500">*</span>
           </label>
-          <select
+          <select id="grille-frais-champ-4"
             value={modeleFraisId}
             onChange={(e) => setModeleFraisId(e.target.value)}
             className={inputClass}
@@ -459,6 +478,17 @@ export default function GrilleFraisPage() {
         </div>
       ) : (
         <>
+          {periode && (
+            periode.definie ? (
+              <p className="text-xs text-muted-foreground mb-2" data-testid="grille-periode-annee">
+                Année {annee} : du {formatDateCourte(periode.debut)} au {formatDateCourte(periode.fin)} — les dates d&apos;échéance doivent tomber dans cette période.
+              </p>
+            ) : (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mb-2" data-testid="grille-periode-annee">
+                Dates de l&apos;année {annee} non renseignées (Académiques → Années académiques) : les échéances sont contrôlées sur la période par défaut, du {formatDateCourte(periode.debut)} au {formatDateCourte(periode.fin)}.
+              </p>
+            )
+          )}
           <div className="bg-card border border-border rounded-xl overflow-x-auto mb-4" style={{ boxShadow: "var(--shadow-sm)" }}>
             <table className="w-full min-w-[1050px] text-sm">
               <thead>
@@ -483,7 +513,7 @@ export default function GrilleFraisPage() {
                   lignes.map((l) => {
                     const personnalisee = !!l.echeancesPersonnalisees && l.echeancesPersonnalisees.length > 0;
                     const arrondiInexact = l.modalite === "echeances" && !personnalisee && !!l.nbEcheances && l.montant % l.nbEcheances !== 0;
-                    const inversee = periodeInversee(l);
+                    const erreurDates = erreurDatesLigne(l);
                     return (
                       <Fragment key={l.id}>
                       <tr className="border-b border-border last:border-0 align-top">
@@ -526,8 +556,16 @@ export default function GrilleFraisPage() {
                         <td className="px-3 py-3">
                           <select
                             value={l.modalite}
-                            onChange={(e) => updateLigne(l.id, { modalite: e.target.value as ModaliteFrais })}
-                            className={inputClass}
+                            onChange={(e) => {
+                              const modalite = e.target.value as ModaliteFrais;
+                              // Passage en échéances : dates proposées = rentrée et fin de l'année de la
+                              // grille, si elles sont renseignées (jamais inventées), modifiables ensuite.
+                              const prefill = modalite === "echeances" && !l.dateDebut && !l.dateLimite && periode?.definie
+                                ? { dateDebut: periode.debut, dateLimite: periode.fin }
+                                : {};
+                              updateLigne(l.id, { modalite, ...prefill });
+                            }}
+                            className={`${inputClass} min-w-[150px]`}
                           >
                             <option value="avant_inscription">Avant inscription</option>
                             <option value="echeances">Échéances</option>
@@ -556,10 +594,12 @@ export default function GrilleFraisPage() {
                               <span className="text-xs text-muted-foreground">Dates perso.</span>
                             ) : (
                               <input
-                                value={l.dateDebut ?? ""}
-                                onChange={(e) => updateLigne(l.id, { dateDebut: e.target.value })}
+                                type="date"
+                                value={l.dateDebut ? resoudreDateGrille(annee, l.dateDebut) ?? "" : ""}
+                                onChange={(e) => updateLigne(l.id, { dateDebut: e.target.value || undefined })}
+                                min={periode?.debut}
+                                max={periode?.fin}
                                 className={inputClass}
-                                placeholder="JJ/MM"
                                 title="Optionnel — sans date début, les échéances tombent chaque mois avant la date fin"
                                 data-testid={`grille-ligne-date-debut-${l.id}`}
                               />
@@ -569,19 +609,28 @@ export default function GrilleFraisPage() {
                         <td className="px-3 py-3">
                           {l.modalite === "echeances" && (
                             personnalisee ? (
-                              <span className="text-xs text-muted-foreground">Dates perso.</span>
+                              <>
+                                <span className="text-xs text-muted-foreground">Dates perso.</span>
+                                {erreurDates && (
+                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-erreur-dates-${l.id}`}>
+                                    ⚠ {erreurDates}
+                                  </p>
+                                )}
+                              </>
                             ) : (
                               <>
                                 <input
-                                  value={l.dateLimite ?? ""}
-                                  onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value })}
+                                  type="date"
+                                  value={l.dateLimite ? resoudreDateGrille(annee, l.dateLimite) ?? "" : ""}
+                                  onChange={(e) => updateLigne(l.id, { dateLimite: e.target.value || undefined })}
+                                  min={periode?.debut}
+                                  max={periode?.fin}
                                   className={inputClass}
-                                  placeholder="JJ/MM"
                                   data-testid={`grille-ligne-date-fin-${l.id}`}
                                 />
-                                {inversee && (
-                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-periode-inversee-${l.id}`}>
-                                    ⚠ avant la date début une fois rattachée à {annee}
+                                {erreurDates && (
+                                  <p className="text-[10px] text-red-600 mt-1" data-testid={`grille-ligne-erreur-dates-${l.id}`}>
+                                    ⚠ {erreurDates}
                                   </p>
                                 )}
                               </>
@@ -621,10 +670,12 @@ export default function GrilleFraisPage() {
                                     type="date"
                                     value={e.date}
                                     onChange={(ev) => updateEcheancePerso(l.id, idx, { date: ev.target.value })}
+                                    min={periode?.debut}
+                                    max={periode?.fin}
                                     className={`${inputClass} max-w-[170px]`}
                                     data-testid={`grille-ligne-eperso-date-${l.id}-${idx}`}
                                   />
-                                  <input
+                                  <input aria-label="Montant"
                                     type="number"
                                     min={0}
                                     value={e.montant || ""}
@@ -696,7 +747,7 @@ export default function GrilleFraisPage() {
       <FormModal open={importOpen} onClose={() => setImportOpen(false)} title="Importer une grille tarifaire" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date début, Date limite.
+            Fichier Excel (.xlsx) avec les colonnes Filière, Niveau, Année, Modèle de frais, Intitulé, Montant, Modalité, Échéances, Date début, Date limite (dates au format JJ/MM/AAAA).
             Le fichier remplace intégralement les grilles pour les combinaisons qu&apos;il contient.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -731,32 +782,32 @@ export default function GrilleFraisPage() {
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-                <select value={dupFiliereId} onChange={(e) => { setDupFiliereId(e.target.value); setDupNiveau(""); }} className={inputClass} data-testid="grille-frais-dupliquer-filiere">
+                <label htmlFor="grille-frais-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+                <select id="grille-frais-champ-5" value={dupFiliereId} onChange={(e) => { setDupFiliereId(e.target.value); setDupNiveau(""); }} className={inputClass} data-testid="grille-frais-dupliquer-filiere">
                   {FILIERES.map((f) => (
                     <option key={f.id} value={f.id}>{f.code}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
-                <select value={dupNiveau} onChange={(e) => setDupNiveau(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-niveau">
+                <label htmlFor="grille-frais-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau</label>
+                <select id="grille-frais-champ-6" value={dupNiveau} onChange={(e) => setDupNiveau(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-niveau">
                   {dupNiveauxDisponibles.map((n) => (
                     <option key={n.id} value={n.alias}>{n.nom}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire</label>
-                <select value={dupAnnee} onChange={(e) => setDupAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
+                <label htmlFor="grille-frais-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Année scolaire</label>
+                <select id="grille-frais-champ-7" value={dupAnnee} onChange={(e) => setDupAnnee(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-annee">
                   {anneeOptions.map((a) => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
-                <select value={dupModeleFraisId} onChange={(e) => setDupModeleFraisId(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-modele">
+                <label htmlFor="grille-frais-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Modèle de frais</label>
+                <select id="grille-frais-champ-8" value={dupModeleFraisId} onChange={(e) => setDupModeleFraisId(e.target.value)} className={inputClass} data-testid="grille-frais-dupliquer-modele">
                   {modelesFrais.map((m) => (
                     <option key={m.id} value={m.id}>{m.intitule}</option>
                   ))}

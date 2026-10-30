@@ -6,7 +6,7 @@ import { useSeances, useCahiers } from "@/hooks/useStudentStore";
 import { useTeachers } from "@/hooks/useTeacherStore";
 import { mondayOf, matchesProf } from "@/lib/teacherUtils";
 import { KPICard } from "@/components/admin/KPICard";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
 import { getCahierPourSeanceEtDate, type CahierSeanceRecord, type SeanceRecord } from "@/data/studentStore";
 
 const JOURS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -35,6 +35,9 @@ function jourDeLaSemaine(dateIso: string): number {
  * cahiers déjà soumis. La saisie proprement dite se fait sur une page dédiée
  * (TeacherCahierFormPage, /teacher/cahier/nouveau ou /teacher/cahier/:id/edit) — accessible via
  * le bouton "Nouveau cahier" ou en cliquant sur une séance/un cahier ci-dessous. */
+const LIBELLE_STATUT_CAHIER: Record<string, string> = { brouillon: "Brouillon", soumis: "Soumis", valide: "Validé", rejete: "Rejeté" };
+const LIBELLE_ETAT_SEANCE: Record<string, string> = { preparee: "Préparée", realisee: "Réalisée", annulee: "Annulée" };
+
 export function TeacherCahierPage() {
   const [, setLocation] = useLocation();
   const { currentUser } = useAuth();
@@ -46,7 +49,7 @@ export function TeacherCahierPage() {
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
 
   const mineCahiers = useMemo(
-    () => cahiers.filter((c) => myTeacher && matchesProf(myTeacher, c.prof)).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
+    () => cahiers.filter((c) => myTeacher && matchesProf(myTeacher, c.prof, c.profId)).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
     [cahiers, myTeacher],
   );
   const moisCourant = new Date().toISOString().slice(0, 7);
@@ -57,7 +60,7 @@ export function TeacherCahierPage() {
     ? Math.round((cahiersSoumis.reduce((s, c) => s + (c.tauxPresence || 0), 0) / cahiersSoumis.length) * 10) / 10
     : 0;
 
-  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof) && s.semaineDu === mondayOf(date));
+  const mine = seances.filter((s) => myTeacher && matchesProf(myTeacher, s.prof, s.profId) && s.semaineDu === mondayOf(date));
   const jourChoisi = date ? jourDeLaSemaine(date) : -1;
   const seancesDuJour = mine.filter((s) => s.jour === jourChoisi);
   const seancesAvecStatut = seancesDuJour.map((s) => ({
@@ -102,13 +105,14 @@ export function TeacherCahierPage() {
           <h3 className="font-bold text-sm">Reste à faire</h3>
           <input
             type="date"
+            aria-label="Jour à afficher"
             className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
         </div>
         <p className="text-xs text-muted-foreground -mt-1">
-          Le {date} ({JOURS[jourChoisi] || "—"}) : {nbFaites}/{seancesAvecStatut.length} cahier(s) traité(s)
+          Le {formatShortDate(date)} ({JOURS[jourChoisi] || "—"}) : {nbFaites}/{seancesAvecStatut.length} cahier(s) traité(s)
         </p>
         {seancesAvecStatut.length === 0 ? (
           <p className="text-xs text-muted-foreground">Aucune séance programmée ce jour-là.</p>
@@ -163,9 +167,9 @@ export function TeacherCahierPage() {
                   >
                     <div className="flex flex-wrap justify-between gap-2">
                       <span className="font-medium">{c.sujet || c.ec} · {c.classe}</span>
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUT_CLS[c.statut] ?? "bg-muted")}>{c.statut} · {c.etatSeance}</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUT_CLS[c.statut] ?? "bg-muted")}>{LIBELLE_STATUT_CAHIER[c.statut] ?? c.statut} · {LIBELLE_ETAT_SEANCE[c.etatSeance] ?? c.etatSeance}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{c.date} · {c.typeSeance} · présence {c.tauxPresence}%</p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatShortDate(c.date)} · {c.typeSeance} · présence {c.tauxPresence}%</p>
                     <p className="text-xs mt-1 line-clamp-2">{c.resume || c.activite}</p>
                   </div>
                 </div>

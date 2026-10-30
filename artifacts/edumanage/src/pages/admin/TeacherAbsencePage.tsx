@@ -22,7 +22,10 @@ import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDate } from "@/lib/utils";
+import { MotifModal } from "@/components/admin/MotifModal";
+import { deciderJustificatifAbsence } from "@/data/teacherAbsenceStore";
+import { useAuth } from "@/contexts/AuthContext";
 
 type TypeFilter = "" | TeacherAbsenceType;
 type JustifieFilter = "" | "oui" | "non";
@@ -92,6 +95,18 @@ export default function TeacherAbsencePage() {
   const [editMotif, setEditMotif] = useState("");
   const [editJustifie, setEditJustifie] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TeacherAbsenceRecord | null>(null);
+  const { currentUser } = useAuth();
+  // Justificatif envoyé par le professeur depuis « Mes absences » : accepter, ou refuser avec motif.
+  const [justifARefuser, setJustifARefuser] = useState<TeacherAbsenceRecord | null>(null);
+  const deciderJustif = (r: TeacherAbsenceRecord, decision: "accepter" | "refuser", motif?: string) => {
+    if (!currentUser) return;
+    try {
+      deciderJustificatifAbsence(r.id, decision, currentUser.id, motif);
+      toast.success(decision === "accepter" ? "Justificatif accepté : le constat est justifié." : "Justificatif refusé — le professeur a été prévenu du motif.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action impossible.");
+    }
+  };
 
   const matchesFilters = (
     r: TeacherAbsenceRecord,
@@ -183,7 +198,7 @@ export default function TeacherAbsencePage() {
       const notif = getNotificationEvenementielleParCode("NOTIFICATION_VALIDATION_ABSENCE_PROF");
       if (notif?.actif && notif.envoyerProfesseur) {
         const compte = getUserAccounts().find((u) => u.linkedId === editing.teacherId && u.role === "teacher");
-        if (compte) pushNotificationEtPersister(compte.id, `Votre ${editType === "retard" ? "retard" : "absence"} du ${editing.date} a été validé(e).`);
+        if (compte) pushNotificationEtPersister(compte.id, `Votre ${editType === "retard" ? "retard" : "absence"} du ${formatShortDate(editing.date)} a été validé(e).`);
       }
     }
     toast.success("Constat mis à jour");
@@ -224,7 +239,7 @@ export default function TeacherAbsencePage() {
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input aria-label="Rechercher un professeur (nom, matricule)"
             type="search"
             value={quickSearch}
             onChange={(e) => setQuickSearch(e.target.value)}
@@ -302,7 +317,7 @@ export default function TeacherAbsencePage() {
                 const ec = ecs.find((e) => e.id === r.ecId);
                 return (
                   <tr key={r.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap">{r.date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatShortDate(r.date)}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{teacher ? `${teacher.prenom} ${teacher.nom}` : r.teacherId}</p>
                       <p className="text-xs text-muted-foreground">{teacher?.matricule}</p>
@@ -323,15 +338,29 @@ export default function TeacherAbsencePage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-center">{r.type === "retard" ? `${r.dureeMinutes} min` : "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{r.motif}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {r.motif}
+                      {r.justificatif && !r.justifie && (
+                        <div className="mt-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200" data-testid={`constat-justificatif-${r.id}`}>
+                          <span className="font-semibold">Justificatif du professeur :</span> {r.justificatif.motif}
+                          {r.justificatif.pieceJointe && (
+                            <a href={r.justificatif.pieceJointe.dataUrl} download={r.justificatif.pieceJointe.nom} className="ml-1 underline">{r.justificatif.pieceJointe.nom}</a>
+                          )}
+                          <div className="flex gap-2 mt-1.5">
+                            <button type="button" onClick={() => deciderJustif(r, "accepter")} className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-medium" data-testid={`constat-justificatif-accepter-${r.id}`}>Accepter</button>
+                            <button type="button" onClick={() => setJustifARefuser(r)} className="px-2 py-0.5 rounded-md border border-red-300 text-red-700 dark:text-red-300 font-medium" data-testid={`constat-justificatif-refuser-${r.id}`}>Refuser</button>
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-center">
                       <span
                         className={cn(
-                          "text-xs px-2 py-0.5 rounded-full font-medium",
-                          r.justifie ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                          "text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap",
+                          r.justifie ? "bg-emerald-50 text-emerald-700" : r.justificatif ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600",
                         )}
                       >
-                        {r.justifie ? "Oui" : "Non"}
+                        {r.justifie ? "Oui" : r.justificatif ? "À examiner" : "Non"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -406,8 +435,8 @@ export default function TeacherAbsencePage() {
           </div>
           {editType === "retard" && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Durée du retard (minutes)</label>
-              <input
+              <label htmlFor="teacher-absence-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Durée du retard (minutes)</label>
+              <input id="teacher-absence-champ-1"
                 type="number"
                 min={1}
                 step={5}
@@ -418,8 +447,8 @@ export default function TeacherAbsencePage() {
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
-            <textarea
+            <label htmlFor="teacher-absence-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif</label>
+            <textarea id="teacher-absence-champ-2"
               value={editMotif}
               onChange={(e) => setEditMotif(e.target.value)}
               rows={3}
@@ -458,6 +487,16 @@ export default function TeacherAbsencePage() {
           </div>
         </div>
       )}
+      <MotifModal
+        open={!!justifARefuser}
+        title="Refuser le justificatif"
+        description="Le professeur verra ce motif dans « Mes absences » et pourra envoyer un autre justificatif."
+        obligatoire
+        libelleConfirmer="Refuser le justificatif"
+        onCancel={() => setJustifARefuser(null)}
+        onConfirm={(motif) => { if (justifARefuser) deciderJustif(justifARefuser, "refuser", motif); setJustifARefuser(null); }}
+        testId="constat-justificatif-refus"
+      />
     </div>
   );
 }
@@ -539,8 +578,8 @@ function AdvancedSearchModal({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
-              <select
+              <label htmlFor="teacher-absence-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière</label>
+              <select id="teacher-absence-champ-3"
                 value={draft.filiereId}
                 onChange={(e) =>
                   patch({ filiereId: e.target.value, niveauId: "", classeId: "", semestreId: "" })
@@ -556,8 +595,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique</label>
-              <select
+              <label htmlFor="teacher-absence-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Année académique</label>
+              <select id="teacher-absence-champ-4"
                 value={draft.annee}
                 onChange={(e) => patch({ annee: e.target.value, classeId: "" })}
                 className={inputClass}
@@ -571,8 +610,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveaux</label>
-              <select
+              <label htmlFor="teacher-absence-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveaux</label>
+              <select id="teacher-absence-champ-5"
                 value={draft.niveauId}
                 onChange={(e) => patch({ niveauId: e.target.value, classeId: "" })}
                 className={inputClass}
@@ -587,8 +626,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
-              <select
+              <label htmlFor="teacher-absence-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe</label>
+              <select id="teacher-absence-champ-6"
                 value={draft.classeId}
                 onChange={(e) => patch({ classeId: e.target.value })}
                 className={inputClass}
@@ -603,8 +642,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
-              <select
+              <label htmlFor="teacher-absence-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre</label>
+              <select id="teacher-absence-champ-7"
                 value={draft.semestreId}
                 onChange={(e) => patch({ semestreId: e.target.value })}
                 className={inputClass}
@@ -619,8 +658,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Justifié</label>
-              <select
+              <label htmlFor="teacher-absence-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Justifié</label>
+              <select id="teacher-absence-champ-8"
                 value={draft.justifie}
                 onChange={(e) => patch({ justifie: e.target.value as JustifieFilter })}
                 className={inputClass}
@@ -631,8 +670,8 @@ function AdvancedSearchModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début</label>
-              <input
+              <label htmlFor="teacher-absence-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de début</label>
+              <input id="teacher-absence-champ-9"
                 type="date"
                 value={draft.dateDebut}
                 onChange={(e) => patch({ dateDebut: e.target.value })}
@@ -640,8 +679,8 @@ function AdvancedSearchModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin</label>
-              <input
+              <label htmlFor="teacher-absence-champ-10" className="block text-xs font-medium text-muted-foreground mb-1.5">Date de fin</label>
+              <input id="teacher-absence-champ-10"
                 type="date"
                 value={draft.dateFin}
                 onChange={(e) => patch({ dateFin: e.target.value })}
@@ -651,10 +690,10 @@ function AdvancedSearchModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
+            <label htmlFor="teacher-absence-champ-11" className="block text-xs font-medium text-muted-foreground mb-1.5">Professeur</label>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-              <input
+              <input id="teacher-absence-champ-11"
                 type="search"
                 value={teacherQuery}
                 onChange={(e) => {

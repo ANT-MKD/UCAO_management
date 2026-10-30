@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Pencil, Trash2, KeyRound, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useRole } from "@/hooks/useRoleStore";
@@ -18,6 +19,7 @@ function formatDate(iso: string) {
 
 export default function RoleDetailPage({ id }: { id: string }) {
   const { currentUser } = useAuth();
+  const gestion = currentUser?.role === "admin" && !currentUser.roleId;
   const [, setLocation] = useLocation();
   const role = useRole(id);
   const comptes = useUserAccounts();
@@ -70,7 +72,7 @@ export default function RoleDetailPage({ id }: { id: string }) {
 
   const handleDelete = () => {
     try {
-      deleteRole(role.id);
+      deleteRole(role.id, currentUser?.id ?? "");
       toast.success("Rôle supprimé.");
       setLocation("/admin/roles");
     } catch (err) {
@@ -89,8 +91,8 @@ export default function RoleDetailPage({ id }: { id: string }) {
         ]}
         title={role.code}
         subtitle={role.description}
-        actions={
-          <div className="flex items-center gap-2">
+        actions={gestion && (
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={openEdit} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="role-editer">
               <Pencil size={13} /> Éditer
             </button>
@@ -98,8 +100,14 @@ export default function RoleDetailPage({ id }: { id: string }) {
               <Trash2 size={13} /> Supprimer
             </button>
           </div>
-        }
+        )}
       />
+
+      {!gestion && (
+        <AvisAccesComplet testId="role-lecture-seule">
+          Consultation seulement : ce rôle ne peut être modifié que par un administrateur à accès complet.
+        </AvisAccesComplet>
+      )}
 
       <div className="grid md:grid-cols-[1fr_320px] gap-4">
         <div className="bg-card border border-border rounded-2xl p-6" style={{ boxShadow: "var(--shadow-sm)" }}>
@@ -108,13 +116,13 @@ export default function RoleDetailPage({ id }: { id: string }) {
               <p className="text-xs font-semibold text-muted-foreground">Pages accessibles</p>
               <p className="text-2xl font-bold text-foreground" data-testid="role-nb-pages">{role.accessibleItemIds.length}</p>
             </div>
-            <button
+            {gestion && <button
               onClick={() => setLocation(`/admin/roles/${role.id}/access`)}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
               data-testid="role-definir-acces"
             >
               <KeyRound size={14} /> Définir les accès
-            </button>
+            </button>}
           </div>
 
           {sectionsResume.length === 0 ? (
@@ -170,12 +178,12 @@ export default function RoleDetailPage({ id }: { id: string }) {
       <FormModal open={editOpen} onClose={() => setEditOpen(false)} title="Éditer le rôle" size="md">
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code du rôle *</label>
-            <input value={editForm.code} onChange={(e) => setEditForm((f) => ({ ...f, code: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-code" />
+            <label htmlFor="role-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Code du rôle *</label>
+            <input id="role-detail-champ-1" value={editForm.code} onChange={(e) => setEditForm((f) => ({ ...f, code: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-code" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
-            <textarea value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-description" />
+            <label htmlFor="role-detail-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Description *</label>
+            <textarea id="role-detail-champ-2" value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="role-edit-description" />
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}

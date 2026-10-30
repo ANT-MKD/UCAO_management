@@ -7,7 +7,8 @@ import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockDat
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
-import { computeBulletin } from "@/data/bulletinEngine";
+import { computeBulletin, libelleResultatUe, ueAcquise } from "@/data/bulletinEngine";
+import { formatNote } from "@/lib/notes";
 import type { EtudiantRecord } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +57,7 @@ export default function BulletinEtudiantPage() {
 
   const handleSelectEtudiant = (e: EtudiantRecord) => {
     setEtudiantId(e.id);
-    setSearchQuery(`${e.matricule} - ${e.prenom} ${e.nom} (${e.telephone})`);
+    setSearchQuery(`${e.matricule} - ${e.prenom} ${e.nom}${e.telephone ? ` (${e.telephone})` : ""}`);
     setShowSuggestions(false);
     // Préremplit Filière/Année/Niveau/Classe à partir de l'inscription réelle et actuelle de
     // l'étudiant ; la cascade normale reste active ensuite pour consulter un autre bulletin
@@ -101,9 +102,9 @@ export default function BulletinEtudiantPage() {
 
   // Moteur partagé avec Moyennes par promotion, Délibérations et Relevés & Bulletins — une
   // seule vraie source de calcul, jamais de logique dupliquée ou de valeur fabriquée.
-  const { ues: bulletin, moyenneSession, creditsObtenus: creditsObtenusTotal, creditsTotal } = canShowBulletin
+  const { ues: bulletin, moyenneSession, creditsObtenus: creditsObtenusTotal, creditsTotal, moyennePassage } = canShowBulletin
     ? computeBulletin(etudiantId, classeId, filiereId, niveau.alias, semestre.alias)
-    : { ues: [], moyenneSession: undefined, creditsObtenus: 0, creditsTotal: 0 };
+    : { ues: [], moyenneSession: undefined, creditsObtenus: 0, creditsTotal: 0, moyennePassage: 10 };
 
   const toggleUe = (id: string) => {
     setExpandedUe((prev) => {
@@ -127,9 +128,9 @@ export default function BulletinEtudiantPage() {
       />
 
       <div className="bg-card border border-border rounded-xl p-6 mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
+        <label htmlFor="bulletin-etudiant-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Étudiant</label>
         <div className="relative">
-          <input
+          <input id="bulletin-etudiant-champ-1"
             value={searchQuery}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => setShowSuggestions(true)}
@@ -146,7 +147,7 @@ export default function BulletinEtudiantPage() {
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted transition-colors"
                   data-testid={`bulletin-etudiant-suggestion-${e.id}`}
                 >
-                  {e.matricule} - {e.prenom} {e.nom} ({e.telephone})
+                  {e.matricule} - {e.prenom} {e.nom}{e.telephone ? ` (${e.telephone})` : ""}
                 </button>
               ))}
             </div>
@@ -165,36 +166,36 @@ export default function BulletinEtudiantPage() {
 
             <div className="grid sm:grid-cols-2 gap-4 mt-5">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
-                <select value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="bulletin-filiere">
+                <label htmlFor="bulletin-etudiant-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Filière *</label>
+                <select id="bulletin-etudiant-champ-2" value={filiereId} onChange={(e) => handleFiliereChange(e.target.value)} className={inputClass} data-testid="bulletin-filiere">
                   <option value="">Sélectionner</option>
                   {FILIERES.filter((f) => f.statut === "actif").map((f) => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
-                <select value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-annee">
+                <label htmlFor="bulletin-etudiant-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Année *</label>
+                <select id="bulletin-etudiant-champ-3" value={annee} onChange={(e) => handleAnneeChange(e.target.value)} disabled={!filiereId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-annee">
                   <option value="">Sélectionner</option>
                   {ANNEES_ACADEMIQUES.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
-                <select value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-niveau">
+                <label htmlFor="bulletin-etudiant-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Niveau *</label>
+                <select id="bulletin-etudiant-champ-4" value={niveauId} onChange={(e) => handleNiveauChange(e.target.value)} disabled={!annee} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-niveau">
                   <option value="">Sélectionner</option>
                   {niveauxFiliere.map((n) => <option key={n.id} value={n.id}>{n.nom} ({n.alias})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
-                <select value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-classe">
+                <label htmlFor="bulletin-etudiant-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe *</label>
+                <select id="bulletin-etudiant-champ-5" value={classeId} onChange={(e) => handleClasseChange(e.target.value)} disabled={!niveauId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-classe">
                   <option value="">Sélectionner</option>
                   {classesDisponibles.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
-                <select value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-session">
+                <label htmlFor="bulletin-etudiant-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Session *</label>
+                <select id="bulletin-etudiant-champ-6" value={semestreId} onChange={(e) => handleSemestreChange(e.target.value)} disabled={!classeId} className={cn(inputClass, "disabled:opacity-50")} data-testid="bulletin-session">
                   <option value="">Sélectionner</option>
                   {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
                 </select>
@@ -210,8 +211,8 @@ export default function BulletinEtudiantPage() {
             <div className="flex items-center gap-2">
               <Award size={16} className="text-primary" />
               <span className="text-sm text-muted-foreground">Moyenne session :</span>
-              <span className={cn("text-lg font-bold", moyenneSession !== undefined ? (moyenneSession >= 10 ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
-                {moyenneSession !== undefined ? moyenneSession.toFixed(2) : "—"}
+              <span className={cn("text-lg font-bold", moyenneSession !== undefined ? (moyenneSession >= moyennePassage ? "text-emerald-600" : "text-red-500") : "text-muted-foreground")}>
+                {formatNote(moyenneSession)}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -237,8 +238,8 @@ export default function BulletinEtudiantPage() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground flex-shrink-0">
                         <span>Nombre crédit UE : <strong className="text-foreground">{ue.credits.toFixed(1)}</strong></span>
                         <span>Nombre de crédits obtenus : <strong className="text-foreground">{ue.creditsObtenus.toFixed(1)}</strong></span>
-                        <span>Moyenne UE : <strong className={ue.moyenne !== undefined ? (ue.validee ? "text-emerald-600" : "text-red-500") : "text-muted-foreground"}>{ue.moyenne !== undefined ? ue.moyenne.toFixed(1) : "En attente"}</strong></span>
-                        {ue.moyenne !== undefined && (ue.validee ? <CheckCircle2 size={14} className="text-emerald-600" /> : <span className="text-red-500 font-bold">✕</span>)}
+                        <span>Moyenne UE : <strong className={ue.moyenne !== undefined ? (ueAcquise(ue) ? "text-emerald-600" : "text-red-500") : "text-muted-foreground"}>{ue.moyenne !== undefined ? formatNote(ue.moyenne) : "En attente"}</strong></span>
+                        {(ue.moyenne !== undefined || ue.capitalisee) && <span className={cn("font-semibold", ueAcquise(ue) ? "text-emerald-600" : "text-red-500")}>{libelleResultatUe(ue)}</span>}
                       </div>
                     </button>
                     {expanded && (
@@ -249,7 +250,7 @@ export default function BulletinEtudiantPage() {
                             <div className="flex items-center gap-4 text-muted-foreground">
                               <span>Nombre crédits : <strong className="text-foreground">{ec.credits.toFixed(1)}</strong></span>
                               <span>Nombre crédits obtenus : <strong className="text-foreground">{ec.creditsObtenus.toFixed(1)}</strong></span>
-                              <span>Moyenne : <strong className={ec.moyenne !== undefined ? (ec.validee ? "text-emerald-600" : "text-red-500") : "text-amber-600"}>{ec.moyenne !== undefined ? ec.moyenne.toFixed(1) : "En attente"}</strong></span>
+                              <span>Moyenne : <strong className={ec.moyenne !== undefined ? (ec.validee ? "text-emerald-600" : "text-red-500") : "text-amber-600"}>{ec.moyenne !== undefined ? formatNote(ec.moyenne) : "En attente"}</strong></span>
                             </div>
                           </div>
                         ))}

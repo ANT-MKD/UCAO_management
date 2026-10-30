@@ -1,3 +1,4 @@
+import { ecrireStockage } from "@/lib/stockageLocal";
 import type { UserRole } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-publicites-v1";
@@ -75,7 +76,7 @@ function notify() {
 function persist() {
   store = store.slice();
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    ecrireStockage(STORAGE_KEY, JSON.stringify(store));
   }
   notify();
 }
@@ -110,7 +111,7 @@ export function upsertPublicite(payload: PublicitePayload, id?: string): Publici
     persist();
     return existing;
   }
-  const record: PubliciteRecord = { id: `pub-${Date.now()}`, createdAt: new Date().toISOString(), ...payload };
+  const record: PubliciteRecord = { id: `pub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString(), ...payload };
   store = [record, ...store];
   persist();
   return record;

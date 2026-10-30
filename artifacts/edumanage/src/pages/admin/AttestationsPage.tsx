@@ -21,6 +21,7 @@ import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, formatCFA, cn } from "@/lib/utils";
+import { formatNote } from "@/lib/notes";
 
 const ACTION_IMPRESSION: Record<AttestationType, string> = {
   scolarite: "impression_certificat_scolarite",
@@ -48,7 +49,7 @@ export function buildAttestationHtml(entry: AttestationRecord) {
     corps = `
       <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
       <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
-      <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${entry.moyenneConstatee?.toFixed(2) ?? "—"}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
+      <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${formatNote(entry.moyenneConstatee)}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
       <p>En foi de quoi, la présente attestation de réussite est délivrée pour servir et valoir ce que de droit.</p>
     `;
   } else if (entry.type === "inscription") {
@@ -177,7 +178,7 @@ export default function AttestationsPage() {
 
           <div className="relative mb-3">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <input aria-label="Nom, prénom ou matricule"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setSelectedEtudiantId(""); }}
               placeholder="Nom, prénom ou matricule..."
@@ -215,7 +216,7 @@ export default function AttestationsPage() {
                   <div className="text-sm font-semibold truncate">{selectedEtudiant.prenom} {selectedEtudiant.nom}</div>
                   <div className="text-[11px] text-muted-foreground font-mono">{selectedEtudiant.matricule} · {selectedEtudiant.filiere} — {selectedEtudiant.classe}</div>
                 </div>
-                <button onClick={() => { setSelectedEtudiantId(""); setSearch(""); }} className="p-1 rounded-lg hover:bg-muted"><X size={14} /></button>
+                <button aria-label="Fermer" title="Fermer" onClick={() => { setSelectedEtudiantId(""); setSearch(""); }} className="p-1 rounded-lg hover:bg-muted"><X size={14} /></button>
               </div>
               {selectedEtudiant.soldeDu > 0 && (
                 <div className="flex items-center gap-1.5 mt-2 text-[11px] text-amber-700 dark:text-amber-400" data-testid="attestation-avertissement-solde">
@@ -226,16 +227,16 @@ export default function AttestationsPage() {
           )}
 
           <div className="mb-3">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type de document</label>
-            <select value={type} onChange={(e) => { setType(e.target.value as AttestationType); setSemestreId(""); }} className={inputClass} data-testid="attestation-type">
+            <label htmlFor="attestations-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Type de document</label>
+            <select id="attestations-champ-1" value={type} onChange={(e) => { setType(e.target.value as AttestationType); setSemestreId(""); }} className={inputClass} data-testid="attestation-type">
               {TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
 
           {type === "reussite" && selectedEtudiant && (
             <div className="mb-3">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre à certifier</label>
-              <select value={semestreId} onChange={(e) => setSemestreId(e.target.value)} className={inputClass} data-testid="attestation-semestre">
+              <label htmlFor="attestations-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Semestre à certifier</label>
+              <select id="attestations-champ-2" value={semestreId} onChange={(e) => setSemestreId(e.target.value)} className={inputClass} data-testid="attestation-semestre">
                 <option value="">Sélectionner</option>
                 {semestresDisponibles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.alias})</option>)}
               </select>
@@ -251,7 +252,7 @@ export default function AttestationsPage() {
               data-testid="attestation-eligibilite-reussite"
             >
               {eligibiliteReussite.eligible ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
-              <span>{eligibiliteReussite.eligible ? `Éligible — Admis, moyenne ${eligibiliteReussite.moyenne?.toFixed(2)}/20.` : eligibiliteReussite.motif}</span>
+              <span>{eligibiliteReussite.eligible ? `Éligible — Admis, moyenne ${formatNote(eligibiliteReussite.moyenne)}/20.` : eligibiliteReussite.motif}</span>
             </div>
           )}
 
@@ -267,11 +268,11 @@ export default function AttestationsPage() {
 
         <div className="lg:col-span-2 bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
           <div className="flex flex-wrap gap-3 p-4 border-b border-border">
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputClass + " max-w-[220px]"}>
+            <select aria-label="Tous les types" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputClass + " max-w-[220px]"}>
               <option value="">Tous les types</option>
               {TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-            <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass + " max-w-[160px]"}>
+            <select aria-label="Tous les statuts" value={statutFilter} onChange={(e) => setStatutFilter(e.target.value)} className={inputClass + " max-w-[160px]"}>
               <option value="">Tous les statuts</option>
               <option value="genere">Générée</option>
               <option value="envoyee">Envoyée</option>
@@ -300,7 +301,7 @@ export default function AttestationsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {a.typeLabel}
-                      {a.type === "reussite" && a.semestreLabel && <div className="text-[10px] text-muted-foreground flex items-center gap-1"><GraduationCap size={10} /> {a.semestreLabel} · {a.moyenneConstatee?.toFixed(2)}/20</div>}
+                      {a.type === "reussite" && a.semestreLabel && <div className="text-[10px] text-muted-foreground flex items-center gap-1"><GraduationCap size={10} /> {a.semestreLabel} · {formatNote(a.moyenneConstatee)}/20</div>}
                     </td>
                     <td className="px-4 py-3"><span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", st.cls)}>{st.label}</span></td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(a.dateGeneration)}</td>
@@ -326,7 +327,7 @@ export default function AttestationsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b shrink-0">
               <h3 className="font-bold flex items-center gap-2 text-gray-900"><FileText size={18} /> Aperçu — {preview.typeLabel}</h3>
-              <button onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
+              <button aria-label="Fermer" title="Fermer" onClick={() => setPreview(null)}><X size={18} className="text-gray-500" /></button>
             </div>
             <iframe title="Aperçu attestation" srcDoc={buildAttestationHtml(preview)} className="flex-1 w-full" data-testid="attestation-preview-iframe" />
             <div className="p-4 flex gap-2 justify-end border-t shrink-0">

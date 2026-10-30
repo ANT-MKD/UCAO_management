@@ -169,7 +169,7 @@ export default function SchedulePage() {
     let list = seances.filter((s) => s.semaineDu === weekMonday);
     if (viewMode === "classe") list = list.filter((s) => s.classeId === viewTarget);
     else if (viewMode === "salle") list = list.filter((s) => s.salleId === viewTarget);
-    else if (viewMode === "prof" && selectedProf) list = list.filter((s) => matchesProf(selectedProf, s.prof));
+    else if (viewMode === "prof" && selectedProf) list = list.filter((s) => matchesProf(selectedProf, s.prof, s.profId));
     else if (viewMode === "prof") list = [];
     return list;
   }, [seances, viewMode, viewTarget, selectedProf, weekMonday]);
@@ -310,7 +310,7 @@ export default function SchedulePage() {
         title="Emploi du Temps"
         subtitle="Propre à chaque semaine — vue par classe, salle ou professeur, conflits détectés au déplacement"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button data-testid="edt-ajouter-evenement" onClick={() => { resetEvenementForm(); setShowEvenementModal(true); }} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
               <CalendarPlus size={15} /> Ajouter un évènement
             </button>
@@ -348,7 +348,7 @@ export default function SchedulePage() {
           {viewMode === "prof" ? (
             <div className="relative flex-1 min-w-[280px] max-w-md">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-              <input
+              <input aria-label="Rechercher un professeur (matricule, nom, téléphone)"
                 type="search"
                 value={profQuery}
                 onChange={(e) => {
@@ -381,7 +381,7 @@ export default function SchedulePage() {
               )}
             </div>
           ) : (
-            <select data-testid="edt-target-select" value={viewTarget} onChange={(e) => setViewTarget(e.target.value)} className={inputClass + " min-w-[220px]"}>
+            <select aria-label="Emploi du temps affiché" data-testid="edt-target-select" value={viewTarget} onChange={(e) => setViewTarget(e.target.value)} className={inputClass + " min-w-[220px]"}>
               {targetOptions.map((o) => (
                 <option key={o.id} value={o.id}>{o.label}</option>
               ))}
@@ -389,9 +389,9 @@ export default function SchedulePage() {
           )}
 
           <div className="flex items-center gap-1 ml-auto flex-wrap">
-            <button data-testid="edt-week-prev" onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"><ChevronLeft size={16} /></button>
+            <button aria-label="Précédent" title="Précédent" data-testid="edt-week-prev" onClick={() => setWeekOffset((w) => w - 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"><ChevronLeft size={16} /></button>
             <span className="text-sm font-medium text-foreground px-2">Sem. du {weekLabel}</span>
-            <button data-testid="edt-week-next" onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"><ChevronRight size={16} /></button>
+            <button aria-label="Suivant" title="Suivant" data-testid="edt-week-next" onClick={() => setWeekOffset((w) => w + 1)} className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"><ChevronRight size={16} /></button>
             <button data-testid="edt-week-today" onClick={() => setWeekOffset(0)} className="px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors">Aujourd&apos;hui</button>
             {(["semaine", "jour"] as const).map((mode) => (
               <button
@@ -529,7 +529,9 @@ export default function SchedulePage() {
                           draggable
                           onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData("seanceId", s.id); setDraggingId(s.id); }}
                           onDragEnd={() => setDraggingId(null)}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setLocation(`/admin/schedule/seance/${s.id}`); }}
+                          title="Cliquer pour modifier ou annuler — glisser pour déplacer"
+                          data-testid={`edt-seance-${s.id}`}
                           className={cn("absolute left-1 right-1 rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing transition-all overflow-hidden group", isDragging && "opacity-50 scale-95")}
                           style={{
                             top: `${top}px`, height: `${Math.max(height, 40)}px`,
@@ -608,32 +610,32 @@ export default function SchedulePage() {
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>
-            <input value={evObjet} onChange={(e) => setEvObjet(e.target.value)} className={formInputClass} placeholder="Ex : Conseil de classe, Examen S1…" data-testid="ev-objet" />
+            <label htmlFor="schedule-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Objet <span className="text-red-500">*</span></label>
+            <input id="schedule-champ-1" value={evObjet} onChange={(e) => setEvObjet(e.target.value)} className={formInputClass} placeholder="Ex : Conseil de classe, Examen S1…" data-testid="ev-objet" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date <span className="text-red-500">*</span></label>
-              <input type="date" value={evDate} onChange={(e) => setEvDate(e.target.value)} className={formInputClass} data-testid="ev-date" />
+              <label htmlFor="schedule-champ-2" className="block text-xs font-medium text-muted-foreground mb-1.5">Date <span className="text-red-500">*</span></label>
+              <input id="schedule-champ-2" type="date" value={evDate} onChange={(e) => setEvDate(e.target.value)} className={formInputClass} data-testid="ev-date" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type <span className="text-red-500">*</span></label>
-              <select value={evTypeId} onChange={(e) => setEvTypeId(e.target.value)} className={formInputClass} data-testid="ev-type">
+              <label htmlFor="schedule-champ-3" className="block text-xs font-medium text-muted-foreground mb-1.5">Type <span className="text-red-500">*</span></label>
+              <select id="schedule-champ-3" value={evTypeId} onChange={(e) => setEvTypeId(e.target.value)} className={formInputClass} data-testid="ev-type">
                 {evenementTypes.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.intitule}</option>)}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Classe (optionnel)</label>
-              <select value={evClasseId} onChange={(e) => setEvClasseId(e.target.value)} className={formInputClass} data-testid="ev-classe">
+              <label htmlFor="schedule-champ-4" className="block text-xs font-medium text-muted-foreground mb-1.5">Classe (optionnel)</label>
+              <select id="schedule-champ-4" value={evClasseId} onChange={(e) => setEvClasseId(e.target.value)} className={formInputClass} data-testid="ev-classe">
                 <option value="">— Aucune —</option>
                 {CLASSES.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Salle (optionnel)</label>
-              <select value={evSalleId} onChange={(e) => setEvSalleId(e.target.value)} className={formInputClass} data-testid="ev-salle">
+              <label htmlFor="schedule-champ-5" className="block text-xs font-medium text-muted-foreground mb-1.5">Salle (optionnel)</label>
+              <select id="schedule-champ-5" value={evSalleId} onChange={(e) => setEvSalleId(e.target.value)} className={formInputClass} data-testid="ev-salle">
                 <option value="">— Aucune —</option>
                 {SALLES.map((s) => <option key={s.id} value={s.id}>{s.nom} — {s.batiment}</option>)}
               </select>
@@ -641,23 +643,23 @@ export default function SchedulePage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heure début <span className="text-red-500">*</span></label>
-              <input type="time" value={evHeureDebut} onChange={(e) => setEvHeureDebut(e.target.value)} className={formInputClass} data-testid="ev-heure-debut" />
+              <label htmlFor="schedule-champ-6" className="block text-xs font-medium text-muted-foreground mb-1.5">Heure début <span className="text-red-500">*</span></label>
+              <input id="schedule-champ-6" type="time" value={evHeureDebut} onChange={(e) => setEvHeureDebut(e.target.value)} className={formInputClass} data-testid="ev-heure-debut" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Heure fin <span className="text-red-500">*</span></label>
-              <input type="time" value={evHeureFin} onChange={(e) => setEvHeureFin(e.target.value)} className={formInputClass} data-testid="ev-heure-fin" />
+              <label htmlFor="schedule-champ-7" className="block text-xs font-medium text-muted-foreground mb-1.5">Heure fin <span className="text-red-500">*</span></label>
+              <input id="schedule-champ-7" type="time" value={evHeureFin} onChange={(e) => setEvHeureFin(e.target.value)} className={formInputClass} data-testid="ev-heure-fin" />
             </div>
           </div>
           {evenementTypeSelected?.necessiteSurveillant && (
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Surveillant</label>
-              <input value={evSurveillant} onChange={(e) => setEvSurveillant(e.target.value)} className={formInputClass} placeholder="Nom du surveillant" data-testid="ev-surveillant" />
+              <label htmlFor="schedule-champ-8" className="block text-xs font-medium text-muted-foreground mb-1.5">Surveillant</label>
+              <input id="schedule-champ-8" value={evSurveillant} onChange={(e) => setEvSurveillant(e.target.value)} className={formInputClass} placeholder="Nom du surveillant" data-testid="ev-surveillant" />
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Remarque</label>
-            <textarea value={evRemarque} onChange={(e) => setEvRemarque(e.target.value)} rows={2} className={formInputClass} />
+            <label htmlFor="schedule-champ-9" className="block text-xs font-medium text-muted-foreground mb-1.5">Remarque</label>
+            <textarea id="schedule-champ-9" value={evRemarque} onChange={(e) => setEvRemarque(e.target.value)} rows={2} className={formInputClass} />
           </div>
           <div className="flex justify-between gap-2 pt-2">
             {editingEvenementId ? (

@@ -153,6 +153,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <input
                   type="search"
                   placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder || "Rechercher dans le tableau"}
                   value={search}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -206,6 +207,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <select
                   value={pageSize}
                   onChange={(e) => handlePageSize(Number(e.target.value))}
+                  aria-label="Nombre de lignes par page"
                   className="px-2 py-1 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
                   data-testid="page-size-select"
                 >
@@ -248,6 +250,7 @@ export function DataTable<T extends Record<string, unknown>>({
               <select
                 value={pageSize}
                 onChange={(e) => handlePageSize(Number(e.target.value))}
+                aria-label="Nombre de lignes par page"
                 className="px-2 py-1 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
               >
                 {PAGE_SIZE_OPTIONS.map((n) => (
@@ -266,7 +269,7 @@ export function DataTable<T extends Record<string, unknown>>({
           {search && (
             <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full">
               Recherche : "{search}"
-              <button onClick={() => handleSearch("")} className="hover:text-red-500 ml-0.5"><X size={10} /></button>
+              <button aria-label="Effacer la recherche" title="Effacer la recherche" onClick={() => handleSearch("")} className="hover:text-red-500 ml-0.5"><X size={10} /></button>
             </span>
           )}
         </div>
@@ -296,6 +299,9 @@ export function DataTable<T extends Record<string, unknown>>({
                     col.className
                   )}
                   onClick={() => col.sortable && handleSort(col.key)}
+                  aria-sort={col.sortable && sortKey === col.key ? (sortDir === "desc" ? "descending" : "ascending") : undefined}
+                  tabIndex={col.sortable ? 0 : undefined}
+                  onKeyDown={col.sortable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSort(col.key); } } : undefined}
                 >
                   <div className="flex items-center gap-1">
                     {col.header}
@@ -353,6 +359,9 @@ export function DataTable<T extends Record<string, unknown>>({
                     rowId && selectedIds!.has(rowId) && "bg-primary/[0.03]"
                   )}
                   onClick={() => onRowClick?.(row)}
+                  // Ligne ouvrable au clavier (Entrée), sans détourner les boutons qu'elle contient.
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={onRowClick ? (e) => { if (e.key === "Enter" && e.target === e.currentTarget) onRowClick(row); } : undefined}
                   data-testid={`table-row-${i}`}
                 >
                   {selectionEnabled && (
@@ -401,12 +410,13 @@ export function DataTable<T extends Record<string, unknown>>({
                 disabled={safePage === 1}
                 className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-30 transition-colors text-muted-foreground"
                 title="Première page"
+                aria-label="Première page"
                 data-testid="table-first-page"
               >
                 <ChevronsLeft size={14} />
               </button>
               {/* Prev */}
-              <button
+              <button aria-label="Page précédente" title="Page précédente"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage === 1}
                 className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-30 transition-colors text-muted-foreground"
@@ -424,6 +434,8 @@ export function DataTable<T extends Record<string, unknown>>({
                     <button
                       key={p}
                       onClick={() => setPage(p as number)}
+                      aria-label={`Page ${p}`}
+                      aria-current={safePage === p ? "page" : undefined}
                       className={cn(
                         "w-7 h-7 rounded-lg text-xs font-medium transition-all",
                         safePage === p
@@ -439,7 +451,7 @@ export function DataTable<T extends Record<string, unknown>>({
               </div>
 
               {/* Next */}
-              <button
+              <button aria-label="Page suivante" title="Page suivante"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage === totalPages}
                 className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-30 transition-colors text-muted-foreground"
@@ -453,6 +465,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 disabled={safePage === totalPages}
                 className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-30 transition-colors text-muted-foreground"
                 title="Dernière page"
+                aria-label="Dernière page"
                 data-testid="table-last-page"
               >
                 <ChevronsRight size={14} />
