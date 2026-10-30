@@ -1,10 +1,9 @@
 import { supabase, appelerFonction, modeSupabase } from "@/lib/supabase";
 import { PORTAIL_DU_TYPE, type CompteServeur } from "@/lib/comptesServeur";
 import type { UserAccountRecord, UserRole } from "./studentStore";
-import type { RoleRecord } from "./roleStore";
 import type { StatutPin } from "./pinActivationStore";
 
-/** Mode Supabase : comptes, rôles, portails, codes PIN et demandes « mot de passe oublié » lus dans
+/** Mode Supabase : comptes, portails, codes PIN et demandes « mot de passe oublié » lus dans
  * la base (chacun ne reçoit que ce que ses droits lui ouvrent) et modifiés par les fonctions du
  * serveur, qui vérifient elles-mêmes les droits. Chaque liste se charge à la première lecture et se
  * recharge après chaque modification. */
@@ -151,15 +150,6 @@ export async function historiqueCompteServeur(id: string): Promise<{ creePar?: s
     derniereConnexion: lignes.find((l) => l.action === "login")?.cree_le,
   };
 }
-
-// ——— Rôles (lus ici ; leur gestion se branche à la partie 3) ———
-
-export const rolesServeur = sourceServeur<RoleRecord[]>([], async () => {
-  const lignes = verifier(await client().from("roles").select("id, code, description, pages, auteur, cree_le").order("code")) as {
-    id: string; code: string; description: string; pages: string[]; auteur: string | null; cree_le: string;
-  }[];
-  return lignes.map((r) => ({ id: r.id, code: r.code, description: r.description, accessibleItemIds: r.pages, auteurId: r.auteur ?? "", createdAt: r.cree_le }));
-});
 
 // ——— Portails ———
 

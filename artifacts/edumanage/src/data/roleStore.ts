@@ -96,6 +96,12 @@ export function getRoleById(id: string): RoleRecord | undefined {
   return store.find((r) => r.id === id);
 }
 
+/** Remplace tous les rôles (contenu de la base, avec Supabase). */
+export function remplacerRoles(records: RoleRecord[]) {
+  store = records;
+  persist();
+}
+
 export interface RolePayload {
   code: string;
   description: string;

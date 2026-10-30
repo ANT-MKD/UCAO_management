@@ -68,6 +68,12 @@ export function getMotifBlocageById(id: string): MotifBlocageRecord | undefined 
   return store.find((m) => m.id === id);
 }
 
+/** Remplace tous les motifs (contenu de la base, avec Supabase). */
+export function remplacerMotifsBlocage(records: MotifBlocageRecord[]) {
+  store = records;
+  persist();
+}
+
 export interface MotifBlocagePayload {
   code: string;
   intitule: string;

@@ -17,8 +17,9 @@ type Fiche = { id: string } & Record<string, unknown>;
 export interface PartieMiroir<R extends { id: string }> {
   /** Table de la base. */
   table: string;
-  /** Champs de la fiche envoyés à la base (en camelCase ; la colonne est en snake_case). */
-  colonnes: readonly string[];
+  /** Champs de la fiche envoyés à la base : « champ » (en camelCase ; la colonne est en
+   * snake_case) ou [champ, colonne] quand la base le nomme autrement. */
+  colonnes: readonly (string | readonly [string, string])[];
   /** Valeur envoyée quand le champ est absent de la fiche (colonne obligatoire côté base). */
   defauts?: Readonly<Record<string, unknown>>;
   /** Fiches actuelles du store. */
@@ -39,13 +40,19 @@ export interface Miroir {
 
 export const EVENEMENT_REFUS_SERVEUR = "edumanage:refus-serveur";
 
-const versColonne = (champ: string) => champ.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+/** Partie typée par sa fiche, rangée avec les autres parties d'un miroir. */
+export function partie<R extends { id: string }>(p: PartieMiroir<R>): PartieMiroir<{ id: string }> {
+  return p as unknown as PartieMiroir<{ id: string }>;
+}
+
+const champsEtColonnes = (partie: PartieMiroir<{ id: string }>) =>
+  partie.colonnes.map((c) => (typeof c === "string" ? [c, c.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)] : c));
 
 export function versLigne(partie: PartieMiroir<{ id: string }>, fiche: Fiche): Ligne {
   const ligne: Ligne = {};
-  for (const champ of partie.colonnes) {
+  for (const [champ, colonne] of champsEtColonnes(partie)) {
     const valeur = fiche[champ];
-    ligne[versColonne(champ)] = valeur === undefined ? (partie.defauts?.[champ] ?? null) : valeur;
+    ligne[colonne] = valeur === undefined ? (partie.defauts?.[champ] ?? null) : valeur;
   }
   return ligne;
 }
@@ -54,8 +61,8 @@ export function versLigne(partie: PartieMiroir<{ id: string }>, fiche: Fiche): L
  * existante sont gardés. */
 export function depuisLigne(partie: PartieMiroir<{ id: string }>, ligne: Ligne, existante?: Fiche): Fiche {
   const fiche: Fiche = { ...(existante ?? {}), id: String(ligne.id) };
-  for (const champ of partie.colonnes) {
-    const valeur = ligne[versColonne(champ)];
+  for (const [champ, colonne] of champsEtColonnes(partie)) {
+    const valeur = ligne[colonne];
     fiche[champ] = valeur === null ? undefined : valeur;
   }
   return fiche;
@@ -80,6 +87,8 @@ export function motifRefus(erreur: { code?: string; message?: string }): string 
       return "La base a refusé : cet élément est encore utilisé par d'autres données (ou dépend d'un élément absent). L'écran a été remis à jour.";
     case "42501":
       return "Vous n'avez pas le droit de modifier ces données. L'écran a été remis à jour.";
+    case "23505":
+      return "La base a refusé : ce code existe déjà (créé depuis un autre poste ?). L'écran a été remis à jour.";
     case "23514":
     case "23502":
       return "La base a refusé une valeur hors des limites autorisées. L'écran a été remis à jour.";
@@ -121,14 +130,17 @@ async function chargerMiroir(miroir: Miroir): Promise<void> {
 }
 
 /** Avant le premier chargement depuis la base, les données de ce navigateur sont mises de côté
- * (une seule fois) : rien de ce qui a été saisi hors ligne n'est perdu. */
+ * (une seule fois par store, y compris pour un store reflété plus tard) : rien de ce qui a été
+ * saisi hors ligne n'est perdu. */
 function sauvegarderUneFois(): void {
   const CLE = "edumanage-sauvegarde-avant-supabase-v1";
   try {
-    if (localStorage.getItem(CLE)) return;
-    const copie: Record<string, string | null> = {};
-    for (const cle of miroirs.keys()) copie[cle] = localStorage.getItem(cle);
-    localStorage.setItem(CLE, JSON.stringify({ le: new Date().toISOString(), donnees: copie }));
+    const sauvegarde = (JSON.parse(localStorage.getItem(CLE) ?? "null") as { le: string; donnees: Record<string, string | null> } | null)
+      ?? { le: new Date().toISOString(), donnees: {} };
+    const nouvelles = [...miroirs.keys()].filter((cle) => !(cle in sauvegarde.donnees));
+    if (nouvelles.length === 0) return;
+    for (const cle of nouvelles) sauvegarde.donnees[cle] = localStorage.getItem(cle);
+    localStorage.setItem(CLE, JSON.stringify(sauvegarde));
   } catch {
     // stockage plein : la sauvegarde est sautée, le chargement continue
   }

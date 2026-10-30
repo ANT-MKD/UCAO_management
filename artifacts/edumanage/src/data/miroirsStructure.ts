@@ -1,4 +1,4 @@
-import { enregistrerMiroir, type PartieMiroir } from "@/lib/miroirServeur";
+import { enregistrerMiroir, partie } from "@/lib/miroirServeur";
 import { cycleStore, entiteStore, categorieCoursStore } from "./academicSettingsStore";
 import { getFilieres, remplacerFilieres, type FiliereRecord } from "./filiereStore";
 import { getNiveaux, remplacerNiveaux, type NiveauRecord } from "./niveauStore";
@@ -10,10 +10,6 @@ import { getAnneesAcademiques, remplacerAnneesAcademiques, type AnneeAcademiqueR
 /** Structure académique reflétée dans la base (partie 3, lot 1) : tables de la migration
  * « structure_academique » et années académiques. Les compteurs calculés par l'application
  * (nombre de classes d'une filière, effectif d'une classe, nombre d'EC d'une UE) restent locaux. */
-
-function partie<R extends { id: string }>(p: PartieMiroir<R>): PartieMiroir<{ id: string }> {
-  return p as unknown as PartieMiroir<{ id: string }>;
-}
 
 const listeSimple = (table: string, store: { getAll: () => { id: string }[]; remplacer: (r: never[]) => void }, colonnes: string[]) =>
   partie({ table, colonnes, lire: store.getAll, remplacer: (r) => store.remplacer(r as never[]) });

@@ -13,7 +13,7 @@ import {
 import { modeSupabase, supabase } from "@/lib/supabase";
 import { compteDeLaSession, connecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
 import { arreterMiroirs, chargerMiroirs } from "@/lib/miroirServeur";
-import "@/data/miroirsStructure";
+import "@/data/miroirs";
 
 const DONNEES_INJOIGNABLES = "Impossible de charger les données de l'établissement. Vérifiez votre connexion internet, puis reconnectez-vous.";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";

@@ -44,10 +44,13 @@ async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string,
     createClient: () => client,
   }));
   const miroir = await import("@/lib/miroirServeur");
-  await import("@/data/miroirsStructure");
+  await import("@/data/miroirs");
   return {
     envois,
     miroir,
+    roles: await import("@/data/roleStore"),
+    pages: await import("@/data/portalFeaturesStore"),
+    motifs: await import("@/data/motifBlocageStore"),
     filieres: await import("@/data/filiereStore"),
     niveaux: await import("@/data/niveauStore"),
     structure: await import("@/data/structureStore"),
@@ -58,6 +61,7 @@ async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string,
 
 const FILIERE = { id: "fil-qhse", code: "LQHSE", nom: "Licence QHSE", responsable: "", responsable_id: null, statut: "actif", cycle_id: null, cycle: null, entite_id: null, entite: null, type_programme: null, annees_actives: ["2026-2027"], specialite: null, informations_complementaires: null };
 const NIVEAU = { id: "niv-l1", nom: "Licence 1", alias: "L1", cycle: "Licence", cycle_id: null, filiere: "LQHSE", filiere_id: "fil-qhse", passage_conditionnel_autorise: null, credit_dette_min: null, credits_requis_entree: 0 };
+const ADMIN = "00000000-0000-4000-8000-00000000000a";
 const ANNEE = { id: "annee-2026", libelle: "2026-2027", actuelle: true, cloturee: false, archivee: false, date_debut: "2026-11-02", date_fin: "2027-07-31", cree_le: "2026-10-30T10:00:00Z" };
 
 afterEach(() => {
@@ -145,11 +149,97 @@ describe("miroir de la structure académique dans Supabase", () => {
   it("sans Supabase, rien ne part", async () => {
     vi.resetModules();
     const miroir = await import("@/lib/miroirServeur");
-    await import("@/data/miroirsStructure");
+    await import("@/data/miroirs");
     const { addFiliere, getFilieres } = await import("@/data/filiereStore");
     await miroir.chargerMiroirs();
     addFiliere({ code: "LGL", nom: "Licence Génie logiciel", responsable: "", nbClasses: 0, nbEtudiants: 0, statut: "actif" });
     await miroir.attendreEnvois();
     expect(getFilieres().map((f) => f.code)).toContain("LGL");
+  });
+});
+
+describe("miroir des rôles, des pages des portails et des motifs de blocage", () => {
+  it("à la connexion, les rôles, pages et motifs de la base remplacent ceux du navigateur", async () => {
+    const b = await avecBase({
+      annees_academiques: [ANNEE],
+      roles: [{ id: "role-caisse", code: "ROLE_CAISSE", description: "Caisse", pages: ["fin-enc-liste", "fin-enc-declares"], auteur: ADMIN, cree_le: "2026-10-30T08:00:00+00:00" }],
+      pages_portails: [{ id: "student-notes", portail: "etudiant", active: false }],
+      motifs_blocage: [{ id: "motif-impaye", code: "IMPAYE", intitule: "Impayé de scolarité", actions_interdites: ["portail_etudiant"], cree_le: "2026-10-30T09:00:00+00:00" }],
+    });
+    expect(b.roles.getRoles().map((r) => r.id)).toContain("role-secretariat");
+    await b.miroir.chargerMiroirs();
+    expect(b.roles.getRoles()).toEqual([
+      { id: "role-caisse", code: "ROLE_CAISSE", description: "Caisse", accessibleItemIds: ["fin-enc-liste", "fin-enc-declares"], auteurId: ADMIN, createdAt: "2026-10-30T08:00:00+00:00" },
+    ]);
+    expect(b.pages.isFeatureActif("student-notes")).toBe(false);
+    expect(b.pages.isFeatureActif("student-cours")).toBe(true);
+    expect(b.motifs.getMotifsBlocage()).toEqual([
+      { id: "motif-impaye", code: "IMPAYE", intitule: "Impayé de scolarité", actionsInterdites: ["portail_etudiant"], createdAt: "2026-10-30T09:00:00+00:00" },
+    ]);
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("un rôle créé par l'administrateur part avec ses pages, en colonnes de la base", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE] });
+    b.S.refleterCompteServeur({ id: ADMIN, role: "admin", email: "f.diop@ucao.edu", identifier: "ADM-PRINCIPAL", displayName: "Fatou DIOP", actif: true, doitChangerMotDePasse: false });
+    await b.miroir.chargerMiroirs();
+    const role = b.roles.upsertRole({ code: "ROLE_CAISSE", description: "Caisse" }, ADMIN);
+    b.roles.setRoleAccess(role.id, ["fin-enc-liste"], ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "roles", operation: "upsert", donnees: [
+      { id: role.id, code: "ROLE_CAISSE", description: "Caisse", pages: ["fin-enc-liste"], auteur: ADMIN, cree_le: role.createdAt },
+    ] }]);
+  });
+
+  it("fermer puis rouvrir une page du portail Étudiant : chaque page reste à son portail", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE] });
+    await b.miroir.chargerMiroirs();
+    b.pages.setFeatureActif("student", "student-notes", false);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["pages_portails"]);
+    const lignes = b.envois[0].donnees as { id: string; portail: string; active: boolean }[];
+    expect(lignes.find((l) => l.id === "student-notes")).toEqual({ id: "student-notes", portail: "etudiant", active: false });
+    expect(lignes.every((l) => (l.portail === "etudiant") === l.id.startsWith("student-"))).toBe(true);
+    b.pages.setFeatureActif("student", "student-notes", true);
+    await b.miroir.attendreEnvois();
+    expect(b.envois[1].donnees).toEqual([{ id: "student-notes", portail: "etudiant", active: true }]);
+  });
+
+  it("motif de blocage refusé (compte sans « Paramètres généraux ») : l'écran reprend la base et dit pourquoi", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE] },
+      (table) => (table === "motifs_blocage" ? { code: "42501", message: "new row violates row-level security policy" } : null));
+    await b.miroir.chargerMiroirs();
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    b.motifs.upsertMotifBlocage({ code: "IMPAYE", intitule: "Impayé de scolarité", actionsInterdites: ["portail_etudiant"] }, ADMIN);
+    expect(b.motifs.getMotifsBlocage()).toHaveLength(1);
+    await b.miroir.attendreEnvois();
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ code: "IMPAYE", actions_interdites: ["portail_etudiant"] })]);
+    expect(motifs).toEqual([expect.stringContaining("pas le droit")]);
+    expect(b.motifs.getMotifsBlocage()).toEqual([]);
+  });
+
+  it("même code de motif créé depuis deux postes : la base garde le premier et l'écran dit pourquoi", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE] },
+      (table) => (table === "motifs_blocage" ? { code: "23505", message: "duplicate key value violates unique constraint \"motifs_blocage_code_unique\"" } : null));
+    await b.miroir.chargerMiroirs();
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    b.motifs.upsertMotifBlocage({ code: "impaye", intitule: "Impayé", actionsInterdites: [] }, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(motifs).toEqual([expect.stringContaining("ce code existe déjà")]);
+  });
+
+  it("un store reflété après une première connexion est lui aussi mis de côté avant d'être remplacé", async () => {
+    const CLE = "edumanage-sauvegarde-avant-supabase-v1";
+    localStorage.setItem(CLE, JSON.stringify({ le: "2026-10-30T10:00:00Z", donnees: { "edumanage-filiere-store-v1": "[]" } }));
+    localStorage.setItem("edumanage-motifs-blocage-v1", JSON.stringify([{ id: "motif-local", code: "DOSSIER", intitule: "Dossier incomplet", actionsInterdites: [], createdAt: "2026-10-01T00:00:00Z" }]));
+    const b = await avecBase({ annees_academiques: [ANNEE] });
+    await b.miroir.chargerMiroirs();
+    const sauvegarde = JSON.parse(localStorage.getItem(CLE)!);
+    expect(sauvegarde.le).toBe("2026-10-30T10:00:00Z");
+    expect(sauvegarde.donnees["edumanage-filiere-store-v1"]).toBe("[]");
+    expect(JSON.parse(sauvegarde.donnees["edumanage-motifs-blocage-v1"])).toEqual([expect.objectContaining({ id: "motif-local" })]);
+    expect(b.motifs.getMotifsBlocage()).toEqual([]);
   });
 });

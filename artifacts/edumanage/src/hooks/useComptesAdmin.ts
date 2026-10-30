@@ -8,7 +8,6 @@ import {
   comptesServeur,
   demandesServeur,
   portailsServeur,
-  rolesServeur,
   type PortailsVue,
 } from "@/data/comptesServeurStore";
 import { useUserAccounts } from "@/hooks/useStudentStore";
@@ -33,10 +32,9 @@ export function useCompteAdmin(id: string): UserAccountRecord | undefined {
   return comptes.find((c) => c.id === id);
 }
 
+/** Avec Supabase, les rôles du navigateur sont ceux de la base (miroir rempli à la connexion). */
 export function useRolesAdmin(): RoleRecord[] {
-  const locaux = useRoles();
-  const serveur = useSource(rolesServeur);
-  return modeSupabase ? serveur : locaux;
+  return useRoles();
 }
 
 export function usePortailsAdmin(): PortailsVue {

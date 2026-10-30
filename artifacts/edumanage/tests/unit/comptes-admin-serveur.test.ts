@@ -22,7 +22,6 @@ const TABLES: Record<string, unknown[]> = {
     { type_compte: "enseignant", ouvert: true, message: "" },
     { type_compte: "etudiant", ouvert: false, message: "Saisie des notes en cours" },
   ],
-  roles: [{ id: "r1", code: "ROLE_SECRETARIAT", description: "Secrétariat", pages: ["sec-users"], auteur: ADMIN, cree_le: "2026-10-30T08:00:00Z" }],
 };
 
 /** Requête de la base : chaque filtre renvoie la même requête, qui se résout avec les lignes. */
@@ -135,13 +134,6 @@ describe("écrans Utilisateurs, Portails et Codes PIN avec Supabase", () => {
   it("la demande « mot de passe oublié » d'Awa est lue de la base", async () => {
     const { serveur } = await avecBase();
     expect(await lireListe(serveur.demandesServeur)).toEqual([{ id: "7", compteId: AWA, createdAt: "2026-10-30T09:00:00Z" }]);
-  });
-
-  it("les rôles de la base gardent leurs pages", async () => {
-    const { serveur } = await avecBase();
-    expect(await lireListe(serveur.rolesServeur)).toEqual([
-      { id: "r1", code: "ROLE_SECRETARIAT", description: "Secrétariat", accessibleItemIds: ["sec-users"], auteurId: ADMIN, createdAt: "2026-10-30T08:00:00Z" },
-    ]);
   });
 });
 
