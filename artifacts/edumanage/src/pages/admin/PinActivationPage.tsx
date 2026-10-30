@@ -4,11 +4,11 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useUserAccounts } from "@/hooks/useStudentStore";
-import { usePinsActivation, useDemandesReinitialisation } from "@/hooks/usePinActivationStore";
-import { genererPin, revoquerPin, statutPin, type PinActivationRecord, type StatutPin } from "@/data/pinActivationStore";
-import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
+import { useCodesPin, useComptesAdmin, useDemandesAttente, type CodePinVue } from "@/hooks/useComptesAdmin";
+import type { StatutPin } from "@/data/pinActivationStore";
+import { genererCodePin, revoquerCodePin } from "@/data/comptesAdmin";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
+import { modeSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import type { UserAccountRecord } from "@/data/studentStore";
 import { cn } from "@/lib/utils";
@@ -27,13 +27,12 @@ function formatDateTime(iso: string) {
 
 export default function PinActivationPage() {
   const { currentUser } = useAuth();
-  const comptes = useUserAccounts();
-  const pins = usePinsActivation();
-  const demandes = useDemandesReinitialisation();
-  const demandesEnAttente = demandes.filter((d) => !d.traiteeLe);
+  const comptes = useComptesAdmin();
+  const pins = useCodesPin();
+  const demandesEnAttente = useDemandesAttente();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<UserAccountRecord | null>(null);
-  const [dernierCode, setDernierCode] = useState<PinActivationRecord | null>(null);
+  const [dernierCode, setDernierCode] = useState<{ compteLabel: string; compteIdentifier: string; pin: string } | null>(null);
 
   const candidats = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -43,30 +42,27 @@ export default function PinActivationPage() {
       .slice(0, 8);
   }, [comptes, search]);
 
-  const genererPour = (compte: UserAccountRecord) => {
+  const genererPour = async (compte: UserAccountRecord) => {
     if (!currentUser) return;
-    const record = genererPin(compte.id, compte.displayName, compte.identifier, currentUser.id, currentUser.name);
-    envoyerMailSysteme({
-      destinataireUserId: compte.id,
-      destinataireLabel: compte.displayName,
-      destinataireEmail: compte.email,
-      objet: "Code de validation",
-      message: `Votre code de réinitialisation de mot de passe : ${record.pin} (valable 24 heures).`,
-    });
-    setDernierCode(record);
-    setSelected(null);
-    setSearch("");
+    try {
+      const { code } = await genererCodePin(compte, { id: currentUser.id, name: currentUser.name });
+      setDernierCode({ compteLabel: compte.displayName, compteIdentifier: compte.identifier, pin: code });
+      setSelected(null);
+      setSearch("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Génération impossible");
+    }
   };
 
   const handleGenerer = () => {
     if (!selected) return;
-    genererPour(selected);
+    void genererPour(selected);
   };
 
-  const handleRevoquer = (record: PinActivationRecord) => {
+  const handleRevoquer = async (record: CodePinVue) => {
     if (!currentUser) return;
     try {
-      revoquerPin(record.id, currentUser.name);
+      await revoquerCodePin(record.id, currentUser.name);
       toast.success(`PIN de ${record.compteLabel} révoqué.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Révocation impossible");
@@ -79,7 +75,7 @@ export default function PinActivationPage() {
       header: "Utilisateur",
       sortable: true,
       render: (row) => {
-        const r = row as unknown as PinActivationRecord;
+        const r = row as unknown as CodePinVue;
         return (
           <div>
             <span className="font-mono text-xs text-muted-foreground">{r.compteIdentifier}</span>
@@ -89,16 +85,25 @@ export default function PinActivationPage() {
         );
       },
     },
-    { key: "pin", header: "Code pin", render: (row) => <span className="font-mono font-semibold">{(row as unknown as PinActivationRecord).pin}</span> },
-    { key: "createdAt", header: "Date création", sortable: true, render: (row) => formatDateTime((row as unknown as PinActivationRecord).createdAt) },
-    { key: "auteurLabel", header: "Créé par", render: (row) => (row as unknown as PinActivationRecord).auteurLabel },
+    {
+      key: "pin",
+      header: "Code pin",
+      render: (row) => {
+        const pin = (row as unknown as CodePinVue).pin;
+        // Avec Supabase, la base ne garde qu'une empreinte du code : il n'est montré qu'à sa génération.
+        return pin
+          ? <span className="font-mono font-semibold">{pin}</span>
+          : <span className="font-mono text-muted-foreground" title="Montré une seule fois, à la génération">••••••</span>;
+      },
+    },
+    { key: "createdAt", header: "Date création", sortable: true, render: (row) => formatDateTime((row as unknown as CodePinVue).createdAt) },
+    { key: "auteurLabel", header: "Créé par", render: (row) => (row as unknown as CodePinVue).auteurLabel },
     {
       key: "statut",
       header: "Statut",
       render: (row) => {
-        const r = row as unknown as PinActivationRecord;
-        const st = statutPin(r, pins);
-        const cfg = STATUT_CONFIG[st];
+        const r = row as unknown as CodePinVue;
+        const cfg = STATUT_CONFIG[r.statut];
         return <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", cfg.cls)}>{cfg.label}</span>;
       },
     },
@@ -107,12 +112,11 @@ export default function PinActivationPage() {
       header: "",
       className: "text-right",
       render: (row) => {
-        const r = row as unknown as PinActivationRecord;
-        const st = statutPin(r, pins);
-        if (st !== "actif") return null;
+        const r = row as unknown as CodePinVue;
+        if (r.statut !== "actif") return null;
         return (
           <button
-            onClick={(e) => { e.stopPropagation(); handleRevoquer(r); }}
+            onClick={(e) => { e.stopPropagation(); void handleRevoquer(r); }}
             className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-border hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-muted-foreground transition-colors dark:hover:bg-red-950/40"
             data-testid={`pin-revoquer-${r.id}`}
           >
@@ -138,7 +142,7 @@ export default function PinActivationPage() {
           <div className="flex-1 min-w-[220px]">
             <p className="text-sm font-semibold text-foreground">Code à remettre à {dernierCode.compteLabel} ({dernierCode.compteIdentifier})</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Valable 24 heures, 5 essais au maximum. La personne le saisit sur la page de connexion : « Mot de passe oublié ? » → « J&apos;ai déjà un code ».
+              {modeSupabase && "Montré une seule fois : notez-le avant de fermer. "}Valable 24 heures, 5 essais au maximum. La personne le saisit sur la page de connexion : « Mot de passe oublié ? » → « J&apos;ai déjà un code ».
             </p>
           </div>
           <span className="font-mono text-3xl font-bold tracking-[0.2em] text-foreground" data-testid="pin-dernier-code-valeur">{dernierCode.pin}</span>
@@ -152,7 +156,7 @@ export default function PinActivationPage() {
           <p className="text-xs text-muted-foreground mb-3">Vérifiez l&apos;identité de la personne (pièce d&apos;identité) avant de générer son code.</p>
           <div className="divide-y divide-border">
             {demandesEnAttente.map((d) => {
-              const compte = comptes.find((c) => c.id === d.userId);
+              const compte = comptes.find((c) => c.id === d.compteId);
               return (
                 <div key={d.id} className="flex flex-wrap items-center gap-3 py-2.5">
                   <UserAvatar name={d.compteLabel} size="xs" />
@@ -162,10 +166,10 @@ export default function PinActivationPage() {
                     <div className="text-[11px] text-muted-foreground">Demandé le {formatDateTime(d.createdAt)}</div>
                   </div>
                   <button
-                    onClick={() => compte && genererPour(compte)}
+                    onClick={() => compte && void genererPour(compte)}
                     disabled={!compte}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-40"
-                    data-testid={`pin-demande-generer-${d.userId}`}
+                    data-testid={`pin-demande-generer-${d.compteId}`}
                   >
                     <KeyRound size={12} /> Générer le code
                   </button>

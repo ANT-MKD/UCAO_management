@@ -1,10 +1,10 @@
 import { useStudentStore, useNotes, useStudentRequests, useCahiers } from "@/hooks/useStudentStore";
 import { useMailsEnvoyes } from "@/hooks/useMailEnvoyeStore";
-import { useDemandesReinitialisation } from "@/hooks/usePinActivationStore";
+import { useDemandesAttente } from "@/hooks/useComptesAdmin";
 import { usePaiementsDeclares } from "@/hooks/usePaiementDeclareStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
-import { useRoles } from "@/hooks/useRoleStore";
+import { useRolesAdmin } from "@/hooks/useComptesAdmin";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { pourcentageStockage } from "@/lib/stockageLocal";
@@ -41,11 +41,11 @@ function depuis(dates: string[]): string {
  * propre limite d'affichage. */
 export function useAdminAlerts(): AdminAlert[] {
   const { currentUser } = useAuth();
-  const roles = useRoles();
+  const roles = useRolesAdmin();
   const etudiants = useStudentStore();
   const notes = useNotes();
   const mailsEnvoyes = useMailsEnvoyes();
-  const demandesReinit = useDemandesReinitialisation();
+  const reinitEnAttente = useDemandesAttente();
   const paiementsDeclares = usePaiementsDeclares();
   const demandes = useStudentRequests();
   const cahiers = useCahiers();
@@ -59,7 +59,6 @@ export function useAdminAlerts(): AdminAlert[] {
   const notesEnAttente = notes.filter((n) => n.statut === "soumis_admin");
   const mailsEnAttente = mailsEnvoyes.filter((m) => m.statut === "en_attente_validation");
   const enAttenteInscription = etudiants.filter((e) => e.statut === "preinscrit" || e.statut === "en_attente").length;
-  const reinitEnAttente = demandesReinit.filter((d) => !d.traiteeLe);
   const paiementsAVerifier = paiementsDeclares.filter((d) => d.statut === "a_verifier");
   const demandesNouvelles = demandes.filter((r) => r.status === "nouveau");
   const demandesEnCours = demandes.filter((r) => r.status === "en_cours");

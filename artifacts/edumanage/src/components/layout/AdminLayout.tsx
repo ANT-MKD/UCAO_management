@@ -17,7 +17,7 @@ import {
   type AdminNavNode,
   type AdminNavSection,
 } from "@/lib/adminNavConfig";
-import { useRoles } from "@/hooks/useRoleStore";
+import { useRolesAdmin } from "@/hooks/useComptesAdmin";
 
 const TOPBAR_H = "h-16";
 const SIDEBAR_W = "w-[88px]";
@@ -124,7 +124,7 @@ function SubNavPanel({
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const { currentUser, logout } = useAuth();
-  const roles = useRoles();
+  const roles = useRolesAdmin();
   const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);

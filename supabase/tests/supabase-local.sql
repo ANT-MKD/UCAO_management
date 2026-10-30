@@ -54,3 +54,10 @@ alter default privileges for role postgres in schema public grant all on sequenc
 create schema if not exists extensions;
 create extension if not exists pgcrypto schema extensions;
 grant usage on schema extensions to anon, authenticated, service_role;
+
+-- Fonction que Supabase pose à la création d'un projet, exécutable par tous (la migration
+-- « acces_fonction_rls_auto_enable » le corrige).
+create or replace function public.rls_auto_enable() returns event_trigger
+language plpgsql security definer set search_path = pg_catalog
+as $$ begin end $$;
+grant execute on function public.rls_auto_enable() to public, anon, authenticated, service_role;

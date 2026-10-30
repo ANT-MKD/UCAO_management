@@ -6,7 +6,7 @@ import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Upload, User, Key } from "luc
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { getTeacherById, addTeacher, updateTeacher } from "@/data/teacherStore";
-import { creerCompteStaff } from "@/data/studentStore";
+import { creerCompte } from "@/data/comptesAdmin";
 import { useAuth } from "@/contexts/AuthContext";
 import { NIVEAUX_ETUDE, generateMatriculeEnseignant, generateMotDePasse } from "@/lib/inscriptionConstants";
 import { RecordNotFound } from "@/components/admin/RecordNotFound";
@@ -86,7 +86,7 @@ export default function TeacherFormPage({ id }: Props) {
     }
   }, [id, isEdit, reset]);
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     if (!currentUser) return;
     const specialitesRemplies = specialites.filter(Boolean);
     if (specialitesRemplies.length === 0) { toast.error("Indiquez au moins une spécialité."); return; }
@@ -117,7 +117,7 @@ export default function TeacherFormPage({ id }: Props) {
     } else {
       const teacher = addTeacher({ ...payload, tauxHoraire: 0 }, currentUser.id);
       try {
-        creerCompteStaff(
+        await creerCompte(
           {
             role: "teacher",
             prenom: payload.prenom,

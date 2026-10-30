@@ -53,6 +53,12 @@ select tests.verifier(not has_column_privilege('authenticated', 'public.codes_pi
   'le code PIN chiffré n''est lisible par aucun compte');
 select tests.verifier((select 'security_invoker=true' = any (c.reloptions) from pg_class c where c.oid = 'public.codes_pin_suivi'::regclass),
   'la vue de suivi des codes applique les règles d''accès de celui qui la lit');
+select tests.verifier(not exists (
+  select 1 from pg_proc p
+  where p.pronamespace = 'public'::regnamespace and p.prosecdef
+    and has_function_privilege('anon', p.oid, 'execute')
+    and p.oid <> 'public.etat_installation()'::regprocedure
+), 'aucune fonction à droits étendus n''est ouverte aux visiteurs, sauf l''état de l''installation');
 
 -- ——— Installation (fonction serveur) ———
 select tests.service();

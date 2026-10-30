@@ -1,5 +1,5 @@
 import { lireFichierPourStockage } from "@/lib/stockageLocal";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Mail, Phone, ShieldCheck, ShieldOff, KeyRound, Pencil, Image as ImageIcon, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -7,13 +7,12 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { FormModal } from "@/components/admin/FormModal";
-import { useUserAccount, useUserAccounts, useAuditLogs } from "@/hooks/useStudentStore";
-import { useRoles } from "@/hooks/useRoleStore";
-import { setUserAccountActif, updateUserAccountInfo } from "@/data/studentStore";
-import { usePortalAccess } from "@/hooks/usePortalAccessStore";
+import { useAuditLogs } from "@/hooks/useStudentStore";
+import { useCompteAdmin, useComptesAdmin, usePortailsAdmin, useRolesAdmin } from "@/hooks/useComptesAdmin";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
-import { genererPin } from "@/data/pinActivationStore";
-import { envoyerMailSysteme } from "@/data/mailEnvoyeStore";
+import { definirCompteActif, genererCodePin, modifierCompte } from "@/data/comptesAdmin";
+import { historiqueCompteServeur } from "@/data/comptesServeurStore";
+import { modeSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -26,11 +25,18 @@ function formatDateTime(iso: string) {
 export default function UserDetailPage({ id }: { id: string }) {
   const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
-  const compte = useUserAccount(id);
-  const comptes = useUserAccounts();
+  const compte = useCompteAdmin(id);
+  const comptes = useComptesAdmin();
   const logs = useAuditLogs();
-  const portails = usePortalAccess();
-  const roles = useRoles();
+  const portails = usePortailsAdmin().ouverts;
+  const roles = useRolesAdmin();
+  // Avec Supabase, création et dernière connexion viennent du journal de la base (lisible avec la
+  // page « Journal d'audit »).
+  const [historiqueServeur, setHistoriqueServeur] = useState<{ creePar?: string; creeLe?: string; derniereConnexion?: string }>({});
+  useEffect(() => {
+    if (!modeSupabase) return;
+    historiqueCompteServeur(id).then(setHistoriqueServeur).catch(() => setHistoriqueServeur({}));
+  }, [id]);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ displayName: "", email: "", telephone: "", fonction: "", roleId: "", photoDataUrl: "" });
@@ -38,15 +44,17 @@ export default function UserDetailPage({ id }: { id: string }) {
 
   const acteurById = useMemo(() => new Map(comptes.map((c) => [c.id, c.displayName])), [comptes]);
 
-  const creation = useMemo(
-    () => logs.find((l) => l.targetType === "user_account" && l.targetId === id && l.action === "create_user_account"),
-    [logs, id],
-  );
+  const creation = useMemo(() => {
+    if (modeSupabase) {
+      return historiqueServeur.creeLe ? { actorUserId: historiqueServeur.creePar ?? "", createdAt: historiqueServeur.creeLe } : undefined;
+    }
+    return logs.find((l) => l.targetType === "user_account" && l.targetId === id && l.action === "create_user_account");
+  }, [logs, id, historiqueServeur]);
 
-  const derniereConnexion = useMemo(
-    () => logs.find((l) => l.targetType === "user_account" && l.targetId === id && l.action === "login"),
-    [logs, id],
-  );
+  const derniereConnexion = useMemo(() => {
+    if (modeSupabase) return historiqueServeur.derniereConnexion ? { createdAt: historiqueServeur.derniereConnexion } : undefined;
+    return logs.find((l) => l.targetType === "user_account" && l.targetId === id && l.action === "login");
+  }, [logs, id, historiqueServeur]);
 
   if (!compte) {
     return (
@@ -88,10 +96,10 @@ export default function UserDetailPage({ id }: { id: string }) {
       .catch((err) => toast.error(err instanceof Error ? err.message : "Fichier illisible."));
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!currentUser || !editForm.displayName.trim() || !editForm.email.trim()) return;
     try {
-      updateUserAccountInfo(compte.id, editForm, currentUser.id);
+      await modifierCompte(compte.id, editForm, currentUser.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Mise à jour impossible");
       return;
@@ -100,10 +108,10 @@ export default function UserDetailPage({ id }: { id: string }) {
     setEditOpen(false);
   };
 
-  const handleToggleActif = () => {
+  const handleToggleActif = async () => {
     if (!currentUser) return;
     try {
-      setUserAccountActif(compte.id, !actif, currentUser.id);
+      await definirCompteActif(compte.id, !actif, currentUser.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action impossible");
       return;
@@ -111,18 +119,15 @@ export default function UserDetailPage({ id }: { id: string }) {
     toast.success(actif ? "Compte désactivé." : "Compte réactivé.");
   };
 
-  const handleGenererPin = () => {
+  const handleGenererPin = async () => {
     if (!currentUser || !peutGerer) return;
-    const record = genererPin(compte.id, compte.displayName, compte.identifier, currentUser.id, currentUser.name);
-    envoyerMailSysteme({
-      destinataireUserId: compte.id,
-      destinataireLabel: compte.displayName,
-      destinataireEmail: compte.email,
-      objet: "Code de validation",
-      message: `Votre pin de réinitialisation de mot de passe: ${record.pin}`,
-    });
-    setDernierPin(record.pin);
-    toast.success("Code PIN généré et envoyé.");
+    try {
+      const { code } = await genererCodePin(compte, { id: currentUser.id, name: currentUser.name });
+      setDernierPin(code);
+      toast.success(modeSupabase ? "Code PIN généré : remettez-le en main propre." : "Code PIN généré et envoyé.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Génération impossible");
+    }
   };
 
   return (
@@ -158,7 +163,7 @@ export default function UserDetailPage({ id }: { id: string }) {
           <span className="font-mono text-xs text-primary font-semibold">{compte.identifier}</span>
           <p className="font-bold text-foreground">{compte.displayName}</p>
           {peutGerer && <button
-            onClick={handleToggleActif}
+            onClick={() => void handleToggleActif()}
             title={actif ? "Bloque immédiatement toute session déjà ouverte, pas seulement les prochaines connexions" : undefined}
             className={cn(
               "inline-flex items-center gap-1.5 text-xs font-medium hover:underline",
@@ -216,12 +221,13 @@ export default function UserDetailPage({ id }: { id: string }) {
           </div>
 
           {peutGerer && <div className="border-t border-border pt-3 mt-3">
-            <button onClick={handleGenererPin} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="user-generer-pin">
+            <button onClick={() => void handleGenererPin()} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" data-testid="user-generer-pin">
               <KeyRound size={13} /> Générer code pin activation
             </button>
             {dernierPin && (
               <p className="text-[11px] text-muted-foreground mt-1">
-                Code envoyé : <span className="font-mono font-bold" data-testid="user-dernier-pin">{dernierPin}</span> (aussi visible dans Mails envoyés)
+                {modeSupabase ? "Code à remettre en main propre" : "Code envoyé"} : <span className="font-mono font-bold" data-testid="user-dernier-pin">{dernierPin}</span>
+                {modeSupabase ? " (montré une seule fois, valable 24 heures)" : " (aussi visible dans Mails envoyés)"}
               </p>
             )}
           </div>}
@@ -243,7 +249,7 @@ export default function UserDetailPage({ id }: { id: string }) {
 
       <FormModal open={editOpen} onClose={() => setEditOpen(false)} title="Éditer l'utilisateur" size="md">
         <div className="space-y-3">
-          <div>
+          {!modeSupabase && <div>
             <label className="inline-flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
               <ImageIcon size={13} />
               Changer la photo
@@ -252,7 +258,7 @@ export default function UserDetailPage({ id }: { id: string }) {
             {editForm.photoDataUrl && (
               <img src={editForm.photoDataUrl} alt="Aperçu" className="mt-2 w-16 h-16 rounded-full object-cover border border-border" />
             )}
-          </div>
+          </div>}
           <div>
             <label htmlFor="user-detail-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Nom complet *</label>
             <input id="user-detail-champ-1" value={editForm.displayName} onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))} className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" data-testid="user-edit-nom" />
@@ -277,7 +283,7 @@ export default function UserDetailPage({ id }: { id: string }) {
             </select>
           </div>
           <button
-            onClick={handleSaveEdit}
+            onClick={() => void handleSaveEdit()}
             disabled={!editForm.displayName.trim() || !editForm.email.trim()}
             className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
             data-testid="user-edit-sauvegarder"
