@@ -33,6 +33,9 @@ export interface PartieMiroir<R extends { id: string }> {
   envoyable?: (fiche: R) => boolean;
   /** Table que la base écrit elle-même (ex. historique) : lue à la connexion, jamais envoyée. */
   lectureSeule?: boolean;
+  /** Ligne créée par la base (ex. établissement, à l'installation) : seulement mise à jour, ni
+   * ajoutée ni supprimée depuis le navigateur. */
+  miseAJourSeule?: boolean;
 }
 
 export interface Miroir {
@@ -201,6 +204,18 @@ async function envoyer(): Promise<void> {
       const etat = connu.get(partie.table) ?? new Map<string, string>();
       const changees = lignes.filter((l) => etat.get(String(l.id)) !== JSON.stringify(l));
       if (partie.ordreEnvoi) changees.sort(partie.ordreEnvoi);
+      if (partie.miseAJourSeule) {
+        for (const ligne of changees) {
+          const { id, ...valeurs } = ligne;
+          const { data, error } = await client().from(partie.table).update(valeurs).eq("id", id).select("id");
+          if (error) throw error;
+          // Une ligne que les règles d'accès ne laissent pas modifier n'est simplement pas touchée.
+          if (!data?.length) throw { code: "42501" };
+          etat.set(String(id), JSON.stringify(ligne));
+        }
+        connu.set(partie.table, etat);
+        continue;
+      }
       // Par paquets (un import de maquette peut compter des centaines d'EC).
       for (let i = 0; i < changees.length; i += 500) {
         const paquet = changees.slice(i, i + 500);
@@ -211,6 +226,7 @@ async function envoyer(): Promise<void> {
       connu.set(partie.table, etat);
     }
     for (const { partie, ids } of [...parties].reverse()) {
+      if (partie.miseAJourSeule) continue;
       const etat = connu.get(partie.table) ?? new Map<string, string>();
       const supprimees = [...etat.keys()].filter((id) => !ids.has(id));
       if (supprimees.length === 0) continue;

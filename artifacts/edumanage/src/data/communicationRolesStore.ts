@@ -52,6 +52,12 @@ export function getCommunicationRoles(): CommunicationRoleRecord[] {
   return store;
 }
 
+/** Comptes désignés de la base (avec Supabase). */
+export function remplacerCommunicationRoles(records: CommunicationRoleRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getCommunicationRolesParType(role: RoleCommunication): CommunicationRoleRecord[] {
   return store.filter((r) => r.role === role);
 }

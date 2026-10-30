@@ -3,3 +3,4 @@
 import "./miroirsStructure";
 import "./miroirsSecurite";
 import "./miroirsScolarite";
+import "./miroirsParametrage";

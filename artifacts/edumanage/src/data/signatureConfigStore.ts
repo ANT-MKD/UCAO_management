@@ -82,6 +82,23 @@ export function getSignatureConfig(docType: SignatureDocType): SignatureConfig {
   return store[docType];
 }
 
+/** Signataires tels que la base les range (table signatures_documents) : une ligne par document.
+ * L'image de la signature reste dans le navigateur jusqu'au stockage des fichiers (partie 4). */
+export type SignatureDocumentRecord = SignatureConfig & { id: SignatureDocType };
+
+export function getSignaturesDocuments(): SignatureDocumentRecord[] {
+  return (Object.keys(store) as SignatureDocType[]).map((id) => ({ id, ...store[id] }));
+}
+
+export function remplacerSignaturesDocuments(lignes: SignatureDocumentRecord[]) {
+  const state = defaultState();
+  for (const { id, ...config } of lignes) {
+    if (id in state) state[id] = { ...state[id], ...config };
+  }
+  store = state;
+  persist();
+}
+
 export function setSignatureConfig(docType: SignatureDocType, config: SignatureConfig, actorId: string): void {
   store = { ...store, [docType]: config };
   logAudit(actorId, "update_signature_config", "signature_config", docType, config.actif ? "activée" : "désactivée");

@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { getUserAccounts } from "@/data/studentStore";
+import { useComptesAdmin } from "@/hooks/useComptesAdmin";
 
 import { useGroupesExternes, useGroupesInternes, useGroupesPersonnalises } from "@/hooks/useCommunicationGroupsStore";
 import {
@@ -493,7 +493,8 @@ function UrlApiComTab() {
 function RoleCommunicationTab({ role, titre, colonneLabel, testIdPrefix, avecAction }: { role: RoleCommunication; titre: string; colonneLabel: string; testIdPrefix: string; avecAction?: boolean }) {
   useCommunicationRoles();
   const roles = getCommunicationRolesParType(role);
-  const comptes = useMemo(() => getUserAccounts().filter((u) => u.role === "admin" || u.role === "teacher"), []);
+  const tousLesComptes = useComptesAdmin();
+  const comptes = useMemo(() => tousLesComptes.filter((u) => u.role === "admin" || u.role === "teacher"), [tousLesComptes]);
   const [modalOpen, setModalOpen] = useState(false);
   const [userId, setUserId] = useState("");
   const [remarque, setRemarque] = useState("");

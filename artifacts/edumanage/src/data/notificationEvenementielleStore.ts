@@ -85,6 +85,12 @@ export function getNotificationsEvenementielles(): NotificationEvenementielleRec
   return store;
 }
 
+/** Notifications de la base (avec Supabase) ; aucune : celles de l'application, actives d'origine. */
+export function remplacerNotificationsEvenementielles(records: NotificationEvenementielleRecord[]) {
+  store = records.length > 0 ? records : seed();
+  persist();
+}
+
 export function getNotificationEvenementielleParCode(code: string): NotificationEvenementielleRecord | undefined {
   return store.find((n) => n.code === code);
 }

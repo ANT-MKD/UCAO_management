@@ -66,6 +66,21 @@ export function getEtablissement(): EtablissementInfo {
   return store;
 }
 
+/** Identité telle que la base la range (une seule ligne, créée à l'installation). Le logo reste
+ * dans le navigateur jusqu'au stockage des fichiers (partie 4). */
+export function getEtablissementLignes(): (EtablissementInfo & { id: string })[] {
+  return [{ id: "1", ...store }];
+}
+
+/** Identité de la base (avec Supabase) ; pas encore installé : celle du navigateur reste. */
+export function remplacerEtablissement(lignes: (EtablissementInfo & { id: string })[]) {
+  const ligne = lignes[0];
+  if (!ligne) return;
+  const { id: _id, ...info } = ligne;
+  store = { ...DEFAULT_INFO, ...info };
+  persist();
+}
+
 export function updateEtablissement(payload: EtablissementInfo, actorId: string): void {
   store = { ...payload };
   logAudit(actorId, "update_etablissement", "etablissement", "etablissement", payload.nom);

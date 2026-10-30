@@ -1,8 +1,11 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 type Ligne = Record<string, unknown>;
 
-/** Faux serveur : tables en mémoire, journal des envois, refus programmables. */
+/** Faux serveur : tables en mémoire, journal des envois, refus programmables (un refus
+ * { code: "0 lignes" } imite une mise à jour que les règles d'accès filtrent sans erreur). */
 async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string, operation: string) => { code: string; message: string } | null) {
   vi.resetModules();
   vi.stubEnv("VITE_SUPABASE_URL", "https://exemple.supabase.co");
@@ -29,6 +32,19 @@ async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string,
         }
         return { error: e };
       },
+      update: (valeurs: Ligne) => ({
+        eq: (_col: string, id: unknown) => ({
+          select: async () => {
+            envois.push({ table, operation: "update", donnees: valeurs });
+            const e = refus?.(table, "update") ?? null;
+            const ligne = (tables[table] ?? []).find((l) => String(l.id) === String(id));
+            if (e?.code === "0 lignes" || !ligne) return { data: [], error: null };
+            if (e) return { data: null, error: e };
+            Object.assign(ligne, valeurs);
+            return { data: [{ id }], error: null };
+          },
+        }),
+      }),
       delete: () => ({
         in: async (_col: string, ids: string[]) => {
           envois.push({ table, operation: "delete", donnees: ids });
@@ -322,6 +338,100 @@ describe("miroir du paramétrage de la scolarité et des bulletins", () => {
     await b.miroir.attendreEnvois();
     expect(motifs).toEqual(["La base a refusé : Licence QHSE a déjà le règlement « Règlement LQHSE » pour 2026-2027. L'écran a été remis à jour."]);
     expect(Rc.getReglements()).toEqual([]);
+  });
+});
+
+describe("miroir du paramétrage de l'emploi du temps, des finances, de la communication et de l'établissement", () => {
+  const KANE = "00000000-0000-4000-8000-00000000000c";
+  const ETABLISSEMENT = { id: 1, nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "", email: "", site_web: "", agrement: "", logo_chemin: null, modifie_le: "2026-10-30T10:00:00+00:00", modifie_par: null };
+
+  it("à la connexion : listes et identité de la base ; le logo et l'image de signature restent sur le poste", async () => {
+    localStorage.setItem("edumanage-etablissement-v1", JSON.stringify({ nom: "Ancien nom", adresse: "", logoDataUrl: "data:image/png;base64,TE9HTw==" }));
+    localStorage.setItem("edumanage-signature-config-v1", JSON.stringify({ bulletin: { actif: false, signataireNom: "", signataireQualite: "", imageDataUrl: "data:image/png;base64,U0lHTg==" } }));
+    const b = await avecBase({
+      annees_academiques: [ANNEE],
+      types_seance: [{ id: "ts-seed-1", code: "CM", intitule: "Cours magistral", categorie: "emploi_du_temps", couleur: "#4f46e5", trajet: false, necessite_surveillant: false }],
+      jours_feries: [{ id: "jf-tabaski", intitule: "Tabaski", date_debut: "2027-05-17", date_fin: "2027-05-18" }],
+      etablissement: [ETABLISSEMENT],
+      signatures_documents: [{ id: "bulletin", actif: true, signataire_nom: "Pr Jean NDIAYE", signataire_qualite: "Le Recteur" }],
+    });
+    await b.miroir.chargerMiroirs();
+    const Edt = await import("@/data/scheduleSettingsStore");
+    const Et = await import("@/data/etablissementStore");
+    const Sig = await import("@/data/signatureConfigStore");
+    expect(Edt.typeSeanceStore.getAll().map((t) => t.code)).toEqual(["CM"]);
+    expect(Edt.getJourFerieCouvrant("2027-05-18")?.intitule).toBe("Tabaski");
+    expect(Et.getEtablissement()).toMatchObject({ nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", logoDataUrl: "data:image/png;base64,TE9HTw==" });
+    expect(Sig.getSignatureConfig("bulletin")).toEqual({ actif: true, signataireNom: "Pr Jean NDIAYE", signataireQualite: "Le Recteur", imageDataUrl: "data:image/png;base64,U0lHTg==" });
+    expect(Sig.getSignatureConfig("inscription").actif).toBe(false);
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("l'identité de l'établissement est mise à jour, sans logo ; sans le droit, l'écran reprend la base", async () => {
+    const refus = { actif: false };
+    const b = await avecBase({ annees_academiques: [ANNEE], etablissement: [ETABLISSEMENT] },
+      (table, operation) => (refus.actif && table === "etablissement" && operation === "update" ? { code: "0 lignes", message: "" } : null));
+    await b.miroir.chargerMiroirs();
+    const Et = await import("@/data/etablissementStore");
+    Et.updateEtablissement({ ...Et.getEtablissement(), telephone: "33 800 00 00", logoDataUrl: "data:image/png;base64,TE9HTw==" }, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "etablissement", operation: "update", donnees: {
+      nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "33 800 00 00", email: "", site_web: "", agrement: "",
+    } }]);
+    refus.actif = true;
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    Et.updateEtablissement({ ...Et.getEtablissement(), nom: "Nom pirate" }, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(motifs).toEqual([expect.stringContaining("pas le droit")]);
+    expect(Et.getEtablissement().nom).toBe("Université Catholique de l'Afrique de l'Ouest");
+  });
+
+  it("Mamadou KANE désigné validateur des messages : son compte part en colonnes de la base", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE] });
+    await b.miroir.chargerMiroirs();
+    const Cr = await import("@/data/communicationRolesStore");
+    const r = Cr.ajouterCommunicationRole({ role: "validateur_message", userId: KANE, userLabel: "Mamadou KANE" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "roles_communication", operation: "upsert", donnees: [
+      { id: r.id, role: "validateur_message", compte_id: KANE, compte_libelle: "Mamadou KANE", remarque: null, action: null },
+    ] }]);
+  });
+
+  it("nouveau modèle de frais et sa grille dans la même action : le modèle part avant la grille", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], filieres: [FILIERE] });
+    await b.miroir.chargerMiroirs();
+    const Fin = await import("@/data/financeSettingsStore");
+    const Gr = await import("@/data/grilleFraisStore");
+    const m = Fin.modeleFraisStore.add({ code: "BRS", intitule: "Boursier" });
+    Gr.upsertGrilleFrais({ filiereId: "fil-qhse", niveau: "L1", annee: "2026-2027", modeleFraisId: m.id,
+      lignes: [{ id: "l1", typeFraisId: "tf-seed-4", intitule: "Frais généraux", montant: 350000, modalite: "echeances", nbEcheances: 8 }] });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["modeles_frais", "grilles_frais"]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ filiere_id: "fil-qhse", modele_frais_id: m.id, lignes: [expect.objectContaining({ montant: 350000 })] })]);
+  });
+});
+
+describe("listes de départ posées par la base à l'installation", () => {
+  it("sont celles de l'application : mêmes identifiants, codes et intitulés", async () => {
+    // Les tests se lancent depuis artifacts/edumanage (en local comme dans les vérifications GitHub).
+    const dossier = resolve(process.cwd(), "../../supabase/migrations");
+    const sql = readdirSync(dossier).filter((f) => f.endsWith(".sql")).map((f) => readFileSync(join(dossier, f), "utf8")).join("\n");
+    const corps = sql.slice(sql.indexOf("create function private.poser_valeurs_depart()"));
+    const A = await import("@/data/academicSettingsStore");
+    const Te = await import("@/data/typeEvaluationStore");
+    const Rg = await import("@/data/regroupementDevoirStore");
+    const Edt = await import("@/data/scheduleSettingsStore");
+    const Fin = await import("@/data/financeSettingsStore");
+    const listes: { id: string; code: string; intitule: string }[][] = [
+      A.cycleStore.getAll(), A.categorieCoursStore.getAll(), Te.getTypesEvaluation(), Rg.getRegroupementsDevoir(),
+      Edt.typeSeanceStore.getAll(), Fin.typeFraisStore.getAll(), Fin.modePaiementFinanceStore.getAll(), Fin.modeleFraisStore.getAll(),
+    ];
+    for (const liste of listes) {
+      expect(liste.length).toBeGreaterThan(0);
+      for (const v of liste) expect(corps).toContain(`('${v.id}', '${v.code}', '${v.intitule.replace(/'/g, "''")}'`);
+    }
+    for (const r of Rg.getRegroupementsDevoir()) expect(corps).toContain(`array[${r.typeEvaluationIds.map((t) => `'${t}'`).join(", ")}]`);
   });
 });
 

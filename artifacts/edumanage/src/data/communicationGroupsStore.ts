@@ -89,6 +89,22 @@ export function subscribeCommunicationGroups(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
+/** Groupes de la base (avec Supabase), une liste par type de groupe. */
+export function remplacerGroupesExternes(records: GroupeExterneRecord[]) {
+  store = { ...store, externes: records };
+  persist();
+}
+
+export function remplacerGroupesInternes(records: GroupeInterneRecord[]) {
+  store = { ...store, internes: records };
+  persist();
+}
+
+export function remplacerGroupesPersonnalises(records: GroupePersonnaliseRecord[]) {
+  store = { ...store, personnalises: records };
+  persist();
+}
+
 // ===== Groupes externes =====
 
 export function getGroupesExternes(): GroupeExterneRecord[] {

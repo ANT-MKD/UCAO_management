@@ -226,6 +226,12 @@ export function getGrillesFrais(): GrilleFraisRecord[] {
   return store;
 }
 
+/** Grilles de la base (avec Supabase). */
+export function remplacerGrillesFrais(records: GrilleFraisRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getGrilleFrais(filiereId: string, niveau: string, annee: string, modeleFraisId: string): GrilleFraisRecord | undefined {
   return store.find((g) => g.id === makeGrilleFraisId(filiereId, niveau, annee, modeleFraisId));
 }
