@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
-import { allocateMatricule, registerNewEtudiant, type EtudiantRecord, type NewEtudiantPayload } from "@/data/studentStore";
+import { registerNewEtudiant, type EtudiantRecord, type NewEtudiantPayload } from "@/data/studentStore";
+import { ouvrirCompteEtudiant, reserverMatricule } from "@/data/inscriptionEtudiant";
 
 const HEADERS = [
   "Prénom", "Nom", "Sexe (M/F)", "Date de naissance (AAAA-MM-JJ)", "Lieu de naissance",
@@ -98,21 +99,28 @@ export async function parseStudentExcel(file: File): Promise<ParsedStudentRow[]>
 export interface ImportStudentResult {
   created: EtudiantRecord[];
   echecs: number;
+  /** Dossiers enregistrés dont le compte de connexion n'a pas pu être ouvert (avec Supabase). */
+  comptesNonOuverts: number;
 }
 
-export function importStudentRows(rows: ParsedStudentRow[]): ImportStudentResult {
+/** Préinscrit chaque ligne : matricule réservé (par le serveur avec Supabase), dossier enregistré,
+ * puis compte de connexion ouvert, en attente d'un code PIN (aucun mot de passe n'est importé). */
+export async function importStudentRows(rows: ParsedStudentRow[]): Promise<ImportStudentResult> {
   const created: EtudiantRecord[] = [];
   let echecs = 0;
   for (const { payload } of rows) {
     try {
-      const filiere = FILIERES.find((f) => f.id === payload.filiereId);
-      const matricule = allocateMatricule(filiere?.code ?? "XXX", payload.annee);
+      const matricule = await reserverMatricule(payload.filiereId, payload.annee);
       created.push(registerNewEtudiant(payload, matricule));
     } catch {
       echecs++;
     }
   }
-  return { created, echecs };
+  let comptesNonOuverts = 0;
+  for (const etudiant of created) {
+    await ouvrirCompteEtudiant(etudiant).catch(() => comptesNonOuverts++);
+  }
+  return { created, echecs, comptesNonOuverts };
 }
 
 export function exportStudentsToExcel(students: EtudiantRecord[]) {

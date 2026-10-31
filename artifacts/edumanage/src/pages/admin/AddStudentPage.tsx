@@ -9,7 +9,8 @@ import {
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
-import { allocateMatricule, registerNewEtudiant, registerPaiement, emettreQuittanceBrute, peekNextMatricule, type EtudiantRecord } from "@/data/studentStore";
+import { registerNewEtudiant, registerPaiement, emettreQuittanceBrute, type EtudiantRecord } from "@/data/studentStore";
+import { apercuMatricule, ouvrirCompteEtudiant, reserverMatricule, useApercuMatricule } from "@/data/inscriptionEtudiant";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useModelesFrais, useModesPaiementFinance } from "@/hooks/useFinanceSettingsStore";
@@ -148,6 +149,7 @@ export default function AddStudentPage() {
 
   const selectedFiliere = form3.watch("filiereId");
   const anneeSaisie = form3.watch("annee");
+  const apercuSaisie = useApercuMatricule(selectedFiliere, anneeSaisie);
   const typeAdmission = form2.watch("typeAdmission");
   const statutPaiementWatch = form5.watch("statutPaiement");
   const filteredNiveaux = NIVEAUX.filter((n) => n.filiereId === selectedFiliere);
@@ -229,8 +231,7 @@ export default function AddStudentPage() {
   // Recalculé à chaque passage de l'étape 3 : un retour arrière qui change la filière ou l'année
   // ne doit pas laisser l'aperçu d'un matricule qui ne sera pas celui attribué.
   const ensureMatricule = (filiereId: string, annee: string) => {
-    const code = FILIERES.find((f) => f.id === filiereId)?.code;
-    if (code) setMatricule(peekNextMatricule(code, annee));
+    apercuMatricule(filiereId, annee).then(setMatricule).catch(() => setMatricule(""));
   };
 
   const handleStep1 = form1.handleSubmit((data) => { setStep1Data(data); setCurrentStep(2); });
@@ -252,12 +253,19 @@ export default function AddStudentPage() {
     });
     setCurrentStep(6);
   });
-  const handleSubmit = () => {
-    if (!step1Data || !step3Data || !step5Data) return;
-    const filiere = FILIERES.find((f) => f.id === step3Data.filiereId);
+  const [envoi, setEnvoi] = useState(false);
+  const handleSubmit = async () => {
+    if (!step1Data || !step3Data || !step5Data || envoi) return;
     const niveau = NIVEAUX.find((n) => n.id === step3Data.niveauId);
-    const code = filiere?.code ?? "XXX";
-    const finalMatricule = allocateMatricule(code, step3Data.annee);
+    setEnvoi(true);
+    let finalMatricule: string;
+    try {
+      finalMatricule = await reserverMatricule(step3Data.filiereId, step3Data.annee);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Le matricule n'a pas pu être attribué.");
+      setEnvoi(false);
+      return;
+    }
     setMatricule(finalMatricule);
 
     const paye = step5Data.statutPaiement === "paye";
@@ -338,7 +346,13 @@ export default function AddStudentPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Inscription impossible");
+      setEnvoi(false);
       return;
+    }
+    try {
+      await ouvrirCompteEtudiant(etudiant, motDePasse);
+    } catch (err) {
+      toast.error(`Dossier enregistré, mais le compte de connexion n'a pas été ouvert : ${err instanceof Error ? err.message : "serveur injoignable"}.`);
     }
     setLocation(`/admin/students/${etudiant.id}`);
   };
@@ -576,7 +590,7 @@ export default function AddStudentPage() {
               <input id="add-student-champ-1"
                 type="text"
                 readOnly
-                value={selectedFiliere ? peekNextMatricule(FILIERES.find((f) => f.id === selectedFiliere)?.code ?? "XXX", anneeSaisie) : "—"}
+                value={apercuSaisie}
                 className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-muted/50 font-mono cursor-not-allowed"
                 style={{ fontFamily: "JetBrains Mono, monospace" }}
               />
@@ -907,7 +921,7 @@ export default function AddStudentPage() {
               <button onClick={() => setCurrentStep(5)} className="flex items-center gap-2 flex-1 justify-center py-3 border border-border rounded-xl font-medium hover:bg-muted transition-colors">
                 <ArrowLeft size={16} /> Retour
               </button>
-              <button onClick={handleSubmit} className="flex items-center gap-2 flex-1 justify-center py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors" data-testid="btn-create-student">
+              <button onClick={handleSubmit} disabled={envoi} className="flex items-center gap-2 flex-1 justify-center py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-60" data-testid="btn-create-student">
                 <Check size={16} /> Confirmer l'inscription
               </button>
             </div>

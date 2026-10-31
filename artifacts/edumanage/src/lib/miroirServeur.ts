@@ -41,10 +41,14 @@ export interface PartieMiroir<R extends { id: string }> {
    * était connue (lue à la connexion) ou si sa ligne principale part en même temps : un poste ne
    * renvoie jamais, vide, le dossier qu'il n'a pas le droit de lire. */
   complementDe?: string;
+  /** Champs dont la valeur vide ("") part comme « aucune valeur » (ex. classe d'un étudiant en
+   * attente d'affectation, qui renvoie à une classe qui doit exister) et revient vide. */
+  nulSiVide?: readonly string[];
 }
 
 export interface Miroir {
-  /** Clé de stockage écrite par le store à chaque enregistrement. */
+  /** Clé de stockage écrite par le store à chaque enregistrement. Une même clé peut alimenter
+   * plusieurs miroirs, chacun envoyé à son rang (ex. années, puis étudiants après les classes). */
   cle: string;
   /** Tables alimentées par cette clé, les parents d'abord (envoyées dans cet ordre, supprimées à
    * l'envers). */
@@ -65,7 +69,7 @@ export function versLigne(partie: PartieMiroir<{ id: string }>, fiche: Fiche): L
   const ligne: Ligne = {};
   for (const [champ, colonne] of champsEtColonnes(partie)) {
     const valeur = fiche[champ];
-    ligne[colonne] = valeur === undefined ? (partie.defauts?.[champ] ?? null) : valeur;
+    ligne[colonne] = valeur === undefined || (valeur === "" && partie.nulSiVide?.includes(champ)) ? (partie.defauts?.[champ] ?? null) : valeur;
   }
   return ligne;
 }
@@ -76,12 +80,12 @@ export function depuisLigne(partie: PartieMiroir<{ id: string }>, ligne: Ligne, 
   const fiche: Fiche = { ...(existante ?? {}), id: String(ligne.id) };
   for (const [champ, colonne] of champsEtColonnes(partie)) {
     const valeur = ligne[colonne];
-    fiche[champ] = valeur === null ? undefined : valeur;
+    fiche[champ] = valeur === null ? (partie.nulSiVide?.includes(champ) ? "" : undefined) : valeur;
   }
   return fiche;
 }
 
-const miroirs = new Map<string, Miroir>();
+const miroirs: Miroir[] = [];
 /** Dernier état connu de la base, par table puis par id (ligne sérialisée). */
 const connu = new Map<string, Map<string, string>>();
 let pret = false;
@@ -91,7 +95,7 @@ let enRemplacement = false;
 let file: Promise<void> = Promise.resolve();
 
 export function enregistrerMiroir(miroir: Miroir): void {
-  miroirs.set(miroir.cle, miroir);
+  miroirs.push(miroir);
 }
 
 /** Message lisible pour un refus de la base. */
@@ -163,7 +167,7 @@ function sauvegarderUneFois(): void {
   try {
     const sauvegarde = (JSON.parse(localStorage.getItem(CLE) ?? "null") as { le: string; donnees: Record<string, string | null> } | null)
       ?? { le: new Date().toISOString(), donnees: {} };
-    const nouvelles = [...miroirs.keys()].filter((cle) => !(cle in sauvegarde.donnees));
+    const nouvelles = [...new Set(miroirs.map((m) => m.cle))].filter((cle) => !(cle in sauvegarde.donnees));
     if (nouvelles.length === 0) return;
     for (const cle of nouvelles) sauvegarde.donnees[cle] = localStorage.getItem(cle);
     localStorage.setItem(CLE, JSON.stringify(sauvegarde));
@@ -180,7 +184,7 @@ export async function chargerMiroirs(): Promise<void> {
   await file;
   pret = false;
   sauvegarderUneFois();
-  for (const miroir of miroirs.values()) await chargerMiroir(miroir);
+  for (const miroir of miroirs) await chargerMiroir(miroir);
   pret = true;
 }
 
@@ -197,7 +201,7 @@ const modifiees = new Set<string>();
  * (ouvrir l'année suivante crée l'année puis ses classes) part donc dans le bon ordre. */
 async function envoyer(): Promise<void> {
   if (modifiees.size === 0) return;
-  const lot = [...miroirs.values()].filter((m) => modifiees.has(m.cle));
+  const lot = miroirs.filter((m) => modifiees.has(m.cle));
   modifiees.clear();
   const parties = lot.flatMap((m) => m.parties).filter((p) => !p.lectureSeule).map((partie) => {
     const fiches = partie.lire();
@@ -260,7 +264,7 @@ async function envoyer(): Promise<void> {
 
 if (typeof window !== "undefined" && modeSupabase) {
   observerEcritures((cle) => {
-    if (!pret || enRemplacement || !miroirs.has(cle)) return;
+    if (!pret || enRemplacement || !miroirs.some((m) => m.cle === cle)) return;
     modifiees.add(cle);
     file = file.then(envoyer);
   });

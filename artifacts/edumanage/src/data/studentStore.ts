@@ -6,7 +6,7 @@ import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
 import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
 import { estAutorise } from "./communicationRolesStore";
-import { findClassePedagogique, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
+import { findClassePedagogique, fixerEffectifsClasses, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
 import { creerPointageDepuisCahier } from "./pointageStore";
@@ -695,6 +695,40 @@ export function loadAuthSession(): AuthSessionSnapshot | null {
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+/** Champs du dossier personnel (table etudiants_dossiers) : lus par l'administration et par
+ * l'étudiant lui-même. */
+const CHAMPS_DOSSIER_ETUDIANT = ["email", "telephone", "dateNaissance", "lieuNaissance", "pays", "nationalite", "cni", "adresse",
+  "nomTuteur", "telTuteur", "typeAdmission", "documentsFournis", "inscriptionUniquePayee", "modeleFraisId", "motifBlocageId"] as const;
+
+/** Fiches de la base (avec Supabase). Les soldes restent calculés par l'application jusqu'à la
+ * partie Finances ; les effectifs des classes sont recomptés. */
+export function remplacerEtudiants(records: EtudiantRecord[]) {
+  store.etudiants = records.map((e) => ({ ...e, soldeDu: e.soldeDu ?? 0, soldeAvoir: e.soldeAvoir ?? 0 }));
+  const effectifs = new Map<string, number>();
+  for (const e of store.etudiants) if (e.classeId) effectifs.set(e.classeId, (effectifs.get(e.classeId) ?? 0) + 1);
+  fixerEffectifsClasses(effectifs);
+  persist();
+}
+
+/** Dossiers personnels de la base : un dossier que ce compte ne lit pas est vidé du navigateur. */
+export function fusionnerDossiersEtudiants(dossiers: EtudiantRecord[]) {
+  const parId = new Map(dossiers.map((d) => [d.id, d]));
+  for (const e of store.etudiants) {
+    const dossier = parId.get(e.id);
+    for (const champ of CHAMPS_DOSSIER_ETUDIANT) (e as unknown as Record<string, unknown>)[champ] = dossier?.[champ];
+    e.email ??= "";
+    e.telephone ??= "";
+    e.inscriptionUniquePayee ??= false;
+  }
+  persist();
+}
+
+/** Inscriptions de la base (avec Supabase) ; leur solde reste calculé par l'application. */
+export function remplacerInscriptions(records: InscriptionRecord[]) {
+  store.inscriptions = records.map((i) => ({ ...i, soldeDu: i.soldeDu ?? 0 }));
+  persist();
 }
 
 export function getEtudiants(): EtudiantRecord[] {

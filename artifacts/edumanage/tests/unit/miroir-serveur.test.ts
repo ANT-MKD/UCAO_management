@@ -11,7 +11,22 @@ async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string,
   vi.stubEnv("VITE_SUPABASE_URL", "https://exemple.supabase.co");
   vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_essai");
   const envois: { table: string; operation: string; donnees: unknown }[] = [];
+  /** Appels des fonctions de la base (rpc) et des fonctions serveur, dans l'ordre, avec les envois. */
+  const appels: { nom: string; donnees: unknown; envoisAvant: number }[] = [];
+  let prochainMatricule = 1;
   const client = {
+    rpc: async (nom: string, args: Record<string, unknown>) => {
+      appels.push({ nom, donnees: args, envoisAvant: envois.length });
+      if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
+      if (nom === "apercu_matricule") return { data: `2026-LQHSE-${String(prochainMatricule).padStart(4, "0")}`, error: null };
+      return { data: null, error: null };
+    },
+    functions: {
+      invoke: async (nom: string, { body }: { body: unknown }) => {
+        appels.push({ nom, donnees: body, envoisAvant: envois.length });
+        return { data: { id: "00000000-0000-4000-8000-0000000000e1" }, error: null };
+      },
+    },
     from: (table: string) => ({
       select: () => {
         const q = {
@@ -63,6 +78,7 @@ async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string,
   await import("@/data/miroirs");
   return {
     envois,
+    appels,
     miroir,
     roles: await import("@/data/roleStore"),
     pages: await import("@/data/portalFeaturesStore"),
@@ -466,6 +482,64 @@ describe("miroir des enseignants : fiche publique et dossier personnel", () => {
     T.updateTeacher("en-kane", { rib: "SN012 01201 000000000009 09" }, ADMIN);
     await b.miroir.attendreEnvois();
     expect(b.envois.slice(2)).toEqual([{ table: "enseignants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "en-kane", rib: "SN012 01201 000000000009 09" })] }]);
+  });
+});
+
+describe("miroir des étudiants : fiche, dossier personnel, inscriptions et matricules du serveur", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27", classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+  const OUSMANE = { ...AWA, id: "et-ousmane", matricule: "2026-LQHSE-0002", prenom: "Ousmane", nom: "DIALLO", sexe: "M", classe: "", classe_id: null, statut: "preinscrit" };
+  const DOSSIER_AWA = { id: "et-awa", email: "awa.seck@mail.sn", telephone: "770000001", date_naissance: "2005-03-12", lieu_naissance: "Dakar", pays: "Sénégal", nationalite: "Sénégalaise", cni: "2 345 2005 00067", adresse: "Dakar, Sicap", nom_tuteur: "Mme SECK", tel_tuteur: "770000009", type_admission: "nouveau", documents_fournis: ["acte_naissance"], inscription_unique_payee: true, modele_frais_id: null, motif_blocage_id: null };
+  const INSCRIPTION_AWA = { id: "ins-awa-2026", etudiant_id: "et-awa", annee: "2026-2027", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", classe: "LQHSE1-26/27", classe_id: "cl-l1", statut: "inscrit", type: "premiere", date_inscription: "2026-10-31", specialite: null, modele_frais_id: null, modele_frais: null, motif: null, effectue_par: null };
+  const base = () => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], classes: [CLASSE], etudiants: [AWA, OUSMANE], inscriptions: [INSCRIPTION_AWA] });
+
+  it("à la connexion : fiches, dossiers lisibles et inscriptions de la base ; l'effectif de la classe est recompté", async () => {
+    const b = await avecBase({ ...base(), etudiants_dossiers: [DOSSIER_AWA] });
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getEtudiantById("et-awa")).toMatchObject({ cni: "2 345 2005 00067", classeId: "cl-l1", soldeDu: 0, inscriptionUniquePayee: true });
+    expect(b.S.getEtudiantById("et-ousmane")).toMatchObject({ classeId: "", statut: "preinscrit", email: "", inscriptionUniquePayee: false });
+    expect(b.S.getEtudiantById("et-ousmane")?.cni).toBeUndefined();
+    expect(b.S.getInscriptionsByEtudiant("et-awa")).toEqual([expect.objectContaining({ id: "ins-awa-2026", classeId: "cl-l1", soldeDu: 0 })]);
+    expect(b.structure.getClasseById("cl-l1")?.inscrits).toBe(1);
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("inscription : matricule réservé par le serveur, fiche puis dossier puis inscription, et le compte ensuite", async () => {
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const I = await import("@/data/inscriptionEtudiant");
+    expect(await I.apercuMatricule("fil-qhse", "2026-2027")).toBe("2026-LQHSE-0001");
+    const matricule = await I.reserverMatricule("fil-qhse", "2026-2027");
+    expect(matricule).toBe("2026-LQHSE-0001");
+    const e = b.S.registerNewEtudiant({ prenom: "Fatou", nom: "SOW", sexe: "F", dateNaissance: "2006-01-05", email: "fatou.sow@mail.sn", telephone: "770000003",
+      filiereId: "fil-qhse", classeId: "", niveau: "L1", statut: "preinscrit", annee: "2026-2027", soldeDu: 150000, inscriptionUniquePayee: false, typeAdmission: "nouveau", cni: "1 111 2006 00001" }, matricule);
+    await I.ouvrirCompteEtudiant(e, "Provisoire1");
+    expect(b.envois.map((x) => x.table)).toEqual(["etudiants", "etudiants_dossiers", "inscriptions"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id: e.id, matricule: "2026-LQHSE-0001", classe_id: null, statut: "preinscrit" })]);
+    expect(JSON.stringify(b.envois)).not.toContain("solde");
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ id: e.id, cni: "1 111 2006 00001", type_admission: "nouveau", modele_frais_id: null })]);
+    expect(b.envois[2].donnees).toEqual([expect.objectContaining({ etudiant_id: e.id, classe_id: null, type: "premiere" })]);
+    const compte = b.appels.find((a) => a.nom === "comptes")!;
+    expect(compte.donnees).toMatchObject({ action: "creer", type_compte: "etudiant", identifiant: "2026-LQHSE-0001", lien_id: e.id, mot_de_passe: "Provisoire1" });
+    expect(compte.envoisAvant).toBe(3);
+  });
+
+  it("sur le poste de KANE : aucun dossier d'étudiant gardé ni renvoyé vide", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ etudiants: [{ id: "et-awa", cni: "ANCIENNE-CNI", telephone: "770000001" }] }));
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getEtudiantById("et-awa")?.cni).toBeUndefined();
+    b.S.logAudit("u-kane", "consultation", "classe", "cl-l1");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("Awa met à jour son téléphone : seul son dossier part", async () => {
+    const b = await avecBase({ ...base(), etudiants: [AWA], etudiants_dossiers: [DOSSIER_AWA] });
+    await b.miroir.chargerMiroirs();
+    b.S.updateEtudiantInfos("et-awa", { telephone: "771234567", adresse: "Dakar, Mermoz" }, "u-awa");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "etudiants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "et-awa", telephone: "771234567", adresse: "Dakar, Mermoz", cni: "2 345 2005 00067" })] }]);
   });
 });
 

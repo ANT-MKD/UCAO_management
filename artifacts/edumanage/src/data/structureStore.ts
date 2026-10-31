@@ -148,6 +148,13 @@ export function remplacerClasses(records: ClassePedagogiqueRecord[]) {
   persist();
 }
 
+/** Effectifs recomptés depuis les étudiants (avec Supabase, après leur chargement) : l'effectif
+ * reste un compteur de l'application, jamais envoyé à la base. */
+export function fixerEffectifsClasses(effectifs: Map<string, number>) {
+  store.classes = store.classes.map((c) => ({ ...c, inscrits: effectifs.get(c.id) ?? 0 }));
+  persist();
+}
+
 export function remplacerSalles(records: SallePhysiqueRecord[]) {
   store.salles = records.slice();
   persist();

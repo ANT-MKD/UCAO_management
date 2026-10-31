@@ -57,8 +57,9 @@ export default function StudentsPage() {
         toast.error("Aucune ligne valide trouvée dans le fichier.");
         return;
       }
-      const { created, echecs } = importStudentRows(rows);
+      const { created, echecs, comptesNonOuverts } = await importStudentRows(rows);
       toast.success(`${created.length} étudiant(s) préinscrit(s)${echecs > 0 ? ` — ${echecs} ligne(s) en échec` : ""}.`);
+      if (comptesNonOuverts > 0) toast.error(`${comptesNonOuverts} compte(s) de connexion n'ont pas pu être ouverts.`);
     } catch {
       toast.error("Échec de l'import. Vérifiez le format du fichier Excel.");
     } finally {
