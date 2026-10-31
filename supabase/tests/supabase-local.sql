@@ -101,3 +101,53 @@ alter table storage.objects enable row level security;
 grant usage on schema storage to anon, authenticated, service_role;
 grant select, insert, update, delete on storage.buckets, storage.objects to anon, authenticated, service_role;
 grant execute on function storage.foldername(text) to anon, authenticated, service_role;
+
+-- Diffusion en direct (Realtime) : la table des messages diffusés et les deux fonctions dont se
+-- servent les migrations et les règles d'accès, mêmes définitions et mêmes droits que sur Supabase
+-- (la table y est découpée par jour ; ici une seule table suffit).
+create schema if not exists realtime;
+create table if not exists realtime.messages (
+  topic text not null,
+  extension text not null,
+  payload jsonb,
+  event text,
+  private boolean default false,
+  updated_at timestamp without time zone not null default timezone('utc', clock_timestamp()),
+  inserted_at timestamp without time zone not null default timezone('utc', clock_timestamp()),
+  id uuid not null default gen_random_uuid(),
+  binary_payload bytea,
+  skip_broadcast boolean default false
+);
+create or replace function realtime.topic() returns text
+language sql stable
+as $$
+  select nullif(current_setting('realtime.topic', true), '')::text;
+$$;
+create or replace function realtime.send(payload jsonb, event text, topic text, private boolean default true)
+returns void
+language plpgsql
+as $$
+declare
+  generated_id uuid;
+  final_payload jsonb;
+begin
+  begin
+    generated_id := gen_random_uuid();
+    if payload ? 'id' then
+      final_payload := payload;
+    else
+      final_payload := jsonb_set(payload, '{id}', to_jsonb(generated_id));
+    end if;
+    execute format('SET LOCAL realtime.topic TO %L', topic);
+    insert into realtime.messages (id, payload, event, topic, private, extension)
+    values (generated_id, final_payload, event, topic, private, 'broadcast');
+  exception
+    when others then
+      raise warning 'WarnSendingBroadcastMessage: %', sqlerrm;
+  end;
+end;
+$$;
+alter table realtime.messages enable row level security;
+grant usage on schema realtime to anon, authenticated, service_role;
+grant select, insert, update on realtime.messages to anon, authenticated, service_role;
+grant execute on function realtime.topic() to anon, authenticated, service_role;
