@@ -4,15 +4,18 @@ import {
   fusionnerDossiersEtudiants,
   getEtudiants,
   getInscriptions,
+  getPiecesEtudiants,
   remplacerEtudiants,
   remplacerInscriptions,
+  remplacerPiecesEtudiants,
   type EtudiantRecord,
   type InscriptionRecord,
+  type PieceEtudiantRecord,
 } from "./studentStore";
 
 /** Enseignants reflétés dans la base (partie 4) : la fiche publique, lue par tous, et le dossier
- * personnel, lu par l'administration qui gère les professeurs et par l'enseignant lui-même. La
- * photo reste dans le navigateur jusqu'à l'espace de fichiers (lot 3). */
+ * personnel avec la photo, lu par l'administration qui gère les professeurs et par l'enseignant
+ * lui-même (qui y change son téléphone, son adresse et sa photo). */
 
 enregistrerMiroir({
   cle: "edumanage-teacher-store-v1",
@@ -26,8 +29,10 @@ enregistrerMiroir({
     }),
     partie<TeacherRecord>({
       table: "enseignants_dossiers",
-      colonnes: ["id", "telephone", "email", "dateNaissance", "paysNaissance", "lieuNaissance", "nationalite", "cni", "adresse", "niveauEtude", "rib", "diplomes", "tauxHoraire"],
+      colonnes: ["id", "telephone", "email", "dateNaissance", "paysNaissance", "lieuNaissance", "nationalite", "cni", "adresse", "niveauEtude", "rib", "diplomes", "tauxHoraire",
+        ["photoDataUrl", "photo_chemin"]],
       defauts: { telephone: "", diplomes: [], tauxHoraire: 0 },
+      fichiers: { photoDataUrl: { espace: "photos", dossier: (t) => `enseignants/${t.id}/` } },
       lire: getTeachers,
       remplacer: fusionnerDossiersEnseignants,
       complementDe: "enseignants",
@@ -36,10 +41,10 @@ enregistrerMiroir({
 });
 
 /** Étudiants reflétés dans la base, après les classes, les modèles de frais et les motifs de
- * blocage auxquels ils renvoient : la fiche scolaire, le dossier personnel (lu par l'administration
- * et l'étudiant lui-même) et les inscriptions. Les soldes, la photo et les pièces déposées restent
- * dans le navigateur (partie Finances, espace de fichiers). Même clé de stockage que les années
- * (studentStore), envoyée à son rang. */
+ * blocage auxquels ils renvoient : la fiche scolaire, le dossier personnel avec la photo (lu par
+ * l'administration et l'étudiant lui-même), les pièces déposées et vérifiées (lues par l'étudiant
+ * et le secrétariat) et les inscriptions. Les soldes restent dans le navigateur jusqu'à la partie
+ * Finances. Même clé de stockage que les années (studentStore), envoyée à son rang. */
 enregistrerMiroir({
   cle: "edumanage-app-store-v2",
   parties: [
@@ -54,12 +59,23 @@ enregistrerMiroir({
     partie<EtudiantRecord>({
       table: "etudiants_dossiers",
       colonnes: ["id", "email", "telephone", "dateNaissance", "lieuNaissance", "pays", "nationalite", "cni", "adresse", "nomTuteur", "telTuteur",
-        "typeAdmission", "documentsFournis", "inscriptionUniquePayee", "modeleFraisId", "motifBlocageId"],
+        "typeAdmission", "documentsFournis", "inscriptionUniquePayee", "modeleFraisId", "motifBlocageId", ["photoDataUrl", "photo_chemin"]],
       defauts: { email: "", telephone: "", documentsFournis: [], inscriptionUniquePayee: false },
       nulSiVide: ["typeAdmission", "modeleFraisId", "motifBlocageId"],
+      fichiers: { photoDataUrl: { espace: "photos", dossier: (e) => `etudiants/${e.id}/` } },
       lire: getEtudiants,
       remplacer: fusionnerDossiersEtudiants,
       complementDe: "etudiants",
+    }),
+    partie<PieceEtudiantRecord>({
+      table: "pieces_etudiants",
+      colonnes: ["id", "etudiantId", "piece", "fichier", "enVerification", "deposeLe", "motifRefus", "refuseLe"],
+      fichiers: {
+        fichier: { espace: "pieces", dossier: (p) => `${p.etudiantId}/${p.piece}/` },
+        enVerification: { espace: "pieces", dossier: (p) => `${p.etudiantId}/${p.piece}/` },
+      },
+      lire: getPiecesEtudiants,
+      remplacer: remplacerPiecesEtudiants,
     }),
     partie<InscriptionRecord>({
       table: "inscriptions",

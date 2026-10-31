@@ -28,6 +28,7 @@ import { getAssiduiteRowsPourEtudiant, getTauxPresencePourEtudiant } from "@/dat
 import { useAvoirDepots } from "@/hooks/useAvoirDepotStore";
 import { useRemboursementsAvoir } from "@/hooks/useRemboursementAvoirStore";
 import { useReductionsFrais } from "@/hooks/useReductionFraisStore";
+import { ouvrirFichier } from "@/lib/stockageLocal";
 import { useFraisEtudiant } from "@/hooks/useFraisEtudiantStore";
 import { statutFraisEtudiant } from "@/data/fraisEtudiantStore";
 import { useReprisFrais } from "@/hooks/useReprisFraisStore";
@@ -868,12 +869,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
                         {fichier && (
                           <button
                             type="button"
-                            onClick={() => {
-                              const win = window.open("", "_blank");
-                              if (!win) return;
-                              if (fichier.startsWith("data:application/pdf")) win.location.href = fichier;
-                              else { win.document.write(`<!DOCTYPE html><html><body style="margin:0"><img src="${fichier}" style="max-width:100%" /></body></html>`); win.document.close(); }
-                            }}
+                            onClick={() => ouvrirFichier(fichier)}
                             className="text-xs text-primary hover:underline"
                             data-testid={`dossier-piece-voir-${doc.id}`}
                           >

@@ -700,7 +700,7 @@ export function clearAuthSession() {
 /** Champs du dossier personnel (table etudiants_dossiers) : lus par l'administration et par
  * l'étudiant lui-même. */
 const CHAMPS_DOSSIER_ETUDIANT = ["email", "telephone", "dateNaissance", "lieuNaissance", "pays", "nationalite", "cni", "adresse",
-  "nomTuteur", "telTuteur", "typeAdmission", "documentsFournis", "inscriptionUniquePayee", "modeleFraisId", "motifBlocageId"] as const;
+  "nomTuteur", "telTuteur", "photoDataUrl", "typeAdmission", "documentsFournis", "inscriptionUniquePayee", "modeleFraisId", "motifBlocageId"] as const;
 
 /** Fiches de la base (avec Supabase). Les soldes restent calculés par l'application jusqu'à la
  * partie Finances ; les effectifs des classes sont recomptés. */
@@ -721,6 +721,51 @@ export function fusionnerDossiersEtudiants(dossiers: EtudiantRecord[]) {
     e.email ??= "";
     e.telephone ??= "";
     e.inscriptionUniquePayee ??= false;
+  }
+  persist();
+}
+
+/** Pièce d'inscription déposée ou vérifiée (table pieces_etudiants) : une ligne par pièce d'un
+ * étudiant, lue par l'étudiant et par le secrétariat. */
+export interface PieceEtudiantRecord {
+  id: string;
+  etudiantId: string;
+  piece: string;
+  fichier?: string;
+  enVerification?: string;
+  deposeLe?: string;
+  motifRefus?: string;
+  refuseLe?: string;
+}
+
+/** Pièces des dossiers, une ligne par pièce (fichier accepté, dépôt à vérifier ou refus). */
+export function getPiecesEtudiants(): PieceEtudiantRecord[] {
+  return store.etudiants.flatMap((e) => {
+    const pieces = new Set([...Object.keys(e.documentsFichiers ?? {}), ...Object.keys(e.piecesEnVerification ?? {}), ...Object.keys(e.piecesRefusees ?? {})]);
+    return [...pieces]
+      .map((piece) => ({
+        id: `${e.id}:${piece}`,
+        etudiantId: e.id,
+        piece,
+        fichier: e.documentsFichiers?.[piece],
+        enVerification: e.piecesEnVerification?.[piece]?.dataUrl,
+        deposeLe: e.piecesEnVerification?.[piece]?.deposeLe,
+        motifRefus: e.piecesRefusees?.[piece]?.motif,
+        refuseLe: e.piecesRefusees?.[piece]?.refuseLe,
+      }))
+      .filter((p) => p.fichier || p.enVerification || p.motifRefus);
+  });
+}
+
+/** Pièces de la base (avec Supabase) : un compte qui ne les lit pas n'en garde aucune. */
+export function remplacerPiecesEtudiants(pieces: PieceEtudiantRecord[]) {
+  const parEtudiant = new Map<string, PieceEtudiantRecord[]>();
+  for (const p of pieces) parEtudiant.set(p.etudiantId, [...(parEtudiant.get(p.etudiantId) ?? []), p]);
+  for (const e of store.etudiants) {
+    const siennes = parEtudiant.get(e.id) ?? [];
+    e.documentsFichiers = Object.fromEntries(siennes.flatMap((p) => (p.fichier ? [[p.piece, p.fichier]] : [])));
+    e.piecesEnVerification = Object.fromEntries(siennes.flatMap((p) => (p.enVerification ? [[p.piece, { dataUrl: p.enVerification, deposeLe: p.deposeLe ?? "" }]] : [])));
+    e.piecesRefusees = Object.fromEntries(siennes.flatMap((p) => (p.motifRefus ? [[p.piece, { motif: p.motifRefus, refuseLe: p.refuseLe ?? "" }]] : [])));
   }
   persist();
 }

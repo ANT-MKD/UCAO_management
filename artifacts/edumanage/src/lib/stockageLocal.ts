@@ -100,6 +100,19 @@ function lireBrut(file: File): Promise<string> {
   });
 }
 
+/** Ouvre dans un nouvel onglet un fichier enregistré : son contenu (choisi sur ce poste) ou son lien
+ * signé dans l'espace de fichiers privé. */
+export function ouvrirFichier(fichier: string): void {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  if (!fichier.startsWith("data:") || fichier.startsWith("data:application/pdf")) {
+    win.location.href = fichier;
+  } else {
+    win.document.write(`<!DOCTYPE html><html><body style="margin:0"><img src="${fichier}" style="max-width:100%" /></body></html>`);
+    win.document.close();
+  }
+}
+
 /** Prépare un fichier avant de l'enregistrer : les photos sont réduites et recompressées (une photo
  * de téléphone de 3 Mo tombe à environ 150 Ko), les autres fichiers sont limités en taille, et
  * aucun fichier n'est accepté s'il ne tient plus dans le stockage restant. Rejette avec un message

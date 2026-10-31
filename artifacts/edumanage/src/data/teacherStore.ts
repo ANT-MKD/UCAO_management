@@ -86,7 +86,7 @@ export function getTeacherById(id: string): TeacherRecord | undefined {
 
 /** Champs du dossier personnel (table enseignants_dossiers) : lus par l'administration qui gère
  * les professeurs et par l'enseignant lui-même. */
-const CHAMPS_DOSSIER = ["telephone", "email", "dateNaissance", "paysNaissance", "lieuNaissance", "nationalite", "cni", "adresse", "niveauEtude", "rib", "diplomes", "tauxHoraire"] as const;
+const CHAMPS_DOSSIER = ["telephone", "email", "dateNaissance", "paysNaissance", "lieuNaissance", "nationalite", "cni", "adresse", "niveauEtude", "rib", "diplomes", "tauxHoraire", "photoDataUrl"] as const;
 
 /** Fiches de la base (avec Supabase) ; les compteurs calculés par l'application valent 0. */
 export function remplacerEnseignants(records: TeacherRecord[]) {

@@ -5,16 +5,53 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 type Ligne = Record<string, unknown>;
 
 /** Faux serveur : tables en mémoire, journal des envois, refus programmables (un refus
- * { code: "0 lignes" } imite une mise à jour que les règles d'accès filtrent sans erreur). */
-async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string, operation: string) => { code: string; message: string } | null) {
+ * { code: "0 lignes" } imite une mise à jour que les règles d'accès filtrent sans erreur), et
+ * espace de fichiers (« espace/chemin » → contenu en data URL ; un dépôt refusé se programme sur
+ * la table « stockage:<espace> »). */
+async function avecBase(
+  tables: Record<string, Ligne[]>,
+  refus?: (table: string, operation: string) => { code?: string; message: string; statusCode?: string } | null,
+  fichiers: Map<string, string> = new Map(),
+) {
   vi.resetModules();
   vi.stubEnv("VITE_SUPABASE_URL", "https://exemple.supabase.co");
   vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_essai");
   const envois: { table: string; operation: string; donnees: unknown }[] = [];
   /** Appels des fonctions de la base (rpc) et des fonctions serveur, dans l'ordre, avec les envois. */
   const appels: { nom: string; donnees: unknown; envoisAvant: number }[] = [];
+  /** Opérations sur l'espace de fichiers, avec le nombre d'envois de lignes déjà faits. */
+  const stockage: { espace: string; operation: string; chemins: string[]; envoisAvant: number; type?: string }[] = [];
   let prochainMatricule = 1;
   const client = {
+    storage: {
+      from: (espace: string) => ({
+        upload: async (chemin: string, contenu: Blob, options: { contentType?: string }) => {
+          stockage.push({ espace, operation: "depot", chemins: [chemin], envoisAvant: envois.length, type: options.contentType });
+          const e = refus?.(`stockage:${espace}`, "depot") ?? null;
+          if (e) return { data: null, error: e };
+          if (fichiers.has(`${espace}/${chemin}`)) return { data: null, error: { message: "The resource already exists", statusCode: "409" } };
+          const octets = new Uint8Array(await contenu.arrayBuffer());
+          fichiers.set(`${espace}/${chemin}`, `data:${options.contentType};base64,${btoa(String.fromCharCode(...octets))}`);
+          return { data: { path: chemin }, error: null };
+        },
+        createSignedUrls: async (chemins: string[]) => ({
+          data: chemins.map((c) => (fichiers.has(`${espace}/${c}`)
+            ? { path: c, signedUrl: `https://exemple.supabase.co/storage/v1/object/sign/${espace}/${c}?token=essai`, error: null }
+            : { path: c, signedUrl: null, error: "Object not found" })),
+          error: null,
+        }),
+        download: async (chemin: string) => {
+          const contenu = fichiers.get(`${espace}/${chemin}`);
+          if (!contenu) return { data: null, error: { message: "Object not found" } };
+          return { data: await (await fetch(contenu)).blob(), error: null };
+        },
+        remove: async (chemins: string[]) => {
+          stockage.push({ espace, operation: "retrait", chemins, envoisAvant: envois.length });
+          chemins.forEach((c) => fichiers.delete(`${espace}/${c}`));
+          return { data: [], error: null };
+        },
+      }),
+    },
     rpc: async (nom: string, args: Record<string, unknown>) => {
       appels.push({ nom, donnees: args, envoisAvant: envois.length });
       if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
@@ -79,6 +116,8 @@ async function avecBase(tables: Record<string, Ligne[]>, refus?: (table: string,
   return {
     envois,
     appels,
+    stockage,
+    fichiers,
     miroir,
     roles: await import("@/data/roleStore"),
     pages: await import("@/data/portalFeaturesStore"),
@@ -361,16 +400,16 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
   const KANE = "00000000-0000-4000-8000-00000000000c";
   const ETABLISSEMENT = { id: 1, nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "", email: "", site_web: "", agrement: "", logo_chemin: null, modifie_le: "2026-10-30T10:00:00+00:00", modifie_par: null };
 
-  it("à la connexion : listes et identité de la base ; le logo et l'image de signature restent sur le poste", async () => {
-    localStorage.setItem("edumanage-etablissement-v1", JSON.stringify({ nom: "Ancien nom", adresse: "", logoDataUrl: "data:image/png;base64,TE9HTw==" }));
-    localStorage.setItem("edumanage-signature-config-v1", JSON.stringify({ bulletin: { actif: false, signataireNom: "", signataireQualite: "", imageDataUrl: "data:image/png;base64,U0lHTg==" } }));
+  it("à la connexion : listes et identité de la base ; le logo et l'image de signature viennent de l'espace de fichiers, en contenu pour l'impression", async () => {
+    localStorage.setItem("edumanage-etablissement-v1", JSON.stringify({ nom: "Ancien nom", adresse: "", logoDataUrl: "data:image/png;base64,QU5DSUVO" }));
+    localStorage.setItem("edumanage-signature-config-v1", JSON.stringify({ inscription: { actif: false, signataireNom: "", signataireQualite: "", imageDataUrl: "data:image/png;base64,QU5DSUVO" } }));
     const b = await avecBase({
       annees_academiques: [ANNEE],
       types_seance: [{ id: "ts-seed-1", code: "CM", intitule: "Cours magistral", categorie: "emploi_du_temps", couleur: "#4f46e5", trajet: false, necessite_surveillant: false }],
       jours_feries: [{ id: "jf-tabaski", intitule: "Tabaski", date_debut: "2027-05-17", date_fin: "2027-05-18" }],
-      etablissement: [ETABLISSEMENT],
-      signatures_documents: [{ id: "bulletin", actif: true, signataire_nom: "Pr Jean NDIAYE", signataire_qualite: "Le Recteur" }],
-    });
+      etablissement: [{ ...ETABLISSEMENT, logo_chemin: "logo/ucao.png" }],
+      signatures_documents: [{ id: "bulletin", actif: true, signataire_nom: "Pr Jean NDIAYE", signataire_qualite: "Le Recteur", image_chemin: "signatures/bulletin/recteur.png" }],
+    }, undefined, new Map([["etablissement/logo/ucao.png", "data:image/png;base64,TE9HTw=="], ["etablissement/signatures/bulletin/recteur.png", "data:image/png;base64,U0lHTg=="]]));
     await b.miroir.chargerMiroirs();
     const Edt = await import("@/data/scheduleSettingsStore");
     const Et = await import("@/data/etablissementStore");
@@ -380,10 +419,12 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
     expect(Et.getEtablissement()).toMatchObject({ nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", logoDataUrl: "data:image/png;base64,TE9HTw==" });
     expect(Sig.getSignatureConfig("bulletin")).toEqual({ actif: true, signataireNom: "Pr Jean NDIAYE", signataireQualite: "Le Recteur", imageDataUrl: "data:image/png;base64,U0lHTg==" });
     expect(Sig.getSignatureConfig("inscription").actif).toBe(false);
+    expect(Sig.getSignatureConfig("inscription").imageDataUrl).toBeUndefined();
     expect(b.envois).toHaveLength(0);
+    expect(b.stockage).toHaveLength(0);
   });
 
-  it("l'identité de l'établissement est mise à jour, sans logo ; sans le droit, l'écran reprend la base", async () => {
+  it("l'identité de l'établissement est mise à jour avec un nouveau logo, déposé d'abord ; sans le droit, l'écran reprend la base", async () => {
     const refus = { actif: false };
     const b = await avecBase({ annees_academiques: [ANNEE], etablissement: [ETABLISSEMENT] },
       (table, operation) => (refus.actif && table === "etablissement" && operation === "update" ? { code: "0 lignes", message: "" } : null));
@@ -391,8 +432,10 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
     const Et = await import("@/data/etablissementStore");
     Et.updateEtablissement({ ...Et.getEtablissement(), telephone: "33 800 00 00", logoDataUrl: "data:image/png;base64,TE9HTw==" }, ADMIN);
     await b.miroir.attendreEnvois();
+    const logo = b.stockage[0]?.chemins[0];
+    expect(b.stockage).toEqual([{ espace: "etablissement", operation: "depot", chemins: [expect.stringMatching(/^logo\/[\w-]+\.png$/)], envoisAvant: 0, type: "image/png" }]);
     expect(b.envois).toEqual([{ table: "etablissement", operation: "update", donnees: {
-      nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "33 800 00 00", email: "", site_web: "", agrement: "",
+      nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "33 800 00 00", email: "", site_web: "", agrement: "", logo_chemin: logo,
     } }]);
     refus.actif = true;
     const motifs: string[] = [];
@@ -400,7 +443,8 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
     Et.updateEtablissement({ ...Et.getEtablissement(), nom: "Nom pirate" }, ADMIN);
     await b.miroir.attendreEnvois();
     expect(motifs).toEqual([expect.stringContaining("pas le droit")]);
-    expect(Et.getEtablissement().nom).toBe("Université Catholique de l'Afrique de l'Ouest");
+    expect(Et.getEtablissement()).toMatchObject({ nom: "Université Catholique de l'Afrique de l'Ouest", logoDataUrl: "data:image/png;base64,TE9HTw==" });
+    expect(b.stockage).toHaveLength(1);
   });
 
   it("Mamadou KANE désigné validateur des messages : son compte part en colonnes de la base", async () => {
@@ -482,6 +526,116 @@ describe("miroir des enseignants : fiche publique et dossier personnel", () => {
     T.updateTeacher("en-kane", { rib: "SN012 01201 000000000009 09" }, ADMIN);
     await b.miroir.attendreEnvois();
     expect(b.envois.slice(2)).toEqual([{ table: "enseignants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "en-kane", rib: "SN012 01201 000000000009 09" })] }]);
+  });
+
+  it("KANE change son téléphone et sa photo depuis son profil : photo déposée dans son dossier, puis simple mise à jour (il ne crée pas de dossier)", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], enseignants: [KANE], enseignants_dossiers: [DOSSIER_KANE] },
+      (table, operation) => (table === "enseignants_dossiers" && operation === "upsert" ? { code: "42501", message: "new row violates row-level security policy" } : null));
+    await b.miroir.chargerMiroirs();
+    const T = await import("@/data/teacherStore");
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    T.updateTeacher("en-kane", { telephone: "77 000 00 09", adresse: "Dakar, Fann", photoDataUrl: "data:image/jpeg;base64,S0FORQ==" }, "u-kane");
+    await b.miroir.attendreEnvois();
+    const photo = b.stockage[0]?.chemins[0];
+    expect(b.stockage).toEqual([{ espace: "photos", operation: "depot", chemins: [expect.stringMatching(/^enseignants\/en-kane\/[\w-]+\.jpg$/)], envoisAvant: 0, type: "image/jpeg" }]);
+    expect(b.envois).toEqual([
+      { table: "enseignants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "en-kane", photo_chemin: photo })] },
+      { table: "enseignants_dossiers", operation: "update", donnees: expect.objectContaining({ telephone: "77 000 00 09", adresse: "Dakar, Fann", photo_chemin: photo, rib: "SN012 01201 000000000001 01" }) },
+    ]);
+    expect(motifs).toEqual([]);
+  });
+});
+
+describe("espace de fichiers : photos et pièces d'inscription des étudiants", () => {
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "", classe_id: null, niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+  const OUSMANE = { ...AWA, id: "et-ousmane", matricule: "2026-LQHSE-0002", prenom: "Ousmane", nom: "DIALLO", sexe: "M" };
+  const dossier = (id: string, autres: Ligne = {}) => ({ id, email: "", telephone: "770000001", date_naissance: null, lieu_naissance: null, pays: null, nationalite: null, cni: null, adresse: null,
+    nom_tuteur: null, tel_tuteur: null, type_admission: null, documents_fournis: [], inscription_unique_payee: false, modele_frais_id: null, motif_blocage_id: null, photo_chemin: null, ...autres });
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], etudiants: [AWA, OUSMANE],
+    etudiants_dossiers: [dossier("et-awa", { photo_chemin: "etudiants/et-awa/ancienne.jpg" }), dossier("et-ousmane")] });
+  const ANCIENNE_PHOTO = (): Map<string, string> => new Map([["photos/etudiants/et-awa/ancienne.jpg", "data:image/jpeg;base64,QU5DSUVOTkU="]]);
+  const lien = (espace: string, chemin: string) => `https://exemple.supabase.co/storage/v1/object/sign/${espace}/${chemin}?token=essai`;
+
+  it("Awa change sa photo : déposée dans son dossier, puis son dossier part en simple mise à jour (elle n'en crée pas) ; l'ancienne photo est retirée", async () => {
+    const b = await avecBase(base(), (table, operation) => (table === "etudiants_dossiers" && operation === "upsert" ? { code: "42501", message: "new row violates row-level security policy" } : null), ANCIENNE_PHOTO());
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getEtudiantById("et-awa")?.photoDataUrl).toBe(lien("photos", "etudiants/et-awa/ancienne.jpg"));
+    b.S.updateEtudiantInfos("et-awa", { telephone: "771234567", photoDataUrl: "data:image/jpeg;base64,Tk9VVkVMTEU=" }, "u-awa");
+    await b.miroir.attendreEnvois();
+    const photo = b.stockage[0]?.chemins[0];
+    expect(photo).toMatch(/^etudiants\/et-awa\/[\w-]+\.jpg$/);
+    expect(b.stockage).toEqual([
+      { espace: "photos", operation: "depot", chemins: [photo], envoisAvant: 0, type: "image/jpeg" },
+      { espace: "photos", operation: "retrait", chemins: ["etudiants/et-awa/ancienne.jpg"], envoisAvant: 2 },
+    ]);
+    expect(b.envois).toEqual([
+      { table: "etudiants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "et-awa", photo_chemin: photo })] },
+      { table: "etudiants_dossiers", operation: "update", donnees: expect.objectContaining({ telephone: "771234567", photo_chemin: photo }) },
+    ]);
+    // La même photo n'est pas redéposée quand Awa change ensuite son téléphone.
+    b.S.updateEtudiantInfos("et-awa", { telephone: "771234568" }, "u-awa");
+    await b.miroir.attendreEnvois();
+    expect(b.stockage).toHaveLength(2);
+    expect(b.envois.at(-1)).toEqual({ table: "etudiants_dossiers", operation: "update", donnees: expect.objectContaining({ telephone: "771234568", photo_chemin: photo }) });
+  });
+
+  it("une photo d'un type refusé par l'espace de fichiers : motif lisible, rien n'est enregistré, l'écran reprend la base", async () => {
+    const b = await avecBase(base(), (table) => (table === "stockage:photos" ? { message: "mime type image/svg+xml is not supported", statusCode: "415" } : null), ANCIENNE_PHOTO());
+    await b.miroir.chargerMiroirs();
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    b.S.updateEtudiantInfos("et-awa", { photoDataUrl: "data:image/svg+xml;base64,PHN2Zz4=" }, "u-awa");
+    await b.miroir.attendreEnvois();
+    expect(motifs).toEqual([expect.stringContaining("type de fichier n'est pas accepté")]);
+    expect(b.envois).toHaveLength(0);
+    expect(b.S.getEtudiantById("et-awa")?.photoDataUrl).toBe(lien("photos", "etudiants/et-awa/ancienne.jpg"));
+  });
+
+  it("Awa dépose sa CNI ; le secrétariat l'ouvre et l'accepte sans nouveau dépôt, refuse celle d'Ousmane et en retire le fichier ; Awa la voit fournie", async () => {
+    const tables = { ...base(), pieces_etudiants: [{ id: "et-ousmane:cni", etudiant_id: "et-ousmane", piece: "cni", fichier: null, en_verification: "et-ousmane/cni/depot-1.jpg",
+      depose_le: "2026-10-30T09:00:00+00:00", motif_refus: null, refuse_le: null }] };
+    const fichiers = new Map([...ANCIENNE_PHOTO(), ["pieces/et-ousmane/cni/depot-1.jpg", "data:image/jpeg;base64,RkxPVQ=="]]);
+
+    const awa = await avecBase(tables, undefined, fichiers);
+    await awa.miroir.chargerMiroirs();
+    awa.S.deposerDocumentEtudiant("et-awa", "cni", "data:application/pdf;base64,JVBERi0=", "u-awa", "CNI");
+    await awa.miroir.attendreEnvois();
+    const cni = awa.stockage[0]?.chemins[0];
+    expect(awa.stockage).toEqual([{ espace: "pieces", operation: "depot", chemins: [expect.stringMatching(/^et-awa\/cni\/[\w-]+\.pdf$/)], envoisAvant: 0, type: "application/pdf" }]);
+    expect(awa.envois).toEqual([{ table: "pieces_etudiants", operation: "upsert", donnees: [
+      expect.objectContaining({ id: "et-awa:cni", etudiant_id: "et-awa", piece: "cni", fichier: null, en_verification: cni, motif_refus: null }),
+    ] }]);
+
+    const sec = await avecBase(tables, undefined, fichiers);
+    await sec.miroir.chargerMiroirs();
+    expect(sec.S.getEtudiantById("et-awa")?.piecesEnVerification?.cni?.dataUrl).toBe(lien("pieces", cni));
+    sec.S.verifierPieceEtudiant("et-awa", "cni", "accepter", ADMIN, { libellePiece: "CNI" });
+    sec.S.verifierPieceEtudiant("et-ousmane", "cni", "refuser", ADMIN, { motif: "Scan illisible", libellePiece: "CNI" });
+    await sec.miroir.attendreEnvois();
+    expect(sec.stockage).toEqual([{ espace: "pieces", operation: "retrait", chemins: ["et-ousmane/cni/depot-1.jpg"], envoisAvant: expect.any(Number) }]);
+    expect(sec.envois.filter((e) => e.table === "pieces_etudiants").flatMap((e) => e.donnees as Ligne[])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "et-awa:cni", fichier: cni, en_verification: null }),
+      expect.objectContaining({ id: "et-ousmane:cni", en_verification: null, motif_refus: "Scan illisible" }),
+    ]));
+    expect(sec.envois).toContainEqual({ table: "etudiants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "et-awa", documents_fournis: ["cni"] })] });
+
+    const awa2 = await avecBase(tables, undefined, fichiers);
+    await awa2.miroir.chargerMiroirs();
+    expect(awa2.S.getEtudiantById("et-awa")).toMatchObject({ documentsFournis: ["cni"], documentsFichiers: { cni: lien("pieces", cni) }, piecesEnVerification: {} });
+    expect(awa2.S.getEtudiantById("et-ousmane")).toMatchObject({ piecesRefusees: { cni: expect.objectContaining({ motif: "Scan illisible" }) } });
+    expect(awa2.envois).toHaveLength(0);
+  });
+
+  it("un compte qui ne lit pas les pièces (la caisse) n'en garde aucune sur son poste et n'en renvoie aucune", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ etudiants: [{ id: "et-awa", documentsFichiers: { cni: "data:image/jpeg;base64,QU5DSUVO" } }] }));
+    const b = await avecBase(base(), undefined, ANCIENNE_PHOTO());
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getEtudiantById("et-awa")?.documentsFichiers).toEqual({});
+    b.S.updateEtudiantInfos("et-awa", { telephone: "771234569" }, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["etudiants_dossiers"]);
+    expect(b.stockage).toHaveLength(0);
   });
 });
 

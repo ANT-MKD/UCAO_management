@@ -14,6 +14,19 @@ import { observerEcritures } from "@/lib/stockageLocal";
 type Ligne = Record<string, unknown>;
 type Fiche = { id: string } & Record<string, unknown>;
 
+/** Champ qui désigne un fichier de l'espace de fichiers (partie 4) : la fiche garde de quoi
+ * l'afficher, la base garde son chemin. Un fichier choisi sur le poste (data URL) est déposé avant
+ * l'envoi de sa ligne, sous un nouveau chemin (un fichier déposé ne se réécrit jamais). */
+export interface ChampFichier<R> {
+  /** Espace de fichiers (bucket). */
+  espace: string;
+  /** Dossier du fichier dans l'espace, terminé par « / » (ex. etudiants/<id>/). */
+  dossier: (fiche: R) => string;
+  /** « url » (défaut) : lien signé, pour l'affichage ; « donnees » : contenu (data URL), pour ce
+   * qui s'imprime sans attendre le réseau (logo, signatures). */
+  forme?: "url" | "donnees";
+}
+
 export interface PartieMiroir<R extends { id: string }> {
   /** Table de la base. */
   table: string;
@@ -44,6 +57,8 @@ export interface PartieMiroir<R extends { id: string }> {
   /** Champs dont la valeur vide ("") part comme « aucune valeur » (ex. classe d'un étudiant en
    * attente d'affectation, qui renvoie à une classe qui doit exister) et revient vide. */
   nulSiVide?: readonly string[];
+  /** Champs qui désignent un fichier (photo, pièce, logo…), avec leur espace et leur dossier. */
+  fichiers?: Readonly<Record<string, ChampFichier<R>>>;
 }
 
 export interface Miroir {
@@ -65,22 +80,100 @@ export function partie<R extends { id: string }>(p: PartieMiroir<R>): PartieMiro
 const champsEtColonnes = (partie: PartieMiroir<{ id: string }>) =>
   partie.colonnes.map((c) => (typeof c === "string" ? [c, c.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)] : c));
 
+// ——— Fichiers ———————————————————————————————————————————————————————————————————————————————
+
+/** Chemin de chaque fichier connu, par dossier puis par valeur de la fiche (lien signé ou contenu). */
+const chemins = new Map<string, Map<string, string>>();
+/** Fichiers choisis sur ce poste, pas encore déposés : « espace/chemin » → contenu. */
+const aDeposer = new Map<string, string>();
+/** Liens signés obtenus, réutilisés tant qu'il leur reste plus d'une heure (le chargement est
+ * refait à chaque renouvellement du jeton, toutes les heures). */
+const liensSignes = new Map<string, { url: string; expire: number }>();
+/** Contenu des fichiers téléchargés : un chemin désigne toujours le même fichier. */
+const contenus = new Map<string, string>();
+const DUREE_LIEN_S = 6 * 3600;
+
+const EXTENSIONS: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "application/pdf": "pdf" };
+const typeDe = (dataUrl: string) => /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? "application/octet-stream";
+
+function nouvelIdentifiant(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function retenirChemin(dossier: string, valeur: string, chemin: string): void {
+  if (!chemins.has(dossier)) chemins.set(dossier, new Map());
+  chemins.get(dossier)!.set(valeur, chemin);
+}
+
+/** Chemin à enregistrer pour la valeur d'un champ fichier ; un fichier choisi sur le poste reçoit
+ * un nouveau chemin et attend d'être déposé. */
+function cheminDuFichier(fichier: ChampFichier<Fiche>, fiche: Fiche, valeur: unknown): string | null {
+  if (typeof valeur !== "string" || valeur === "") return null;
+  const dossier = fichier.dossier(fiche);
+  const connuIci = chemins.get(dossier)?.get(valeur);
+  if (connuIci) return connuIci;
+  if (valeur.startsWith("data:")) {
+    const chemin = `${dossier}${nouvelIdentifiant()}.${EXTENSIONS[typeDe(valeur)] ?? "bin"}`;
+    retenirChemin(dossier, valeur, chemin);
+    aDeposer.set(`${fichier.espace}/${chemin}`, valeur);
+    return chemin;
+  }
+  // Lien signé d'une session précédente : il porte son chemin.
+  const lien = /\/object\/sign\/([^/]+)\/([^?]+)/.exec(valeur);
+  return lien && lien[1] === fichier.espace ? decodeURIComponent(lien[2]) : null;
+}
+
+function enBlob(dataUrl: string): Blob {
+  const virgule = dataUrl.indexOf(",");
+  const entete = dataUrl.slice(0, virgule);
+  const corps = dataUrl.slice(virgule + 1);
+  if (!entete.endsWith(";base64")) return new Blob([decodeURIComponent(corps)], { type: typeDe(dataUrl) });
+  const binaire = atob(corps);
+  const octets = new Uint8Array(binaire.length);
+  for (let i = 0; i < binaire.length; i++) octets[i] = binaire.charCodeAt(i);
+  return new Blob([octets], { type: typeDe(dataUrl) });
+}
+
+function enDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onload = () => resolve(String(lecteur.result));
+    lecteur.onerror = () => reject(lecteur.error);
+    lecteur.readAsDataURL(blob);
+  });
+}
+
+/** Refus de l'espace de fichiers, rendu lisible par motifRefus. */
+function refusFichier(erreur: { message?: string; statusCode?: string | number }): { code: string; message: string } {
+  const texte = `${erreur.statusCode ?? ""} ${erreur.message ?? ""}`;
+  if (/row-level security|unauthorized|403/i.test(texte)) return { code: "42501", message: erreur.message ?? "" };
+  if (/maximum allowed size|too large|413/i.test(texte)) return { code: "fichier", message: "fichier trop lourd." };
+  if (/mime|not supported|415/i.test(texte)) {
+    return { code: "fichier", message: "ce type de fichier n'est pas accepté (images JPEG, PNG, WebP ou GIF ; PDF pour les pièces)." };
+  }
+  return { code: "fichier", message: erreur.message ?? "dépôt impossible." };
+}
+
 export function versLigne(partie: PartieMiroir<{ id: string }>, fiche: Fiche): Ligne {
   const ligne: Ligne = {};
   for (const [champ, colonne] of champsEtColonnes(partie)) {
     const valeur = fiche[champ];
-    ligne[colonne] = valeur === undefined || (valeur === "" && partie.nulSiVide?.includes(champ)) ? (partie.defauts?.[champ] ?? null) : valeur;
+    const fichier = partie.fichiers?.[champ];
+    if (fichier) ligne[colonne] = cheminDuFichier(fichier as ChampFichier<Fiche>, fiche, valeur);
+    else ligne[colonne] = valeur === undefined || (valeur === "" && partie.nulSiVide?.includes(champ)) ? (partie.defauts?.[champ] ?? null) : valeur;
   }
   return ligne;
 }
 
 /** Ligne de la base → fiche ; les champs propres au navigateur (compteurs calculés) de la fiche
- * existante sont gardés. */
-export function depuisLigne(partie: PartieMiroir<{ id: string }>, ligne: Ligne, existante?: Fiche): Fiche {
+ * existante sont gardés. Un champ fichier reçoit ce que donne « affichage » pour son chemin. */
+export function depuisLigne(partie: PartieMiroir<{ id: string }>, ligne: Ligne, existante?: Fiche, affichage?: ReadonlyMap<string, string>): Fiche {
   const fiche: Fiche = { ...(existante ?? {}), id: String(ligne.id) };
   for (const [champ, colonne] of champsEtColonnes(partie)) {
     const valeur = ligne[colonne];
-    fiche[champ] = valeur === null ? (partie.nulSiVide?.includes(champ) ? "" : undefined) : valeur;
+    const fichier = partie.fichiers?.[champ];
+    if (fichier) fiche[champ] = typeof valeur === "string" ? affichage?.get(`${fichier.espace}/${valeur}`) ?? valeur : undefined;
+    else fiche[champ] = valeur === null ? (partie.nulSiVide?.includes(champ) ? "" : undefined) : valeur;
   }
   return fiche;
 }
@@ -105,6 +198,8 @@ export function motifRefus(erreur: { code?: string; message?: string }): string 
     return `La base a refusé : ${erreur.message} L'écran a été remis à jour.`;
   }
   switch (erreur.code) {
+    case "fichier":
+      return `La base a refusé le fichier : ${erreur.message} L'écran a été remis à jour.`;
     case "23503":
       return "La base a refusé : cet élément est encore utilisé par d'autres données (ou dépend d'un élément absent). L'écran a été remis à jour.";
     case "42501":
@@ -136,11 +231,58 @@ async function toutLire(table: string): Promise<Ligne[]> {
   }
 }
 
+/** Ce que les fiches affichent pour les fichiers de ces lignes : un lien signé, ou le contenu pour
+ * ce qui s'imprime. Un fichier introuvable garde son chemin (la fiche ne le perd pas). */
+async function preparerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Ligne[]): Promise<Map<string, string>> {
+  const affichage = new Map<string, string>();
+  for (const [champ, colonne] of champsEtColonnes(partie)) {
+    const fichier = partie.fichiers?.[champ];
+    if (!fichier) continue;
+    const cheminsUtiles = [...new Set(lignes.map((l) => l[colonne]).filter((c): c is string => typeof c === "string" && c !== ""))];
+    if (cheminsUtiles.length === 0) continue;
+    const espace = client().storage.from(fichier.espace);
+    if (fichier.forme === "donnees") {
+      for (const chemin of cheminsUtiles) {
+        const cle = `${fichier.espace}/${chemin}`;
+        if (!contenus.has(cle)) {
+          const { data, error } = await espace.download(chemin);
+          if (error || !data) continue;
+          contenus.set(cle, await enDataUrl(data));
+        }
+        affichage.set(cle, contenus.get(cle)!);
+      }
+      continue;
+    }
+    const maintenant = Date.now();
+    const aSigner = cheminsUtiles.filter((c) => (liensSignes.get(`${fichier.espace}/${c}`)?.expire ?? 0) - maintenant < 3600_000);
+    for (let i = 0; i < aSigner.length; i += 500) {
+      const { data, error } = await espace.createSignedUrls(aSigner.slice(i, i + 500), DUREE_LIEN_S);
+      if (error) throw error;
+      for (const lien of data ?? []) {
+        if (lien.path && lien.signedUrl) liensSignes.set(`${fichier.espace}/${lien.path}`, { url: lien.signedUrl, expire: maintenant + DUREE_LIEN_S * 1000 });
+      }
+    }
+    for (const chemin of cheminsUtiles) {
+      const lien = liensSignes.get(`${fichier.espace}/${chemin}`);
+      if (lien) affichage.set(`${fichier.espace}/${chemin}`, lien.url);
+    }
+  }
+  return affichage;
+}
+
 async function chargerMiroir(miroir: Miroir): Promise<void> {
   for (const partie of miroir.parties) {
     const lignes = await toutLire(partie.table);
+    const affichage = await preparerFichiers(partie, lignes);
     const existantes = new Map(partie.lire().map((f) => [f.id, f as Fiche]));
-    const fiches = lignes.map((l) => depuisLigne(partie, l, existantes.get(String(l.id))));
+    const fiches = lignes.map((l) => depuisLigne(partie, l, existantes.get(String(l.id)), affichage));
+    fiches.forEach((f, i) => {
+      for (const [champ, colonne] of champsEtColonnes(partie)) {
+        const fichier = partie.fichiers?.[champ];
+        const chemin = lignes[i][colonne];
+        if (fichier && typeof chemin === "string" && typeof f[champ] === "string") retenirChemin(fichier.dossier(f), f[champ] as string, chemin);
+      }
+    });
     connu.set(partie.table, new Map(fiches.map((f) => [f.id, JSON.stringify(versLigne(partie, f))])));
     sansEnvoi(() => partie.remplacer(fiches as { id: string }[]));
   }
@@ -196,6 +338,45 @@ export function arreterMiroirs(): void {
 /** Clés enregistrées depuis le dernier envoi. */
 const modifiees = new Set<string>();
 
+/** Dépose les fichiers choisis sur ce poste que ces lignes désignent. */
+async function deposerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Ligne[]): Promise<void> {
+  for (const [champ, colonne] of champsEtColonnes(partie)) {
+    const fichier = partie.fichiers?.[champ];
+    if (!fichier) continue;
+    for (const ligne of lignes) {
+      const chemin = ligne[colonne];
+      const cle = `${fichier.espace}/${chemin}`;
+      const contenu = typeof chemin === "string" ? aDeposer.get(cle) : undefined;
+      if (contenu === undefined) continue;
+      const { error } = await client().storage.from(fichier.espace).upload(chemin as string, enBlob(contenu), { contentType: typeDe(contenu), upsert: false });
+      // Déjà déposé (envoi précédent interrompu juste après) : c'est le même fichier.
+      if (error && !/already exists|duplicate/i.test(error.message ?? "")) throw refusFichier(error as { message?: string; statusCode?: string });
+      aDeposer.delete(cle);
+      if (fichier.forme === "donnees") contenus.set(cle, contenu);
+    }
+  }
+}
+
+/** Fichiers qu'une ligne désignait et ne désigne plus (photo remplacée, pièce refusée…). */
+function fichiersQuittes(partie: PartieMiroir<{ id: string }>, avant: string | undefined, apres?: Ligne): { espace: string; chemin: string }[] {
+  if (!partie.fichiers || !avant) return [];
+  const ancienne = JSON.parse(avant) as Ligne;
+  const colonnes = champsEtColonnes(partie).filter(([champ]) => partie.fichiers?.[champ]);
+  const gardes = new Set(colonnes.map(([, colonne]) => apres?.[colonne]).filter(Boolean));
+  return colonnes.flatMap(([champ, colonne]) => {
+    const chemin = ancienne[colonne];
+    return typeof chemin === "string" && !gardes.has(chemin) ? [{ espace: partie.fichiers![champ].espace, chemin }] : [];
+  });
+}
+
+async function mettreAJour(table: string, ligne: Ligne): Promise<void> {
+  const { id, ...valeurs } = ligne;
+  const { data, error } = await client().from(table).update(valeurs).eq("id", id).select("id");
+  if (error) throw error;
+  // Une ligne que les règles d'accès ne laissent pas modifier n'est simplement pas touchée.
+  if (!data?.length) throw { code: "42501" };
+}
+
 /** Envoie tout ce qui a changé, dans l'ordre des liens (ordre d'enregistrement des miroirs : les
  * parents d'abord), puis les suppressions à l'envers. Une action qui touche plusieurs stores
  * (ouvrir l'année suivante crée l'année puis ses classes) part donc dans le bon ordre. */
@@ -210,6 +391,8 @@ async function envoyer(): Promise<void> {
   });
   /** Lignes ajoutées ou modifiées dans cet envoi, par table. */
   const envoyees = new Map<string, Set<string>>();
+  /** Fichiers que plus rien ne désigne, retirés une fois l'envoi réussi. */
+  const aRetirer: { espace: string; chemin: string }[] = [];
   try {
     for (const { partie, lignes } of parties) {
       const etat = connu.get(partie.table) ?? new Map<string, string>();
@@ -218,14 +401,15 @@ async function envoyer(): Promise<void> {
         && (!partie.complementDe || etat.has(String(l.id)) || !!principales?.has(String(l.id))));
       envoyees.set(partie.table, new Set(changees.map((l) => String(l.id))));
       if (partie.ordreEnvoi) changees.sort(partie.ordreEnvoi);
+      const retenir = (l: Ligne) => {
+        aRetirer.push(...fichiersQuittes(partie, etat.get(String(l.id)), l));
+        etat.set(String(l.id), JSON.stringify(l));
+      };
       if (partie.miseAJourSeule) {
+        await deposerFichiers(partie, changees);
         for (const ligne of changees) {
-          const { id, ...valeurs } = ligne;
-          const { data, error } = await client().from(partie.table).update(valeurs).eq("id", id).select("id");
-          if (error) throw error;
-          // Une ligne que les règles d'accès ne laissent pas modifier n'est simplement pas touchée.
-          if (!data?.length) throw { code: "42501" };
-          etat.set(String(id), JSON.stringify(ligne));
+          await mettreAJour(partie.table, ligne);
+          retenir(ligne);
         }
         connu.set(partie.table, etat);
         continue;
@@ -233,9 +417,15 @@ async function envoyer(): Promise<void> {
       // Par paquets (un import de maquette peut compter des centaines d'EC).
       for (let i = 0; i < changees.length; i += 500) {
         const paquet = changees.slice(i, i + 500);
+        await deposerFichiers(partie, paquet);
         const { error } = await client().from(partie.table).upsert(paquet, { onConflict: "id" });
-        if (error) throw error;
-        paquet.forEach((l) => etat.set(String(l.id), JSON.stringify(l)));
+        if (error) {
+          // Un compte qui ne crée pas de lignes dans cette table modifie les siennes (l'étudiant son
+          // dossier, le professeur le sien) : simple mise à jour des lignes déjà en base.
+          if (error.code !== "42501" || paquet.some((l) => !etat.has(String(l.id)))) throw error;
+          for (const ligne of paquet) await mettreAJour(partie.table, ligne);
+        }
+        paquet.forEach(retenir);
       }
       connu.set(partie.table, etat);
     }
@@ -246,8 +436,12 @@ async function envoyer(): Promise<void> {
       if (supprimees.length === 0) continue;
       const { error } = await client().from(partie.table).delete().in("id", supprimees);
       if (error) throw error;
-      supprimees.forEach((id) => etat.delete(id));
+      supprimees.forEach((id) => {
+        aRetirer.push(...fichiersQuittes(partie, etat.get(id)));
+        etat.delete(id);
+      });
     }
+    await retirerFichiers(aRetirer);
   } catch (erreur) {
     const e = erreur as { code?: string; message?: string };
     window.dispatchEvent(new CustomEvent(EVENEMENT_REFUS_SERVEUR, { detail: { message: motifRefus(e) } }));
@@ -258,6 +452,18 @@ async function envoyer(): Promise<void> {
       } catch {
         // base injoignable : le prochain chargement recalera
       }
+    }
+  }
+}
+
+/** Retire de l'espace de fichiers ce que plus rien ne désigne, quand le compte en a le droit (un
+ * étudiant ne retire pas la pièce qu'il a déposée) ; un échec laisse simplement le fichier. */
+async function retirerFichiers(fichiers: { espace: string; chemin: string }[]): Promise<void> {
+  for (const espace of new Set(fichiers.map((f) => f.espace))) {
+    try {
+      await client().storage.from(espace).remove(fichiers.filter((f) => f.espace === espace).map((f) => f.chemin));
+    } catch {
+      // fichier laissé en place
     }
   }
 }

@@ -27,9 +27,10 @@ import { getSignaturesDocuments, remplacerSignaturesDocuments, type SignatureDoc
 import { getEtablissementLignes, remplacerEtablissement, type EtablissementInfo } from "./etablissementStore";
 
 /** Paramétrage de l'emploi du temps, des finances, de la communication, des signatures et identité
- * de l'établissement reflétés dans la base (partie 3, lot 4). Restent dans le navigateur :
- * l'adresse de la passerelle de communication (jamais de clé d'API dans la base), le logo et
- * l'image des signatures (stockage des fichiers, partie 4). */
+ * de l'établissement reflétés dans la base (partie 3, lot 4). Le logo et l'image des signatures
+ * sont dans l'espace de fichiers « etablissement » (partie 4), gardés sur le poste en contenu pour
+ * imprimer sans attendre le réseau. Reste dans le navigateur : l'adresse de la passerelle de
+ * communication (jamais de clé d'API dans la base). */
 
 /** Une liste de paramétrage (createListStore) et sa table. */
 function liste<R extends { id: string }>(cle: string, table: string, store: { getAll: () => R[]; remplacer: (r: R[]) => void }, colonnes: PartieMiroir<R>["colonnes"]) {
@@ -110,7 +111,8 @@ enregistrerMiroir({
   cle: "edumanage-signature-config-v1",
   parties: [partie<SignatureDocumentRecord>({
     table: "signatures_documents",
-    colonnes: ["id", "actif", "signataireNom", "signataireQualite"],
+    colonnes: ["id", "actif", "signataireNom", "signataireQualite", ["imageDataUrl", "image_chemin"]],
+    fichiers: { imageDataUrl: { espace: "etablissement", dossier: (s) => `signatures/${s.id}/`, forme: "donnees" } },
     lire: getSignaturesDocuments,
     remplacer: remplacerSignaturesDocuments,
   })],
@@ -120,8 +122,9 @@ enregistrerMiroir({
   cle: "edumanage-etablissement-v1",
   parties: [partie<EtablissementInfo & { id: string }>({
     table: "etablissement",
-    colonnes: ["id", "nom", "adresse", "telephone", "email", "siteWeb", "agrement"],
+    colonnes: ["id", "nom", "adresse", "telephone", "email", "siteWeb", "agrement", ["logoDataUrl", "logo_chemin"]],
     defauts: { telephone: "", email: "", siteWeb: "", agrement: "" },
+    fichiers: { logoDataUrl: { espace: "etablissement", dossier: () => "logo/", forme: "donnees" } },
     lire: getEtablissementLignes,
     remplacer: remplacerEtablissement,
     miseAJourSeule: true,

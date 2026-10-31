@@ -1,4 +1,4 @@
-import { lireFichierPourStockage } from "@/lib/stockageLocal";
+import { lireFichierPourStockage, ouvrirFichier } from "@/lib/stockageLocal";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { FileText, Printer, Eye, X, GraduationCap, Building2, BadgeCheck, ClipboardList, Search, Upload, CheckCircle2, AlertCircle, FolderOpen, MessageSquare, Hourglass, XCircle } from "lucide-react";
@@ -71,17 +71,6 @@ export default function StudentDocumentsPage() {
     }
     const win = window.open("", "_blank");
     if (win) { win.document.write(buildAttestationHtml(entry)); win.document.close(); win.print(); }
-  };
-
-  const voirFichier = (dataUrl: string) => {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    if (dataUrl.startsWith("data:application/pdf")) {
-      win.location.href = dataUrl;
-    } else {
-      win.document.write(`<!DOCTYPE html><html><body style="margin:0"><img src="${dataUrl}" style="max-width:100%" /></body></html>`);
-      win.document.close();
-    }
   };
 
   const openUploadModal = (docId: string) => {
@@ -238,7 +227,7 @@ export default function StudentDocumentsPage() {
                           </div>
                           <div className="flex gap-2 flex-shrink-0">
                             {fichier && (
-                              <button type="button" onClick={() => voirFichier(fichier)} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors" data-testid={`piece-voir-${doc.id}`}>
+                              <button type="button" onClick={() => ouvrirFichier(fichier)} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors" data-testid={`piece-voir-${doc.id}`}>
                                 <Eye size={12} /> Voir
                               </button>
                             )}
