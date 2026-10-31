@@ -121,7 +121,7 @@ select tests.verifier((select count(*) from u) = 0, 'Awa ne change pas de classe
 with u as (update public.etudiants_dossiers set telephone = '770000000' where id = 'et-ousmane' returning 1)
 select tests.verifier((select count(*) from u) = 0, 'Awa ne touche pas au dossier d''Ousmane');
 select tests.connecter(:K);
-select tests.verifier((select count(*) = 4 from public.etudiants), 'KANE lit les fiches (listes de classe)');
+select tests.verifier(not exists (select 1 from public.etudiants), 'KANE ne lit aucune fiche d''étudiant (la partie 5 ouvrira ses seules classes)');
 select tests.verifier(not exists (select 1 from public.etudiants_dossiers) and not exists (select 1 from public.inscriptions),
   'KANE ne lit ni les dossiers personnels ni les inscriptions');
 select tests.connecter(:A);

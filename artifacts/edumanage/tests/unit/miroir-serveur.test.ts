@@ -524,7 +524,7 @@ describe("miroir des étudiants : fiche, dossier personnel, inscriptions et matr
     expect(compte.envoisAvant).toBe(3);
   });
 
-  it("sur le poste de KANE : aucun dossier d'étudiant gardé ni renvoyé vide", async () => {
+  it("un compte qui lit les fiches sans les dossiers (les professeurs, pour leurs classes, à la partie 5) : aucun dossier gardé ni renvoyé vide", async () => {
     localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ etudiants: [{ id: "et-awa", cni: "ANCIENNE-CNI", telephone: "770000001" }] }));
     const b = await avecBase(base());
     await b.miroir.chargerMiroirs();
