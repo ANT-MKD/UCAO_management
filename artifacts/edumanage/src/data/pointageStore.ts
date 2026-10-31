@@ -62,6 +62,12 @@ export function getPointages(): PointageRecord[] {
   return store;
 }
 
+/** Pointages de la base (avec Supabase) : tous pour l'administration, les siens pour un professeur. */
+export function remplacerPointages(records: PointageRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getPointagesForCourse(
   teacherId: string,
   ecId: string,

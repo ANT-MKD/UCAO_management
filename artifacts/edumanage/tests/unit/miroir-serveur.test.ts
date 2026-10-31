@@ -794,3 +794,93 @@ describe("emploi du temps et notifications tenus par la base", () => {
     expect(b.S.getNotifications()[0].read).toBe(true);
   });
 });
+
+describe("miroir des cahiers de séance, de l'appel et des pointages", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const SALLE = { id: "salle-a1", nom: "RDC 1A", type: "", capacite: 40, batiment: "", etage: "", equipements: [], statut: "actif" };
+  const UE = { id: "ue-l1", code: "UE11", libelle: "Fondamentaux QHSE", credits: 6, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", semestre: "S1", type: "", obligatoire: true, description: null };
+  const EC = { id: "ec-qualite", code: "QHSE111", libelle: "Qualité", abrege: null, ue: "UE11", ue_id: "ue-l1", credits: 3, vol_cm: 20, vol_td: 10, vol_tp: 0, vol_tpe: 0, vht: 30, responsable: "", responsable_id: null };
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27", classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+  const OUSMANE = { ...AWA, id: "et-ousmane", matricule: "2026-LQHSE-0002", prenom: "Ousmane", nom: "DIALLO", sexe: "M" };
+  const SEANCE = { id: "se-kane", ec: "Qualité", ec_id: "ec-qualite", classe: "LQHSE1-26/27", classe_id: "cl-l1", jour: 1, semaine_du: "2024-09-02", heure_debut: "08:00", heure_fin: "10:00",
+    salle: "RDC 1A", salle_id: "salle-a1", prof: "Mamadou KANE", prof_id: "en-kane", type: "CM", annee: "2026-2027" };
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], classes: [CLASSE], salles: [SALLE], ues: [UE], ecs: [EC],
+    etudiants: [AWA, OUSMANE], seances: [SEANCE] });
+  const CAHIER = { id: "cah-kane", seance_id: "se-kane", annee: "2026-2027", semestre: "S1", departement: "Direction des études", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1",
+    ue: "UE11 — Fondamentaux QHSE", ue_id: "ue-l1", ec: "QHSE111 — Qualité", ec_id: "ec-qualite", classe_id: "cl-l1", classe: "LQHSE1-26/27", prof: "Mamadou KANE", prof_id: "en-kane",
+    salle: "RDC 1A", salle_id: "salle-a1", date: "2024-09-02", heure_debut: "08:00", heure_fin: "10:00", type_seance: "CM", sujet: "Norme ISO 9001", resume: "Principes",
+    competences: "", liens_externes: [], travail: null, evaluation: null, taux_presence: 50, etat_seance: "realisee", motif_annulation: null, statut: "soumis", valide_par: null,
+    cree_le: "2024-09-02T10:00:00+00:00", modifie_le: "2024-09-02T10:00:00+00:00" };
+
+  it("KANE soumet son cahier : le cahier, puis l'appel, puis la photo du tableau, déposée d'abord ; la base prévient, pas le poste", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [{ id: "u-admin", role: "admin", displayName: "Fatou DIOP", email: "f.diop@ucao.edu", identifiant: "ADM", actif: true }] }));
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const cahier = b.S.submitCahierSeance({ seanceId: "se-kane", prof: "Mamadou KANE", date: "2024-09-02", sujet: "Norme ISO 9001", resume: "Principes du management de la qualité",
+      photosTableau: ["data:image/jpeg;base64,VEFCTEVBVQ=="], etatSeance: "realisee",
+      presences: [{ etudiantId: "et-awa", nom: "Awa SECK", statut: "absent" }, { etudiantId: "et-ousmane", nom: "Ousmane DIALLO", statut: "present" }] });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["cahiers", "presences", "cahiers_fichiers"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id: cahier.id, seance_id: "se-kane", prof_id: "en-kane", statut: "soumis", date: "2024-09-02", taux_presence: 50, valide_par: null })]);
+    expect(b.envois[1].donnees).toEqual([
+      { id: `${cahier.id}:et-awa`, cahier_id: cahier.id, etudiant_id: "et-awa", nom: "Awa SECK", statut: "absent", justification: null, retard_minutes: null, ordre: 0 },
+      { id: `${cahier.id}:et-ousmane`, cahier_id: cahier.id, etudiant_id: "et-ousmane", nom: "Ousmane DIALLO", statut: "present", justification: null, retard_minutes: null, ordre: 1 },
+    ]);
+    const photo = b.stockage[0]?.chemins[0];
+    expect(b.stockage).toEqual([{ espace: "cahiers", operation: "depot", chemins: [expect.stringMatching(new RegExp(`^${cahier.id}/[\\w-]+\\.jpg$`))], envoisAvant: 2, type: "image/jpeg" }]);
+    expect(b.envois[2].donnees).toEqual([{ id: `${cahier.id}:photo:0`, cahier_id: cahier.id, genre: "photo", ordre: 0, nom: "Photo 1", type: "", taille_ko: null, ref: null, chemin: photo }]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("la validation d'un cahier : le pointage n'est pas créé par le poste, il arrive de la base juste après", async () => {
+    const tables = { ...base(), cahiers: [CAHIER] as Ligne[], presences: [] as Ligne[] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const P = await import("@/data/pointageStore");
+    expect(b.S.validateCahier("cah-kane", ADMIN, true)).toEqual({ volumePointe: 2 });
+    // Ce que fait la base à la validation : le pointage du cahier, à confirmer.
+    tables.pointages = [{ id: "ptg-cah-kane", teacher_id: "en-kane", ec_id: "ec-qualite", classe_id: "cl-l1", annee: "2026-2027", seance_id: "se-kane", cahier_id: "cah-kane",
+      date: "2024-09-02", heure_debut: "08:00", heure_fin: "10:00", type: "CM", salle_id: "salle-a1", volume_pointe: 2, remarque: "Créé depuis le cahier de séance validé — QHSE111 — Qualité",
+      statut: "soumis", motif_rejet: null, cree_le: "2024-09-03T08:00:00+00:00" }];
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "cahiers", operation: "upsert", donnees: [expect.objectContaining({ id: "cah-kane", statut: "valide", valide_par: ADMIN })] }]);
+    expect(P.getPointages()).toEqual([expect.objectContaining({ id: "ptg-cah-kane", teacherId: "en-kane", cahierId: "cah-kane", volumePointe: 2, statut: "soumis" })]);
+    P.updatePointageStatut("ptg-cah-kane", "valide");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.at(-1)).toEqual({ table: "pointages", operation: "upsert", donnees: [expect.objectContaining({ id: "ptg-cah-kane", statut: "valide" })] });
+  });
+
+  it("sur le poste d'Awa : le cahier soumis de sa classe, sa seule présence, la photo du tableau en lien signé ; rien ne repart", async () => {
+    const b = await avecBase({ ...base(), etudiants: [AWA], cahiers: [CAHIER],
+      presences: [{ id: "cah-kane:et-awa", cahier_id: "cah-kane", etudiant_id: "et-awa", nom: "Awa SECK", statut: "absent", justification: null, retard_minutes: null, ordre: 0 }],
+      cahiers_fichiers: [{ id: "cah-kane:photo:0", cahier_id: "cah-kane", genre: "photo", ordre: 0, nom: "Photo 1", type: "", taille_ko: null, ref: null, chemin: "cah-kane/tableau.jpg" },
+        { id: "cah-kane:piece:pj-1", cahier_id: "cah-kane", genre: "piece", ordre: 0, nom: "Cours.pdf", type: "application/pdf", taille_ko: 120, ref: "Cours.pdf", chemin: "cah-kane/cours.pdf" }] },
+      undefined, new Map([["cahiers/cah-kane/tableau.jpg", "data:image/jpeg;base64,VEFCTEVBVQ=="], ["cahiers/cah-kane/cours.pdf", "data:application/pdf;base64,JVBERi0="]]));
+    await b.miroir.chargerMiroirs();
+    const cahier = b.S.getCahierById("cah-kane")!;
+    expect(cahier).toMatchObject({ sujet: "Norme ISO 9001", statut: "soumis", absents: ["et-awa"],
+      presences: [{ etudiantId: "et-awa", nom: "Awa SECK", statut: "absent", justification: undefined, retardMinutes: undefined }],
+      photosTableau: ["https://exemple.supabase.co/storage/v1/object/sign/cahiers/cah-kane/tableau.jpg?token=essai"],
+      piecesJointes: [{ id: "pj-1", nom: "Cours.pdf", type: "application/pdf", tailleKo: 120, ref: "Cours.pdf", dataUrl: "https://exemple.supabase.co/storage/v1/object/sign/cahiers/cah-kane/cours.pdf?token=essai" }] });
+    b.S.logAudit("u-awa", "consultation", "cahier", "cah-kane");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("absence par période et portefeuille de cours : en colonnes de la base, la dernière action du portefeuille en tête au retour", async () => {
+    const b = await avecBase({ ...base(), portefeuille_cours: [
+      { id: "pf-1700000000000-0-aaaa", etudiant_id: "et-awa", etudiant: "Awa SECK", matricule: "2026-LQHSE-0001", classe_id: "cl-l1", classe: "LQHSE1-26/27", ec_id: "ec-qualite", ec: "Qualité", action: "ajout", date_action: "2026-10-01", effectue_par: "Scolarité", motif: null },
+      { id: "pf-1800000000000-0-bbbb", etudiant_id: "et-awa", etudiant: "Awa SECK", matricule: "2026-LQHSE-0001", classe_id: "cl-l1", classe: "LQHSE1-26/27", ec_id: "ec-qualite", ec: "Qualité", action: "retrait", date_action: "2026-10-05", effectue_par: "Scolarité", motif: null },
+    ] });
+    await b.miroir.chargerMiroirs();
+    const Pf = await import("@/data/portefeuilleCoursStore");
+    expect(Pf.estEcRetireePourEtudiant("et-awa", "cl-l1", "ec-qualite")).toBe(true);
+    const Ap = await import("@/data/absencePeriodeStore");
+    Ap.declarerAbsencesPeriode({ etudiants: [{ etudiantId: "et-ousmane", etudiant: "Ousmane DIALLO", matricule: "2026-LQHSE-0002", justifie: true, justificatif: "Certificat médical" }],
+      classeId: "cl-l1", classe: "LQHSE1-26/27", filiereId: "fil-qhse", filiere: "LQHSE", niveau: "L1", annee: "2026-2027", dateDebut: "2026-11-02", dateFin: "2026-11-06",
+      motif: "Hospitalisation", declarePar: "Scolarité" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "absences_periodes", operation: "upsert", donnees: [expect.objectContaining({
+      etudiant_id: "et-ousmane", classe_id: "cl-l1", date_debut: "2026-11-02", date_fin: "2026-11-06", justifie: true, justificatif: "Certificat médical" })] }]);
+  });
+});

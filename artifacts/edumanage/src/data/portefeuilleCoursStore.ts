@@ -63,6 +63,12 @@ export function getPortefeuilleCours(): PortefeuilleCoursRecord[] {
   return store.records;
 }
 
+/** Portefeuille de la base (avec Supabase), la dernière action en tête (c'est elle qui compte). */
+export function remplacerPortefeuilleCours(records: PortefeuilleCoursRecord[]) {
+  store = { records: [...records].sort((a, b) => b.dateAction.localeCompare(a.dateAction) || b.id.localeCompare(a.id)) };
+  persist();
+}
+
 /** Dernière action pour un (étudiant, classe, EC) — les nouveaux enregistrements sont ajoutés
  * en tête, donc le premier trouvé est le plus récent. Un ajout suivi d'un retrait (ou
  * l'inverse) annule le précédent : seule la dernière action compte. */

@@ -66,6 +66,12 @@ export function getAbsencesPeriode(): AbsencePeriodeRecord[] {
   return store.records;
 }
 
+/** Absences déclarées de la base (avec Supabase), les plus récentes d'abord. */
+export function remplacerAbsencesPeriode(records: AbsencePeriodeRecord[]) {
+  store = { records: [...records].sort((a, b) => b.dateDeclaration.localeCompare(a.dateDeclaration) || b.id.localeCompare(a.id)) };
+  persist();
+}
+
 /** Déclaration de période qui couvre une date donnée pour un étudiant — utilisée par Les
  * assiduités pour justifier automatiquement une absence déjà constatée par un cahier de textes
  * sur ces dates, sans qu'un admin ait à le refaire séance par séance. */

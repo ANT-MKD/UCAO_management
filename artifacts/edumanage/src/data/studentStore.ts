@@ -13,6 +13,7 @@ import { creerPointageDepuisCahier } from "./pointageStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
 import { modeSupabase } from "@/lib/supabase";
+import { rechargerApres } from "@/lib/miroirServeur";
 
 export interface EtudiantRecord {
   id: string;
@@ -3090,6 +3091,103 @@ export function getCahiers(): CahierSeanceRecord[] {
   return cahiersCache;
 }
 
+/** Cahiers tels qu'enregistrés (sans les compléments d'affichage de normalizeCahier) : ce qui part
+ * vers la base et en revient. */
+export function getCahiersEnregistres(): CahierSeanceRecord[] {
+  return store.cahiers;
+}
+
+/** Cahiers de la base (avec Supabase) : ceux que ce compte lit. L'appel et les fichiers arrivent
+ * ensuite (remplacerPresencesCahiers, remplacerFichiersCahiers). */
+export function remplacerCahiers(records: CahierSeanceRecord[]) {
+  store.cahiers = records;
+  persist();
+}
+
+/** Présence d'un étudiant relevée dans un cahier (table presences), dans l'ordre de l'appel. */
+export interface PresenceCahierRecord {
+  id: string;
+  cahierId: string;
+  etudiantId: string;
+  nom: string;
+  statut: CahierPresenceEntry["statut"];
+  justification?: string;
+  retardMinutes?: number;
+  ordre: number;
+}
+
+export function getPresencesCahiers(): PresenceCahierRecord[] {
+  return store.cahiers.flatMap((c) => (c.presences ?? []).map((p, ordre) => ({
+    id: `${c.id}:${p.etudiantId}`,
+    cahierId: c.id,
+    etudiantId: p.etudiantId,
+    nom: p.nom,
+    statut: p.statut,
+    justification: p.justification,
+    retardMinutes: p.retardMinutes,
+    ordre,
+  })));
+}
+
+/** Présences de la base : un étudiant ne reçoit que les siennes. */
+export function remplacerPresencesCahiers(presences: PresenceCahierRecord[]) {
+  const parCahier = new Map<string, PresenceCahierRecord[]>();
+  for (const p of presences) parCahier.set(p.cahierId, [...(parCahier.get(p.cahierId) ?? []), p]);
+  store.cahiers = store.cahiers.map((c) => {
+    const appel = (parCahier.get(c.id) ?? []).sort((a, b) => a.ordre - b.ordre)
+      .map(({ etudiantId, nom, statut, justification, retardMinutes }) => ({ etudiantId, nom, statut, justification, retardMinutes }));
+    return {
+      ...c,
+      presences: appel,
+      absents: appel.filter((p) => p.statut === "absent").map((p) => p.etudiantId),
+      retards: appel.filter((p) => p.statut === "retard").map((p) => p.etudiantId),
+    };
+  });
+  persist();
+}
+
+/** Photo du tableau ou pièce jointe d'un cahier (table cahiers_fichiers). */
+export interface FichierCahierRecord {
+  id: string;
+  cahierId: string;
+  genre: "photo" | "piece";
+  ordre: number;
+  nom: string;
+  type: string;
+  tailleKo?: number;
+  ref?: string;
+  /** Contenu choisi sur ce poste, ou lien signé de l'espace de fichiers. */
+  fichier?: string;
+}
+
+export function getFichiersCahiers(): FichierCahierRecord[] {
+  return store.cahiers.flatMap((c) => [
+    ...(c.photosTableau ?? []).map((fichier, ordre) => ({
+      id: `${c.id}:photo:${ordre}`, cahierId: c.id, genre: "photo" as const, ordre, nom: `Photo ${ordre + 1}`, type: "", fichier,
+    })),
+    ...(c.piecesJointes ?? []).map((pj, ordre) => ({
+      id: `${c.id}:piece:${pj.id}`, cahierId: c.id, genre: "piece" as const, ordre, nom: pj.nom, type: pj.type, tailleKo: pj.tailleKo,
+      ref: pj.ref || undefined, fichier: pj.dataUrl,
+    })),
+  ]);
+}
+
+export function remplacerFichiersCahiers(fichiers: FichierCahierRecord[]) {
+  const parCahier = new Map<string, FichierCahierRecord[]>();
+  for (const f of fichiers) parCahier.set(f.cahierId, [...(parCahier.get(f.cahierId) ?? []), f]);
+  store.cahiers = store.cahiers.map((c) => {
+    const siens = (parCahier.get(c.id) ?? []).sort((a, b) => a.ordre - b.ordre);
+    return {
+      ...c,
+      photosTableau: siens.filter((f) => f.genre === "photo" && f.fichier).map((f) => f.fichier as string),
+      piecesJointes: siens.filter((f) => f.genre === "piece").map((f) => ({
+        id: f.id.slice(`${c.id}:piece:`.length), nom: f.nom, type: f.type, tailleKo: f.tailleKo, ref: f.ref ?? "", dataUrl: f.fichier,
+      })),
+    };
+  });
+  persist();
+}
+
 export function getCahierById(id: string): CahierSeanceRecord | undefined {
   const row = store.cahiers.find((c) => c.id === id);
   return row ? normalizeCahier(row) : undefined;
@@ -3286,12 +3384,15 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   if (existingIdx >= 0) {
     base.id = store.cahiers[existingIdx].id;
     base.createdAt = store.cahiers[existingIdx].createdAt;
+    // Un cahier rejeté puis corrigé garde la trace de qui l'a rejeté (le professeur n'y touche pas).
+    base.validatedBy = store.cahiers[existingIdx].validatedBy;
     store.cahiers[existingIdx] = base;
   } else {
     store.cahiers.unshift(base);
   }
 
-  if (!payload.asDraft) {
+  // Avec Supabase, la base prévient elle-même l'administration et les étudiants absents.
+  if (!payload.asDraft && !modeSupabase) {
     const admin = store.users.find((u) => u.role === "admin");
     if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date.split("-").reverse().join("/")})`);
 
@@ -3316,6 +3417,15 @@ export function validateCahier(id: string, actorUserId: string, approve: boolean
   const seance = store.seances.find((x) => x.id === row.seanceId);
   const profId = row.profId ?? seance?.profId;
   const teacher = compteProfDeSeance({ prof: row.prof, profId });
+  if (modeSupabase) {
+    // La base crée elle-même le pointage et prévient le professeur ; l'écran le reçoit juste après.
+    logAudit(actorUserId, approve ? "validate_cahier" : "reject_cahier", "cahier", id);
+    persist();
+    void rechargerApres("edumanage-pointages-v1");
+    return approve && row.etatSeance === "realisee" && durationHours(row.heureDebut, row.heureFin) > 0
+      ? { volumePointe: Math.round(durationHours(row.heureDebut, row.heureFin) * 100) / 100 }
+      : undefined;
+  }
   // Séance réalisée et validée : le pointage est préparé, il ne reste qu'à le confirmer.
   const pointage = approve && row.etatSeance === "realisee"
     ? creerPointageDepuisCahier(row, profId ?? teacher?.linkedId ?? "")

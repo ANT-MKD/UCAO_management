@@ -490,6 +490,23 @@ if (typeof window !== "undefined" && modeSupabase) {
   });
 }
 
+/** Recharge depuis la base, après les envois en cours, les stores de cette clé : ce que la base
+ * vient d'écrire elle-même (ex. le pointage créé à la validation d'un cahier) arrive à l'écran. */
+export function rechargerApres(cle: string): Promise<void> {
+  if (!modeSupabase) return Promise.resolve();
+  file = file.then(async () => {
+    if (!pret) return;
+    for (const miroir of miroirs.filter((m) => m.cle === cle)) {
+      try {
+        await chargerMiroir(miroir);
+      } catch {
+        // base injoignable : le prochain chargement recalera
+      }
+    }
+  });
+  return file;
+}
+
 /** Attend que toutes les modifications parties soient arrivées (tests, fermeture de session). */
 export function attendreEnvois(): Promise<void> {
   return file;
