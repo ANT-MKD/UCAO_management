@@ -49,8 +49,7 @@ select tests.verifier((select count(*) = 2 from public.enseignants), 'Awa lit le
 select tests.verifier(not exists (select 1 from public.enseignants_dossiers), 'Awa ne lit aucun dossier de professeur (téléphone, CNI, RIB)');
 select tests.connecter(:K);
 select tests.verifier((select array_agg(id) = array['en-kane'] from public.enseignants_dossiers), 'KANE lit son propre dossier, pas celui de FALL');
-with u as (update public.enseignants_dossiers set rib = 'SN000 PIRATE' returning 1)
-select tests.verifier((select count(*) from u) = 0, 'KANE ne change pas lui-même son RIB');
+select tests.echoue('update public.enseignants_dossiers set rib = ''SN000 PIRATE''', 'votre photo', 'KANE ne change pas lui-même son RIB');
 with u as (update public.enseignants set grade = 'Permanent' returning 1)
 select tests.verifier((select count(*) from u) = 0, 'KANE ne se donne pas un autre grade');
 select tests.connecter(:V);
