@@ -22,6 +22,10 @@ async function avecBase(
   /** Opérations sur l'espace de fichiers, avec le nombre d'envois de lignes déjà faits. */
   const stockage: { espace: string; operation: string; chemins: string[]; envoisAvant: number; type?: string }[] = [];
   let prochainMatricule = 1;
+  /** Compteurs de changements de la base (versions_donnees), que le test fait avancer. */
+  const compteurs: Record<string, number> = {};
+  /** Tables lues, dans l'ordre (une entrée par page lue). */
+  const lectures: string[] = [];
   const client = {
     storage: {
       from: (espace: string) => ({
@@ -53,6 +57,7 @@ async function avecBase(
       }),
     },
     rpc: async (nom: string, args: Record<string, unknown>) => {
+      if (nom === "versions_donnees") return { data: { ...compteurs }, error: null };
       appels.push({ nom, donnees: args, envoisAvant: envois.length });
       if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
       if (nom === "apercu_matricule") return { data: `2026-LQHSE-${String(prochainMatricule).padStart(4, "0")}`, error: null };
@@ -69,7 +74,10 @@ async function avecBase(
       select: () => {
         const q = {
           order: () => q,
-          range: async (debut: number, fin: number) => ({ data: (tables[table] ?? []).slice(debut, fin + 1), error: null }),
+          range: async (debut: number, fin: number) => {
+            lectures.push(table);
+            return { data: (tables[table] ?? []).slice(debut, fin + 1), error: null };
+          },
         };
         return q;
       },
@@ -119,6 +127,8 @@ async function avecBase(
     appels,
     stockage,
     fichiers,
+    compteurs,
+    lectures,
     miroir,
     roles: await import("@/data/roleStore"),
     pages: await import("@/data/portalFeaturesStore"),
@@ -983,6 +993,107 @@ describe("miroir du dossier administratif des enseignants", () => {
       { table: "statuts_cours_enseignants", operation: "upsert", donnees: [{ id: "en-kane:2026-2027:ec-qualite:cl-l1", ...COURS, type_comptabilisation: "a_terme" }] },
       { table: "vacations", operation: "upsert", donnees: [expect.objectContaining({ id: "va-kane", statut: "paye", moyen: "Virement", montant_total: 180000, modules: ["Qualité"] })] },
     ]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+});
+
+describe("suivi des changements faits ailleurs", () => {
+  const POINTAGE = { id: "ptg-cah-kane", teacher_id: "en-kane", ec_id: "ec-qualite", classe_id: "cl-l1", annee: "2026-2027", seance_id: null, cahier_id: null,
+    date: "2026-11-02", heure_debut: "08:00", heure_fin: "10:00", type: "CM", salle_id: null, volume_pointe: 2, remarque: "", statut: "soumis", motif_rejet: null,
+    cree_le: "2026-11-02T10:00:00+00:00" };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("un pointage créé par la base (cahier validé sur un autre poste) arrive à l'écran : seule cette table est relue", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], pointages: [] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const P = await import("@/data/pointageStore");
+    await b.miroir.verifierChangements();
+    b.lectures.length = 0;
+    tables.pointages = [POINTAGE];
+    b.compteurs.pointages = 1;
+    await b.miroir.verifierChangements();
+    expect(b.lectures).toEqual(["pointages"]);
+    expect(P.getPointages()).toEqual([expect.objectContaining({ id: "ptg-cah-kane", teacherId: "en-kane", volumePointe: 2, statut: "soumis" })]);
+    // Plus rien n'a changé : rien n'est relu.
+    b.lectures.length = 0;
+    await b.miroir.verifierChangements();
+    expect(b.lectures).toEqual([]);
+    expect(b.envois).toEqual([]);
+  });
+
+  it("une modification saisie sur ce poste pendant le tour n'est pas écrasée : elle part, la table est relue au tour suivant", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], pointages: [{ ...POINTAGE }] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const P = await import("@/data/pointageStore");
+    // Un autre poste a touché aux pointages ; ici, le pointage est validé au même moment.
+    b.compteurs.pointages = 1;
+    const tour = b.miroir.verifierChangements();
+    P.updatePointageStatut("ptg-cah-kane", "valide");
+    await tour;
+    await b.miroir.attendreEnvois();
+    expect(P.getPointages()[0].statut).toBe("valide");
+    expect(b.envois).toEqual([{ table: "pointages", operation: "upsert", donnees: [expect.objectContaining({ id: "ptg-cah-kane", statut: "valide" })] }]);
+    b.lectures.length = 0;
+    b.compteurs.pointages = 2;
+    await b.miroir.verifierChangements();
+    expect(b.lectures).toEqual(["pointages"]);
+    expect(P.getPointages()[0].statut).toBe("valide");
+  });
+
+  it("une grosse table (l'appel de toute l'université) se relit au plus toutes les quelques minutes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-02T08:00:00Z"));
+    const pointages = Array.from({ length: 6000 }, (_, i) => ({ ...POINTAGE, id: `ptg-${String(i).padStart(5, "0")}` }));
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], pointages };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    b.compteurs.pointages = 1;
+    b.lectures.length = 0;
+    vi.setSystemTime(new Date("2026-11-02T08:00:30Z"));
+    await b.miroir.verifierChangements();
+    expect(b.lectures).toEqual([]);
+    vi.setSystemTime(new Date("2026-11-02T08:01:01Z"));
+    await b.miroir.verifierChangements();
+    // 6 000 lignes : 6 pages pleines, puis une page vide.
+    expect(b.lectures.filter((t) => t === "pointages")).toHaveLength(7);
+  });
+
+  it("envoi refusé après le dépôt d'un fichier : le fichier déposé est retiré de l'espace de fichiers", async () => {
+    const ABSENCE = { id: "abs-kane", teacher_id: "en-kane", ec_id: "ec-qualite", classe_id: "cl-l1", annee: "2026-2027", seance_id: null, date: "2026-11-02", type: "absence",
+      duree_minutes: null, motif: "", justifie: false, cree_par: "u-admin", cree_le: "2026-11-02T10:00:00+00:00", justificatif_motif: null, justificatif_piece_nom: null,
+      justificatif_piece: null, justificatif_envoye_le: null, refus_motif: null, refus_motif_refus: null, refus_le: null };
+    // Le constat a été justifié entre-temps : la base ne laisse plus KANE y joindre un justificatif.
+    const b = await avecBase({ annees_academiques: [ANNEE], absences_enseignants: [ABSENCE] },
+      (table, operation) => (table === "absences_enseignants" ? { code: operation === "update" ? "0 lignes" : "42501", message: "new row violates row-level security policy" } : null));
+    await b.miroir.chargerMiroirs();
+    const A = await import("@/data/teacherAbsenceStore");
+    A.envoyerJustificatifAbsence("abs-kane", { motif: "Certificat médical", pieceJointe: { nom: "certificat.pdf", dataUrl: "data:application/pdf;base64,JVBERi0=" } }, "u-kane");
+    await b.miroir.attendreEnvois();
+    const depot = b.stockage.find((s) => s.operation === "depot");
+    expect(depot?.chemins[0]).toMatch(/^en-kane\/abs-kane\/[\w-]+\.pdf$/);
+    expect(b.stockage.at(-1)).toEqual({ espace: "justificatifs", operation: "retrait", chemins: depot!.chemins, envoisAvant: 2 });
+    expect(b.fichiers.size).toBe(0);
+    expect(A.getTeacherAbsences()[0].justificatif).toBeUndefined();
+  });
+
+  it("pièces et blocage : avec la base, le poste n'écrit plus ces notifications (c'est la base qui prévient)", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [
+      { id: "u-admin", role: "admin", displayName: "Secrétariat", email: "secretariat@ucao.edu", identifiant: "ADM", actif: true },
+      { id: "u-awa", role: "student", displayName: "Awa SECK", email: "awa@ucao.edu", identifiant: "2026-LQHSE-0001", actif: true, linkedId: "et-awa" },
+    ] }));
+    const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "", classe_id: null,
+      niveau: "L1", statut: "preinscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+    const b = await avecBase({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], etudiants: [AWA] });
+    await b.miroir.chargerMiroirs();
+    b.S.deposerDocumentEtudiant("et-awa", "cni", "data:application/pdf;base64,JVBERi0=", "u-awa", "CNI / Passeport");
+    b.S.verifierPieceEtudiant("et-awa", "cni", "refuser", "u-admin", { motif: "Illisible", libellePiece: "CNI / Passeport" });
+    b.S.setEtudiantMotifBlocage("et-awa", "mb-frais", "u-admin");
+    await b.miroir.attendreEnvois();
     expect(b.S.getNotifications()).toEqual([]);
   });
 });

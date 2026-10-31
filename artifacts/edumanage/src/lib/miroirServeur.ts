@@ -282,22 +282,34 @@ async function preparerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Li
   return affichage;
 }
 
-async function chargerMiroir(miroir: Miroir): Promise<void> {
-  for (const partie of miroir.parties) {
-    const lignes = await toutLire(partie.table);
-    const affichage = await preparerFichiers(partie, lignes);
-    const existantes = new Map(partie.lire().map((f) => [f.id, f as Fiche]));
-    const fiches = lignes.map((l) => depuisLigne(partie, l, existantes.get(String(l.id)), affichage));
-    fiches.forEach((f, i) => {
-      for (const [champ, colonne] of champsEtColonnes(partie)) {
-        const fichier = partie.fichiers?.[champ];
-        const chemin = lignes[i][colonne];
-        if (fichier && typeof chemin === "string" && typeof f[champ] === "string") retenirChemin(fichier.dossier(f), f[champ] as string, chemin);
-      }
-    });
-    connu.set(partie.table, new Map(fiches.map((f) => [f.id, JSON.stringify(versLigne(partie, f))])));
-    sansEnvoi(() => partie.remplacer(fiches as { id: string }[]));
+/** Recharge une table dans son store. « garde » est vérifiée juste avant de remplacer le store :
+ * fausse (modification locale survenue pendant la lecture), le store n'est pas touché. */
+async function chargerPartie(partie: PartieMiroir<{ id: string }>, garde?: () => boolean): Promise<boolean> {
+  const lignes = await toutLire(partie.table);
+  const affichage = await preparerFichiers(partie, lignes);
+  if (garde && !garde()) return false;
+  chargements.set(partie.table, { le: Date.now(), lignes: lignes.length });
+  const existantes = new Map(partie.lire().map((f) => [f.id, f as Fiche]));
+  const fiches = lignes.map((l) => depuisLigne(partie, l, existantes.get(String(l.id)), affichage));
+  fiches.forEach((f, i) => {
+    for (const [champ, colonne] of champsEtColonnes(partie)) {
+      const fichier = partie.fichiers?.[champ];
+      const chemin = lignes[i][colonne];
+      if (fichier && typeof chemin === "string" && typeof f[champ] === "string") retenirChemin(fichier.dossier(f), f[champ] as string, chemin);
+    }
+  });
+  connu.set(partie.table, new Map(fiches.map((f) => [f.id, JSON.stringify(versLigne(partie, f))])));
+  sansEnvoi(() => partie.remplacer(fiches as { id: string }[]));
+  return true;
+}
+
+/** Recharge les tables d'un miroir, à partir de la partie « depuis » (les suivantes complètent
+ * les précédentes : elles sont rechargées avec elles). */
+async function chargerMiroir(miroir: Miroir, depuis = 0, garde?: () => boolean): Promise<boolean> {
+  for (const partie of miroir.parties.slice(depuis)) {
+    if (!(await chargerPartie(partie, garde))) return false;
   }
+  return true;
 }
 
 /** Exécute fn sans que ses enregistrements partent vers la base : compléments que l'application
@@ -338,20 +350,96 @@ export async function chargerMiroirs(): Promise<void> {
   await file;
   pret = false;
   sauvegarderUneFois();
+  // Compteurs lus avant les tables : ce qui change pendant le chargement sera vu au tour suivant.
+  const compteurs = await lireCompteurs();
   for (const miroir of miroirs) await chargerMiroir(miroir);
+  versions.clear();
+  Object.entries(compteurs ?? {}).forEach(([table, version]) => versions.set(table, version));
   pret = true;
+  demarrerSuivi();
 }
 
 /** Fin de session : plus rien ne part tant qu'un nouveau chargement n'a pas eu lieu. */
 export function arreterMiroirs(): void {
   pret = false;
+  if (minuterie !== undefined) clearInterval(minuterie);
+  minuterie = undefined;
+}
+
+// ——— Suivi des changements faits ailleurs ————————————————————————————————————————————————————
+// La base tient un compteur de changements par table (versions_donnees). Toutes les 30 secondes
+// (et au retour sur l'onglet), le poste compare ces compteurs aux siens et recharge les tables qui
+// ont changé : un pointage créé par la base, une notification, un cahier validé ailleurs…
+
+export const INTERVALLE_SUIVI_MS = 30_000;
+/** Compteur de chaque table au dernier chargement de ce poste. */
+const versions = new Map<string, number>();
+/** Dernier chargement de chaque table et son nombre de lignes. */
+const chargements = new Map<string, { le: number; lignes: number }>();
+let minuterie: ReturnType<typeof setInterval> | undefined;
+
+async function lireCompteurs(): Promise<Record<string, number> | undefined> {
+  try {
+    const { data, error } = await client().rpc("versions_donnees");
+    return !error && data && typeof data === "object" ? (data as Record<string, number>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Une grosse table (l'appel de toute l'université pour l'administration…) se recharge au plus
+ * toutes les quelques minutes : au-delà de 1 000 lignes, 10 ms par ligne, jamais plus de 10 minutes. */
+function rechargeableMaintenant(table: string, maintenant: number): boolean {
+  const dernier = chargements.get(table);
+  return !dernier || dernier.lignes < 1000 || maintenant - dernier.le >= Math.min(600_000, dernier.lignes * 10);
+}
+
+/** Recharge les tables que d'autres postes, ou la base elle-même, ont changées. Un miroir qui a
+ * des modifications pas encore parties attend leur envoi (rien de ce qui est saisi n'est écrasé). */
+export function verifierChangements(): Promise<void> {
+  if (!modeSupabase) return Promise.resolve();
+  file = file.then(async () => {
+    if (!pret) return;
+    const compteurs = await lireCompteurs();
+    if (!compteurs) return;
+    const maintenant = Date.now();
+    for (const miroir of miroirs) {
+      if (modifiees.has(miroir.cle)) continue;
+      const depuis = miroir.parties.findIndex((p) => (compteurs[p.table] ?? 0) !== (versions.get(p.table) ?? 0));
+      if (depuis < 0) continue;
+      const parties = miroir.parties.slice(depuis);
+      if (!parties.every((p) => rechargeableMaintenant(p.table, maintenant))) continue;
+      try {
+        if (await chargerMiroir(miroir, depuis, () => !modifiees.has(miroir.cle))) {
+          parties.forEach((p) => versions.set(p.table, compteurs[p.table] ?? 0));
+        }
+      } catch {
+        // base injoignable : le prochain tour recommencera
+      }
+    }
+  });
+  return file;
+}
+
+function demarrerSuivi(): void {
+  if (typeof window === "undefined" || minuterie !== undefined) return;
+  minuterie = setInterval(() => {
+    if (document.visibilityState !== "hidden") void verifierChangements();
+  }, INTERVALLE_SUIVI_MS);
+}
+
+if (typeof document !== "undefined" && modeSupabase) {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && minuterie !== undefined) void verifierChangements();
+  });
 }
 
 /** Clés enregistrées depuis le dernier envoi. */
 const modifiees = new Set<string>();
 
 /** Dépose les fichiers choisis sur ce poste que ces lignes désignent. */
-async function deposerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Ligne[]): Promise<void> {
+/** Dépose les nouveaux fichiers de ces lignes, ajoutés au fur et à mesure à « deposes ». */
+async function deposerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Ligne[], deposes: { espace: string; chemin: string }[]): Promise<void> {
   for (const [champ, colonne] of champsEtColonnes(partie)) {
     const fichier = partie.fichiers?.[champ];
     if (!fichier) continue;
@@ -364,6 +452,7 @@ async function deposerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Lig
       // Déjà déposé (envoi précédent interrompu juste après) : c'est le même fichier.
       if (error && !/already exists|duplicate/i.test(error.message ?? "")) throw refusFichier(error as { message?: string; statusCode?: string });
       aDeposer.delete(cle);
+      deposes.push({ espace: fichier.espace, chemin: chemin as string });
       if (fichier.forme === "donnees") contenus.set(cle, contenu);
     }
   }
@@ -405,6 +494,8 @@ async function envoyer(): Promise<void> {
   const envoyees = new Map<string, Set<string>>();
   /** Fichiers que plus rien ne désigne, retirés une fois l'envoi réussi. */
   const aRetirer: { espace: string; chemin: string }[] = [];
+  /** Fichiers déposés dont la ligne n'est pas encore enregistrée : retirés si l'envoi est refusé. */
+  const enSuspens: { espace: string; chemin: string }[] = [];
   try {
     for (const { partie, lignes } of parties) {
       const etat = connu.get(partie.table) ?? new Map<string, string>();
@@ -416,9 +507,12 @@ async function envoyer(): Promise<void> {
       const retenir = (l: Ligne) => {
         aRetirer.push(...fichiersQuittes(partie, etat.get(String(l.id)), l));
         etat.set(String(l.id), JSON.stringify(l));
+        // Ses fichiers sont désormais désignés par une ligne enregistrée.
+        const valeurs = new Set(Object.values(l));
+        for (let k = enSuspens.length - 1; k >= 0; k--) if (valeurs.has(enSuspens[k].chemin)) enSuspens.splice(k, 1);
       };
       if (partie.miseAJourSeule) {
-        await deposerFichiers(partie, changees);
+        await deposerFichiers(partie, changees, enSuspens);
         const modifiables = partie.champsModifiables
           && new Set(champsEtColonnes(partie).filter(([champ]) => partie.champsModifiables!.includes(champ)).map(([, colonne]) => colonne));
         for (const ligne of changees) {
@@ -431,15 +525,19 @@ async function envoyer(): Promise<void> {
       // Par paquets (un import de maquette peut compter des centaines d'EC).
       for (let i = 0; i < changees.length; i += 500) {
         const paquet = changees.slice(i, i + 500);
-        await deposerFichiers(partie, paquet);
+        await deposerFichiers(partie, paquet, enSuspens);
         const { error } = await client().from(partie.table).upsert(paquet, { onConflict: "id" });
         if (error) {
           // Un compte qui ne crée pas de lignes dans cette table modifie les siennes (l'étudiant son
           // dossier, le professeur le sien) : simple mise à jour des lignes déjà en base.
           if (error.code !== "42501" || paquet.some((l) => !etat.has(String(l.id)))) throw error;
-          for (const ligne of paquet) await mettreAJour(partie.table, ligne);
+          for (const ligne of paquet) {
+            await mettreAJour(partie.table, ligne);
+            retenir(ligne);
+          }
+        } else {
+          paquet.forEach(retenir);
         }
-        paquet.forEach(retenir);
       }
       connu.set(partie.table, etat);
     }
@@ -457,6 +555,8 @@ async function envoyer(): Promise<void> {
     }
     await retirerFichiers(aRetirer);
   } catch (erreur) {
+    // Un fichier déposé pour une ligne refusée ne reste pas dans l'espace de fichiers.
+    if (enSuspens.length > 0) await retirerFichiers(enSuspens);
     const e = erreur as { code?: string; message?: string };
     window.dispatchEvent(new CustomEvent(EVENEMENT_REFUS_SERVEUR, { detail: { message: motifRefus(e) } }));
     // Les stores concernés reprennent l'état de la base.

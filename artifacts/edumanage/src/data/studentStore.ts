@@ -799,8 +799,9 @@ export function setEtudiantMotifBlocage(etudiantId: string, motifBlocageId: stri
   if (!etudiant) return;
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, motifBlocageId } : e));
   logAudit(actorId, motifBlocageId ? "assign_motif_blocage" : "clear_motif_blocage", "etudiant", etudiantId, motifBlocageId ?? "");
+  // Avec Supabase, c'est la base qui prévient l'étudiant.
   const notif = getNotificationEvenementielleParCode(motifBlocageId ? "NOTIFICATION_BLOCAGE_ETUDIANT" : "NOTIFICATION_DEBLOCAGE_ETUDIANT");
-  if (notif?.actif && notif.envoyerEtudiant) {
+  if (!modeSupabase && notif?.actif && notif.envoyerEtudiant) {
     const studentUser = store.users.find((u) => u.linkedId === etudiantId && u.role === "student");
     if (studentUser) {
       pushNotification(studentUser.id, motifBlocageId ? "Un blocage a été appliqué à votre dossier. Contactez l'administration." : "Le blocage sur votre dossier a été levé.");
@@ -1419,7 +1420,8 @@ export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileD
   delete piecesRefusees[docId];
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, piecesEnVerification, piecesRefusees } : e));
   logAudit(actorId, "upload_document", "etudiant", etudiantId, docId);
-  for (const admin of store.users.filter((u) => u.role === "admin" && u.actif !== false)) {
+  // Avec Supabase, c'est la base qui prévient le secrétariat (même depuis le poste de l'étudiant).
+  for (const admin of modeSupabase ? [] : store.users.filter((u) => u.role === "admin" && u.actif !== false)) {
     pushNotification(admin.id, `Pièce à vérifier : ${etudiant.prenom} ${etudiant.nom} (${etudiant.matricule}) a déposé « ${libellePiece} ».`);
   }
   persist();
@@ -1459,7 +1461,7 @@ export function verifierPieceEtudiant(
   }
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...maj } : e));
   logAudit(actorId, decision === "accepter" ? "accept_document" : "refuse_document", "etudiant", etudiantId, motif ? `${libelle} — motif : ${motif}` : libelle);
-  const compte = store.users.find((u) => u.role === "student" && u.linkedId === etudiantId);
+  const compte = modeSupabase ? undefined : store.users.find((u) => u.role === "student" && u.linkedId === etudiantId);
   if (compte) {
     pushNotification(compte.id, decision === "accepter"
       ? `Votre pièce « ${libelle} » a été acceptée : elle figure désormais comme fournie à votre dossier.`

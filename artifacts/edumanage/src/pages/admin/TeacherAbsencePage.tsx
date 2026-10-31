@@ -17,6 +17,7 @@ import {
 } from "@/data/teacherAbsenceStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
 import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
+import { modeSupabase } from "@/lib/supabase";
 import { getNotificationEvenementielleParCode } from "@/data/notificationEvenementielleStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
@@ -194,7 +195,8 @@ export default function TeacherAbsencePage() {
       motif: editMotif.trim(),
       justifie: editJustifie,
     });
-    if (vientDetreJustifie) {
+    // Avec Supabase, c'est la base qui prévient le professeur.
+    if (vientDetreJustifie && !modeSupabase) {
       const notif = getNotificationEvenementielleParCode("NOTIFICATION_VALIDATION_ABSENCE_PROF");
       if (notif?.actif && notif.envoyerProfesseur) {
         const compte = getUserAccounts().find((u) => u.linkedId === editing.teacherId && u.role === "teacher");
