@@ -54,4 +54,25 @@ rm -rf "$SORTIES"
 "${P[@]}" -c "select tests.verifier($TOTAL = 200 and $DIFFERENTS = 200, 'matricules simultanés : 200 inscriptions, 200 matricules différents')" 2>&1 | sed -n 's/^.*NOTICE:  /  /p; /ERROR/p'
 test "${PIPESTATUS[0]}" -eq 0
 
+echo "• salle réservée simultanément (4 connexions × 25 créneaux identiques)"
+"${P[@]}" >/dev/null <<SQL
+insert into public.niveaux (id, nom, alias, filiere_id) values ('niv-conc', 'Niveau d''essai', 'N1', 'fil-concurrence');
+insert into public.classes (id, nom, filiere_id, niveau_id, niveau, max, annee)
+  select 'cl-conc-' || i, 'Classe ' || i, 'fil-concurrence', 'niv-conc', 'N1', 40, '2030-2031' from generate_series(1, 4) i;
+insert into public.ues (id, code, libelle, credits, filiere_id, niveau) values ('ue-conc', 'UEC', 'UE d''essai', 1, 'fil-concurrence', 'N1');
+insert into public.ecs (id, code, libelle, ue_id, credits) values ('ec-conc', 'ECC', 'EC d''essai', 'ue-conc', 1);
+insert into public.salles (id, nom) values ('salle-conc', 'Salle d''essai');
+SQL
+for i in 1 2 3 4; do
+  ( echo "select set_config('request.jwt.claims', '{\"sub\":\"$ADMIN\",\"role\":\"authenticated\"}', false);"
+    echo "set role authenticated;"
+    for jour in 1 2 3 4 5; do for h in 08 09 10 11 12; do
+      echo "insert into public.seances (ec_id, classe_id, jour, semaine_du, heure_debut, heure_fin, salle_id, annee) values ('ec-conc', 'cl-conc-$i', $jour, '2030-10-07', '$h:00', '$h:45', 'salle-conc', '2030-2031');"
+    done; done
+  ) | psql -v ON_ERROR_STOP=0 -q -X -d "$BASE" >/dev/null 2>&1 &
+done
+wait
+"${P[@]}" -c "select tests.verifier((select count(*) = 25 and count(distinct (jour, heure_debut)) = 25 from public.seances where salle_id = 'salle-conc'), 'salle réservée simultanément : 100 demandes, 25 créneaux, un seul cours par créneau')" 2>&1 | sed -n 's/^.*NOTICE:  /  /p; /ERROR/p'
+test "${PIPESTATUS[0]}" -eq 0
+
 echo "Tous les tests de la base sont passés."
