@@ -59,6 +59,12 @@ export function getEvenements(): EvenementRecord[] {
   return evenements;
 }
 
+/** Événements de la base (avec Supabase). */
+export function remplacerEvenements(records: EvenementRecord[]) {
+  evenements = records;
+  persist();
+}
+
 export interface NewEvenementPayload {
   objet: string;
   date: string;

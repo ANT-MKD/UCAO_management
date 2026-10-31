@@ -697,3 +697,50 @@ describe("miroir des étudiants : fiche, dossier personnel, inscriptions et matr
   });
 });
 
+
+describe("miroir de l'emploi du temps : séances et événements", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const SALLE = { id: "salle-a1", nom: "RDC 1A", type: "", capacite: 40, batiment: "", etage: "", equipements: [], statut: "actif" };
+  const UE = { id: "ue-l1", code: "UE11", libelle: "Fondamentaux QHSE", credits: 6, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", semestre: "S1", type: "", obligatoire: true, description: null };
+  const EC = { id: "ec-qualite", code: "QHSE111", libelle: "Qualité", abrege: null, ue: "UE11", ue_id: "ue-l1", credits: 3, vol_cm: 20, vol_td: 10, vol_tp: 0, vol_tpe: 0, vht: 30, responsable: "", responsable_id: null };
+  const KANE = { id: "en-kane", prenom: "Mamadou", nom: "KANE", matricule: "ENS-2026-100", sexe: "M", grade: "Vacataire", specialite: "QHSE", specialites: ["QHSE"] };
+  const SEANCE = { id: "se-kane-1", ec: "Qualité", ec_id: "ec-qualite", classe: "LQHSE1-26/27", classe_id: "cl-l1", jour: 1, semaine_du: "2026-11-02", heure_debut: "08:00", heure_fin: "10:00",
+    salle: "RDC 1A", salle_id: "salle-a1", prof: "Mamadou KANE", prof_id: "en-kane", type: "CM", annee: "2026-2027" };
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], classes: [CLASSE], salles: [SALLE], ues: [UE], ecs: [EC], enseignants: [KANE] });
+
+  it("à la connexion : les séances lisibles par ce compte arrivent à l'écran, sans rien renvoyer", async () => {
+    const b = await avecBase({ ...base(), seances: [SEANCE] });
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getSeances()).toEqual([{ id: "se-kane-1", ec: "Qualité", ecId: "ec-qualite", classe: "LQHSE1-26/27", classeId: "cl-l1", jour: 1, semaineDu: "2026-11-02",
+      heureDebut: "08:00", heureFin: "10:00", salle: "RDC 1A", salleId: "salle-a1", prof: "Mamadou KANE", profId: "en-kane", type: "CM", annee: "2026-2027" }]);
+    expect(b.envois).toHaveLength(0);
+  });
+
+  it("la planification crée puis annule un créneau de KANE : il part en colonnes de la base, puis il est retiré", async () => {
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const { seance } = b.S.addSeance({ ecId: "ec-qualite", classeId: "cl-l1", salleId: "salle-a1", prof: "Mamadou KANE", profId: "en-kane", jour: 3, semaineDu: "2026-11-02", heureDebut: "14:00", heureFin: "16:00", type: "TD" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "seances", operation: "upsert", donnees: [{ id: seance!.id, ec: "Qualité", ec_id: "ec-qualite", classe: "LQHSE1-26/27", classe_id: "cl-l1", jour: 3,
+      semaine_du: "2026-11-02", heure_debut: "14:00", heure_fin: "16:00", salle: "RDC 1A", salle_id: "salle-a1", prof: "Mamadou KANE", prof_id: "en-kane", type: "TD", annee: "2026-2027" }] }]);
+    expect(b.S.annulerSeance(seance!.id, "Professeur en mission", ADMIN).ok).toBe(true);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.at(-1)).toEqual({ table: "seances", operation: "delete", donnees: [seance!.id] });
+  });
+
+  it("un événement sans classe ni salle part avec des liens vides, et revient tel quel", async () => {
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const Ev = await import("@/data/evenementStore");
+    const { evenement } = Ev.ajouterEvenement({ objet: "Journée portes ouvertes", date: "2026-11-07", typeId: "ts-seed-4", type: "Examen", heureDebut: "09:00", heureFin: "12:00" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "evenements", operation: "upsert", donnees: [expect.objectContaining({
+      id: evenement!.id, objet: "Journée portes ouvertes", date: "2026-11-07", type_id: "ts-seed-4", classe_id: null, salle_id: null, surveillant: null, cree_le: evenement!.createdAt,
+    })] }]);
+    const autre = await avecBase({ ...base(), evenements: b.envois[0].donnees as Ligne[] });
+    await autre.miroir.chargerMiroirs();
+    const Ev2 = await import("@/data/evenementStore");
+    expect(Ev2.getEvenements()).toEqual([expect.objectContaining({ id: evenement!.id, objet: "Journée portes ouvertes", classeId: "", salleId: "" })]);
+    expect(autre.envois).toHaveLength(0);
+  });
+});

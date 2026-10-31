@@ -2574,6 +2574,13 @@ export function getSeances(): SeanceRecord[] {
   return store.seances;
 }
 
+/** Séances de la base (avec Supabase) : celles que ce compte lit (toutes pour l'administration,
+ * les siennes pour un professeur, celles de sa classe pour un étudiant). */
+export function remplacerSeances(records: SeanceRecord[]) {
+  store.seances = records;
+  persist();
+}
+
 export function checkSeanceConflicts(candidate: SeanceSlot, excludeId?: string) {
   return detectScheduleConflicts(store.seances, candidate, excludeId);
 }
