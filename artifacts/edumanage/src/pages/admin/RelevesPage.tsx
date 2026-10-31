@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { FILIERES, NIVEAUX, SEMESTRES } from "@/data/mockData";
-import { useReleves, useStudentStore, useAnneesAcademiques, useNotes } from "@/hooks/useStudentStore";
+import { useReleves, useStudentStore, useAnneesAcademiques, useNotes, useNotesAnnees } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import type { ReleveRecord, EtudiantRecord } from "@/data/studentStore";
@@ -485,6 +485,7 @@ interface NouvelleGenerationFormProps {
 function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, methodesCalcul, auteur, onCreated, onCancel }: NouvelleGenerationFormProps) {
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
+  useNotesAnnees(annee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [semestreId, setSemestreId] = useState("");
@@ -665,6 +666,7 @@ function NouvelleGenerationForm({ annees, classes, etudiants, scolariteConfigs, 
 function ConsultationGeneration({ generationId }: { generationId: string }) {
   const generations = useBulletinGenerations();
   const generation = generations.find((g) => g.id === generationId);
+  useNotesAnnees(generation?.annee); // relevés d'une année ancienne : ses notes se chargent à l'ouverture
   const releves = useReleves();
   const etudiants = useStudentStore();
   useDeliberations(); // s'abonne pour refléter la vraie décision de jury si une délibération change

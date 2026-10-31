@@ -65,6 +65,12 @@ export function getCreditDettes(): CreditDetteRecord[] {
   return store;
 }
 
+/** Dettes de la base (avec Supabase) : toutes pour l'administration, les siennes pour un étudiant. */
+export function remplacerCreditDettes(records: CreditDetteRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getDettesActivesPourEtudiant(etudiantId: string): CreditDetteRecord[] {
   return store.filter((d) => d.etudiantId === etudiantId && d.statut === "en_cours");
 }

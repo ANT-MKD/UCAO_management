@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { FILIERES, NIVEAUX, SEMESTRES } from "@/data/mockData";
-import { useStudentStore, useAnneesAcademiques, useCahiers, useCahiersAnnee } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneesAcademiques, useCahiers, useCahiersAnnee, useNotesAnnees } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
 import { useReglesValidation } from "@/hooks/useReglesValidationStore";
@@ -123,6 +123,9 @@ export default function DeliberationsPage() {
   const [activeDeliberationId, setActiveDeliberationId] = useState<string | null>(null);
   const [bloqueSansGeneration, setBloqueSansGeneration] = useState<{ filiere: string; classe: string; semestre: string } | null>(null);
   const [search, setSearch] = useState("");
+  // Une année ancienne (étudiants tous partis) : ses délibérations se chargent quand on la choisit.
+  const [anneeFiltre, setAnneeFiltre] = useState("");
+  useNotesAnnees(anneeFiltre);
   const [drillDownEtudiantId, setDrillDownEtudiantId] = useState<string | null>(null);
   const [editingEtudiantId, setEditingEtudiantId] = useState<string | null>(null);
 
@@ -145,9 +148,8 @@ export default function DeliberationsPage() {
 
   const filteredDeliberations = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return deliberations;
-    return deliberations.filter((d) => `${d.classe} ${d.semestre} ${d.effectuePar}`.toLowerCase().includes(q));
-  }, [deliberations, search]);
+    return deliberations.filter((d) => (!anneeFiltre || d.annee === anneeFiltre) && (!q || `${d.classe} ${d.semestre} ${d.effectuePar}`.toLowerCase().includes(q)));
+  }, [deliberations, search, anneeFiltre]);
 
   const openDeliberation = (id: string) => { setActiveDeliberationId(id); setBloqueSansGeneration(null); setMode("detail"); };
 
@@ -197,8 +199,12 @@ export default function DeliberationsPage() {
 
       {mode === "liste" && (
         <>
-          <div className="mb-4 max-w-sm">
-            <input aria-label="Classe, session, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, session, utilisateur..." className={inputClass} data-testid="deliberation-recherche" />
+          <div className="mb-4 flex flex-wrap gap-2">
+            <input aria-label="Classe, session, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, session, utilisateur..." className={cn(inputClass, "max-w-sm")} data-testid="deliberation-recherche" />
+            <select aria-label="Année académique" value={anneeFiltre} onChange={(e) => setAnneeFiltre(e.target.value)} className={cn(inputClass, "max-w-[11rem]")} data-testid="deliberation-annee-filtre">
+              <option value="">Toutes les années</option>
+              {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+            </select>
           </div>
           <DataTable
             columns={columns}
@@ -277,6 +283,7 @@ function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation
   const [annee, setAnnee] = useState("");
   // Délibération d'une année passée : l'assiduité vient de ses cahiers, chargés depuis la base.
   useCahiersAnnee(annee || undefined);
+  useNotesAnnees(annee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [semestreId, setSemestreId] = useState("");
@@ -397,6 +404,7 @@ function DetailDeliberation({
   const deliberation = deliberations.find((d) => d.id === deliberationId);
   // Délibération d'une année passée : l'assiduité vient de ses cahiers, chargés depuis la base.
   useCahiersAnnee(deliberation?.annee);
+  useNotesAnnees(deliberation?.annee);
   const [decisionFilter, setDecisionFilter] = useState("");
   const [correction, setCorrection] = useState<{ etudiantId: string; etudiant: string; decision: DecisionJury; decisionAuto: DecisionJury } | null>(null);
 

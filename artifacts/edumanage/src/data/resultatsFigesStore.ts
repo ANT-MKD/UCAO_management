@@ -32,6 +32,38 @@ function persist() {
   if (typeof window !== "undefined") ecrireStockage(STORAGE_KEY, JSON.stringify(store));
 }
 
+/** Bulletin figé d'un étudiant tel que rangé dans la base (table resultats_figes). */
+export interface ResultatFigeLigne {
+  id: string;
+  deliberationId: string;
+  classeId: string;
+  semestreAlias: string;
+  etudiantId: string;
+  figeLe: string;
+  bulletin: BulletinEtudiant;
+}
+
+export function getResultatsFigesLignes(): ResultatFigeLigne[] {
+  return Object.entries(store).flatMap(([c, s]) => {
+    const [classeId, semestreAlias] = c.split("|");
+    return Object.entries(s.bulletins).map(([etudiantId, bulletin]) => ({
+      id: `${c}|${etudiantId}`, deliberationId: s.deliberationId, classeId, semestreAlias, etudiantId, figeLe: s.figeLe, bulletin,
+    }));
+  });
+}
+
+/** Résultats figés de la base (avec Supabase) : tous pour l'administration, les siens pour un
+ * étudiant. */
+export function remplacerResultatsFiges(lignes: ResultatFigeLigne[]) {
+  const nouveau: Record<string, ResultatsSession> = {};
+  for (const l of lignes) {
+    const s = (nouveau[cle(l.classeId, l.semestreAlias)] ??= { deliberationId: l.deliberationId, figeLe: l.figeLe, bulletins: {} });
+    s.bulletins[l.etudiantId] = l.bulletin;
+  }
+  store = nouveau;
+  persist();
+}
+
 export function figerResultats(classeId: string, semestreAlias: string, deliberationId: string, bulletins: Record<string, BulletinEtudiant>): void {
   store[cle(classeId, semestreAlias)] = { deliberationId, figeLe: new Date().toISOString(), bulletins };
   persist();

@@ -113,6 +113,36 @@ export function getDeliberationById(id: string): DeliberationRecord | undefined 
   return store.deliberations.find((d) => d.id === id);
 }
 
+/** Ligne d'un étudiant telle que rangée dans la base (table deliberations_lignes). */
+export interface LigneDeliberationBase extends DeliberationLigne {
+  id: string;
+  deliberationId: string;
+  ordre: number;
+}
+
+/** Délibérations de la base (avec Supabase) : leurs lignes arrivent ensuite
+ * (remplacerLignesDeliberations). */
+export function remplacerDeliberations(records: DeliberationRecord[]) {
+  store = { deliberations: records.map((d) => ({ ...d, lignes: d.lignes ?? [] })) };
+  persist();
+}
+
+export function getLignesDeliberations(): LigneDeliberationBase[] {
+  return store.deliberations.flatMap((d) => d.lignes.map((l, ordre) => ({ ...l, id: `${d.id}:${l.etudiantId}`, deliberationId: d.id, ordre })));
+}
+
+export function remplacerLignesDeliberations(lignes: LigneDeliberationBase[]) {
+  const parDeliberation = new Map<string, LigneDeliberationBase[]>();
+  for (const l of lignes) parDeliberation.set(l.deliberationId, [...(parDeliberation.get(l.deliberationId) ?? []), l]);
+  store = {
+    deliberations: store.deliberations.map((d) => ({
+      ...d,
+      lignes: (parDeliberation.get(d.id) ?? []).sort((a, b) => a.ordre - b.ordre).map(({ id: _id, deliberationId: _d, ordre: _o, ...l }) => l),
+    })),
+  };
+  persist();
+}
+
 export function getDeliberationForClasseSemestre(classeId: string, semestreId: string): DeliberationRecord | undefined {
   return store.deliberations.find((d) => d.classeId === classeId && d.semestreId === semestreId);
 }

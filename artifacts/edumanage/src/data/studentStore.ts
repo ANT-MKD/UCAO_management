@@ -2499,6 +2499,42 @@ export function getReleves(): ReleveRecord[] {
   return store.releves;
 }
 
+/** Relevés de la base (avec Supabase) : tous pour l'administration, les siens pour un étudiant. */
+export function remplacerReleves(records: ReleveRecord[]) {
+  store.releves = records;
+  persist();
+}
+
+/** Années de notes chargées depuis la base, en plus de celles des étudiants actuels : celles qu'un
+ * écran a demandées (jury d'une ancienne promotion, attestation d'un diplômé…). */
+const anneesNotesDemandees = new Set<string>();
+
+/** Années dont les notes, évaluations et résultats sont lus dans la base (avec Supabase) :
+ * l'année en cours et toutes celles où un étudiant actuel a été inscrit — ses moyennes de
+ * programme, UE acquises et crédits cumulés en dépendent —, plus les années demandées. Les
+ * années plus anciennes ne concernent que des étudiants partis. Sans étudiant actuel (ancien
+ * étudiant connecté, installation neuve) : toutes. */
+export function getAnneesNotesChargees(): string[] | undefined {
+  const actuelle = getAnneeActuelle();
+  if (!actuelle) return undefined;
+  const actuels = new Set(store.etudiants.filter((e) => e.annee === actuelle).map((e) => e.id));
+  if (actuels.size === 0) return undefined;
+  const annees = new Set([actuelle, ...anneesNotesDemandees]);
+  for (const i of store.inscriptions) if (actuels.has(i.etudiantId) && i.annee) annees.add(i.annee);
+  return [...annees].sort();
+}
+
+/** Charge depuis la base les notes et résultats d'années plus anciennes, si ce n'est déjà fait. */
+export function demanderNotesAnnees(annees: readonly (string | undefined)[]): void {
+  if (!modeSupabase) return;
+  const chargees = getAnneesNotesChargees();
+  if (!chargees) return;
+  const nouvelles = [...new Set(annees)].filter((a): a is string => !!a && !chargees.includes(a));
+  if (nouvelles.length === 0) return;
+  nouvelles.forEach((a) => anneesNotesDemandees.add(a));
+  void rechargerTables(["evaluations", "notes", "deliberations", "resultats_figes", "deliberations_annuelles"]);
+}
+
 export function generateRelevesForClasseEc(classeId: string, ecId: string): void {
   const published = store.notes.filter(
     (n) => n.classeId === classeId && n.ecId === ecId && n.statut === "publie",

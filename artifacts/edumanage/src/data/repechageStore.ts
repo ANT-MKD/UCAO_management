@@ -51,6 +51,12 @@ export function getRepechages(): RepechageUeRecord[] {
   return store;
 }
 
+/** Repêchages de la base (avec Supabase) : tous pour l'administration, les siens pour un étudiant. */
+export function remplacerRepechages(records: RepechageUeRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getRepechageUe(etudiantId: string, classeId: string, ueId: string): RepechageUeRecord | undefined {
   return store.find((r) => r.etudiantId === etudiantId && r.classeId === classeId && r.ueId === ueId);
 }

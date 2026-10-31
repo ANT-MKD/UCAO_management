@@ -12,11 +12,11 @@ import { addContact, deleteContact, CONTACT_ROLE_LABELS, type ContactRole } from
 import { useRelances } from "@/hooks/useRelancePaiementStore";
 import { getRelanceActivePour, relanceEstExpiree, relanceEstResolue } from "@/data/relancePaiementStore";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
-import { setEtudiantMotifBlocage, verifierPieceEtudiant } from "@/data/studentStore";
+import { setEtudiantMotifBlocage, verifierPieceEtudiant, getAnneeActuelle } from "@/data/studentStore";
 import { MotifModal } from "@/components/admin/MotifModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
-import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useReleves, useStudentStore } from "@/hooks/useStudentStore";
+import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useCahiersAnnee, useNotesAnnees, useReleves, useStudentStore } from "@/hooks/useStudentStore";
 import { resolveBulletin, BulletinPreviewModal } from "@/pages/admin/RelevesPage";
 import { computeMoyenneAnnuelle, computeCreditsCumulesParcours } from "@/data/bulletinEngine";
 import { useMentions } from "@/hooks/useMentionsStore";
@@ -101,6 +101,15 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
   const studentDerogationActive = studentDerogations.find((d) => statutDerogation(d) === "active");
   const abandons = useAbandons();
   useCahiers(); // souscription pour re-rendre l'onglet Absences quand un cahier change
+  // Absences par année : celle en cours par défaut, les années passées de l'étudiant au choix
+  // (avec Supabase, leurs cahiers se chargent quand on les choisit).
+  const anneeActuelle = getAnneeActuelle();
+  const anneesEtudiant = [...new Set([anneeActuelle, ...inscriptions.map((i) => i.annee)].filter(Boolean))].sort().reverse();
+  const [anneeAbsencesChoisie, setAnneeAbsences] = useState<string | null>(null);
+  const anneeAbsences = anneeAbsencesChoisie ?? anneeActuelle;
+  useCahiersAnnee(anneeAbsences);
+  // Notes, relevés et résultats de toutes les années de l'étudiant (un ancien étudiant compris).
+  useNotesAnnees(...inscriptions.map((i) => i.annee));
   useAbsencesPeriode(); // idem pour les couvertures par période
   const studentAbandons = abandons.filter((a) => a.etudiantId === id);
   const studentAbandonActif = studentAbandons.find((a) => !a.reintegre);
@@ -725,8 +734,8 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
         )}
 
         {activeTab === "absences" && (() => {
-          const studentAssiduite = getAssiduiteRowsPourEtudiant(id);
-          const { pct: tauxPresence } = getTauxPresencePourEtudiant(id);
+          const studentAssiduite = getAssiduiteRowsPourEtudiant(id).filter((a) => !anneeAbsences || a.annee === anneeAbsences);
+          const { pct: tauxPresence } = getTauxPresencePourEtudiant(id, undefined, anneeAbsences || undefined);
           const nbTotal = studentAssiduite.length;
           const nbJustif = studentAssiduite.filter((a) => a.justifie).length;
           const nbNonJustif = nbTotal - nbJustif;
@@ -734,6 +743,14 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Suivi des Absences — d&apos;après le cahier de textes</h3>
+                {anneesEtudiant.length > 1 && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Année
+                    <select value={anneeAbsences} onChange={(e) => setAnneeAbsences(e.target.value)} className="px-2 py-1.5 text-sm border border-border rounded-lg bg-background" data-testid="dossier-absences-annee">
+                      {anneesEtudiant.map((a) => <option key={a} value={a}>{a}{a === anneeActuelle ? " (en cours)" : ""}</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
               <div className="grid grid-cols-4 gap-3 mb-5">
                 {[
@@ -750,7 +767,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
               </div>
               <div className="mb-5">
                 <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>Taux de présence global</span>
+                  <span>Taux de présence {anneeAbsences ? `— ${anneeAbsences}` : "global"}</span>
                   <span className="font-semibold text-emerald-600">{tauxPresence}%</span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">

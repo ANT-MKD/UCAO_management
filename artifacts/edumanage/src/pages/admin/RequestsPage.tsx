@@ -12,7 +12,7 @@ import {
   type StudentRequestRecord,
 } from "@/data/studentStore";
 import { useStudentRequests, useNotes } from "@/hooks/useStudentStore";
-import { genererAttestation, TYPE_LABELS as ATTESTATION_LABELS } from "@/data/attestationStore";
+import { genererAttestation, reserverNumeroAttestation, TYPE_LABELS as ATTESTATION_LABELS } from "@/data/attestationStore";
 import { PORTEE_LABELS } from "@/data/derogationPaiementStore";
 import { estAutorise } from "@/data/communicationRolesStore";
 import { useCommunicationRoles } from "@/hooks/useCommunicationRolesStore";
@@ -95,12 +95,17 @@ export default function RequestsPage() {
 
   /** Demande d'attestation : le document est réellement généré (numéroté, visible dans « Mes
    * documents » de l'étudiant) et la demande est validée avec sa référence. */
-  const genererEtValider = () => {
+  const [emission, setEmission] = useState(false);
+
+  const genererEtValider = async () => {
     if (!selected || !currentUser) return;
     const etu = getEtudiantById(selected.studentId);
     if (!etu) { toast.error("Étudiant introuvable"); return; }
     const type = selected.attestationType ?? typeAttestation;
+    setEmission(true);
     try {
+      // Le numéro vient de la base avec Supabase : jamais deux fois le même, même depuis deux postes.
+      const numero = await reserverNumeroAttestation();
       const att = genererAttestation({
         etudiantId: etu.id,
         etudiant: `${etu.prenom} ${etu.nom}`,
@@ -113,13 +118,15 @@ export default function RequestsPage() {
         soldeDu: etu.soldeDu,
         type,
         effectuePar: currentUser.name ?? "Administration",
-      });
+      }, numero);
       rattacherAttestationDemande(selected.id, att.id, att.numero);
       updateStudentRequestStatus(selected.id, "valide", currentUser.id, resolution.trim() || `${att.typeLabel} n° ${att.numero} disponible dans « Mes documents ».`);
       setResolution("");
       toast.success(`${att.typeLabel} ${att.numero} générée — demande validée`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Génération impossible");
+    } finally {
+      setEmission(false);
     }
   };
 
@@ -349,8 +356,9 @@ export default function RequestsPage() {
                           </button>
                           {selected.type === "attestation" && !selected.attestationNumero ? (
                             <button
-                              onClick={genererEtValider}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+                              onClick={() => void genererEtValider()}
+                              disabled={emission}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
                               data-testid="requete-generer-attestation"
                             >
                               <FileText size={14} /> Générer l&apos;attestation et valider

@@ -1,6 +1,7 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { modeSupabase, supabase } from "@/lib/supabase";
 
 const STORAGE_KEY = "edumanage-attestation-store-v1";
 
@@ -75,6 +76,22 @@ export function getAttestations(): AttestationRecord[] {
   return store;
 }
 
+/** Attestations de la base (avec Supabase) : toutes pour l'administration, les siennes pour un
+ * étudiant. */
+export function remplacerAttestations(records: AttestationRecord[]) {
+  store = records;
+  persist();
+}
+
+/** Numéro de la prochaine attestation : réservé auprès de la base avec Supabase (jamais deux fois
+ * le même, même depuis deux postes), sinon calculé sur ce poste. */
+export async function reserverNumeroAttestation(): Promise<string> {
+  if (!modeSupabase || !supabase) return prochainNumero();
+  const { data, error } = await supabase.rpc("attribuer_numero_attestation");
+  if (error || typeof data !== "string") throw new Error(error?.message || "Numéro d'attestation indisponible : réessayez.");
+  return data;
+}
+
 function prochainNumero(): string {
   const annee = new Date().getFullYear();
   const compteAnnee = store.filter((a) => a.numero.startsWith(`ATT-${annee}-`)).length;
@@ -131,7 +148,7 @@ export interface GenererAttestationInput {
   effectuePar: string;
 }
 
-export function genererAttestation(input: GenererAttestationInput): AttestationRecord {
+export function genererAttestation(input: GenererAttestationInput, numero: string = prochainNumero()): AttestationRecord {
   let moyenneConstatee: number | undefined;
   let decisionConstatee: DecisionJury | undefined;
   if (input.type === "reussite" && input.semestreId) {
@@ -144,7 +161,7 @@ export function genererAttestation(input: GenererAttestationInput): AttestationR
   }
   const record: AttestationRecord = {
     id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    numero: prochainNumero(),
+    numero,
     etudiantId: input.etudiantId,
     etudiant: input.etudiant,
     matricule: input.matricule,
@@ -167,7 +184,8 @@ export function genererAttestation(input: GenererAttestationInput): AttestationR
   store.unshift(record);
   persist();
 
-  const compte = getUserAccounts().find((u) => u.role === "student" && u.linkedId === input.etudiantId);
+  // Avec Supabase, c'est la base qui prévient l'étudiant.
+  const compte = modeSupabase ? undefined : getUserAccounts().find((u) => u.role === "student" && u.linkedId === input.etudiantId);
   if (compte) pushNotificationEtPersister(compte.id, `Nouveau document disponible : ${record.typeLabel} (${record.numero})`);
 
   return record;

@@ -12,6 +12,8 @@ async function avecBase(
   tables: Record<string, Ligne[]>,
   refus?: (table: string, operation: string) => { code?: string; message: string; statusCode?: string } | null,
   fichiers: Map<string, string> = new Map(),
+  /** Ce qu'un déclencheur de la base change à une ligne écrite (ex. le numéro d'une génération). */
+  declencheur?: (table: string, ligne: Ligne) => Ligne,
 ) {
   vi.resetModules();
   vi.stubEnv("VITE_SUPABASE_URL", "https://exemple.supabase.co");
@@ -62,6 +64,7 @@ async function avecBase(
       if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
       if (nom === "apercu_matricule") return { data: `2026-LQHSE-${String(prochainMatricule).padStart(4, "0")}`, error: null };
       if (nom === "attribuer_numero_contrat") return { data: "CTR-0007", error: null };
+      if (nom === "attribuer_numero_attestation") return { data: "ATT-2026-007", error: null };
       return { data: null, error: null };
     },
     functions: {
@@ -72,13 +75,15 @@ async function avecBase(
     },
     from: (table: string) => ({
       select: () => {
-        // Portée : colonne de la table, ou de la table liée (« cahiers.annee » : par cahier_id).
+        // Portée : colonne de la table, ou de la table liée (« cahiers.annee » : par cahier_id ;
+        // « deliberations_annuelles.annee » : par deliberation_id).
         let garder: ((l: Ligne) => boolean) | undefined;
         const q = {
           in: (colonne: string, valeurs: string[]) => {
             const [liee, champ] = colonne.includes(".") ? colonne.split(".") : [undefined, colonne];
             garder = (l) => {
-              const source = liee ? (tables[liee] ?? []).find((p) => p.id === l[`${liee.replace(/s$/, "")}_id`]) : l;
+              const cle = liee?.startsWith("deliberations") ? "deliberation_id" : `${liee?.replace(/s$/, "")}_id`;
+              const source = liee ? (tables[liee] ?? []).find((p) => p.id === l[cle]) : l;
               return !!source && valeurs.includes(String(source[champ]));
             };
             return q;
@@ -96,7 +101,8 @@ async function avecBase(
         const e = refus?.(table, "upsert") ?? null;
         if (!e) {
           const t = (tables[table] ??= []);
-          for (const l of lignes) {
+          for (const envoyee of lignes) {
+            const l = declencheur ? declencheur(table, { ...envoyee }) : envoyee;
             const i = t.findIndex((x) => x.id === l.id);
             if (i >= 0) t[i] = l; else t.push(l);
           }
@@ -1187,5 +1193,173 @@ describe("miroir des évaluations, des notes et des demandes de correction", () 
     expect(R.supprimerEvaluation("ev-devoir", "u-admin").ok).toBe(true);
     await b.miroir.attendreEnvois();
     expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["delete", "notes"], ["delete", "evaluations"]]);
+  });
+});
+
+describe("miroir des relevés, délibérations, résultats figés et attestations", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const SEMESTRE = { id: "sem-s1", nom: "Semestre 1", alias: "S1", niveau: "L1", niveau_id: "niv-l1", filiere: "LQHSE", statut: "actif" };
+  const UE = { id: "ue-l1", code: "UE11", libelle: "Fondamentaux QHSE", credits: 6, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", semestre: "S1", type: "", obligatoire: true, description: null };
+  const EC = { id: "ec-qualite", code: "QHSE111", libelle: "Qualité", abrege: null, ue: "UE11", ue_id: "ue-l1", credits: 3, vol_cm: 20, vol_td: 10, vol_tp: 0, vol_tpe: 0, vht: 30, responsable: "", responsable_id: null };
+  const ETUDIANT = (id: string, matricule: string, prenom: string, nom: string, annee = "2026-2027") => ({ id, matricule, prenom, nom, sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse",
+    classe: "LQHSE1-26/27", classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee, annee_premiere_inscription: 2026 });
+  const AWA = ETUDIANT("et-awa", "2026-LQHSE-0001", "Awa", "SECK");
+  const OUSMANE = ETUDIANT("et-ousmane", "2026-LQHSE-0002", "Ousmane", "DIALLO");
+  const EVAL = (id: string, type: string, poids: number) => ({ id, code: id, filiere_id: "fil-qhse", filiere: "LQHSE", annee: "2026-2027", niveau_id: "niv-l1", niveau: "L1", classe_id: "cl-l1",
+    classe: "LQHSE1-26/27", semestre_id: "sem-s1", semestre: "S1", ec_id: "ec-qualite", cours: "QHSE111 — Qualité", professeur_id: null, professeur: "", type, poids,
+    type_evaluation_id: null, description: null, cree_par: null, date_creation: "2026-11-02", modifie_par: null, modifie_le: null, session: null });
+  const NOTE = (etudiant: typeof AWA, evaluation: string, type: string, note: number) => ({ id: `no-${etudiant.id}-${evaluation}`, etudiant: `${etudiant.prenom} ${etudiant.nom}`,
+    etudiant_id: etudiant.id, matricule: etudiant.matricule, ec: "Qualité", ec_id: "ec-qualite", type, note, absent: false, statut: "publie", classe_id: "cl-l1", annee: "2026-2027",
+    session: null, evaluation_id: evaluation, date_creation: "2026-11-02T10:00:00+00:00", date_modification: null });
+  const DELIB = { id: "delib-s1", filiere_id: "fil-qhse", filiere: "LQHSE", annee: "2026-2027", niveau: "L1", niveau_label: "Licence 1", classe_id: "cl-l1", classe: "LQHSE1-26/27",
+    semestre_id: "sem-s1", semestre: "Semestre 1 (S1)", effectue_par: "Jury", date_deliberation: "2027-02-10", statut: "en_cours", seuil_override: null, seuil_override_raison: null,
+    seuil_override_modifie_par: null, seuil_override_modifie_le: null };
+  const LIGNE = (e: typeof AWA, ordre: number, moyenne: number, decision: string) => ({ id: `delib-s1:${e.id}`, deliberation_id: "delib-s1", etudiant_id: e.id,
+    etudiant: `${e.prenom} ${e.nom}`, matricule: e.matricule, ordre, moyenne, credits_obtenus: decision === "admis" ? 6 : 0, credits_total: 6, absences: 0, decision_auto: decision,
+    decision_finale: decision, override_raison: null, override_modifie_par: null, raisons_declassement: null });
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], semestres: [SEMESTRE], classes: [CLASSE], ues: [UE], ecs: [EC],
+    etudiants: [AWA, OUSMANE], evaluations: [EVAL("ev-cc", "devoir", 40), EVAL("ev-ef", "examen", 60)],
+    notes: [NOTE(AWA, "ev-cc", "CC", 12), NOTE(AWA, "ev-ef", "EF", 14), NOTE(OUSMANE, "ev-cc", "CC", 6), NOTE(OUSMANE, "ev-ef", "EF", 9)],
+    deliberations: [DELIB], deliberations_lignes: [LIGNE(OUSMANE, 1, 7.8, "ajourne"), LIGNE(AWA, 0, 13.2, "admis")] });
+
+  const COMPTES = [
+    { id: "u-admin", role: "admin", displayName: "Scolarité", email: "scolarite@ucao.edu", identifiant: "ADM", actif: true },
+    { id: "u-awa", role: "student", displayName: "Awa SECK", email: "awa@ucao.edu", identifiant: "2026-LQHSE-0001", actif: true, linkedId: "et-awa" },
+  ];
+
+  it("à la connexion, les lignes du jury rejoignent leur délibération dans l'ordre ; une décision corrigée ne renvoie que sa ligne", async () => {
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const D = await import("@/data/deliberationStore");
+    const [delib] = D.getDeliberations();
+    expect(delib).toMatchObject({ id: "delib-s1", classeId: "cl-l1", semestreId: "sem-s1", statut: "en_cours" });
+    expect(delib.lignes.map((l) => [l.etudiant, l.moyenne, l.decisionFinale])).toEqual([["Awa SECK", 13.2, "admis"], ["Ousmane DIALLO", 7.8, "ajourne"]]);
+    expect(delib.lignes[0]).not.toHaveProperty("ordre");
+    expect(b.envois).toEqual([]);
+
+    D.overrideDecision("delib-s1", "et-ousmane", "rattrapage", "Session de rattrapage", "Jury");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "deliberations_lignes", operation: "upsert", donnees: [expect.objectContaining({ id: "delib-s1:et-ousmane",
+      deliberation_id: "delib-s1", ordre: 1, decision_auto: "ajourne", decision_finale: "rattrapage", override_raison: "Session de rattrapage" })] }]);
+  });
+
+  it("l'exemple d'Awa : clôture, la délibération part avant les bulletins figés ; réouverture, avant leur retrait ; son poste relit la même moyenne", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const tables = base();
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const D = await import("@/data/deliberationStore");
+    const E = await import("@/data/bulletinEngine");
+    // Moyenne d'Awa calculée sur les notes lues dans la base : 40 % × 12 + 60 % × 14.
+    expect(E.computeBulletinPourClasse("et-awa", "cl-l1", "S1")?.moyenneSession).toBeCloseTo(13.2, 6);
+
+    D.cloturerDeliberation("delib-s1");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["upsert", "deliberations"], ["upsert", "resultats_figes"]]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id: "delib-s1", statut: "cloturee" })]);
+    const figes = b.envois[1].donnees as Ligne[];
+    expect(figes.map((l) => l.id)).toEqual(["cl-l1|S1|et-awa", "cl-l1|S1|et-ousmane"]);
+    expect(figes[0]).toMatchObject({ deliberation_id: "delib-s1", classe_id: "cl-l1", semestre_alias: "S1", etudiant_id: "et-awa" });
+    expect((figes[0].bulletin as { moyenneSession: number }).moyenneSession).toBeCloseTo(13.2, 6);
+
+    // Sur le poste d'Awa (elle ne lit que son bulletin figé) : la même moyenne, relue de la base.
+    const surSonPoste = await avecBase({ ...tables, resultats_figes: tables.resultats_figes.filter((l) => l.etudiant_id === "et-awa"),
+      deliberations_lignes: tables.deliberations_lignes.filter((l) => l.etudiant_id === "et-awa") });
+    await surSonPoste.miroir.chargerMiroirs();
+    const F = await import("@/data/resultatsFigesStore");
+    expect(F.bulletinFige("et-awa", "cl-l1", "S1")?.moyenneSession).toBeCloseTo(13.2, 6);
+    expect(F.bulletinFige("et-ousmane", "cl-l1", "S1")).toBeUndefined();
+    expect(surSonPoste.envois).toEqual([]);
+
+    const D2 = await import("@/data/deliberationStore");
+    expect(D2.getDeliberations()[0].lignes.map((l) => l.etudiantId)).toEqual(["et-awa"]);
+  });
+
+  it("réouverture d'un jury clôturé : la délibération rouverte part d'abord, puis le retrait des bulletins figés", async () => {
+    const tables = base();
+    tables.deliberations = [{ ...DELIB, statut: "cloturee" }];
+    tables.resultats_figes = [{ id: "cl-l1|S1|et-awa", deliberation_id: "delib-s1", classe_id: "cl-l1", semestre_alias: "S1", etudiant_id: "et-awa",
+      fige_le: "2027-02-10T12:00:00+00:00", bulletin: { moyenneSession: 13.2 } }];
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const D = await import("@/data/deliberationStore");
+    D.reouvrirDeliberation("delib-s1");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([
+      { table: "deliberations", operation: "upsert", donnees: [expect.objectContaining({ id: "delib-s1", statut: "reouverte" })] },
+      { table: "resultats_figes", operation: "delete", donnees: ["cl-l1|S1|et-awa"] },
+    ]);
+  });
+
+  it("génération de relevés : le relevé puis la génération ; le numéro est celui de la base, et c'est la base qui prévient Awa", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const b = await avecBase(base(), undefined, undefined, (table, l) => (table === "bulletin_generations" ? { ...l, numero: "GB-2027-042" } : l));
+    await b.miroir.chargerMiroirs();
+    const G = await import("@/data/bulletinGenerationStore");
+    const g = G.creerGeneration({ filiereId: "fil-qhse", filiere: "LQHSE", annee: "2026-2027", niveauAlias: "L1", niveauLabel: "Licence 1", classeId: "cl-l1",
+      classe: "LQHSE1-26/27", semestreId: "sem-s1", semestreAlias: "S1", semestreLabel: "Semestre 1 (S1)", effectuePar: "Scolarité",
+      etudiants: [{ id: "et-awa", prenom: "Awa", nom: "SECK", matricule: "2026-LQHSE-0001", classeId: "cl-l1", classe: "LQHSE1-26/27" }] });
+    expect(g.statut).toBe("succes");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["releves", "bulletin_generations"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ etudiant_id: "et-awa", semestre_id: "sem-s1", annee: "2026-2027", statut: "genere" })]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ id: g.id, classe_id: "cl-l1", nb_succes: 1,
+      etudiants_concernes: [expect.objectContaining({ etudiantId: "et-awa", statut: "succes" })] })]);
+    expect(G.getGenerations()[0]).toMatchObject({ id: g.id, numero: "GB-2027-042" });
+    expect(b.S.getNotifications()).toEqual([]);
+    expect(b.envois).toHaveLength(2);
+  });
+
+  it("attestation de réussite : numéro réservé par la base, moyenne et décision du jury clôturé ; Ousmane, ajourné, n'en obtient pas", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const tables = base();
+    tables.deliberations = [{ ...DELIB, statut: "cloturee" }];
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const A = await import("@/data/attestationStore");
+    const entree = { classeId: "cl-l1", classe: "LQHSE1-26/27", filiereId: "fil-qhse", filiere: "LQHSE", annee: "2026-2027", soldeDu: 0, type: "reussite" as const,
+      semestreId: "sem-s1", semestreLabel: "Semestre 1 (S1)", effectuePar: "Scolarité" };
+    expect(() => A.genererAttestation({ ...entree, etudiantId: "et-ousmane", etudiant: "Ousmane DIALLO", matricule: "2026-LQHSE-0002" }, "ATT-2026-001"))
+      .toThrow(/n'est pas admis/);
+    const numero = await A.reserverNumeroAttestation();
+    expect(numero).toBe("ATT-2026-007");
+    expect(b.appels.map((a) => a.nom)).toEqual(["attribuer_numero_attestation"]);
+    const att = A.genererAttestation({ ...entree, etudiantId: "et-awa", etudiant: "Awa SECK", matricule: "2026-LQHSE-0001" }, numero);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "attestations", operation: "upsert", donnees: [expect.objectContaining({ id: att.id, numero: "ATT-2026-007",
+      etudiant_id: "et-awa", type: "reussite", semestre_id: "sem-s1", moyenne_constatee: 13.2, decision_constatee: "admis", statut: "genere" })] }]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("seules les notes et délibérations des années utiles sont lues ; celles d'un ancien étudiant le sont à la demande, sans rien renvoyer", async () => {
+    const ANNEE_2024 = { ...ANNEE, id: "annee-2024", libelle: "2024-2025", actuelle: false, cloturee: true };
+    const ANNEE_2025 = { ...ANNEE, id: "annee-2025", libelle: "2025-2026", actuelle: false, cloturee: true };
+    const FALL = ETUDIANT("et-fall", "2024-LQHSE-0007", "Ibrahima", "FALL", "2024-2025");
+    const inscription = (id: string, etudiant: string, annee: string) => ({ id, etudiant_id: etudiant, annee, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1",
+      classe: "LQHSE1-26/27", classe_id: "cl-l1", statut: "inscrit", type: "premiere", date_inscription: "2024-10-31", specialite: null, modele_frais_id: null,
+      modele_frais: null, motif: null, effectue_par: null });
+    const tables = base();
+    tables.annees_academiques = [ANNEE_2024, ANNEE_2025, ANNEE];
+    tables.etudiants = [AWA, FALL];
+    tables.inscriptions = [inscription("ins-awa-2025", "et-awa", "2025-2026"), inscription("ins-awa-2026", "et-awa", "2026-2027"), inscription("ins-fall-2024", "et-fall", "2024-2025")];
+    tables.notes = [NOTE(AWA, "ev-cc", "CC", 12), { ...NOTE(AWA, "ev-cc", "CC", 15), id: "no-awa-2025", annee: "2025-2026" }, { ...NOTE(FALL, "ev-cc", "CC", 11), annee: "2024-2025" }];
+    tables.deliberations = [DELIB, { ...DELIB, id: "delib-2024", annee: "2024-2025", statut: "cloturee" }];
+    tables.deliberations_lignes = [LIGNE(AWA, 0, 13.2, "admis"), { ...LIGNE(FALL, 0, 11, "admis"), id: "delib-2024:et-fall", deliberation_id: "delib-2024" }];
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const D = await import("@/data/deliberationStore");
+    expect(b.S.getAnneesNotesChargees()).toEqual(["2025-2026", "2026-2027"]);
+    expect(b.S.getNotes().map((n) => n.id).sort()).toEqual(["no-awa-2025", "no-et-awa-ev-cc"]);
+    expect(D.getDeliberations().map((d) => [d.id, d.lignes.length])).toEqual([["delib-s1", 1]]);
+
+    b.S.demanderNotesAnnees(["2024-2025"]);
+    await b.miroir.attendreEnvois();
+    expect(b.S.getNotes().map((n) => n.id).sort()).toEqual(["no-awa-2025", "no-et-awa-ev-cc", "no-et-fall-ev-cc"]);
+    expect(D.getDeliberations().map((d) => [d.id, d.lignes.map((l) => l.etudiantId)]).sort()).toEqual([["delib-2024", ["et-fall"]], ["delib-s1", ["et-awa"]]]);
+    expect(b.envois).toEqual([]);
+    const lectures = b.lectures.length;
+    b.S.demanderNotesAnnees(["2024-2025", "2026-2027"]);
+    await b.miroir.attendreEnvois();
+    expect(b.lectures).toHaveLength(lectures);
   });
 });

@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
-import { Save, Upload, CheckCircle, AlertCircle, TrendingUp, Users, Info } from "lucide-react";
+import { Save, Upload, CheckCircle, AlertCircle, TrendingUp, Users, Info, PencilLine } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
-import { saveNoteEvaluationGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, getNoteForEvaluation, noteEstOfficielle, type EvaluationGridInput } from "@/data/studentStore";
+import { saveNoteEvaluationGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, getNoteForEvaluation, noteEstOfficielle, type EvaluationGridInput, type NoteRecord } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
+import { useStudentStore, useNotes, useNotesAnnees } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatNote } from "@/lib/notes";
 import { DemandesCorrectionPanel } from "@/components/admin/DemandesCorrectionPanel";
+import { DemandeCorrectionModal } from "@/components/notes/DemandeCorrectionModal";
+import { useDemandesCorrection } from "@/hooks/useCorrectionNoteStore";
+import { libelleValeurNote } from "@/data/correctionNoteStore";
 
 type NoteEntry = {
   note: string;
@@ -28,6 +31,8 @@ const inputClass = "w-full px-3 py-2.5 text-sm border border-border rounded-xl b
 
 export default function NotesPage() {
   const { currentUser } = useAuth();
+  const demandesCorrection = useDemandesCorrection();
+  const [correction, setCorrection] = useState<NoteRecord | null>(null);
   const etudiants = useStudentStore();
   const notes = useNotes();
   const ECS = useEcs();
@@ -40,6 +45,7 @@ export default function NotesPage() {
 
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
+  useNotesAnnees(annee); // une année ancienne : ses notes se chargent quand on la choisit
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [semestreId, setSemestreId] = useState("");
@@ -305,6 +311,7 @@ export default function NotesPage() {
         subtitle="Saisissez les notes d'une évaluation réellement planifiée — gestion des absences intégrée"
       />
 
+      <DemandeCorrectionModal note={correction} bareme={bareme} acteurId={currentUser?.id} onClose={() => setCorrection(null)} />
       <DemandesCorrectionPanel />
 
       <div className="grid lg:grid-cols-2 gap-5 mb-5">
@@ -526,14 +533,16 @@ export default function NotesPage() {
               </thead>
               <tbody>
                 {classeStudents.map((etu, i) => {
-                  const entry = getEntry(etu.id);
+                  const noteExistante = evaluationChoisie ? getNoteForEvaluation(etu.id, evaluationChoisie.id) : undefined;
+                  // Validée ou publiée : elle ne change plus que par une demande de correction acceptée,
+                  // et la grille montre toujours sa valeur enregistrée (corrigée comprise).
+                  const verrouillee = !!noteExistante && noteEstOfficielle(noteExistante);
+                  const entry = verrouillee && noteExistante ? { note: noteExistante.absent ? "" : String(noteExistante.note), absent: !!noteExistante.absent } : getEntry(etu.id);
                   const noteVal = parseFloat(entry.note.replace(",", "."));
                   const hasNote = !isNaN(noteVal) && !entry.absent;
                   const isAdmis = hasNote && noteVal >= 10;
                   const isAjourne = hasNote && noteVal < 10;
-                  const noteExistante = evaluationChoisie ? getNoteForEvaluation(etu.id, evaluationChoisie.id) : undefined;
-                  // Validée ou publiée : elle ne change plus que par une demande de correction acceptée.
-                  const verrouillee = !!noteExistante && noteEstOfficielle(noteExistante);
+                  const demandeEnCours = noteExistante ? demandesCorrection.find((d) => d.noteId === noteExistante.id && d.statut === "en_attente") : undefined;
                   if (statutFilter && noteExistante?.statut !== statutFilter) return null;
                   const rowBg = entry.absent ? "bg-red-50/40 dark:bg-red-950/20" : isAjourne ? "bg-red-50/30 dark:bg-red-950/10" : "";
 
@@ -570,6 +579,17 @@ export default function NotesPage() {
                           placeholder="—"
                           data-testid={`saisie-note-${etu.id}`}
                         />
+                        {verrouillee && noteExistante && (
+                          <div className="mt-1 flex justify-center">
+                            {demandeEnCours ? (
+                              <span className="text-[10px] text-amber-700 dark:text-amber-300" data-testid={`saisie-correction-attente-${etu.id}`}>Correction demandée : {libelleValeurNote(demandeEnCours.nouvelleNote, demandeEnCours.nouvelAbsent)}</span>
+                            ) : (
+                              <button type="button" onClick={() => setCorrection(noteExistante)} className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline" data-testid={`saisie-corriger-${etu.id}`}>
+                                <PencilLine size={10} /> Demander une correction
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button

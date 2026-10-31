@@ -115,6 +115,35 @@ export function getDeliberationAnnuelleById(id: string): DeliberationAnnuelleRec
   return store.deliberations.find((d) => d.id === id);
 }
 
+/** Ligne d'un étudiant telle que rangée dans la base (table deliberations_annuelles_lignes). */
+export interface LigneDeliberationAnnuelleBase extends DeliberationAnnuelleLigne {
+  id: string;
+  deliberationId: string;
+  ordre: number;
+}
+
+/** Délibérations de l'année de la base (avec Supabase) ; leurs lignes arrivent ensuite. */
+export function remplacerDeliberationsAnnuelles(records: DeliberationAnnuelleRecord[]) {
+  store = { deliberations: records.map((d) => ({ ...d, lignes: d.lignes ?? [] })) };
+  persist();
+}
+
+export function getLignesDeliberationsAnnuelles(): LigneDeliberationAnnuelleBase[] {
+  return store.deliberations.flatMap((d) => d.lignes.map((l, ordre) => ({ ...l, id: `${d.id}:${l.etudiantId}`, deliberationId: d.id, ordre })));
+}
+
+export function remplacerLignesDeliberationsAnnuelles(lignes: LigneDeliberationAnnuelleBase[]) {
+  const parDeliberation = new Map<string, LigneDeliberationAnnuelleBase[]>();
+  for (const l of lignes) parDeliberation.set(l.deliberationId, [...(parDeliberation.get(l.deliberationId) ?? []), l]);
+  store = {
+    deliberations: store.deliberations.map((d) => ({
+      ...d,
+      lignes: (parDeliberation.get(d.id) ?? []).sort((a, b) => a.ordre - b.ordre).map(({ id: _id, deliberationId: _d, ordre: _o, ...l }) => l),
+    })),
+  };
+  persist();
+}
+
 /** Une classe est propre à une année (CLASSES a un champ "annee") donc filière+niveau+année en
  * découlent déjà — le classeId suffit comme clé, exactement comme deliberationStore.ts utilise
  * classeId+semestreId (ici sans axe semestre puisque c'est un bilan de l'année entière). */
