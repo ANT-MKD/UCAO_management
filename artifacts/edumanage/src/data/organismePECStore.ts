@@ -53,6 +53,12 @@ export function getOrganismesPEC(): OrganismePECRecord[] {
   return store;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerOrganismesPEC(records: OrganismePECRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getOrganismePECById(id: string): OrganismePECRecord | undefined {
   return store.find((o) => o.id === id);
 }

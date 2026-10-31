@@ -80,6 +80,12 @@ export function getDevis(): DevisRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerDevis(records: DevisRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getDevisById(id: string): DevisRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

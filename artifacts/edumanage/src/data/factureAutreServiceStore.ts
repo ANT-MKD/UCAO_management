@@ -71,6 +71,12 @@ export function getFacturesAutreService(): FactureAutreServiceRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerFacturesAutreService(records: FactureAutreServiceRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getFactureAutreServiceById(id: string): FactureAutreServiceRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

@@ -51,6 +51,12 @@ export function getRelances(): RelanceRecord[] {
   return store;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerRelances(records: RelanceRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getRelanceActivePour(etudiantId: string): RelanceRecord | undefined {
   return store.find((r) => r.etudiantId === etudiantId && r.statut === "active");
 }

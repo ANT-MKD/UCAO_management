@@ -60,6 +60,12 @@ export function getRemboursementsAvoir(): RemboursementAvoirRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerRemboursementsAvoir(records: RemboursementAvoirRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getRemboursementAvoirById(id: string): RemboursementAvoirRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

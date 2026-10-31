@@ -65,6 +65,12 @@ export function getEncaissementsPEC(): EncaissementPECRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerEncaissementsPEC(records: EncaissementPECRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getEncaissementPECById(id: string): EncaissementPECRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

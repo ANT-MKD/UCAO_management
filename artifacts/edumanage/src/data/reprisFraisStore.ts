@@ -54,6 +54,12 @@ export function getReprisFrais(): ReprisFraisLigne[] {
   return store;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerReprisFrais(records: ReprisFraisLigne[]) {
+  store = records;
+  persist();
+}
+
 /** Codes déjà importés (quel que soit leur statut) — utilisé pour avertir d'un ré-import du même fichier. */
 export function getAncienCodesDejaImportes(): Set<string> {
   return new Set(store.map((l) => l.ancienCode));

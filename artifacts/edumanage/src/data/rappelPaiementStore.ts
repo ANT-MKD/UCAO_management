@@ -60,6 +60,12 @@ export function getRappelsPaiement(): RappelPaiementRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerRappelsPaiement(records: RappelPaiementRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 /** Cherche un rappel déjà envoyé pour exactement la même cohorte et le même seuil d'échéance — utilisé pour
  * avertir avant un doublon (même sélection relancée deux fois par erreur). */
 export function trouverRappelIdentique(

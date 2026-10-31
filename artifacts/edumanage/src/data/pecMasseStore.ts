@@ -71,6 +71,12 @@ export function getPECsMasse(): PECMasseRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerPECsMasse(records: PECMasseRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getPECMasseById(id: string): PECMasseRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

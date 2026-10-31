@@ -684,6 +684,20 @@ export function rechargerTables(tables: readonly string[]): Promise<void> {
   return file;
 }
 
+/** Exécute fn après les envois en cours (ex. une notification qui désigne ce qui vient de partir) ;
+ * une erreur de fn n'arrête pas les envois suivants. */
+export function apresEnvois(fn: () => Promise<void>): Promise<void> {
+  if (!modeSupabase) return Promise.resolve();
+  file = file.then(async () => {
+    try {
+      await fn();
+    } catch {
+      // la notification est perdue ; les envois continuent
+    }
+  });
+  return file;
+}
+
 /** Attend que toutes les modifications parties soient arrivées (tests, fermeture de session). */
 export function attendreEnvois(): Promise<void> {
   return file;

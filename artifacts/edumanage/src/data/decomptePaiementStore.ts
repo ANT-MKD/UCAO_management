@@ -1,6 +1,7 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { getDecompteById, payerDecompte, reverserPaiementDecompte, type DecompteLigne } from "./decompteStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { modeSupabase } from "@/lib/supabase";
 
 const STORAGE_KEY = "edumanage-decompte-paiements-v1";
 
@@ -102,6 +103,12 @@ export function getDecomptePaiements(): DecomptePaiementRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerDecomptePaiements(records: DecomptePaiementRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getDecomptePaiementById(id: string): DecomptePaiementRecord | undefined {
   return store.records.find((r) => r.id === id);
 }
@@ -158,7 +165,8 @@ export function enregistrerPaiementDecompte(
   store.records = [record, ...store.records];
   persist();
 
-  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
+  // Avec Supabase, c'est la base qui prévient le professeur.
+  const compte = modeSupabase ? undefined : getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
   if (compte) pushNotificationEtPersister(compte.id, `Paiement enregistré sur votre décompte ${record.decompteReference} : ${record.montant.toLocaleString("fr-FR")} FCFA`);
 
   return { ok: true, record };

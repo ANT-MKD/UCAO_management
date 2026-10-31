@@ -55,6 +55,12 @@ export function getReductionsFrais(): ReductionFraisRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerReductionsFrais(records: ReductionFraisRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getReductionFraisById(id: string): ReductionFraisRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

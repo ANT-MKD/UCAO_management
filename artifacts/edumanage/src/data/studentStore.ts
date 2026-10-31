@@ -12,8 +12,8 @@ import { getEvaluations } from "./evaluationStore";
 import { creerPointageDepuisCahier } from "./pointageStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
-import { modeSupabase } from "@/lib/supabase";
-import { rechargerApres, rechargerTables } from "@/lib/miroirServeur";
+import { modeSupabase, supabase } from "@/lib/supabase";
+import { apresEnvois, rechargerApres, rechargerTables } from "@/lib/miroirServeur";
 
 export interface EtudiantRecord {
   id: string;
@@ -1248,6 +1248,17 @@ export function updateUserAccountInfo(userId: string, payload: UpdateUserAccount
 }
 
 export function pushNotification(userId: string, message: string) {
+  // Avec Supabase, la notification part par la base : elle arrive sur le poste de son destinataire.
+  if (modeSupabase) {
+    notifierParLaBase(userId, message);
+    return;
+  }
+  pushNotificationLocale(userId, message);
+}
+
+/** Notification gardée sur ce poste seulement : messages, demandes et mails, dont le contenu ne
+ * passe par la base qu'avec la partie Communication. */
+export function pushNotificationLocale(userId: string, message: string) {
   store.notifications.unshift({
     id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     userId,
@@ -1261,6 +1272,12 @@ export function pushNotification(userId: string, message: string) {
  * on la met à jour (compteur, message, date) au lieu d'en empiler une nouvelle — la publication
  * des 12 notes d'un semestre donne une seule ligne, pas 12. Une fois lue, la suivante repart à 1. */
 export function pushNotificationGroupee(userId: string, groupe: string, messageUnitaire: string, messageGroupe: (nombre: number) => string) {
+  if (modeSupabase) {
+    // La base regroupe elle-même : « {n} » y devient le nombre d'événements.
+    const repere = 987654321;
+    notifierParLaBase(userId, messageUnitaire, groupe, messageGroupe(repere).replace(String(repere), "{n}"));
+    return;
+  }
   const idx = store.notifications.findIndex((n) => n.userId === userId && n.groupe === groupe && !n.read && !n.archived);
   if (idx < 0) {
     store.notifications.unshift({
@@ -1284,9 +1301,26 @@ export function pushNotificationGroupee(userId: string, groupe: string, messageU
  * qui n'a pas de persist() de suivi déjà prévu dans un flux existant — pushNotification() seul ne
  * suffit pas car il ne persiste pas lui-même (les appels internes s'appuient sur le persist() de la
  * fonction exportée englobante). */
-export function pushNotificationEtPersister(userId: string, message: string) {
-  pushNotification(userId, message);
+export function pushNotificationEtPersister(userId: string, message: string, localeSeulement = false) {
+  if (localeSeulement) pushNotificationLocale(userId, message);
+  else pushNotification(userId, message);
   persist();
+}
+
+/** Envoie la notification par la base (fonction notifier), après les envois en cours pour qu'elle
+ * arrive après ce qu'elle annonce ; la cloche de ce poste est relue si elle lui est destinée. */
+function notifierParLaBase(userId: string, message: string, groupe?: string, messageGroupe?: string) {
+  const client = supabase;
+  if (!client) return;
+  void apresEnvois(async () => {
+    const { error } = await client.rpc("notifier", { p_destinataire: userId, p_message: message, p_groupe: groupe ?? null, p_message_groupe: messageGroupe ?? null });
+    if (error) {
+      console.warn("[EduManage] Notification non envoyée :", error.message);
+      return;
+    }
+    const { data } = await client.auth.getSession();
+    if (data.session?.user.id === userId) void rechargerTables(["notifications"]);
+  });
 }
 
 /** Persiste et notifie elle-même (pas seulement une mutation en mémoire) : logAudit() est aussi
@@ -3056,7 +3090,7 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
   };
   store.requests = [req, ...store.requests];
   const admin = store.users.find((u) => u.role === "admin");
-  if (admin) pushNotification(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
+  if (admin) pushNotificationLocale(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
   const auteur = store.users.find((u) => u.linkedId === payload.studentId && u.role === "student");
   if (auteur) logAudit(auteur.id, "create_request", "request", req.id, req.subject);
   persist();
@@ -3119,7 +3153,7 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
 
   const studentUser = store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
   const etat = status === "valide" ? "a été acceptée" : status === "rejete" ? "a été refusée" : status === "en_cours" ? "est en cours de traitement" : "a été mise à jour";
-  if (studentUser) pushNotification(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
+  if (studentUser) pushNotificationLocale(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
   logAudit(handledBy, "update_request", "request", id, status);
   persist();
 }
@@ -3200,7 +3234,7 @@ export function sendMessage(fromUserId: string, toUserId: string, subject: strin
     read: false,
   };
   store.messages.unshift(msg);
-  pushNotification(toUserId, `Nouveau message: ${subject}`);
+  pushNotificationLocale(toUserId, `Nouveau message: ${subject}`);
   logAudit(fromUserId, "send_message", "message", msg.id, `to:${toUserId}`);
   persist();
   return msg;

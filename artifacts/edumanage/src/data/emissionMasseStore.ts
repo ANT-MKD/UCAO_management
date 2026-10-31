@@ -69,6 +69,12 @@ export function getEmissionsMasse(): EmissionMasseRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerEmissionsMasse(records: EmissionMasseRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getEmissionMasseById(id: string): EmissionMasseRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

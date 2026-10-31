@@ -58,6 +58,7 @@ async function avecBase(
         },
       }),
     },
+    auth: { getSession: async () => ({ data: { session: null }, error: null }) },
     rpc: async (nom: string, args: Record<string, unknown>) => {
       if (nom === "versions_donnees") return { data: { ...compteurs }, error: null };
       appels.push({ nom, donnees: args, envoisAvant: envois.length });
@@ -816,7 +817,7 @@ describe("emploi du temps et notifications tenus par la base", () => {
     expect(b.S.getNotifications()).toEqual([]);
   });
 
-  it("la cloche d'Awa : notifications de la base à la connexion ; « lue » seule repart ; une notification du poste reste et ne part pas", async () => {
+  it("la cloche d'Awa : notifications de la base à la connexion ; « lue » seule repart ; une notification écrite sur un poste part par la base, sauf un message", async () => {
     const b = await avecBase({ ...base(), notifications: [
       { id: 7, destinataire: AWA_COMPTE, message: "Emploi du temps : 2 nouveaux créneaux ajoutés — dernier : Qualité le lundi 09/11 à 08:00", cree_le: "2026-10-31T08:00:00+00:00",
         lue: false, lue_le: null, archivee: false, groupe: "edt-nouveaux-creneaux", nombre: 2 },
@@ -825,11 +826,15 @@ describe("emploi du temps et notifications tenus par la base", () => {
     expect(b.S.getNotifications()).toEqual([{ id: "7", userId: AWA_COMPTE, message: "Emploi du temps : 2 nouveaux créneaux ajoutés — dernier : Qualité le lundi 09/11 à 08:00",
       createdAt: "2026-10-31T08:00:00+00:00", read: false, readAt: undefined, archived: false, groupe: "edt-nouveaux-creneaux", nombre: 2 }]);
     b.S.markNotificationRead("7", AWA_COMPTE);
-    b.S.pushNotificationEtPersister(AWA_COMPTE, "Message créé sur ce poste");
+    b.S.pushNotificationEtPersister(AWA_COMPTE, "Affecté à la classe LQHSE1-26/27");
+    // Les messages ne passent par la base qu'avec la partie Communication : leur notification reste ici.
+    b.S.pushNotificationEtPersister(AWA_COMPTE, "Nouveau message : réunion de rentrée", true);
     await b.miroir.attendreEnvois();
     expect(b.envois).toEqual([{ table: "notifications", operation: "update", donnees: { lue: true, archivee: false } }]);
+    expect(b.appels).toEqual([expect.objectContaining({ nom: "notifier",
+      donnees: { p_destinataire: AWA_COMPTE, p_message: "Affecté à la classe LQHSE1-26/27", p_groupe: null, p_message_groupe: null } })]);
     await b.miroir.chargerMiroirs();
-    expect(b.S.getNotifications().map((n) => n.message)).toEqual([expect.stringContaining("2 nouveaux créneaux"), "Message créé sur ce poste"]);
+    expect(b.S.getNotifications().map((n) => n.message)).toEqual([expect.stringContaining("2 nouveaux créneaux"), "Nouveau message : réunion de rentrée"]);
     expect(b.S.getNotifications()[0].read).toBe(true);
   });
 });
@@ -1544,5 +1549,107 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
     expect(b.S.getPaiements()[0].montant).toBe(0);
     expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(100000);
     expect(E.getEncaissements()[0]).toMatchObject({ reference: "OP-2026-001", annulee: true });
+  });
+
+  /** Les déclencheurs de la base pour les lots 2 à 4 : numéros, quittances renvoyées au numéro
+   * définitif, décompte recalculé. */
+  function commeLaBaseLots234(tables: Record<string, Ligne[]>) {
+    const lot1 = commeLaBase(tables);
+    return (table: string, l: Ligne): Ligne => {
+      const existante = (tables[table] ?? []).find((x) => x.id === l.id);
+      if (table === "reductions_frais" && !existante) return { ...l, reference: "RED-2026-014" };
+      if (table === "prises_en_charge" && !existante) {
+        for (const ligne of l.lignes as { quittanceId: string }[]) {
+          const q = tables.quittances.find((x) => x.id === ligne.quittanceId);
+          if (q && q.reference === l.reference) q.reference = "PEC-2026-001";
+        }
+        return { ...l, reference: "PEC-2026-001", montant_encaisse: 0 };
+      }
+      if (table === "decomptes" && !existante) {
+        const lignes = (l.lignes as Ligne[]).map((x) => ({ ...x, montantBrut: 20000, abattementPct: 5, abattementMontant: 1000, montantNet: 19000 }));
+        return { ...l, reference: "DC-2026-001", lignes, montant_decompte: 60000, net_a_payer: 57000, montant_paye: 0 };
+      }
+      return lot1(table, l);
+    };
+  }
+
+  it("réduction accordée par la caisse : le mouvement du solde, puis la réduction, numérotée par la base", async () => {
+    const tables = base();
+    const b = await avecBase(tables, undefined, undefined, commeLaBaseLots234(tables));
+    await b.miroir.chargerMiroirs();
+    const R = await import("@/data/reductionFraisStore");
+    R.genererReductionFrais({ date: "2026-11-02", etudiantId: "et-awa", personnelId: "u-caisse", tauxApplique: 20, totalReduit: 12000 });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["insert", "mouvements_solde"], ["upsert", "reductions_frais"]]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ etudiant_id: "et-awa", delta_du: -12000, motif: "Réduction" })]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ etudiant_id: "et-awa", personnel_id: "u-caisse", taux_applique: 20, total_reduit: 12000 })]);
+    expect(R.getReductionsFrais()[0].reference).toBe("RED-2026-014");
+    expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(48000);
+  });
+
+  it("prise en charge : la quittance réglée par l'organisme et son mouvement, puis la prise en charge ; numéro et versé viennent de la base", async () => {
+    const tables = base();
+    tables.organismes_pec = [{ id: "org-1", intitule: "Fondation Sonatel", adresse: "", telephone: null, email: null, remarques: null, contact_nom: "M. NDIAYE",
+      contact_telephone: null, contact_email: null }];
+    const b = await avecBase(tables, undefined, undefined, commeLaBaseLots234(tables));
+    await b.miroir.chargerMiroirs();
+    const P = await import("@/data/priseEnChargeStore");
+    const pec = P.addPriseEnCharge({ type: "montant", dateSaisie: "2026-11-05", organismeId: "org-1", organisme: "Fondation Sonatel", etudiantId: "et-awa",
+      etudiant: "Awa SECK", filiere: "LQHSE", annee: "2026-2027", debut: "2026-10-01", fin: "2027-07-31", dateLimite: "2026-12-31", montant: 50000, ajouteePar: "Caisse",
+      lignes: [{ quittanceId: "q-awa", label: "Scolarité", montantFrais: 100000, montantPEC: 50000 }] });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["quittances", "mouvements_solde", "prises_en_charge"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id: "q-awa", moyen: "Prise en charge", reference: pec.reference })]);
+    expect(b.envois[1].donnees).toEqual([
+      expect.objectContaining({ quittance_id: "q-awa", delta_paye: 50000, motif: "Prise en charge" }),
+      expect.objectContaining({ etudiant_id: "et-awa", delta_du: -50000 }),
+    ]);
+    expect(P.getPrisesEnCharge()[0]).toMatchObject({ reference: "PEC-2026-001", montantEncaisse: 0 });
+    expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(10000);
+  });
+
+  it("paiement déclaré par Awa sur son poste : la déclaration seule part, sans notification du poste (c'est la base qui prévient la caisse)", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [COMPTES[1], { ...COMPTES[0], id: "u-admin" }] }));
+    const tables = base();
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const D = await import("@/data/paiementDeclareStore");
+    D.declarerPaiement({ quittanceId: "q-awa", etudiantId: "et-awa", montant: 30000, moyen: "Wave", telephone: "770000001", referenceTransaction: "WV-4521" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "paiements_declares", operation: "upsert", donnees: [expect.objectContaining({ quittance_id: "q-awa", etudiant_id: "et-awa",
+      montant: 30000, moyen: "Wave", reference_transaction: "WV-4521", statut: "a_verifier", traite_le: null })] }]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("décompte de KANE : le poste propose, la base recalcule ; l'écran affiche les 57 000 F de la base et c'est elle qui prévient KANE", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [COMPTES[0], { id: "u-kane", role: "teacher", displayName: "Mamadou KANE", email: "kane@ucao.edu",
+      identifiant: "KANE", actif: true, linkedId: "en-kane" }] }));
+    const tables = base();
+    tables.enseignants = [{ id: "en-kane", matricule: "ENS-2026-100", prenom: "Mamadou", nom: "KANE", grade: "Vacataire", specialites: [], statut: "actif" }];
+    const b = await avecBase(tables, undefined, undefined, commeLaBaseLots234(tables));
+    await b.miroir.chargerMiroirs();
+    const Dc = await import("@/data/decompteStore");
+    const ligne = (pointageId: string) => ({ pointageId, ecId: "ec-qualite", classeId: "cl-l1", coursLabel: "Qualité", duree: 2, date: "2026-11-02", niveauLabel: "Licence 1",
+      classeLabel: "LQHSE1-26/27", anneeLabel: "2026-2027", semestreLabel: "S1", montantBrut: 18000, abattementPct: 5, abattementMontant: 900, montantNet: 17100 });
+    // Le poste calcule avec un taux périmé (9 000 F) : la base recalcule au taux en vigueur.
+    Dc.genererDecompte({ teacherId: "en-kane", professeur: "Mamadou KANE", type: "taux_horaire", annee: "2026-2027", date: "2026-11-30", ajouteePar: "Comptabilité",
+      lignes: [ligne("pt-1"), ligne("pt-2"), ligne("pt-3")] });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["decomptes"]);
+    expect(Dc.getDecomptes()[0]).toMatchObject({ reference: "DC-2026-001", montantDecompte: 60000, netAPayer: 57000, montantPaye: 0 });
+    expect(Dc.getDecomptes()[0].lignes.map((l) => l.montantNet)).toEqual([19000, 19000, 19000]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
+  });
+
+  it("rappel de paiement depuis la caisse : chaque étudiante concernée est prévenue par la base, avec le numéro de sa quittance", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    expect(b.S.relancerQuittances(["q-awa"])).toBe(1);
+    await b.miroir.attendreEnvois();
+    expect(b.appels).toEqual([expect.objectContaining({ nom: "notifier", donnees: expect.objectContaining({ p_destinataire: "u-awa",
+      p_message: "Rappel — quittance RECU-2026-001 en attente de règlement (date limite : 2026-12-15)" }) })]);
+    expect(b.S.getNotifications()).toEqual([]);
   });
 });

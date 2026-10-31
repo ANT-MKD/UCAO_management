@@ -147,7 +147,7 @@ function notifierDestinataires(mail: MailEnvoyeRecord) {
   for (const d of mail.destinataires) {
     if (!d.userId) continue;
     if (auteurAUnCompte && d.userId !== mail.auteurId) sendMessage(mail.auteurId, d.userId, mail.objet, contenu);
-    else pushNotificationEtPersister(d.userId, `Nouveau message : ${mail.objet}`);
+    else pushNotificationEtPersister(d.userId, `Nouveau message : ${mail.objet}`, true);
   }
 }
 
@@ -268,8 +268,8 @@ export function rejeterMail(id: string, validateurId: string, validateurLabel: s
   mail.motifRejet = motif;
   persist();
 
-  pushNotificationEtPersister(mail.auteurId, `Votre mail "${mail.objet}" a été rejeté par ${validateurLabel}${motif ? " — " + motif : ""}.`);
+  pushNotificationEtPersister(mail.auteurId, `Votre mail "${mail.objet}" a été rejeté par ${validateurLabel}${motif ? " — " + motif : ""}.`, true);
   for (const alerte of getCommunicationRolesParType("destinataire_alert")) {
-    pushNotificationEtPersister(alerte.userId, `Mail rejeté : "${mail.objet}" (auteur : ${mail.auteurLabel}, par ${validateurLabel}).`);
+    pushNotificationEtPersister(alerte.userId, `Mail rejeté : "${mail.objet}" (auteur : ${mail.auteurLabel}, par ${validateurLabel}).`, true);
   }
 }

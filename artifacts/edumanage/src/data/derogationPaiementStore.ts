@@ -68,6 +68,12 @@ export function getDerogationsPaiement(): DerogationPaiementRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerDerogationsPaiement(records: DerogationPaiementRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export type StatutDerogation = "active" | "expiree" | "revoquee";
 
 export function statutDerogation(d: DerogationPaiementRecord): StatutDerogation {

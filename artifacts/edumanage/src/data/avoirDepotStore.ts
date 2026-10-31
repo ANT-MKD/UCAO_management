@@ -60,6 +60,12 @@ export function getAvoirDepots(): AvoirDepotRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerAvoirDepots(records: AvoirDepotRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getAvoirDepotById(id: string): AvoirDepotRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

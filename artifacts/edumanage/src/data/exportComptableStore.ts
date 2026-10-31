@@ -65,6 +65,12 @@ export function getExportsComptables(): ExportComptableRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerExportsComptables(records: ExportComptableRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getExportComptableById(id: string): ExportComptableRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

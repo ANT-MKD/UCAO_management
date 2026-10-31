@@ -82,6 +82,12 @@ export function getPrisesEnCharge(): PriseEnChargeRecord[] {
   return store.records;
 }
 
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerPrisesEnCharge(records: PriseEnChargeRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getPriseEnChargeById(id: string): PriseEnChargeRecord | undefined {
   return store.records.find((r) => r.id === id);
 }
