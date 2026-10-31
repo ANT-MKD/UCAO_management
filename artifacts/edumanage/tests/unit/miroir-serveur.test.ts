@@ -72,11 +72,21 @@ async function avecBase(
     },
     from: (table: string) => ({
       select: () => {
+        // Portée : colonne de la table, ou de la table liée (« cahiers.annee » : par cahier_id).
+        let garder: ((l: Ligne) => boolean) | undefined;
         const q = {
+          in: (colonne: string, valeurs: string[]) => {
+            const [liee, champ] = colonne.includes(".") ? colonne.split(".") : [undefined, colonne];
+            garder = (l) => {
+              const source = liee ? (tables[liee] ?? []).find((p) => p.id === l[`${liee.replace(/s$/, "")}_id`]) : l;
+              return !!source && valeurs.includes(String(source[champ]));
+            };
+            return q;
+          },
           order: () => q,
           range: async (debut: number, fin: number) => {
             lectures.push(table);
-            return { data: (tables[table] ?? []).slice(debut, fin + 1), error: null };
+            return { data: (tables[table] ?? []).filter((l) => !garder || garder(l)).slice(debut, fin + 1), error: null };
           },
         };
         return q;
@@ -876,6 +886,24 @@ describe("miroir des cahiers de séance, de l'appel et des pointages", () => {
     b.S.logAudit("u-awa", "consultation", "cahier", "cah-kane");
     await b.miroir.attendreEnvois();
     expect(b.envois).toHaveLength(0);
+  });
+
+  it("seuls les cahiers et l'appel de l'année en cours sont chargés ; une année passée l'est à la demande, sans rien supprimer", async () => {
+    const ANCIEN = { ...CAHIER, id: "cah-2025", annee: "2025-2026", date: "2025-11-03" };
+    const b = await avecBase({ ...base(), annees_academiques: [{ ...ANNEE, id: "annee-2025", libelle: "2025-2026", actuelle: false }, ANNEE],
+      cahiers: [CAHIER, ANCIEN],
+      presences: [{ id: "cah-kane:et-awa", cahier_id: "cah-kane", etudiant_id: "et-awa", nom: "Awa SECK", statut: "absent", justification: null, retard_minutes: null, ordre: 0 },
+        { id: "cah-2025:et-awa", cahier_id: "cah-2025", etudiant_id: "et-awa", nom: "Awa SECK", statut: "retard", justification: null, retard_minutes: 10, ordre: 0 }] });
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getCahiers().map((c) => c.id)).toEqual(["cah-kane"]);
+    // Un cahier de l'année en cours validé : rien de l'année passée n'est supprimé.
+    b.S.validateCahier("cah-kane", ADMIN, false);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.operation)).toEqual(["upsert"]);
+    b.S.demanderCahiersAnnee("2025-2026");
+    await b.miroir.attendreEnvois();
+    expect(b.S.getCahiers().map((c) => c.id).sort()).toEqual(["cah-2025", "cah-kane"]);
+    expect(b.S.getCahierById("cah-2025")?.presences).toEqual([{ etudiantId: "et-awa", nom: "Awa SECK", statut: "retard", justification: undefined, retardMinutes: 10 }]);
   });
 
   it("absence par période et portefeuille de cours : en colonnes de la base, la dernière action du portefeuille en tête au retour", async () => {

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { FILIERES, NIVEAUX, SEMESTRES } from "@/data/mockData";
-import { useStudentStore, useAnneesAcademiques, useCahiers } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneesAcademiques, useCahiers, useCahiersAnnee } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useAbsencesPeriode } from "@/hooks/useAbsencePeriodeStore";
 import { useReglesValidation } from "@/hooks/useReglesValidationStore";
@@ -275,6 +275,8 @@ interface NouvelleDeliberationFormProps {
 function NouvelleDeliberationForm({ annees, classes, etudiants, reglesValidation, generations, auteur, onCharge, onBloque }: NouvelleDeliberationFormProps) {
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
+  // Délibération d'une année passée : l'assiduité vient de ses cahiers, chargés depuis la base.
+  useCahiersAnnee(annee || undefined);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
   const [semestreId, setSemestreId] = useState("");
@@ -393,6 +395,8 @@ function DetailDeliberation({
 }) {
   const deliberations = useDeliberations();
   const deliberation = deliberations.find((d) => d.id === deliberationId);
+  // Délibération d'une année passée : l'assiduité vient de ses cahiers, chargés depuis la base.
+  useCahiersAnnee(deliberation?.annee);
   const [decisionFilter, setDecisionFilter] = useState("");
   const [correction, setCorrection] = useState<{ etudiantId: string; etudiant: string; decision: DecisionJury; decisionAuto: DecisionJury } | null>(null);
 

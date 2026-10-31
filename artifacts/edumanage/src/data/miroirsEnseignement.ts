@@ -1,5 +1,7 @@
 import { enregistrerMiroir, partie } from "@/lib/miroirServeur";
+import type { Portee } from "@/lib/miroirServeur";
 import {
+  getAnneesCahiersChargees,
   getCahiersEnregistres,
   getFichiersCahiers,
   getPresencesCahiers,
@@ -25,6 +27,15 @@ import { getTeacherRates, remplacerTauxEnseignants, type TeacherCourseRateRecord
 import { getTeacherCourseStatuses, remplacerStatutsCoursEnseignants, type TeacherCourseStatusRecord } from "./teacherCourseStatusStore";
 import { getVacations, remplacerVacations, type VacationRecord } from "./vacationStore";
 
+/** Cahiers, appel et fichiers lus : ceux des années chargées (l'année en cours, et les années
+ * passées qu'un écran demande), par l'année du cahier. */
+function porteeCahiers(colonne: string, jointure?: string): () => Portee | undefined {
+  return () => {
+    const annees = getAnneesCahiersChargees();
+    return annees ? { colonne, valeurs: annees, jointure } : undefined;
+  };
+}
+
 /** Enseignement reflété dans la base (partie 5), après les cours, les classes, les salles et les
  * enseignants auxquels il renvoie.
  *
@@ -33,7 +44,9 @@ import { getVacations, remplacerVacations, type VacationRecord } from "./vacatio
  * la page « Emploi du temps » les modifie.
  * Cahiers de séance, avec leur appel et leurs fichiers (photos du tableau, pièces jointes, dans
  * l'espace de fichiers « cahiers ») : un étudiant ne reçoit que les cahiers soumis de sa classe et
- * ses propres présences. Même clé de stockage que les étudiants (studentStore), envoyée à son rang. */
+ * ses propres présences ; chacun ne reçoit que ceux de l'année en cours, et ceux d'une année passée
+ * quand un écran les demande. Même clé de stockage que les étudiants (studentStore), envoyée à son
+ * rang. */
 enregistrerMiroir({
   cle: "edumanage-app-store-v2",
   parties: [
@@ -54,6 +67,7 @@ enregistrerMiroir({
       defauts: { semestre: "", departement: "", filiere: "", niveau: "", ue: "", ec: "", classe: "", prof: "", salle: "", typeSeance: "", sujet: "",
         resume: "", competences: "", liensExternes: [], tauxPresence: 0 },
       nulSiVide: ["filiereId", "ueId", "profId", "salleId"],
+      portee: porteeCahiers("annee"),
       lire: getCahiersEnregistres,
       remplacer: remplacerCahiers,
     }),
@@ -61,6 +75,7 @@ enregistrerMiroir({
       table: "presences",
       colonnes: ["id", "cahierId", "etudiantId", "nom", "statut", "justification", "retardMinutes", "ordre"],
       defauts: { nom: "" },
+      portee: porteeCahiers("cahiers.annee", "cahiers!inner(annee)"),
       lire: getPresencesCahiers,
       remplacer: remplacerPresencesCahiers,
     }),
@@ -69,6 +84,7 @@ enregistrerMiroir({
       colonnes: ["id", "cahierId", "genre", "ordre", "nom", "type", "tailleKo", "ref", ["fichier", "chemin"]],
       defauts: { nom: "", type: "" },
       fichiers: { fichier: { espace: "cahiers", dossier: (f) => `${f.cahierId}/` } },
+      portee: porteeCahiers("cahiers.annee", "cahiers!inner(annee)"),
       lire: getFichiersCahiers,
       remplacer: remplacerFichiersCahiers,
     }),

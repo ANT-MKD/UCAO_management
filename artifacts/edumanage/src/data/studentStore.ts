@@ -13,7 +13,7 @@ import { creerPointageDepuisCahier } from "./pointageStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
 import { modeSupabase } from "@/lib/supabase";
-import { rechargerApres } from "@/lib/miroirServeur";
+import { rechargerApres, rechargerTables } from "@/lib/miroirServeur";
 
 export interface EtudiantRecord {
   id: string;
@@ -3099,8 +3099,26 @@ export function getCahiersEnregistres(): CahierSeanceRecord[] {
   return store.cahiers;
 }
 
-/** Cahiers de la base (avec Supabase) : ceux que ce compte lit. L'appel et les fichiers arrivent
- * ensuite (remplacerPresencesCahiers, remplacerFichiersCahiers). */
+/** Années dont les cahiers (avec leur appel et leurs fichiers) sont chargés depuis la base, en plus
+ * de l'année en cours : celles qu'un écran a demandées (délibération d'une année passée…). */
+const anneesCahiersDemandees = new Set<string>();
+
+/** Années de cahiers à lire dans la base (avec Supabase) ; aucune année en cours : toutes. */
+export function getAnneesCahiersChargees(): string[] | undefined {
+  const actuelle = getAnneeActuelle();
+  return actuelle ? [actuelle, ...[...anneesCahiersDemandees].filter((a) => a !== actuelle)] : undefined;
+}
+
+/** Charge depuis la base les cahiers d'une année passée, si ce n'est déjà fait. Avec Supabase, seuls
+ * ceux de l'année en cours le sont à la connexion. */
+export function demanderCahiersAnnee(annee: string | undefined): void {
+  if (!modeSupabase || !annee || annee === getAnneeActuelle() || anneesCahiersDemandees.has(annee)) return;
+  anneesCahiersDemandees.add(annee);
+  void rechargerTables(["cahiers"]);
+}
+
+/** Cahiers de la base (avec Supabase) : ceux que ce compte lit, des années chargées. L'appel et les
+ * fichiers arrivent ensuite (remplacerPresencesCahiers, remplacerFichiersCahiers). */
 export function remplacerCahiers(records: CahierSeanceRecord[]) {
   store.cahiers = records;
   persist();

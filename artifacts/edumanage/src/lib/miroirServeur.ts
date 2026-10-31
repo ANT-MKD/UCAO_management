@@ -62,6 +62,17 @@ export interface PartieMiroir<R extends { id: string }> {
   nulSiVide?: readonly string[];
   /** Champs qui désignent un fichier (photo, pièce, logo…), avec leur espace et leur dossier. */
   fichiers?: Readonly<Record<string, ChampFichier<R>>>;
+  /** Lignes lues : seulement celles-ci (ex. les cahiers de l'année en cours) ; les autres restent
+   * dans la base, ni lues, ni renvoyées, ni supprimées. Sans portée, toute la table. */
+  portee?: () => Portee | undefined;
+}
+
+/** Colonne (dans la table, ou dans la table liée par « jointure », ex. cahiers!inner(annee) et
+ * cahiers.annee) et valeurs admises. */
+export interface Portee {
+  colonne: string;
+  valeurs: readonly string[];
+  jointure?: string;
 }
 
 export interface Miroir {
@@ -231,14 +242,18 @@ function client() {
   return supabase;
 }
 
-/** Toutes les lignes d'une table (par pages : la base en renvoie au plus 1 000 à la fois). */
-async function toutLire(table: string): Promise<Ligne[]> {
+/** Toutes les lignes d'une table, ou de sa portée (par pages : la base en renvoie au plus 1 000 à
+ * la fois). */
+async function toutLire(table: string, portee?: Portee): Promise<Ligne[]> {
   const lignes: Ligne[] = [];
   const page = 1000;
   for (let debut = 0; ; debut += page) {
-    const { data, error } = await client().from(table).select("*").order("id").range(debut, debut + page - 1);
+    // Colonnes en texte libre (jointure variable) : le typage des lignes de supabase-js ne s'applique pas.
+    const colonnes: string = portee?.jointure ? `*, ${portee.jointure}` : "*";
+    const requete = client().from(table).select(colonnes);
+    const { data, error } = await (portee ? requete.in(portee.colonne, [...portee.valeurs]) : requete).order("id").range(debut, debut + page - 1);
     if (error) throw error;
-    lignes.push(...((data ?? []) as Ligne[]));
+    lignes.push(...((data ?? []) as unknown as Ligne[]));
     if (!data || data.length < page) return lignes;
   }
 }
@@ -285,7 +300,7 @@ async function preparerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Li
 /** Recharge une table dans son store. « garde » est vérifiée juste avant de remplacer le store :
  * fausse (modification locale survenue pendant la lecture), le store n'est pas touché. */
 async function chargerPartie(partie: PartieMiroir<{ id: string }>, garde?: () => boolean): Promise<boolean> {
-  const lignes = await toutLire(partie.table);
+  const lignes = await toutLire(partie.table, partie.portee?.());
   const affichage = await preparerFichiers(partie, lignes);
   if (garde && !garde()) return false;
   chargements.set(partie.table, { le: Date.now(), lignes: lignes.length });
@@ -599,6 +614,25 @@ export function rechargerApres(cle: string): Promise<void> {
     for (const miroir of miroirs.filter((m) => m.cle === cle)) {
       try {
         await chargerMiroir(miroir);
+      } catch {
+        // base injoignable : le prochain chargement recalera
+      }
+    }
+  });
+  return file;
+}
+
+/** Recharge, après les envois en cours, ces tables et celles qui les complètent (ex. les cahiers
+ * d'une année passée qu'un écran demande, avec leur appel et leurs fichiers). */
+export function rechargerTables(tables: readonly string[]): Promise<void> {
+  if (!modeSupabase) return Promise.resolve();
+  file = file.then(async () => {
+    if (!pret) return;
+    for (const miroir of miroirs) {
+      const depuis = miroir.parties.findIndex((p) => tables.includes(p.table));
+      if (depuis < 0) continue;
+      try {
+        await chargerMiroir(miroir, depuis, () => !modifiees.has(miroir.cle));
       } catch {
         // base injoignable : le prochain chargement recalera
       }
