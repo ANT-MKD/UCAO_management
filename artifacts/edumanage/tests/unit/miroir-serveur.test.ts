@@ -435,3 +435,37 @@ describe("listes de départ posées par la base à l'installation", () => {
   });
 });
 
+describe("miroir des enseignants : fiche publique et dossier personnel", () => {
+  const KANE = { id: "en-kane", prenom: "Mamadou", nom: "KANE", matricule: "ENS-2026-100", sexe: "M", grade: "Vacataire", specialite: "QHSE", specialites: ["QHSE"] };
+  const FALL = { id: "en-fall", prenom: "Ibrahima", nom: "FALL", matricule: "ENS-2026-101", sexe: "M", grade: "Permanent", specialite: "Génie logiciel", specialites: ["Génie logiciel"] };
+  const DOSSIER_KANE = { id: "en-kane", telephone: "77 000 00 01", email: "m.kane@ucao.edu", date_naissance: null, pays_naissance: null, lieu_naissance: null, nationalite: null, cni: "1 234 1980 00012", adresse: null, niveau_etude: null, rib: "SN012 01201 000000000001 01", diplomes: ["Master QHSE"], taux_horaire: 10000 };
+
+  it("sur le poste de KANE : le RIB de FALL d'une ancienne session est effacé, et aucun dossier vide ne part", async () => {
+    localStorage.setItem("edumanage-teacher-store-v1", JSON.stringify([{ ...FALL, telephone: "77 000 00 03", rib: "SN-ANCIEN", tauxHoraire: 5000, modulesAssignes: 0, heuresMois: 0 }]));
+    const b = await avecBase({ annees_academiques: [ANNEE], enseignants: [KANE, FALL], enseignants_dossiers: [DOSSIER_KANE] });
+    await b.miroir.chargerMiroirs();
+    const T = await import("@/data/teacherStore");
+    expect(T.getTeacherById("en-fall")).toMatchObject({ nom: "FALL", telephone: "", tauxHoraire: 0 });
+    expect(T.getTeacherById("en-fall")?.rib).toBeUndefined();
+    expect(T.getTeacherById("en-kane")).toMatchObject({ rib: "SN012 01201 000000000001 01", tauxHoraire: 10000, diplomes: ["Master QHSE"] });
+    T.updateTeacher("en-kane", { specialite: "Management QHSE" }, "u-kane");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "enseignants", operation: "upsert", donnees: [expect.objectContaining({ id: "en-kane", specialite: "Management QHSE" })] }]);
+  });
+
+  it("un enseignant créé part avec sa fiche puis son dossier ; un RIB modifié ne renvoie que le dossier", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], enseignants: [KANE], enseignants_dossiers: [DOSSIER_KANE] });
+    await b.miroir.chargerMiroirs();
+    const T = await import("@/data/teacherStore");
+    const fall = T.addTeacher({ prenom: "Ibrahima", nom: "FALL", matricule: "ENS-2026-101", telephone: "77 000 00 03", specialite: "Génie logiciel", grade: "Permanent", tauxHoraire: 0, rib: "SN012 01201 000000000003 03" }, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["enseignants", "enseignants_dossiers"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id: fall.id, matricule: "ENS-2026-101", grade: "Permanent" })]);
+    expect(JSON.stringify(b.envois[0].donnees)).not.toContain("SN012");
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ id: fall.id, rib: "SN012 01201 000000000003 03", telephone: "77 000 00 03" })]);
+    T.updateTeacher("en-kane", { rib: "SN012 01201 000000000009 09" }, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.slice(2)).toEqual([{ table: "enseignants_dossiers", operation: "upsert", donnees: [expect.objectContaining({ id: "en-kane", rib: "SN012 01201 000000000009 09" })] }]);
+  });
+});
+

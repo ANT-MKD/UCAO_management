@@ -36,6 +36,11 @@ export interface PartieMiroir<R extends { id: string }> {
   /** Ligne créée par la base (ex. établissement, à l'installation) : seulement mise à jour, ni
    * ajoutée ni supprimée depuis le navigateur. */
   miseAJourSeule?: boolean;
+  /** Table qui complète une table principale du même miroir, ligne pour ligne (ex. dossier
+   * personnel d'une fiche), et que tous les comptes ne lisent pas. Une ligne n'en part que si elle
+   * était connue (lue à la connexion) ou si sa ligne principale part en même temps : un poste ne
+   * renvoie jamais, vide, le dossier qu'il n'a pas le droit de lire. */
+  complementDe?: string;
 }
 
 export interface Miroir {
@@ -199,10 +204,15 @@ async function envoyer(): Promise<void> {
     const lignes = fiches.filter((f) => !partie.envoyable || partie.envoyable(f)).map((f) => versLigne(partie, f as Fiche));
     return { partie, lignes, ids: new Set(fiches.map((f) => f.id)) };
   });
+  /** Lignes ajoutées ou modifiées dans cet envoi, par table. */
+  const envoyees = new Map<string, Set<string>>();
   try {
     for (const { partie, lignes } of parties) {
       const etat = connu.get(partie.table) ?? new Map<string, string>();
-      const changees = lignes.filter((l) => etat.get(String(l.id)) !== JSON.stringify(l));
+      const principales = partie.complementDe ? envoyees.get(partie.complementDe) : undefined;
+      const changees = lignes.filter((l) => etat.get(String(l.id)) !== JSON.stringify(l)
+        && (!partie.complementDe || etat.has(String(l.id)) || !!principales?.has(String(l.id))));
+      envoyees.set(partie.table, new Set(changees.map((l) => String(l.id))));
       if (partie.ordreEnvoi) changees.sort(partie.ordreEnvoi);
       if (partie.miseAJourSeule) {
         for (const ligne of changees) {

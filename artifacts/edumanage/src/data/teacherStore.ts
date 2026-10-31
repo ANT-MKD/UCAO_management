@@ -84,6 +84,29 @@ export function getTeacherById(id: string): TeacherRecord | undefined {
   return teachers.find((t) => t.id === id);
 }
 
+/** Champs du dossier personnel (table enseignants_dossiers) : lus par l'administration qui gère
+ * les professeurs et par l'enseignant lui-même. */
+const CHAMPS_DOSSIER = ["telephone", "email", "dateNaissance", "paysNaissance", "lieuNaissance", "nationalite", "cni", "adresse", "niveauEtude", "rib", "diplomes", "tauxHoraire"] as const;
+
+/** Fiches de la base (avec Supabase) ; les compteurs calculés par l'application valent 0. */
+export function remplacerEnseignants(records: TeacherRecord[]) {
+  teachers.splice(0, teachers.length, ...records.map((t) => ({ ...t, modulesAssignes: t.modulesAssignes ?? 0, heuresMois: t.heuresMois ?? 0 })));
+  persist();
+}
+
+/** Dossiers personnels de la base : un dossier que ce compte ne lit pas est vidé du navigateur
+ * (pas de RIB ni de CNI d'un collègue restés d'une ancienne session). */
+export function fusionnerDossiersEnseignants(dossiers: TeacherRecord[]) {
+  const parId = new Map(dossiers.map((d) => [d.id, d]));
+  for (const t of teachers) {
+    const dossier = parId.get(t.id);
+    for (const champ of CHAMPS_DOSSIER) (t as unknown as Record<string, unknown>)[champ] = dossier?.[champ];
+    t.telephone ??= "";
+    t.tauxHoraire ??= 0;
+  }
+  persist();
+}
+
 export type TeacherInput = Omit<TeacherRecord, "id" | "modulesAssignes" | "heuresMois">;
 
 export function addTeacher(payload: TeacherInput, actorId: string): TeacherRecord {
