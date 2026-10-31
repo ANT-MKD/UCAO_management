@@ -602,6 +602,7 @@ function persist() {
     auditLogs: store.auditLogs.slice(),
     cahiers: store.cahiers.slice(),
   };
+  noterMouvementsSolde();
   writeStoreToLocalStorage(store);
   invalidateDerivedCaches();
   notify();
@@ -615,6 +616,8 @@ if (typeof window !== "undefined") {
     try {
       const parsed = JSON.parse(event.newValue) as StoreData;
       store = { ...buildFreshStore(), ...parsed };
+      // L'autre onglet envoie lui-même ses mouvements : ses soldes deviennent la référence d'ici.
+      reprendreSoldesConnus();
       syncAnneesToMockData();
       invalidateDerivedCaches();
       notify();
@@ -772,9 +775,126 @@ export function remplacerPiecesEtudiants(pieces: PieceEtudiantRecord[]) {
   persist();
 }
 
-/** Inscriptions de la base (avec Supabase) ; leur solde reste calculé par l'application. */
+/** Inscriptions de la base (avec Supabase) : celle de l'année en cours de l'étudiant porte son
+ * solde (tenu par la base) ; une année passée garde le dernier solde vu sur ce poste. */
 export function remplacerInscriptions(records: InscriptionRecord[]) {
-  store.inscriptions = records.map((i) => ({ ...i, soldeDu: i.soldeDu ?? 0 }));
+  const etudiants = new Map(store.etudiants.map((e) => [e.id, e]));
+  store.inscriptions = records.map((i) => {
+    const e = etudiants.get(i.etudiantId);
+    return { ...i, soldeDu: e && e.annee === i.annee ? e.soldeDu : i.soldeDu ?? 0 };
+  });
+  persist();
+}
+
+// ——— Soldes tenus par la base (partie 7) ———
+// Le solde dû et l'avoir d'un étudiant, et le montant réglé de chaque quittance, ne partent jamais
+// en valeur : à chaque enregistrement, l'écart avec ce que la base connaît devient un mouvement
+// (« −40 000 sur le solde d'Awa »), que la base additionne. Deux postes ne s'écrasent jamais.
+
+/** Mouvement d'un solde ou du montant réglé d'une quittance (table mouvements_solde). */
+export interface MouvementSoldeRecord {
+  id: string;
+  etudiantId: string;
+  quittanceId?: string;
+  deltaDu: number;
+  deltaAvoir: number;
+  deltaPaye: number;
+  motif: string;
+}
+
+/** Solde d'un étudiant tel que la base le tient (table soldes_etudiants). */
+export interface SoldeEtudiantLigne {
+  id: string;
+  soldeDu: number;
+  soldeAvoir: number;
+}
+
+/** Mouvements pas encore partis (gardés en mémoire seulement : au rechargement, la base fait foi). */
+let mouvementsSolde: MouvementSoldeRecord[] = [];
+/** Soldes et montants réglés tels que la base les connaît ; nul tant que les soldes de la base
+ * n'ont pas été lus (et toujours sans Supabase) : aucun mouvement n'est noté. */
+let soldesConnus: Map<string, { du: number; avoir: number }> | null = null;
+const payesConnus = new Map<string, number>();
+let motifMouvement = "";
+let numeroMouvement = 0;
+
+/** Motif du prochain mouvement (ex. « Encaissement »), noté au prochain enregistrement. */
+function motiver(motif: string) {
+  if (!motifMouvement) motifMouvement = motif;
+}
+
+const arrondi = (n: number) => Math.round(n * 100) / 100;
+
+function noterMouvementsSolde() {
+  const connus = soldesConnus;
+  if (!connus) return;
+  const motif = motifMouvement || "Mise à jour du solde";
+  motifMouvement = "";
+  const nouveau = (m: Omit<MouvementSoldeRecord, "id" | "motif">) => {
+    mouvementsSolde = [...mouvementsSolde, { id: `mv-${Date.now()}-${++numeroMouvement}-${Math.random().toString(36).slice(2, 7)}`, motif, ...m }];
+  };
+  for (const p of store.paiements) {
+    const avant = payesConnus.get(p.id);
+    // Une quittance enregistrée part avec un montant réglé nul : ce qui y est réglé suit en mouvement.
+    // Une quittance annulée ne reçoit plus de règlement.
+    const delta = arrondi(p.montant - (avant ?? 0));
+    if (delta !== 0 && !(delta > 0 && p.statut === "annule")) {
+      nouveau({ etudiantId: p.etudiantId, quittanceId: p.id, deltaDu: 0, deltaAvoir: 0, deltaPaye: delta });
+    }
+    payesConnus.set(p.id, p.montant);
+  }
+  for (const e of store.etudiants) {
+    const avant = connus.get(e.id) ?? { du: 0, avoir: 0 };
+    const deltaDu = arrondi(e.soldeDu - avant.du);
+    const deltaAvoir = arrondi(e.soldeAvoir - avant.avoir);
+    if (deltaDu !== 0 || deltaAvoir !== 0) nouveau({ etudiantId: e.id, deltaDu, deltaAvoir, deltaPaye: 0 });
+    connus.set(e.id, { du: e.soldeDu, avoir: e.soldeAvoir });
+  }
+}
+
+/** Les soldes actuels du store deviennent la référence (sans mouvement). */
+function reprendreSoldesConnus() {
+  if (!soldesConnus) return;
+  for (const e of store.etudiants) soldesConnus.set(e.id, { du: e.soldeDu, avoir: e.soldeAvoir });
+  for (const p of store.paiements) payesConnus.set(p.id, p.montant);
+}
+
+export function getMouvementsSolde(): MouvementSoldeRecord[] {
+  return mouvementsSolde;
+}
+
+/** Mouvements restant à envoyer (le miroir retire ceux qui sont partis). */
+export function remplacerMouvementsSolde(records: MouvementSoldeRecord[]) {
+  mouvementsSolde = records;
+}
+
+export function getSoldesEtudiants(): SoldeEtudiantLigne[] {
+  return store.etudiants.map((e) => ({ id: e.id, soldeDu: e.soldeDu, soldeAvoir: e.soldeAvoir }));
+}
+
+/** Soldes de la base (avec Supabase) : un étudiant sans ligne n'a encore rien de dû. Ils deviennent
+ * la référence des prochains mouvements. */
+export function remplacerSoldes(lignes: SoldeEtudiantLigne[]) {
+  const parId = new Map(lignes.map((l) => [l.id, l]));
+  const connus = new Map<string, { du: number; avoir: number }>();
+  for (const e of store.etudiants) {
+    const l = parId.get(e.id);
+    e.soldeDu = Number(l?.soldeDu ?? 0);
+    e.soldeAvoir = Number(l?.soldeAvoir ?? 0);
+    connus.set(e.id, { du: e.soldeDu, avoir: e.soldeAvoir });
+    const ins = store.inscriptions.find((i) => i.etudiantId === e.id && i.annee === e.annee);
+    if (ins) ins.soldeDu = e.soldeDu;
+  }
+  soldesConnus = connus;
+  persist();
+}
+
+/** Quittances de la base (avec Supabase) : leur montant réglé devient la référence des prochains
+ * mouvements. */
+export function remplacerQuittances(records: PaiementRecord[]) {
+  store.paiements = records;
+  payesConnus.clear();
+  for (const p of records) payesConnus.set(p.id, p.montant);
   persist();
 }
 
@@ -1311,6 +1431,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
   const filiere = FILIERES.find((f) => f.id === payload.filiereId);
   const classe = payload.classeId ? getClasseById(payload.classeId) : undefined;
   const anneePremiere = parseMatriculeYear(matricule);
+  if (payload.soldeDu) motiver("Inscription");
 
   const etudiant: EtudiantRecord = {
     id: `et-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1525,6 +1646,7 @@ function creerInscriptionEtMettreAJourEtudiant(
   etudiant.classe = inscription.classe;
   etudiant.classeId = payload.classeId;
   etudiant.statut = payload.statut;
+  if (etudiant.soldeDu !== payload.soldeDu) motiver("Inscription de l'année");
   etudiant.soldeDu = payload.soldeDu;
 
   persist();
@@ -1765,6 +1887,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
   const numeroRecu = `RECU-${year}-${String(store.receiptCounter).padStart(3, "0")}`;
 
   const statut = payload.statut === "annule" ? "annule" : "paye";
+  motiver(payload.recordOnly ? "Facture d'inscription réglée" : "Quittance et encaissement");
 
   const lignes =
     payload.lignes && payload.lignes.length > 0
@@ -1814,7 +1937,8 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
       );
       if (ins) ins.soldeDu = etudiant.soldeDu;
 
-      const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
+      // Avec Supabase, c'est la base qui prévient l'étudiant, avec le numéro définitif du reçu.
+      const studentUser = modeSupabase ? undefined : store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
       const notifEncaissement = getNotificationEvenementielleParCode("NOTIFICATION_ENCAISSEMENT");
       if (studentUser && notifEncaissement?.actif && notifEncaissement.envoyerEtudiant) {
         pushNotification(studentUser.id, `Paiement validé — reçu ${numeroRecu} (${montantPaye} FCFA)`);
@@ -1864,6 +1988,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
 export function cancelPaiement(id: string): void {
   const idx = store.paiements.findIndex((p) => p.id === id);
   if (idx < 0) return;
+  motiver("Annulation de quittance");
   const p = store.paiements[idx];
   if (p.statut !== "annule") {
     const etudiant = getEtudiantById(p.etudiantId);
@@ -1899,6 +2024,7 @@ export function emettreQuittanceBrute(payload: EmettreQuittanceBrutePayload): Pa
   store.receiptCounter = (store.receiptCounter ?? 0) + 1;
   const numeroRecu = `RECU-${year}-${String(store.receiptCounter).padStart(3, "0")}`;
   const montantFacture = payload.lignes.reduce((s, l) => s + l.montant, 0);
+  motiver("Quittance émise");
 
   const paiement: PaiementRecord = {
     id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1931,6 +2057,7 @@ export function emettreQuittanceBrute(payload: EmettreQuittanceBrutePayload): Pa
 export function cancelQuittanceEmise(id: string): void {
   const idx = store.paiements.findIndex((p) => p.id === id);
   if (idx < 0) return;
+  motiver("Annulation de quittance émise");
   const p = store.paiements[idx];
   if (p.statut !== "annule" && p.montant === 0) {
     const etudiant = getEtudiantById(p.etudiantId);
@@ -1963,12 +2090,13 @@ export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord |
   const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
   const nouveauMontantPaye = Math.min(montantFacture, p.montant + Math.max(0, payload.montant));
   const diff = nouveauMontantPaye - p.montant;
+  motiver(payload.moyen === "Prise en charge" ? "Prise en charge" : "Règlement sur quittance");
 
   if (etudiant && diff > 0) {
     etudiant.soldeDu = Math.max(0, etudiant.soldeDu - diff);
     const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
     if (ins) ins.soldeDu = etudiant.soldeDu;
-    const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
+    const studentUser = modeSupabase ? undefined : store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
     if (studentUser) {
       pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} : ${nouveauMontantPaye.toLocaleString("fr-FR")} F CFA réglés à ce jour sur cette facture`);
     }
@@ -1993,6 +2121,7 @@ export function reverserReglementQuittance(id: string, montant: number): void {
 
   const nouveauMontantPaye = Math.max(0, p.montant - Math.max(0, montant));
   const diff = p.montant - nouveauMontantPaye;
+  motiver("Règlement retiré");
 
   const etudiant = getEtudiantById(p.etudiantId);
   if (etudiant && diff > 0) {
@@ -2009,6 +2138,7 @@ export function reverserReglementQuittance(id: string, montant: number): void {
 export function crediterAvoir(etudiantId: string, montant: number): void {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return;
+  motiver("Avoir crédité");
   etudiant.soldeAvoir = etudiant.soldeAvoir + montant;
   persist();
 }
@@ -2018,6 +2148,7 @@ export function debiterAvoir(etudiantId: string, montant: number): boolean {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return false;
   if (etudiant.soldeAvoir < montant) return false;
+  motiver("Avoir utilisé");
   etudiant.soldeAvoir = etudiant.soldeAvoir - montant;
   persist();
   return true;
@@ -2027,6 +2158,7 @@ export function debiterAvoir(etudiantId: string, montant: number): boolean {
 export function appliquerReductionSolde(etudiantId: string, montant: number): void {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return;
+  motiver("Réduction");
   etudiant.soldeDu = Math.max(0, etudiant.soldeDu - montant);
   persist();
 }
@@ -2035,6 +2167,7 @@ export function appliquerReductionSolde(etudiantId: string, montant: number): vo
 export function annulerReductionSolde(etudiantId: string, montant: number): void {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return;
+  motiver("Annulation de réduction");
   etudiant.soldeDu = etudiant.soldeDu + montant;
   persist();
 }

@@ -109,6 +109,15 @@ async function avecBase(
         }
         return { error: e };
       },
+      insert: async (lignes: Ligne[]) => {
+        envois.push({ table, operation: "insert", donnees: lignes });
+        const e = refus?.(table, "insert") ?? null;
+        if (!e) {
+          const t = (tables[table] ??= []);
+          for (const envoyee of lignes) t.push(declencheur ? declencheur(table, { ...envoyee }) : envoyee);
+        }
+        return { error: e };
+      },
       update: (valeurs: Ligne) => ({
         eq: (_col: string, id: unknown) => ({
           select: async () => {
@@ -695,14 +704,17 @@ describe("miroir des étudiants : fiche, dossier personnel, inscriptions et matr
     const e = b.S.registerNewEtudiant({ prenom: "Fatou", nom: "SOW", sexe: "F", dateNaissance: "2006-01-05", email: "fatou.sow@mail.sn", telephone: "770000003",
       filiereId: "fil-qhse", classeId: "", niveau: "L1", statut: "preinscrit", annee: "2026-2027", soldeDu: 150000, inscriptionUniquePayee: false, typeAdmission: "nouveau", cni: "1 111 2006 00001" }, matricule);
     await I.ouvrirCompteEtudiant(e, "Provisoire1");
-    expect(b.envois.map((x) => x.table)).toEqual(["etudiants", "etudiants_dossiers", "inscriptions"]);
+    // Le solde ne part pas avec la fiche : il part en mouvement, que la base additionne (partie 7).
+    expect(b.envois.map((x) => x.table)).toEqual(["etudiants", "etudiants_dossiers", "inscriptions", "mouvements_solde"]);
     expect(b.envois[0].donnees).toEqual([expect.objectContaining({ id: e.id, matricule: "2026-LQHSE-0001", classe_id: null, statut: "preinscrit" })]);
-    expect(JSON.stringify(b.envois)).not.toContain("solde");
+    expect(JSON.stringify(b.envois.slice(0, 3))).not.toContain("solde");
+    expect(b.envois[3]).toEqual({ table: "mouvements_solde", operation: "insert", donnees: [expect.objectContaining({ etudiant_id: e.id, delta_du: 150000,
+      delta_avoir: 0, delta_paye: 0, quittance_id: null, motif: "Inscription" })] });
     expect(b.envois[1].donnees).toEqual([expect.objectContaining({ id: e.id, cni: "1 111 2006 00001", type_admission: "nouveau", modele_frais_id: null })]);
     expect(b.envois[2].donnees).toEqual([expect.objectContaining({ etudiant_id: e.id, classe_id: null, type: "premiere" })]);
     const compte = b.appels.find((a) => a.nom === "comptes")!;
     expect(compte.donnees).toMatchObject({ action: "creer", type_compte: "etudiant", identifiant: "2026-LQHSE-0001", lien_id: e.id, mot_de_passe: "Provisoire1" });
-    expect(compte.envoisAvant).toBe(3);
+    expect(compte.envoisAvant).toBe(4);
   });
 
   it("un compte qui lit les fiches sans les dossiers (les professeurs, pour leurs classes, à la partie 5) : aucun dossier gardé ni renvoyé vide", async () => {
@@ -1361,5 +1373,176 @@ describe("miroir des relevés, délibérations, résultats figés et attestation
     b.S.demanderNotesAnnees(["2024-2025", "2026-2027"]);
     await b.miroir.attendreEnvois();
     expect(b.lectures).toHaveLength(lectures);
+  });
+});
+
+describe("miroir des finances : quittances, encaissements, frais et soldes tenus par la base", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const ETUDIANT = (id: string, matricule: string, prenom: string, nom: string) => ({ id, matricule, prenom, nom, sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse",
+    classe: "LQHSE1-26/27", classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 });
+  const INSCRIPTION = (etudiant: string) => ({ id: `ins-${etudiant}`, etudiant_id: etudiant, annee: "2026-2027", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1",
+    classe: "LQHSE1-26/27", classe_id: "cl-l1", statut: "inscrit", type: "premiere", date_inscription: "2026-10-01", specialite: null, modele_frais_id: null, modele_frais: null, motif: null, effectue_par: null });
+  const QUITTANCE = { id: "q-awa", numero_recu: "RECU-2026-001", date: "2026-10-15", etudiant_id: "et-awa", etudiant: "Awa SECK", classe: "LQHSE1-26/27",
+    rubrique: "Facture unique (2 rubriques)", lignes: [{ label: "Scolarité", montant: 90000 }, { label: "APE", montant: 10000 }], montant: 40000, moyen: "Espèce",
+    reference: "RECU-2026-001", solde_restant: 60000, statut: "paye", date_limite: "2026-12-15" };
+  const ENCAISSEMENT = { id: "enc-awa", reference: "OP-2026-001", date: "2026-10-15", quittance_id: "q-awa", quittance_reference: "RECU-2026-001",
+    quittance_date_emission: "2026-10-15", quittance_date_limite: "2026-12-15", montant_quittance_total: 100000, etudiant_id: "et-awa", payeur: "2026-LQHSE-0001 - Awa SECK",
+    filiere: "LQHSE", annee: "2026-2027", montant: 40000, moyen: "Espèce", reference_bancaire: null, encaisse_par: "Caisse", annulee: false,
+    lignes: [{ label: "Scolarité", montantApplique: 40000, montantLigneTotal: 90000 }] };
+  const COMPTES = [
+    { id: "u-caisse", role: "admin", displayName: "Caisse", email: "caisse@ucao.edu", identifiant: "CAISSE", actif: true },
+    { id: "u-awa", role: "student", displayName: "Awa SECK", email: "awa@ucao.edu", identifiant: "2026-LQHSE-0001", actif: true, linkedId: "et-awa" },
+  ];
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], classes: [CLASSE],
+    etudiants: [ETUDIANT("et-awa", "2026-LQHSE-0001", "Awa", "SECK"), ETUDIANT("et-ousmane", "2026-LQHSE-0002", "Ousmane", "DIALLO")],
+    inscriptions: [INSCRIPTION("et-awa"), INSCRIPTION("et-ousmane")], quittances: [{ ...QUITTANCE }], encaissements: [{ ...ENCAISSEMENT }],
+    soldes_etudiants: [{ id: "et-awa", solde_du: 60000, solde_avoir: 0 }, { id: "et-ousmane", solde_du: 0, solde_avoir: 5000 }] });
+
+  /** Ce que font les déclencheurs de la base : numéros des quittances et des encaissements, montant
+   * réglé et soldes tenus à partir des mouvements. */
+  function commeLaBase(tables: Record<string, Ligne[]>) {
+    let recu = 6;
+    let op = 41;
+    return (table: string, l: Ligne): Ligne => {
+      const existante = (tables[table] ?? []).find((x) => x.id === l.id);
+      if (table === "quittances") {
+        if (existante) return { ...l, numero_recu: existante.numero_recu, montant: existante.montant };
+        const numero = `RECU-2026-${String(++recu).padStart(3, "0")}`;
+        return { ...l, numero_recu: numero, reference: l.reference === l.numero_recu ? numero : l.reference, montant: 0 };
+      }
+      if (table === "encaissements") {
+        if (existante) return { ...existante, annulee: l.annulee };
+        const quittance = tables.quittances.find((q) => q.id === l.quittance_id);
+        return { ...l, reference: `OP-2026-${String(++op).padStart(3, "0")}`, quittance_reference: quittance?.numero_recu };
+      }
+      if (table === "mouvements_solde") {
+        if (Number(l.delta_paye)) {
+          const q = tables.quittances.find((x) => x.id === l.quittance_id)!;
+          q.montant = Number(q.montant) + Number(l.delta_paye);
+        }
+        if (Number(l.delta_du) || Number(l.delta_avoir)) {
+          let s = (tables.soldes_etudiants ??= []).find((x) => x.id === l.etudiant_id);
+          if (!s) tables.soldes_etudiants.push((s = { id: l.etudiant_id, solde_du: 0, solde_avoir: 0 }));
+          s.solde_du = Math.max(0, Number(s.solde_du) + Number(l.delta_du));
+          s.solde_avoir = Number(s.solde_avoir) + Number(l.delta_avoir);
+        }
+      }
+      return l;
+    };
+  }
+
+  it("à la connexion : quittances, encaissements et soldes de la base ; l'inscription de l'année porte le solde ; rien ne repart", async () => {
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const E = await import("@/data/encaissementStore");
+    expect(b.S.getPaiements()).toEqual([expect.objectContaining({ id: "q-awa", numeroRecu: "RECU-2026-001", montant: 40000, statut: "paye", dateLimite: "2026-12-15",
+      lignes: [{ label: "Scolarité", montant: 90000 }, { label: "APE", montant: 10000 }] })]);
+    expect(E.getEncaissements()).toEqual([expect.objectContaining({ reference: "OP-2026-001", quittanceReference: "RECU-2026-001", montant: 40000 })]);
+    expect(b.S.getEtudiantById("et-awa")).toMatchObject({ soldeDu: 60000, soldeAvoir: 0 });
+    expect(b.S.getEtudiantById("et-ousmane")).toMatchObject({ soldeDu: 0, soldeAvoir: 5000 });
+    expect(b.S.getInscriptionsByEtudiant("et-awa")[0].soldeDu).toBe(60000);
+    expect(b.S.getMouvementsSolde()).toEqual([]);
+    expect(b.envois).toEqual([]);
+  });
+
+  it("deuxième versement d'Awa sur sa quittance : seuls les écarts partent, le reçu OP et le solde viennent de la base", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const tables = base();
+    const b = await avecBase(tables, undefined, undefined, commeLaBase(tables));
+    await b.miroir.chargerMiroirs();
+    const E = await import("@/data/encaissementStore");
+    const q = b.S.getPaiements()[0];
+    // Comme la page « Nouvelle quittance » sur une quittance existante.
+    b.S.payerQuittance({ id: q.id, montant: 30000, moyen: "Wave", reference: "W-778", date: "2026-11-02" });
+    E.enregistrerEncaissement({ quittanceId: q.id, quittanceReference: q.numeroRecu, quittanceDateEmission: q.date, quittanceDateLimite: q.dateLimite,
+      montantQuittanceTotal: 100000, quittanceLignes: q.lignes!, dejaPayeAvant: q.montant, etudiantId: "et-awa", payeur: "2026-LQHSE-0001 - Awa SECK",
+      filiere: "LQHSE", annee: "2026-2027", montant: 30000, moyen: "Wave", referenceBancaire: "W-778", date: "2026-11-02", encaissePar: "Caisse" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["upsert", "quittances"], ["insert", "mouvements_solde"], ["upsert", "encaissements"]]);
+    expect(b.envois[1].donnees).toEqual([
+      expect.objectContaining({ etudiant_id: "et-awa", quittance_id: "q-awa", delta_paye: 30000, delta_du: 0, motif: "Règlement sur quittance" }),
+      expect.objectContaining({ etudiant_id: "et-awa", quittance_id: null, delta_du: -30000, delta_avoir: 0, delta_paye: 0 }),
+    ]);
+    expect(E.getEncaissements().find((e) => e.id !== "enc-awa")).toMatchObject({ reference: "OP-2026-042", quittanceReference: "RECU-2026-001", montant: 30000 });
+    expect(b.S.getPaiements()[0]).toMatchObject({ montant: 70000, moyen: "Wave" });
+    expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(30000);
+    expect(b.S.getMouvementsSolde()).toEqual([]);
+    expect(b.S.getNotifications()).toEqual([]);
+    expect(b.envois.some((e) => e.operation === "delete")).toBe(false);
+    expect(b.lectures).not.toContain("mouvements_solde");
+  });
+
+  it("nouvelle quittance encaissée : numéro RECU donné par la base, que l'encaissement reprend ; le montant réglé part en mouvement", async () => {
+    const tables = base();
+    const b = await avecBase(tables, undefined, undefined, commeLaBase(tables));
+    await b.miroir.chargerMiroirs();
+    const E = await import("@/data/encaissementStore");
+    const lignes = [{ label: "Frais d'examen", montant: 15000 }];
+    const q = b.S.registerPaiement({ etudiantId: "et-ousmane", rubrique: "Facture unique", montant: 15000, moyen: "Espèce", reference: "", date: "2026-11-03",
+      statut: "paye", lignes });
+    expect(q.numeroRecu).toMatch(/^RECU-2026-/);
+    E.enregistrerEncaissement({ quittanceId: q.id, quittanceReference: q.numeroRecu, quittanceDateEmission: q.date, montantQuittanceTotal: 15000, quittanceLignes: lignes,
+      dejaPayeAvant: 0, etudiantId: "et-ousmane", payeur: "Ousmane DIALLO", filiere: "LQHSE", annee: "2026-2027", montant: 15000, moyen: "Espèce", date: "2026-11-03",
+      encaissePar: "Caisse" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["quittances", "mouvements_solde", "encaissements"]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ quittance_id: q.id, delta_paye: 15000, motif: "Quittance et encaissement" })]);
+    const relue = b.S.getPaiements().find((p) => p.id === q.id)!;
+    expect(relue).toMatchObject({ numeroRecu: "RECU-2026-007", reference: "RECU-2026-007", montant: 15000 });
+    expect(E.getEncaissements().find((e) => e.quittanceId === q.id)).toMatchObject({ reference: "OP-2026-042", quittanceReference: "RECU-2026-007" });
+  });
+
+  it("avoir déjà dépensé depuis un autre poste : la base refuse, l'écran le dit et reprend le solde de la base", async () => {
+    const tables = base();
+    const b = await avecBase(tables, (table, operation) => (table === "mouvements_solde" && operation === "insert"
+      ? { code: "23514", message: "Avoir insuffisant : il a déjà été utilisé (il reste 0 F)." } : null));
+    await b.miroir.chargerMiroirs();
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    tables.soldes_etudiants[1].solde_avoir = 0; // dépensé sur l'autre poste
+    expect(b.S.debiterAvoir("et-ousmane", 3000)).toBe(true);
+    await b.miroir.attendreEnvois();
+    expect(motifs.join(" ")).toContain("Avoir insuffisant");
+    expect(b.S.getEtudiantById("et-ousmane")!.soldeAvoir).toBe(0);
+    expect(b.S.getMouvementsSolde()).toEqual([]);
+  });
+
+  it("frais ajouté et quittancé aussitôt : la quittance, son mouvement, puis le frais ; un frais annulé part annulé, jamais supprimé", async () => {
+    const tables = base();
+    const b = await avecBase(tables, undefined, undefined, commeLaBase(tables));
+    await b.miroir.chargerMiroirs();
+    const Fr = await import("@/data/fraisEtudiantStore");
+    const [ligne] = Fr.ajouterFraisEtudiant("et-awa", "2026-2027", [{ typeFraisId: "tf-ape", montant: 5000, obligatoire: true, echeance: false }], true, () => "APE");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["quittances", "mouvements_solde", "frais_etudiants"]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ etudiant_id: "et-awa", delta_du: 5000, motif: "Quittance émise" })]);
+    expect(b.envois[2].donnees).toEqual([expect.objectContaining({ id: ligne.id, type_frais_id: "tf-ape", montant: 5000, quittance_id: expect.any(String), annulee: false })]);
+    expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(65000);
+    b.envois.length = 0;
+    expect(Fr.annulerFraisEtudiantQuittance(ligne.id, "Doublon").ok).toBe(true);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["upsert", "quittances"], ["insert", "mouvements_solde"], ["upsert", "frais_etudiants"]]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ delta_du: -5000, motif: "Annulation de quittance émise" })]);
+    expect(b.envois[2].donnees).toEqual([expect.objectContaining({ id: ligne.id, annulee: true, motif_annulation: "Doublon" })]);
+    expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(60000);
+  });
+
+  it("encaissement annulé : le règlement retiré part en mouvement, puis l'annulation de l'encaissement", async () => {
+    const tables = base();
+    const b = await avecBase(tables, undefined, undefined, commeLaBase(tables));
+    await b.miroir.chargerMiroirs();
+    const E = await import("@/data/encaissementStore");
+    // Comme la fiche d'un encaissement : « Annuler cet encaissement ».
+    b.S.reverserReglementQuittance("q-awa", 40000);
+    E.annulerEncaissement("enc-awa");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["upsert", "quittances"], ["insert", "mouvements_solde"], ["upsert", "encaissements"]]);
+    expect(b.envois[1].donnees).toEqual([
+      expect.objectContaining({ quittance_id: "q-awa", delta_paye: -40000, motif: "Règlement retiré" }),
+      expect.objectContaining({ etudiant_id: "et-awa", delta_du: 40000 }),
+    ]);
+    expect(b.S.getPaiements()[0].montant).toBe(0);
+    expect(b.S.getEtudiantById("et-awa")!.soldeDu).toBe(100000);
+    expect(E.getEncaissements()[0]).toMatchObject({ reference: "OP-2026-001", annulee: true });
   });
 });

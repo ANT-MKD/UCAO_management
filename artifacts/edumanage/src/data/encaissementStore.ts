@@ -71,6 +71,12 @@ export function getEncaissements(): EncaissementRecord[] {
   return store.records;
 }
 
+/** Encaissements de la base (avec Supabase), numérotés par elle. */
+export function remplacerEncaissements(records: EncaissementRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getEncaissementById(id: string): EncaissementRecord | undefined {
   return store.records.find((r) => r.id === id);
 }

@@ -65,6 +65,13 @@ export interface PartieMiroir<R extends { id: string }> {
   /** Lignes lues : seulement celles-ci (ex. les cahiers de l'année en cours) ; les autres restent
    * dans la base, ni lues, ni renvoyées, ni supprimées. Sans portée, toute la table. */
   portee?: () => Portee | undefined;
+  /** Journal que le poste ajoute sans jamais le relire (ex. mouvements des soldes, que la base
+   * additionne) : chaque ligne part une fois, par ajout simple, puis quitte le store ; rien n'est
+   * supprimé. Au chargement, ce qui n'était pas parti est abandonné (la base fait foi). */
+  ajoutSeul?: boolean;
+  /** Numéro donné par la base à l'enregistrement (ex. reçu de caisse) : après l'ajout d'une ligne,
+   * le miroir est relu depuis cette table pour afficher le numéro définitif. */
+  numeroteeParLaBase?: boolean;
 }
 
 /** Colonne (dans la table, ou dans la table liée par « jointure », ex. cahiers!inner(annee) et
@@ -300,6 +307,12 @@ async function preparerFichiers(partie: PartieMiroir<{ id: string }>, lignes: Li
 /** Recharge une table dans son store. « garde » est vérifiée juste avant de remplacer le store :
  * fausse (modification locale survenue pendant la lecture), le store n'est pas touché. */
 async function chargerPartie(partie: PartieMiroir<{ id: string }>, garde?: () => boolean): Promise<boolean> {
+  if (partie.ajoutSeul) {
+    if (garde && !garde()) return false;
+    connu.set(partie.table, new Map());
+    sansEnvoi(() => partie.remplacer([]));
+    return true;
+  }
   const lignes = await toutLire(partie.table, partie.portee?.());
   const affichage = await preparerFichiers(partie, lignes);
   if (garde && !garde()) return false;
@@ -511,6 +524,10 @@ async function envoyer(): Promise<void> {
   const aRetirer: { espace: string; chemin: string }[] = [];
   /** Fichiers déposés dont la ligne n'est pas encore enregistrée : retirés si l'envoi est refusé. */
   const enSuspens: { espace: string; chemin: string }[] = [];
+  /** Lignes de journal parties, qui quittent leur store une fois l'envoi réussi. */
+  const ajouts: { partie: PartieMiroir<{ id: string }>; ids: Set<string> }[] = [];
+  /** Tables qui ont reçu une ligne numérotée par la base : relues ensuite. */
+  const numerotees = new Set<PartieMiroir<{ id: string }>>();
   try {
     for (const { partie, lignes } of parties) {
       const etat = connu.get(partie.table) ?? new Map<string, string>();
@@ -519,6 +536,18 @@ async function envoyer(): Promise<void> {
         && (!partie.complementDe || etat.has(String(l.id)) || !!principales?.has(String(l.id))));
       envoyees.set(partie.table, new Set(changees.map((l) => String(l.id))));
       if (partie.ordreEnvoi) changees.sort(partie.ordreEnvoi);
+      if (partie.ajoutSeul) {
+        for (let i = 0; i < changees.length; i += 500) {
+          const paquet = changees.slice(i, i + 500);
+          const { error } = await client().from(partie.table).insert(paquet);
+          if (error) throw error;
+          paquet.forEach((l) => etat.set(String(l.id), JSON.stringify(l)));
+        }
+        if (changees.length > 0) ajouts.push({ partie, ids: new Set(changees.map((l) => String(l.id))) });
+        connu.set(partie.table, etat);
+        continue;
+      }
+      if (partie.numeroteeParLaBase && changees.some((l) => !etat.has(String(l.id)))) numerotees.add(partie);
       const retenir = (l: Ligne) => {
         aRetirer.push(...fichiersQuittes(partie, etat.get(String(l.id)), l));
         etat.set(String(l.id), JSON.stringify(l));
@@ -557,7 +586,7 @@ async function envoyer(): Promise<void> {
       connu.set(partie.table, etat);
     }
     for (const { partie, ids } of [...parties].reverse()) {
-      if (partie.miseAJourSeule) continue;
+      if (partie.miseAJourSeule || partie.ajoutSeul) continue;
       const etat = connu.get(partie.table) ?? new Map<string, string>();
       const supprimees = [...etat.keys()].filter((id) => !ids.has(id));
       if (supprimees.length === 0) continue;
@@ -569,6 +598,20 @@ async function envoyer(): Promise<void> {
       });
     }
     await retirerFichiers(aRetirer);
+    for (const { partie, ids } of ajouts) {
+      sansEnvoi(() => partie.remplacer(partie.lire().filter((f) => !ids.has(f.id))));
+      const etat = connu.get(partie.table);
+      ids.forEach((id) => etat?.delete(id));
+    }
+    for (const miroir of lot) {
+      const depuis = miroir.parties.findIndex((p) => numerotees.has(p));
+      if (depuis < 0) continue;
+      try {
+        await chargerMiroir(miroir, depuis, () => !modifiees.has(miroir.cle));
+      } catch {
+        // base injoignable : le suivi des changements recalera
+      }
+    }
   } catch (erreur) {
     // Un fichier déposé pour une ligne refusée ne reste pas dans l'espace de fichiers.
     if (enSuspens.length > 0) await retirerFichiers(enSuspens);

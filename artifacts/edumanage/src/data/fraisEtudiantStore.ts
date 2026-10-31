@@ -69,6 +69,12 @@ export function getFraisEtudiant(): FraisEtudiantLigne[] {
   return store;
 }
 
+/** Frais de la base (avec Supabase). */
+export function remplacerFraisEtudiant(records: FraisEtudiantLigne[]) {
+  store = records;
+  persist();
+}
+
 /** Lignes actives (non annulées) pour un étudiant/année/type — utilisé pour avertir d'un doublon avant ajout. */
 export function getLignesActivesPour(etudiantId: string, annee: string, typeFraisId: string): FraisEtudiantLigne[] {
   return store.filter((l) => l.etudiantId === etudiantId && l.annee === annee && l.typeFraisId === typeFraisId && !l.annulee);
