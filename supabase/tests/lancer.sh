@@ -75,4 +75,24 @@ wait
 "${P[@]}" -c "select tests.verifier((select count(*) = 25 and count(distinct (jour, heure_debut)) = 25 from public.seances where salle_id = 'salle-conc'), 'salle réservée simultanément : 100 demandes, 25 créneaux, un seul cours par créneau')" 2>&1 | sed -n 's/^.*NOTICE:  /  /p; /ERROR/p'
 test "${PIPESTATUS[0]}" -eq 0
 
+echo "• encaissements simultanés (4 caisses × 50 versements sur la même quittance)"
+"${P[@]}" >/dev/null <<SQL
+insert into public.etudiants (id, matricule, prenom, nom, filiere_id, niveau, statut, annee)
+  values ('et-conc', '2030-CONC-9999', 'Essai', 'CONCURRENCE', 'fil-concurrence', 'N1', 'inscrit', '2030-2031');
+insert into public.quittances (id, numero_recu, date, etudiant_id, lignes, statut)
+  values ('q-conc', 'RECU-2030-000', '2030-10-07', 'et-conc', '[{"label": "Scolarité", "montant": 1000000}]', 'paye');
+SQL
+for i in 1 2 3 4; do
+  ( echo "select set_config('request.jwt.claims', '{\"sub\":\"$ADMIN\",\"role\":\"authenticated\"}', false);"
+    echo "set role authenticated;"
+    for j in $(seq 1 50); do
+      echo "insert into public.encaissements (id, reference, date, quittance_id, etudiant_id, montant) values ('enc-conc-$i-$j', 'OP-2030-000', '2030-10-07', 'q-conc', 'et-conc', 1000);"
+      echo "insert into public.mouvements_solde (id, etudiant_id, quittance_id, delta_paye, delta_du) values ('mv-conc-$i-$j', 'et-conc', 'q-conc', 1000, 1000);"
+    done
+  ) | psql -v ON_ERROR_STOP=1 -q -X -d "$BASE" >/dev/null &
+done
+wait
+"${P[@]}" -c "select tests.verifier((select count(*) = 200 and count(distinct reference) = 200 and max(split_part(reference, '-', 3)::int) = 200 from public.encaissements where quittance_id = 'q-conc') and (select montant = 200000 from public.quittances where id = 'q-conc') and (select solde_du = 200000 from public.soldes_etudiants where id = 'et-conc'), 'encaissements simultanés : 200 reçus OP-2030-001 à 200, sans doublon ni trou ; 200 000 F réglés, rien de perdu')" 2>&1 | sed -n 's/^.*NOTICE:  /  /p; /ERROR/p'
+test "${PIPESTATUS[0]}" -eq 0
+
 echo "Tous les tests de la base sont passés."
