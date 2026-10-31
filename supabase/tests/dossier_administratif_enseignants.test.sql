@@ -63,6 +63,10 @@ select tests.verifier((select message = 'Une absence a été constatée le 03/11
 select tests.echoue('insert into public.absences_enseignants (teacher_id, annee, date, type) values (''en-fall'', ''2026-2027'', ''2026-11-03'', ''absence'')', 'row-level security',
   'KANE ne constate pas l''absence d''un collègue');
 insert into storage.objects (bucket_id, name) values ('justificatifs', 'en-kane/abs-kane/certificat.pdf');
+select tests.echoue('insert into public.absences_enseignants (id, teacher_id, ec_id, classe_id, annee, date, type, motif, cree_par, justificatif_motif) values '
+  || '(''abs-kane'', ''en-kane'', ''ec-qualite'', ''cl-l1'', ''2026-2027'', ''2026-11-03'', ''absence'', ''Non présenté'', ''ABSENCES-1'', ''Rendez-vous médical'') '
+  || 'on conflict (id) do update set justificatif_motif = excluded.justificatif_motif', 'row-level security',
+  'l''envoi groupé (upsert) de KANE est refusé par les règles d''accès : l''application passe à la simple mise à jour');
 update public.absences_enseignants set justificatif_motif = 'Rendez-vous médical', justificatif_piece_nom = 'certificat.pdf',
   justificatif_piece = 'en-kane/abs-kane/certificat.pdf', justificatif_envoye_le = now() where id = 'abs-kane';
 select tests.echoue('update public.absences_enseignants set justifie = true where id = ''abs-kane''', 'qu''envoyer un justificatif', 'KANE ne se déclare pas justifié');
@@ -93,8 +97,10 @@ select tests.verifier(exists (select 1 from public.notifications where message =
   'KANE apprend que son absence est justifiée');
 
 -- ——— Rallonges ———
+-- Demande envoyée comme le fait l'application (upsert).
 insert into public.rallonges (id, teacher_id, ec_id, classe_id, annee, vh_actuel, vh_supplementaire, motif, statut, origine) values
-  ('rlg-1', 'en-kane', 'ec-qualite', 'cl-l1', '2026-2027', 30, 4, 'Travaux pratiques supplémentaires', 'soumis', 'prof');
+  ('rlg-1', 'en-kane', 'ec-qualite', 'cl-l1', '2026-2027', 30, 4, 'Travaux pratiques supplémentaires', 'soumis', 'prof')
+  on conflict (id) do update set motif = excluded.motif, vh_supplementaire = excluded.vh_supplementaire;
 select tests.echoue('insert into public.rallonges (teacher_id, ec_id, classe_id, annee, vh_supplementaire, statut, origine) values (''en-kane'', ''ec-qualite'', ''cl-l1'', ''2026-2027'', 2, ''soumis'', ''prof'')',
   'rallonges_une_en_attente', 'une seule demande en attente par cours');
 select tests.echoue('insert into public.rallonges (teacher_id, ec_id, classe_id, annee, vh_supplementaire, statut, origine) values (''en-kane'', ''ec-qualite'', ''cl-l1'', ''2026-2027'', 2, ''valide'', ''prof'')',

@@ -48,6 +48,12 @@ export function subscribeTeacherRates(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
+/** Taux de la base (avec Supabase). */
+export function remplacerTauxEnseignants(records: TeacherCourseRateRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getTeacherRates(): TeacherCourseRateRecord[] {
   return store;
 }

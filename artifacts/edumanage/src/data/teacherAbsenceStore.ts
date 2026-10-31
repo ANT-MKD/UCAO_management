@@ -1,5 +1,6 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { getUserAccounts, logAudit, pushNotificationEtPersister } from "./studentStore";
+import { modeSupabase } from "@/lib/supabase";
 import { getEcs } from "./curriculumStore";
 const STORAGE_KEY = "edumanage-teacher-absences-v1";
 
@@ -72,6 +73,56 @@ export function getTeacherAbsences(): TeacherAbsenceRecord[] {
   return store;
 }
 
+/** Constat tel que rangé dans la base (table absences_enseignants) : justificatif et refus à plat,
+ * la pièce jointe désignée par son fichier. */
+export interface AbsenceEnseignantLigne {
+  id: string;
+  teacherId: string;
+  ecId: string;
+  classeId: string;
+  annee: string;
+  seanceId?: string;
+  date: string;
+  type: TeacherAbsenceType;
+  dureeMinutes?: number;
+  motif: string;
+  justifie: boolean;
+  createdBy: string;
+  createdAt: string;
+  justificatifMotif?: string;
+  justificatifPieceNom?: string;
+  justificatifPiece?: string;
+  justificatifEnvoyeLe?: string;
+  refusMotif?: string;
+  refusMotifRefus?: string;
+  refusLe?: string;
+}
+
+export function getAbsencesEnseignantsLignes(): AbsenceEnseignantLigne[] {
+  return store.map(({ justificatif, justificatifRefuse, ...a }) => ({
+    ...a,
+    justificatifMotif: justificatif?.motif,
+    justificatifPieceNom: justificatif?.pieceJointe?.nom || undefined,
+    justificatifPiece: justificatif?.pieceJointe?.dataUrl,
+    justificatifEnvoyeLe: justificatif?.envoyeLe || undefined,
+    refusMotif: justificatifRefuse?.motif || undefined,
+    refusMotifRefus: justificatifRefuse?.motifRefus || undefined,
+    refusLe: justificatifRefuse?.refuseLe,
+  }));
+}
+
+/** Constats de la base (avec Supabase) : tous pour l'administration, les siens pour un professeur. */
+export function remplacerAbsencesEnseignants(lignes: AbsenceEnseignantLigne[]) {
+  store = lignes.map(({ justificatifMotif, justificatifPieceNom, justificatifPiece, justificatifEnvoyeLe, refusMotif, refusMotifRefus, refusLe, ...a }) => ({
+    ...a,
+    justificatif: justificatifMotif
+      ? { motif: justificatifMotif, envoyeLe: justificatifEnvoyeLe ?? "", pieceJointe: justificatifPiece ? { nom: justificatifPieceNom ?? "", dataUrl: justificatifPiece } : undefined }
+      : undefined,
+    justificatifRefuse: refusLe ? { motif: refusMotif ?? "", motifRefus: refusMotifRefus ?? "", refuseLe: refusLe } : undefined,
+  }));
+  persist();
+}
+
 export function makeTeacherAbsenceId(): string {
   return `abs-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -86,7 +137,9 @@ export function addTeacherAbsence(
   };
   store.push(record);
   persist();
-  // Le professeur est informé du constat dès sa saisie (et non plus seulement à sa validation).
+  // Le professeur est informé du constat dès sa saisie (et non plus seulement à sa validation) ;
+  // avec Supabase, par la base.
+  if (modeSupabase) return record;
   const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
   if (compte) {
     const ec = getEcs().find((e) => e.id === record.ecId);
@@ -136,6 +189,7 @@ export function envoyerJustificatifAbsence(
   store = store.map((r) => (r.id === id ? record : r));
   persist();
   logAudit(actorUserId, "justificatif_absence_prof", "teacher_absence", id, `${quoi} du ${dateFr(absence.date)} — ${motif}`);
+  if (modeSupabase) return record;
   const auteur = getUserAccounts().find((u) => u.id === actorUserId);
   for (const admin of getUserAccounts().filter((u) => u.role === "admin" && u.actif !== false)) {
     pushNotificationEtPersister(admin.id, `Justificatif reçu de ${auteur?.displayName ?? "un professeur"} pour son ${quoi} du ${dateFr(absence.date)} : ${motif}.`);
@@ -163,7 +217,7 @@ export function deciderJustificatifAbsence(id: string, decision: "accepter" | "r
   store = store.map((r) => (r.id === id ? record : r));
   persist();
   logAudit(actorUserId, decision === "accepter" ? "accepter_justificatif_prof" : "refuser_justificatif_prof", "teacher_absence", id, `${quoi} du ${dateFr(absence.date)}${motifRefus ? ` — motif : ${motifRefus}` : ""}`);
-  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === absence.teacherId);
+  const compte = modeSupabase ? undefined : getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === absence.teacherId);
   if (compte) {
     pushNotificationEtPersister(compte.id, decision === "accepter"
       ? `Justificatif accepté : votre ${quoi} du ${dateFr(absence.date)} est justifié(e).`

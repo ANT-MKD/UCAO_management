@@ -1,5 +1,6 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { modeSupabase, supabase } from "@/lib/supabase";
 const STORAGE_KEY = "edumanage-teacher-contracts-v1";
 
 export interface ContractLigne {
@@ -71,6 +72,21 @@ export function getTeacherContracts(): TeacherContractRecord[] {
   return store;
 }
 
+/** Contrats de la base (avec Supabase) : tous pour l'administration, les siens pour un professeur. */
+export function remplacerContratsEnseignants(records: TeacherContractRecord[]) {
+  store = records;
+  persist();
+}
+
+/** Numéro du prochain contrat : attribué par la base avec Supabase (jamais deux fois le même, même
+ * depuis deux postes), sinon calculé sur ce poste. */
+export async function reserverNumeroContrat(): Promise<string> {
+  if (!modeSupabase || !supabase) return makeContractNumero();
+  const { data, error } = await supabase.rpc("attribuer_numero_contrat");
+  if (error || typeof data !== "string") throw new Error(error?.message || "Numéro de contrat indisponible : réessayez.");
+  return data;
+}
+
 export function getTeacherContract(id: string): TeacherContractRecord | undefined {
   return store.find((c) => c.id === id);
 }
@@ -82,18 +98,21 @@ export function makeContractNumero(): string {
 
 const dateFr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 
-/** Prévient le professeur sur son portail (contrat, avenant, résiliation). */
+/** Prévient le professeur sur son portail (contrat, avenant, résiliation) ; avec Supabase, c'est la
+ * base qui le prévient. */
 function notifierProfesseur(teacherId: string, message: string) {
+  if (modeSupabase) return;
   const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === teacherId);
   if (compte) pushNotificationEtPersister(compte.id, message);
 }
 
 export function addTeacherContract(
   payload: Omit<TeacherContractRecord, "id" | "createdAt" | "avenants" | "resilie">,
+  numero: string = makeContractNumero(),
 ): TeacherContractRecord {
   const record: TeacherContractRecord = {
     ...payload,
-    id: makeContractNumero(),
+    id: numero,
     createdAt: new Date().toISOString(),
     avenants: [],
     resilie: false,

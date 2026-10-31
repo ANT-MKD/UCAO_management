@@ -17,6 +17,13 @@ import { getEvenements, remplacerEvenements, type EvenementRecord } from "./even
 import { getPointages, remplacerPointages, type PointageRecord } from "./pointageStore";
 import { getAbsencesPeriode, remplacerAbsencesPeriode, type AbsencePeriodeRecord } from "./absencePeriodeStore";
 import { getPortefeuilleCours, remplacerPortefeuilleCours, type PortefeuilleCoursRecord } from "./portefeuilleCoursStore";
+import { getAbsencesEnseignantsLignes, remplacerAbsencesEnseignants, type AbsenceEnseignantLigne } from "./teacherAbsenceStore";
+import { getRallonges, remplacerRallonges, type RallongeRecord } from "./rallongeStore";
+import { getTeacherContracts, remplacerContratsEnseignants, type TeacherContractRecord } from "./teacherContractStore";
+import { getTeacherVolumes, remplacerVolumesEnseignants, type TeacherCourseVolumeRecord } from "./teacherVolumeStore";
+import { getTeacherRates, remplacerTauxEnseignants, type TeacherCourseRateRecord } from "./teacherRateStore";
+import { getTeacherCourseStatuses, remplacerStatutsCoursEnseignants, type TeacherCourseStatusRecord } from "./teacherCourseStatusStore";
+import { getVacations, remplacerVacations, type VacationRecord } from "./vacationStore";
 
 /** Enseignement reflété dans la base (partie 5), après les cours, les classes, les salles et les
  * enseignants auxquels il renvoie.
@@ -128,6 +135,110 @@ enregistrerMiroir({
       nulSiVide: ["classeId", "salleId"],
       lire: getEvenements,
       remplacer: remplacerEvenements,
+    }),
+  ],
+});
+
+/** Dossier administratif des enseignants (partie 5, lot 3) : chaque table est lue par
+ * l'administration et par le professeur concerné, lui seul. Les pages « Professeurs » les
+ * modifient ; le professeur ne fait que justifier ses absences et demander une rallonge.
+ *
+ * Absences et retards constatés, avec le justificatif du professeur (sa pièce dans l'espace de
+ * fichiers « justificatifs ») et le dernier refus. Le numéro des contrats, la rallonge validée
+ * ajoutée au volume du cours et les notifications au professeur viennent de la base. */
+const COLONNES_COURS = ["id", "teacherId", "ecId", "classeId", "annee"] as const;
+
+enregistrerMiroir({
+  cle: "edumanage-teacher-absences-v1",
+  parties: [
+    partie<AbsenceEnseignantLigne>({
+      table: "absences_enseignants",
+      colonnes: [...COLONNES_COURS, "seanceId", "date", "type", "dureeMinutes", "motif", "justifie", ["createdBy", "cree_par"], ["createdAt", "cree_le"],
+        "justificatifMotif", "justificatifPieceNom", "justificatifPiece", "justificatifEnvoyeLe", "refusMotif", "refusMotifRefus", "refusLe"],
+      defauts: { motif: "" },
+      nulSiVide: ["ecId", "classeId", "seanceId"],
+      fichiers: { justificatifPiece: { espace: "justificatifs", dossier: (a) => `${a.teacherId}/${a.id}/` } },
+      lire: getAbsencesEnseignantsLignes,
+      remplacer: remplacerAbsencesEnseignants,
+    }),
+  ],
+});
+
+enregistrerMiroir({
+  cle: "edumanage-teacher-volumes-v1",
+  parties: [
+    partie<TeacherCourseVolumeRecord>({
+      table: "volumes_enseignants",
+      colonnes: [...COLONNES_COURS, "nouveauVh"],
+      lire: getTeacherVolumes,
+      remplacer: remplacerVolumesEnseignants,
+    }),
+  ],
+});
+
+enregistrerMiroir({
+  cle: "edumanage-rallonges-v1",
+  parties: [
+    partie<RallongeRecord>({
+      table: "rallonges",
+      colonnes: [...COLONNES_COURS, "vhActuel", "vhSupplementaire", "motif", "statut", "motifRejet", "origine", ["createdAt", "cree_le"], "dateTraitement"],
+      defauts: { motif: "" },
+      lire: getRallonges,
+      remplacer: remplacerRallonges,
+    }),
+  ],
+});
+
+enregistrerMiroir({
+  cle: "edumanage-teacher-contracts-v1",
+  parties: [
+    partie<TeacherContractRecord>({
+      table: "contrats_enseignants",
+      colonnes: ["id", "teacherId", "annee", "dateDebut", "dateFin", ["createdAt", "cree_le"], "lignes", "avenants", "resilie", "dateResiliation",
+        "motifResiliation"],
+      defauts: { lignes: [], avenants: [] },
+      lire: getTeacherContracts,
+      remplacer: remplacerContratsEnseignants,
+    }),
+  ],
+});
+
+enregistrerMiroir({
+  cle: "edumanage-teacher-rates-v1",
+  parties: [
+    partie<TeacherCourseRateRecord>({
+      table: "taux_enseignants",
+      colonnes: [...COLONNES_COURS, "modePaiement", "montant", "tauxAbatt"],
+      defauts: { modePaiement: "" },
+      lire: getTeacherRates,
+      remplacer: remplacerTauxEnseignants,
+    }),
+  ],
+});
+
+enregistrerMiroir({
+  cle: "edumanage-teacher-course-status-v1",
+  parties: [
+    partie<TeacherCourseStatusRecord>({
+      table: "statuts_cours_enseignants",
+      colonnes: [...COLONNES_COURS, "typeComptabilisation"],
+      defauts: { typeComptabilisation: "" },
+      lire: getTeacherCourseStatuses,
+      remplacer: remplacerStatutsCoursEnseignants,
+    }),
+  ],
+});
+
+enregistrerMiroir({
+  cle: "edumanage-vacation-store-v1",
+  parties: [
+    partie<VacationRecord>({
+      table: "vacations",
+      colonnes: ["id", "mois", "enseignant", "enseignantId", "modules", "heuresCm", "heuresTd", "tauxHoraire", "montantTotal", "statut", "moyen",
+        "observations"],
+      defauts: { enseignant: "", modules: [], moyen: "" },
+      lire: getVacations,
+      remplacer: remplacerVacations,
     }),
   ],
 });

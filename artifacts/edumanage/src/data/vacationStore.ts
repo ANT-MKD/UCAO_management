@@ -1,6 +1,7 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
 import { VACATIONS } from "./mockData";
 import { logAudit, getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { modeSupabase } from "@/lib/supabase";
 
 export type VacationStatut = "brouillon" | "valide" | "paye";
 
@@ -68,6 +69,12 @@ export function getVacations(): VacationRecord[] {
   return snapshot;
 }
 
+/** Vacations de la base (avec Supabase) : toutes pour l'administration, les siennes pour un professeur. */
+export function remplacerVacations(records: VacationRecord[]) {
+  vacations.splice(0, vacations.length, ...records);
+  persist();
+}
+
 export function getVacationById(id: string): VacationRecord | undefined {
   return vacations.find((v) => v.id === id);
 }
@@ -100,6 +107,7 @@ export function markVacationPaid(id: string, moyen: string, actorId: string) {
   logAudit(actorId, "pay_vacation", "vacation", id, `${v.enseignant} — ${v.mois} — ${moyen}`);
   persist();
 
-  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === v.enseignantId);
+  // Avec Supabase, la base prévient elle-même le professeur.
+  const compte = modeSupabase ? undefined : getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === v.enseignantId);
   if (compte) pushNotificationEtPersister(compte.id, `Votre vacation de ${v.mois} a été payée (${v.montantTotal.toLocaleString("fr-FR")} FCFA, ${moyen})`);
 }

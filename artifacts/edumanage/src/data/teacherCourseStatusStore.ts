@@ -43,6 +43,12 @@ export function subscribeTeacherCourseStatus(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
+/** Statuts de la base (avec Supabase). */
+export function remplacerStatutsCoursEnseignants(records: TeacherCourseStatusRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getTeacherCourseStatuses(): TeacherCourseStatusRecord[] {
   return store;
 }

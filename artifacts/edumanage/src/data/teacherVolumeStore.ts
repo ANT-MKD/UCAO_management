@@ -41,6 +41,12 @@ export function subscribeTeacherVolumes(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
+/** Volumes de la base (avec Supabase), rallonges validées comprises. */
+export function remplacerVolumesEnseignants(records: TeacherCourseVolumeRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getTeacherVolumes(): TeacherCourseVolumeRecord[] {
   return store;
 }

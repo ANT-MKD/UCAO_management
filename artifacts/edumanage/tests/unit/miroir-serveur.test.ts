@@ -56,6 +56,7 @@ async function avecBase(
       appels.push({ nom, donnees: args, envoisAvant: envois.length });
       if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
       if (nom === "apercu_matricule") return { data: `2026-LQHSE-${String(prochainMatricule).padStart(4, "0")}`, error: null };
+      if (nom === "attribuer_numero_contrat") return { data: "CTR-0007", error: null };
       return { data: null, error: null };
     },
     functions: {
@@ -882,5 +883,106 @@ describe("miroir des cahiers de séance, de l'appel et des pointages", () => {
     await b.miroir.attendreEnvois();
     expect(b.envois).toEqual([{ table: "absences_periodes", operation: "upsert", donnees: [expect.objectContaining({
       etudiant_id: "et-ousmane", classe_id: "cl-l1", date_debut: "2026-11-02", date_fin: "2026-11-06", justifie: true, justificatif: "Certificat médical" })] }]);
+  });
+});
+
+describe("miroir du dossier administratif des enseignants", () => {
+  const COURS = { teacher_id: "en-kane", ec_id: "ec-qualite", classe_id: "cl-l1", annee: "2026-2027" };
+  const ABSENCE = { id: "abs-kane", ...COURS, seance_id: null, date: "2026-11-02", type: "absence", duree_minutes: null, motif: "Absent au cours de 8 h", justifie: false,
+    cree_par: "u-admin", cree_le: "2026-11-02T10:00:00+00:00", justificatif_motif: null, justificatif_piece_nom: null, justificatif_piece: null, justificatif_envoye_le: null,
+    refus_motif: null, refus_motif_refus: null, refus_le: null };
+  const KANE = { id: "u-kane", role: "teacher", displayName: "Mamadou KANE", email: "m.kane@ucao.edu", identifiant: "KANE", actif: true, linkedId: "en-kane" };
+
+  it("un constat saisi par l'administration part en colonnes de la base ; c'est la base qui prévient KANE", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [KANE] }));
+    const b = await avecBase({ annees_academiques: [ANNEE] });
+    await b.miroir.chargerMiroirs();
+    const A = await import("@/data/teacherAbsenceStore");
+    const constat = A.addTeacherAbsence({ teacherId: "en-kane", ecId: "ec-qualite", classeId: "cl-l1", annee: "2026-2027", date: "2026-11-02", type: "retard", dureeMinutes: 20,
+      motif: "Retard au cours de 8 h", justifie: false, createdBy: "u-admin" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "absences_enseignants", operation: "upsert", donnees: [{ id: constat.id, ...COURS, seance_id: null, date: "2026-11-02", type: "retard",
+      duree_minutes: 20, motif: "Retard au cours de 8 h", justifie: false, cree_par: "u-admin", cree_le: constat.createdAt, justificatif_motif: null, justificatif_piece_nom: null,
+      justificatif_piece: null, justificatif_envoye_le: null, refus_motif: null, refus_motif_refus: null, refus_le: null }] }]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("KANE justifie son absence : la pièce est déposée dans son dossier, puis simple mise à jour ; refusée, la pièce est retirée et le refus revient à l'écran", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], absences_enseignants: [{ ...ABSENCE }] };
+    const b = await avecBase(tables, (table, operation) => (table === "absences_enseignants" && operation === "upsert" && localStorage.getItem("essai-poste") === "kane"
+      ? { code: "42501", message: "new row violates row-level security policy" } : null));
+    localStorage.setItem("essai-poste", "kane");
+    await b.miroir.chargerMiroirs();
+    const A = await import("@/data/teacherAbsenceStore");
+    A.envoyerJustificatifAbsence("abs-kane", { motif: "Certificat médical", pieceJointe: { nom: "certificat.pdf", dataUrl: "data:application/pdf;base64,JVBERi0=" } }, "u-kane");
+    await b.miroir.attendreEnvois();
+    const piece = b.stockage[0]?.chemins[0];
+    expect(b.stockage).toEqual([{ espace: "justificatifs", operation: "depot", chemins: [expect.stringMatching(/^en-kane\/abs-kane\/[\w-]+\.pdf$/)], envoisAvant: 0, type: "application/pdf" }]);
+    expect(b.envois.map((e) => e.operation)).toEqual(["upsert", "update"]);
+    expect(b.envois[1].donnees).toMatchObject({ justificatif_motif: "Certificat médical", justificatif_piece_nom: "certificat.pdf", justificatif_piece: piece });
+    expect(b.S.getNotifications()).toEqual([]);
+
+    // Le secrétariat refuse le justificatif : le constat repart sans pièce, la pièce est retirée.
+    localStorage.setItem("essai-poste", "admin");
+    await b.miroir.chargerMiroirs();
+    expect(A.getTeacherAbsences()[0].justificatif?.pieceJointe).toEqual({ nom: "certificat.pdf", dataUrl: `https://exemple.supabase.co/storage/v1/object/sign/justificatifs/${piece}?token=essai` });
+    A.deciderJustificatifAbsence("abs-kane", "refuser", "u-admin", "Certificat illisible");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.at(-1)).toEqual({ table: "absences_enseignants", operation: "upsert", donnees: [expect.objectContaining({ id: "abs-kane", justificatif_motif: null,
+      justificatif_piece: null, refus_motif: "Certificat médical", refus_motif_refus: "Certificat illisible" })] });
+    expect(b.stockage.at(-1)).toEqual({ espace: "justificatifs", operation: "retrait", chemins: [piece], envoisAvant: 3 });
+    expect(A.statutJustificationAbsence(A.getTeacherAbsences()[0])).toBe("justificatif_refuse");
+  });
+
+  it("rallonge validée : seule la décision part ; le nouveau volume du cours vient de la base, pas du poste", async () => {
+    const RALLONGE = { id: "rlg-kane", ...COURS, vh_actuel: 30, vh_supplementaire: 6, motif: "Chapitre ajouté", statut: "soumis", motif_rejet: null, origine: "prof",
+      cree_le: "2026-11-02T10:00:00+00:00", date_traitement: null };
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], rallonges: [RALLONGE], volumes_enseignants: [] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs();
+    const R = await import("@/data/rallongeStore");
+    const V = await import("@/data/teacherVolumeStore");
+    R.updateRallongeStatut("rlg-kane", "valide");
+    // Ce que fait la base à la validation : 30 h + 6 h.
+    tables.volumes_enseignants = [{ id: "en-kane:2026-2027:ec-qualite:cl-l1", ...COURS, nouveau_vh: 36 }];
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "rallonges", operation: "upsert", donnees: [expect.objectContaining({ id: "rlg-kane", statut: "valide", vh_supplementaire: 6 })] }]);
+    expect(V.getTeacherVolumes()).toEqual([{ id: "en-kane:2026-2027:ec-qualite:cl-l1", teacherId: "en-kane", ecId: "ec-qualite", classeId: "cl-l1", annee: "2026-2027", nouveauVh: 36 }]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("nouveau contrat : numéro attribué par la base, lignes et avenants en JSON ; c'est la base qui prévient KANE", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [KANE] }));
+    const b = await avecBase({ annees_academiques: [ANNEE] });
+    await b.miroir.chargerMiroirs();
+    const C = await import("@/data/teacherContractStore");
+    const numero = await C.reserverNumeroContrat();
+    expect(b.appels).toEqual([{ nom: "attribuer_numero_contrat", donnees: undefined, envoisAvant: 0 }]);
+    const lignes = [{ ecId: "ec-qualite", classeId: "cl-l1", modePaiement: "taux_horaire" as const, montant: 15000 }];
+    C.addTeacherContract({ teacherId: "en-kane", annee: "2026-2027", dateDebut: "2026-11-02", dateFin: "2027-07-31", lignes }, numero);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "contrats_enseignants", operation: "upsert", donnees: [expect.objectContaining({ id: "CTR-0007", teacher_id: "en-kane",
+      date_debut: "2026-11-02", date_fin: "2027-07-31", lignes, avenants: [], resilie: false, date_resiliation: null })] }]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("taux, statut du cours et vacation payée : en colonnes de la base, sans notification du poste", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [KANE] }));
+    const b = await avecBase({ annees_academiques: [ANNEE], vacations: [{ id: "va-kane", mois: "Novembre 2026", enseignant: "Mamadou KANE", enseignant_id: "en-kane",
+      modules: ["Qualité"], heures_cm: 10, heures_td: 2, taux_horaire: 15000, montant_total: 180000, statut: "valide", moyen: "", observations: null }] });
+    await b.miroir.chargerMiroirs();
+    const T = await import("@/data/teacherRateStore");
+    const St = await import("@/data/teacherCourseStatusStore");
+    const Va = await import("@/data/vacationStore");
+    T.upsertTeacherRates([{ id: "en-kane:2026-2027:ec-qualite:cl-l1", teacherId: "en-kane", ecId: "ec-qualite", classeId: "cl-l1", annee: "2026-2027", modePaiement: "taux_horaire", montant: 15000, tauxAbatt: 5 }]);
+    St.upsertTeacherCourseStatuses([{ id: "en-kane:2026-2027:ec-qualite:cl-l1", teacherId: "en-kane", ecId: "ec-qualite", classeId: "cl-l1", annee: "2026-2027", typeComptabilisation: "a_terme" }]);
+    Va.markVacationPaid("va-kane", "Virement", "u-admin");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([
+      { table: "taux_enseignants", operation: "upsert", donnees: [{ id: "en-kane:2026-2027:ec-qualite:cl-l1", ...COURS, mode_paiement: "taux_horaire", montant: 15000, taux_abatt: 5 }] },
+      { table: "statuts_cours_enseignants", operation: "upsert", donnees: [{ id: "en-kane:2026-2027:ec-qualite:cl-l1", ...COURS, type_comptabilisation: "a_terme" }] },
+      { table: "vacations", operation: "upsert", donnees: [expect.objectContaining({ id: "va-kane", statut: "paye", moyen: "Virement", montant_total: 180000, modules: ["Qualité"] })] },
+    ]);
+    expect(b.S.getNotifications()).toEqual([]);
   });
 });
