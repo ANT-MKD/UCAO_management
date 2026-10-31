@@ -1,4 +1,5 @@
 import { ecrireStockage } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 import { getEtudiantById, getUserAccounts, logAudit } from "./studentStore";
 import { envoyerMailSysteme } from "./mailEnvoyeStore";
 
@@ -93,7 +94,8 @@ export function envoyerRelancePaiement(etudiantId: string, delaiJours: number, a
   };
   store.push(record);
 
-  envoyerMailSysteme({
+  // Avec Supabase, la base inscrit elle-même le mail de la relance (et prévient l'étudiant).
+  if (!modeSupabase) envoyerMailSysteme({
     destinataireUserId: compteEtudiant.id,
     destinataireLabel: `${etudiant.prenom} ${etudiant.nom}`,
     destinataireEmail: compteEtudiant.email,

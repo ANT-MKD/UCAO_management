@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { modeSupabase, supabase } from "@/lib/supabase";
 import { observerEcritures } from "@/lib/stockageLocal";
 
@@ -72,6 +73,10 @@ export interface PartieMiroir<R extends { id: string }> {
   /** Numéro donné par la base à l'enregistrement (ex. reçu de caisse) : après l'ajout d'une ligne,
    * le miroir est relu depuis cette table pour afficher le numéro définitif. */
   numeroteeParLaBase?: boolean;
+  /** Lignes lues par une fonction de la base plutôt que dans la table (ex. l'annuaire de la
+   * messagerie : les comptes que ce compte peut nommer, sans leurs coordonnées) ; « table » reste
+   * le nom suivi par les compteurs de changements. Jamais envoyée. */
+  rpc?: string;
 }
 
 /** Colonne (dans la table, ou dans la table liée par « jointure », ex. cahiers!inner(annee) et
@@ -251,7 +256,12 @@ function client() {
 
 /** Toutes les lignes d'une table, ou de sa portée (par pages : la base en renvoie au plus 1 000 à
  * la fois). */
-async function toutLire(table: string, portee?: Portee): Promise<Ligne[]> {
+async function toutLire(table: string, portee?: Portee, rpc?: string): Promise<Ligne[]> {
+  if (rpc) {
+    const { data, error } = await client().rpc(rpc);
+    if (error) throw error;
+    return (data ?? []) as Ligne[];
+  }
   const lignes: Ligne[] = [];
   const page = 1000;
   for (let debut = 0; ; debut += page) {
@@ -313,7 +323,7 @@ async function chargerPartie(partie: PartieMiroir<{ id: string }>, garde?: () =>
     sansEnvoi(() => partie.remplacer([]));
     return true;
   }
-  const lignes = await toutLire(partie.table, partie.portee?.());
+  const lignes = await toutLire(partie.table, partie.portee?.(), partie.rpc);
   const affichage = await preparerFichiers(partie, lignes);
   if (garde && !garde()) return false;
   chargements.set(partie.table, { le: Date.now(), lignes: lignes.length });
@@ -370,9 +380,16 @@ function sauvegarderUneFois(): void {
   }
 }
 
+/** Compte connecté, pour écouter ses canaux en direct (le sien ; celui de l'administration). */
+export interface AbonnementEnDirect {
+  compteId: string;
+  administration: boolean;
+}
+
 /** Remplit tous les stores reflétés avec le contenu de la base. À appeler à la connexion ;
- * rejette si la base est injoignable (les modifications ne partent alors pas). */
-export async function chargerMiroirs(): Promise<void> {
+ * rejette si la base est injoignable (les modifications ne partent alors pas). Avec le compte
+ * connecté, le poste écoute ensuite ce que la base lui signale en direct. */
+export async function chargerMiroirs(enDirect?: AbonnementEnDirect): Promise<void> {
   if (!modeSupabase) return;
   // Les modifications déjà parties arrivent d'abord : le chargement ne les écrase pas.
   await file;
@@ -385,6 +402,7 @@ export async function chargerMiroirs(): Promise<void> {
   Object.entries(compteurs ?? {}).forEach(([table, version]) => versions.set(table, version));
   pret = true;
   demarrerSuivi();
+  if (enDirect) void suivreEnDirect(enDirect);
 }
 
 /** Fin de session : plus rien ne part tant qu'un nouveau chargement n'a pas eu lieu. */
@@ -392,6 +410,8 @@ export function arreterMiroirs(): void {
   pret = false;
   if (minuterie !== undefined) clearInterval(minuterie);
   minuterie = undefined;
+  generationDirect++;
+  arreterEnDirect();
 }
 
 // ——— Suivi des changements faits ailleurs ————————————————————————————————————————————————————
@@ -462,6 +482,68 @@ if (typeof document !== "undefined" && modeSupabase) {
   });
 }
 
+// ——— En direct ——————————————————————————————————————————————————————————————————————————————
+// La base prévient elle-même chaque compte, sur son canal privé « compte:<id> » (et l'administration
+// sur « administration »), qu'une table qui le concerne vient de changer : un message pour lui, une
+// notification, une demande à traiter… Le poste relit aussitôt cette table, selon ses droits, au
+// lieu d'attendre le prochain tour de suivi (qui reste en secours si la connexion tombe). Le message
+// reçu ne contient que le nom de la table.
+
+/** Plusieurs signaux rapprochés (un mail à 200 destinataires…) ne font qu'une relecture. */
+export const DELAI_REGROUPEMENT_MS = 300;
+let canaux: RealtimeChannel[] = [];
+let abonnement: AbonnementEnDirect | undefined;
+let regroupement: ReturnType<typeof setTimeout> | undefined;
+/** Abonnement en cours de mise en place (une session plus récente l'emporte). */
+let generationDirect = 0;
+
+function signalerChangement(table: string | undefined): void {
+  // Compteur oublié : la table sera relue même si le suivi l'a vue changer juste avant sa validation.
+  if (table) versions.set(table, -1);
+  if (regroupement !== undefined) return;
+  regroupement = setTimeout(() => {
+    regroupement = undefined;
+    void verifierChangements();
+  }, DELAI_REGROUPEMENT_MS);
+}
+
+async function suivreEnDirect(compte: AbonnementEnDirect): Promise<void> {
+  if (typeof window === "undefined") return;
+  const c = client();
+  const generation = ++generationDirect;
+  try {
+    // Jeton de la session pour les canaux privés (la base vérifie qui écoute quoi).
+    await c.realtime.setAuth();
+  } catch {
+    return;
+  }
+  if (generation !== generationDirect) return;
+  if (abonnement?.compteId === compte.compteId && abonnement.administration === compte.administration && canaux.length > 0) return;
+  arreterEnDirect();
+  abonnement = compte;
+  const sujets = [`compte:${compte.compteId}`, ...(compte.administration ? ["administration"] : [])];
+  canaux = sujets.map((sujet) =>
+    c.channel(sujet, { config: { private: true } })
+      .on("broadcast", { event: "changement" }, (message: { payload?: { table?: unknown } }) => {
+        const table = message.payload?.table;
+        signalerChangement(typeof table === "string" ? table : undefined);
+      })
+      // Rejoint (ou rejoint de nouveau après une coupure) : ce qui a changé entre-temps est relu.
+      .subscribe((statut: string) => {
+        if (statut === "SUBSCRIBED") signalerChangement(undefined);
+      }),
+  );
+}
+
+function arreterEnDirect(): void {
+  if (regroupement !== undefined) clearTimeout(regroupement);
+  regroupement = undefined;
+  const anciens = canaux;
+  canaux = [];
+  abonnement = undefined;
+  if (anciens.length > 0 && supabase) for (const canal of anciens) void supabase.removeChannel(canal);
+}
+
 /** Clés enregistrées depuis le dernier envoi. */
 const modifiees = new Set<string>();
 
@@ -513,7 +595,7 @@ async function envoyer(): Promise<void> {
   if (modifiees.size === 0) return;
   const lot = miroirs.filter((m) => modifiees.has(m.cle));
   modifiees.clear();
-  const parties = lot.flatMap((m) => m.parties).filter((p) => !p.lectureSeule).map((partie) => {
+  const parties = lot.flatMap((m) => m.parties).filter((p) => !p.lectureSeule && !p.rpc).map((partie) => {
     const fiches = partie.lire();
     const lignes = fiches.filter((f) => !partie.envoyable || partie.envoyable(f)).map((f) => versLigne(partie, f as Fiche));
     return { partie, lignes, ids: new Set(fiches.map((f) => f.id)) };

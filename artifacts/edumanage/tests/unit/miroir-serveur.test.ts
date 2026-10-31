@@ -28,7 +28,37 @@ async function avecBase(
   const compteurs: Record<string, number> = {};
   /** Tables lues, dans l'ordre (une entrée par page lue). */
   const lectures: string[] = [];
+  /** Annuaire de la base : celui que le test donne (tables.annuaire), sinon les comptes du poste. */
+  let S: typeof import("@/data/studentStore") | undefined;
+  const annuaireDuPoste = () => (S?.getAnnuaire() ?? []).map((c) => ({
+    id: c.id, type_compte: c.typeCompte, identifiant: c.identifiant, nom_affiche: c.nomAffiche, fonction: c.fonction ?? null, lien_id: c.lienId ?? null,
+    role_id: c.roleId ?? null, actif: c.actif, email: c.email ?? "", telephone: c.telephone ?? "", doit_changer_mot_de_passe: c.doitChangerMotDePasse ?? false,
+    mot_de_passe_change_le: c.motDePasseChangeLe ?? null,
+  }));
+  /** Canaux en direct ouverts par le poste, et ce qu'ils écoutent. */
+  const canaux: { sujet: string; prive: boolean; ecouteurs: ((message: { payload: unknown }) => void)[]; retire: boolean }[] = [];
   const client = {
+    realtime: { setAuth: async () => {} },
+    channel: (sujet: string, options: { config?: { private?: boolean } }) => {
+      const canal = { sujet, prive: options.config?.private === true, ecouteurs: [] as ((message: { payload: unknown }) => void)[], retire: false };
+      canaux.push(canal);
+      const objet = {
+        on: (_type: string, _filtre: unknown, rappel: (message: { payload: unknown }) => void) => {
+          canal.ecouteurs.push(rappel);
+          return objet;
+        },
+        subscribe: (rappel?: (statut: string) => void) => {
+          rappel?.("SUBSCRIBED");
+          return objet;
+        },
+        canal,
+      };
+      return objet;
+    },
+    removeChannel: async (objet: { canal: { retire: boolean } }) => {
+      objet.canal.retire = true;
+      return "ok";
+    },
     storage: {
       from: (espace: string) => ({
         upload: async (chemin: string, contenu: Blob, options: { contentType?: string }) => {
@@ -61,6 +91,7 @@ async function avecBase(
     auth: { getSession: async () => ({ data: { session: null }, error: null }) },
     rpc: async (nom: string, args: Record<string, unknown>) => {
       if (nom === "versions_donnees") return { data: { ...compteurs }, error: null };
+      if (nom === "annuaire") return { data: tables.annuaire ?? annuaireDuPoste(), error: null };
       appels.push({ nom, donnees: args, envoisAvant: envois.length });
       if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
       if (nom === "apercu_matricule") return { data: `2026-LQHSE-${String(prochainMatricule).padStart(4, "0")}`, error: null };
@@ -148,7 +179,14 @@ async function avecBase(
   }));
   const miroir = await import("@/lib/miroirServeur");
   await import("@/data/miroirs");
+  S = await import("@/data/studentStore");
+  /** La base diffuse sur un canal (ce que font ses déclencheurs à chaque écriture validée). */
+  const diffuser = (sujet: string, table: string) => {
+    for (const canal of canaux.filter((c) => c.sujet === sujet && !c.retire)) canal.ecouteurs.forEach((e) => e({ payload: { table, id: "x" } }));
+  };
   return {
+    canaux,
+    diffuser,
     envois,
     appels,
     stockage,
@@ -1651,5 +1689,152 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
     expect(b.appels).toEqual([expect.objectContaining({ nom: "notifier", donnees: expect.objectContaining({ p_destinataire: "u-awa",
       p_message: "Rappel — quittance RECU-2026-001 en attente de règlement (date limite : 2026-12-15)" }) })]);
     expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("relance de paiement : la relance seule part ; son mail, la base l'inscrit elle-même (et prévient Awa une seule fois)", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    const R = await import("@/data/relancePaiementStore");
+    const M = await import("@/data/mailEnvoyeStore");
+    expect(R.envoyerRelancePaiement("et-awa", 10, "u-caisse")).toMatchObject({ etudiantId: "et-awa", montantDu: 60000, statut: "active" });
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["relances_paiement"]);
+    expect(M.getMailsEnvoyes()).toEqual([]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+});
+
+describe("communication en direct : messages, annuaire et mails tenus par la base (partie 8)", () => {
+  const COMPTE = (id: string, type: string, nom: string, lien: string | null, details: Partial<Ligne> = {}) => ({ id, type_compte: type, identifiant: "", nom_affiche: nom,
+    fonction: "", lien_id: lien, role_id: null, actif: true, email: "", telephone: "", doit_changer_mot_de_passe: false, mot_de_passe_change_le: null, ...details });
+  const KANE = COMPTE("u-kane", "enseignant", "Mamadou KANE", "en-kane");
+  const AWA = COMPTE("u-awa", "etudiant", "Awa SECK", "et-awa");
+  const SCOLARITE = COMPTE("u-admin", "administration", "Scolarité", null, { fonction: "Secrétariat" });
+  const MESSAGE_AWA = { id: "msg-awa-1", expediteur: "u-awa", destinataire: "u-kane", objet: "Question sur le TP", contenu: "Le TP est-il à rendre lundi ?",
+    cree_le: "2026-11-03T08:00:00+00:00", lu: false, lu_le: null, mail_id: null };
+  /** Laisse passer le regroupement des signaux en direct, puis la relecture qui suit. */
+  const attendreDirect = async (b: { miroir: { DELAI_REGROUPEMENT_MS: number; attendreEnvois: () => Promise<void> } }) => {
+    await new Promise((r) => setTimeout(r, b.miroir.DELAI_REGROUPEMENT_MS + 50));
+    await b.miroir.attendreEnvois();
+  };
+
+  it("critère de fin : un message d'Awa apparaît chez KANE sans recharger la page", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], messages: [], annuaire: [{ ...KANE, identifiant: "KANE" }, AWA, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-kane", administration: false });
+    await attendreDirect(b);
+    expect(b.canaux.map((c) => ({ sujet: c.sujet, prive: c.prive }))).toEqual([{ sujet: "compte:u-kane", prive: true }]);
+    expect(b.S.getMessagesForUser("u-kane")).toEqual([]);
+    b.lectures.length = 0;
+    // Le message d'Awa est enregistré par la base, qui prévient KANE sur son canal (le compteur de
+    // changements, lui, a pu être lu juste avant : la table est relue quand même).
+    tables.messages.push({ ...MESSAGE_AWA });
+    b.diffuser("compte:u-kane", "messages");
+    await attendreDirect(b);
+    expect(b.S.getMessagesForUser("u-kane")).toEqual([{ id: "msg-awa-1", fromUserId: "u-awa", toUserId: "u-kane", subject: "Question sur le TP",
+      content: "Le TP est-il à rendre lundi ?", createdAt: "2026-11-03T08:00:00+00:00", read: false }]);
+    expect(b.S.getUserAccountById("u-awa")?.displayName).toBe("Awa SECK");
+    expect(b.lectures).toEqual(["messages"]);
+    expect(b.envois).toEqual([]);
+  });
+
+  it("un signal d'un autre canal, ou sur un canal fermé, ne relit rien ; la déconnexion ferme les canaux", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], messages: [], annuaire: [KANE, AWA, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-kane", administration: false });
+    await attendreDirect(b);
+    tables.messages.push({ ...MESSAGE_AWA });
+    b.lectures.length = 0;
+    b.diffuser("compte:u-awa", "messages");
+    b.diffuser("administration", "messages");
+    await attendreDirect(b);
+    expect(b.lectures).toEqual([]);
+    b.miroir.arreterMiroirs();
+    expect(b.canaux.every((c) => c.retire)).toBe(true);
+    b.diffuser("compte:u-kane", "messages");
+    await attendreDirect(b);
+    expect(b.lectures).toEqual([]);
+    expect(b.S.getMessagesForUser("u-kane")).toEqual([]);
+  });
+
+  it("l'administration écoute aussi son canal : une file du centre « À traiter » se met à jour aussitôt ; un nouveau chargement ne double pas les canaux", async () => {
+    const POINTAGE = { id: "ptg-1", teacher_id: "en-kane", ec_id: "ec-qualite", classe_id: "cl-l1", annee: "2026-2027", seance_id: null, cahier_id: null,
+      date: "2026-11-02", heure_debut: "08:00", heure_fin: "10:00", type: "CM", salle_id: null, volume_pointe: 2, remarque: "", statut: "soumis", motif_rejet: null,
+      cree_le: "2026-11-02T10:00:00+00:00" };
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], pointages: [], annuaire: [KANE, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    await attendreDirect(b);
+    expect(b.canaux.filter((c) => !c.retire).map((c) => c.sujet)).toEqual(["compte:u-admin", "administration"]);
+    const P = await import("@/data/pointageStore");
+    tables.pointages.push(POINTAGE);
+    b.diffuser("administration", "pointages");
+    await attendreDirect(b);
+    expect(P.getPointages()).toEqual([expect.objectContaining({ id: "ptg-1", statut: "soumis" })]);
+  });
+
+  it("annuaire : les comptes du poste deviennent ceux de la base (les anciens comptes locaux disparaissent) ; il ne repart jamais", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [{ id: "u-ancien", role: "admin", displayName: "Ancien compte local", email: "ancien@ucao.edu",
+      identifier: "ANCIEN", password: "x", actif: true }] }));
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], annuaire: [{ ...KANE, identifiant: "KANE", email: "kane@ucao.edu", telephone: "+221 77 000 00 03" },
+      AWA, { ...SCOLARITE, identifiant: "SCOL-1", role_id: "role-com", doit_changer_mot_de_passe: true }] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    expect(b.S.getUserAccounts().map((u) => u.id).sort()).toEqual(["u-admin", "u-awa", "u-kane"]);
+    expect(b.S.getUserAccountById("u-kane")).toMatchObject({ role: "teacher", identifier: "KANE", displayName: "Mamadou KANE", linkedId: "en-kane",
+      email: "kane@ucao.edu", telephone: "+221 77 000 00 03", actif: true });
+    expect(b.S.getUserAccountById("u-admin")).toMatchObject({ role: "admin", identifier: "SCOL-1", roleId: "role-com", fonction: "Secrétariat", doitChangerMotDePasse: true });
+    expect(b.S.getUserAccountById("u-awa")).toMatchObject({ role: "student", linkedId: "et-awa" });
+    b.S.markAllNotificationsRead("u-admin");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([]);
+  });
+
+  it("Awa écrit à la scolarité : le message seul part (c'est la base qui prévient son destinataire)", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], messages: [], annuaire: [AWA, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-awa", administration: false });
+    b.S.sendMessage("u-awa", "u-admin", "Attestation", "Bonjour, je voudrais une attestation.");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "messages", operation: "upsert", donnees: [expect.objectContaining({ expediteur: "u-awa", destinataire: "u-admin",
+      objet: "Attestation", contenu: "Bonjour, je voudrais une attestation.", lu: false })] }]);
+    expect(b.S.getNotifications()).toEqual([]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
+  });
+
+  it("KANE lit le message d'Awa : la base refuse qu'il le réécrive en entier, seul « lu » change", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], messages: [{ ...MESSAGE_AWA }], annuaire: [KANE, AWA] };
+    const b = await avecBase(tables, (table, operation) => (table === "messages" && operation === "upsert"
+      ? { code: "42501", message: "new row violates row-level security policy for table \"messages\"" } : null));
+    await b.miroir.chargerMiroirs({ compteId: "u-kane", administration: false });
+    b.S.markMessageAsRead("msg-awa-1", "u-kane");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.operation)).toEqual(["upsert", "update"]);
+    expect(b.envois[1].donnees).toMatchObject({ lu: true, expediteur: "u-awa", destinataire: "u-kane" });
+    expect(tables.messages[0].lu).toBe(true);
+  });
+
+  it("mail de la scolarité : le mail seul part ; la base le dépose chez Awa et prévient ; un rejet ne notifie rien depuis le poste", async () => {
+    const MAIL_EN_ATTENTE = { id: "mail-2", auteur_id: "u-admin", auteur_label: "Scolarité", cree_le: "2026-11-03T09:00:00+00:00", selections: [], destinataires: [],
+      emails_supplementaires: [], objet: "Fête de fin d'année", message: "Tous invités.", fichiers: [], statut: "en_attente_validation", validateur_id: null,
+      validateur_label: null, date_traitement: null, motif_rejet: null };
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], messages: [], mails_envoyes: [MAIL_EN_ATTENTE], annuaire: [AWA, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    const M = await import("@/data/mailEnvoyeStore");
+    expect(M.getMailsEnvoyes()).toEqual([expect.objectContaining({ id: "mail-2", auteurId: "u-admin", date: "2026-11-03T09:00:00+00:00", statut: "en_attente_validation" })]);
+    M.envoyerMail({ auteurId: "u-admin", auteurLabel: "Scolarité", selections: [{ type: "compte", id: "u-awa", label: "Awa SECK" }], emailsSupplementaires: [],
+      objet: "Réunion de rentrée", message: "Vendredi à 10 h.", fichiers: ["programme.pdf"] });
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "mails_envoyes", operation: "upsert", donnees: [expect.objectContaining({ auteur_id: "u-admin", objet: "Réunion de rentrée",
+      statut: "traite", destinataires: [expect.objectContaining({ label: "Awa SECK", userId: "u-awa" })], fichiers: ["programme.pdf"], emails_supplementaires: [] })] }]);
+    expect(b.S.getMessages()).toEqual([]);
+    M.rejeterMail("mail-2", "u-admin", "Scolarité", "Hors sujet");
+    await b.miroir.attendreEnvois();
+    expect(b.envois[1]).toEqual({ table: "mails_envoyes", operation: "upsert", donnees: [expect.objectContaining({ id: "mail-2", statut: "rejete", motif_rejet: "Hors sujet" })] });
+    expect(b.S.getNotifications()).toEqual([]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
   });
 });

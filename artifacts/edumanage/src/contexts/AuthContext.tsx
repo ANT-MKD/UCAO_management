@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (etat && "compte" in etat) {
           // Données de référence (structure académique…) chargées avant d'ouvrir les écrans.
           try {
-            await chargerMiroirs();
+            await chargerMiroirs({ compteId: etat.compte.id, administration: etat.compte.type_compte === "administration" });
           } catch {
             await client.auth.signOut();
             if (monte) setCurrentUser(null);
@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const compte = await connecterServeur(identifierOrEmail, password);
       if (!compte) return null;
       try {
-        await chargerMiroirs();
+        await chargerMiroirs({ compteId: compte.id, administration: compte.type_compte === "administration" });
       } catch {
         await supabase?.auth.signOut();
         throw new Error(DONNEES_INJOIGNABLES);

@@ -1015,6 +1015,57 @@ export function getUserAccounts(): UserAccountRecord[] {
   return store.users;
 }
 
+/** Compte tel que l'annuaire de la base le décrit (avec Supabase) : tous les comptes, en détail,
+ * pour l'administration ; pour un professeur ou un étudiant, ceux qu'il peut nommer dans sa
+ * messagerie, sans leurs coordonnées. */
+export interface CompteAnnuaire {
+  id: string;
+  typeCompte: "administration" | "enseignant" | "etudiant";
+  identifiant: string;
+  nomAffiche: string;
+  fonction?: string;
+  lienId?: string;
+  roleId?: string;
+  actif: boolean;
+  email?: string;
+  telephone?: string;
+  doitChangerMotDePasse?: boolean;
+  motDePasseChangeLe?: string;
+}
+
+const ROLE_DU_TYPE: Record<CompteAnnuaire["typeCompte"], UserRole> = { administration: "admin", enseignant: "teacher", etudiant: "student" };
+const TYPE_DU_ROLE: Record<UserRole, CompteAnnuaire["typeCompte"]> = { admin: "administration", teacher: "enseignant", student: "etudiant" };
+
+export function getAnnuaire(): CompteAnnuaire[] {
+  return store.users.map((u) => ({
+    id: u.id, typeCompte: TYPE_DU_ROLE[u.role], identifiant: u.identifier, nomAffiche: u.displayName, fonction: u.fonction, lienId: u.linkedId,
+    roleId: u.roleId, actif: u.actif, email: u.email, telephone: u.telephone, doitChangerMotDePasse: u.doitChangerMotDePasse, motDePasseChangeLe: u.passwordUpdatedAt,
+  }));
+}
+
+/** Les comptes de ce poste deviennent ceux de l'annuaire de la base : les comptes d'avant Supabase
+ * qu'il ne contient pas disparaissent, rien n'en est gardé sinon le mot de passe local inutilisable. */
+export function remplacerAnnuaire(records: CompteAnnuaire[]) {
+  const existants = new Map(store.users.map((u) => [u.id, u]));
+  store.users = records.map((r): UserAccountRecord => ({
+    password: existants.get(r.id)?.password ?? COMPTE_SANS_MOT_DE_PASSE_HASH,
+    id: r.id,
+    role: ROLE_DU_TYPE[r.typeCompte],
+    email: r.email ?? "",
+    identifier: r.identifiant ?? "",
+    displayName: r.nomAffiche,
+    linkedId: r.lienId || undefined,
+    fonction: r.fonction || undefined,
+    telephone: r.telephone || undefined,
+    actif: r.actif,
+    roleId: r.roleId || undefined,
+    passwordUpdatedAt: r.motDePasseChangeLe || undefined,
+    doitChangerMotDePasse: r.doitChangerMotDePasse ?? false,
+    photoDataUrl: existants.get(r.id)?.photoDataUrl,
+  }));
+  persist();
+}
+
 export function authenticateUser(identifierOrEmail: string, password: string): UserAccountRecord | null {
   const freshUsers = seedUsers(store.etudiants);
   const beforeCount = store.users.length;
@@ -3177,6 +3228,12 @@ export function getMessages(): MessageRecord[] {
   return store.messages;
 }
 
+/** Messages de la base (avec Supabase) : ceux que ce compte a envoyés ou reçus. */
+export function remplacerMessages(records: MessageRecord[]) {
+  store.messages = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  persist();
+}
+
 /** Professeurs (comptes actifs) qui enseignent réellement dans une classe : un créneau d'emploi du
  * temps, une évaluation, ou la responsabilité d'un EC de la filière et du niveau de la classe —
  * rattachés par identifiant, ou à défaut par le nom complet (anciennes données). */
@@ -3234,7 +3291,8 @@ export function sendMessage(fromUserId: string, toUserId: string, subject: strin
     read: false,
   };
   store.messages.unshift(msg);
-  pushNotificationLocale(toUserId, `Nouveau message: ${subject}`);
+  // Avec Supabase, la base prévient elle-même le destinataire, sur son poste.
+  if (!modeSupabase) pushNotificationLocale(toUserId, `Nouveau message: ${subject}`);
   logAudit(fromUserId, "send_message", "message", msg.id, `to:${toUserId}`);
   persist();
   return msg;
