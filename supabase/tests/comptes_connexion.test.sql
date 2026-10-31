@@ -114,6 +114,14 @@ select tests.echoue(format('select public.compte_enregistrer(%L, null, ''adminis
   'pages auxquelles vous n''avez pas accès', 'le secrétariat n''attribue pas un rôle plus large que le sien');
 select public.compte_enregistrer(:S, :X, 'administration', 'accueil-1', 'Accueil', '', '', 'Accueil', 'role-accueil');
 select public.compte_enregistrer(:S, :F, 'enseignant', 'prof-fall', 'Ibrahima FALL', 'i.fall@ucao.edu', '', '', null, 'en-fall');
+-- Le compte d'un étudiant suit son dossier (partie 4) : le dossier d'Awa est enregistré d'abord.
+insert into public.filieres (id, code, nom) values ('fil-qhse', 'LQHSE', 'Licence QHSE');
+insert into public.etudiants (id, matricule, prenom, nom, filiere_id, niveau, statut, annee)
+  values ('et-awa', '2026-LQHSE-0001', 'Awa', 'SECK', 'fil-qhse', 'L1', 'inscrit', '2026-2027');
+select tests.echoue(format('select public.compte_enregistrer(%L, null, ''etudiant'', ''2026-LQHSE-0099'', ''Inconnu'', '''', '''', '''', null, ''et-inconnu'')', :S),
+  'pas enregistré', 'un compte étudiant suit un dossier enregistré');
+select tests.echoue(format('select public.compte_enregistrer(%L, null, ''etudiant'', ''AWA'', ''Awa SECK'', '''', '''', '''', null, ''et-awa'')', :S),
+  'son matricule', 'l''identifiant d''un étudiant est son matricule');
 select public.compte_enregistrer(:S, :W, 'etudiant', '2026-lqhse-0001', 'Awa SECK', 'awa.seck@mail.sn', '', '', null, 'et-awa');
 select tests.verifier((select count(*) = 6 from public.comptes), 'le secrétariat crée un accueil, FALL et Awa SECK');
 
