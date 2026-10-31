@@ -90,6 +90,12 @@ export function getEvaluations(): EvaluationRecord[] {
   return store.evaluations;
 }
 
+/** Évaluations de la base (avec Supabase) : celles que ce compte lit. */
+export function remplacerEvaluations(records: EvaluationRecord[]) {
+  store.evaluations = records;
+  persist();
+}
+
 export function getEvaluationById(id: string): EvaluationRecord | undefined {
   return store.evaluations.find((e) => e.id === id);
 }

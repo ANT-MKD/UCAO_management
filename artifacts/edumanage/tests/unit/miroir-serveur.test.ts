@@ -1125,3 +1125,67 @@ describe("suivi des changements faits ailleurs", () => {
     expect(b.S.getNotifications()).toEqual([]);
   });
 });
+
+describe("miroir des évaluations, des notes et des demandes de correction", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const UE = { id: "ue-l1", code: "UE11", libelle: "Fondamentaux QHSE", credits: 6, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", semestre: "S1", type: "", obligatoire: true, description: null };
+  const EC = { id: "ec-qualite", code: "QHSE111", libelle: "Qualité", abrege: null, ue: "UE11", ue_id: "ue-l1", credits: 3, vol_cm: 20, vol_td: 10, vol_tp: 0, vol_tpe: 0, vht: 30, responsable: "", responsable_id: null };
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27", classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+  const EVALUATION = { id: "ev-devoir", code: "100000001", filiere_id: "fil-qhse", filiere: "LQHSE", annee: "2026-2027", niveau_id: "niv-l1", niveau: "L1", classe_id: "cl-l1",
+    classe: "LQHSE1-26/27", semestre_id: null, semestre: "S1", ec_id: "ec-qualite", cours: "QHSE111 — Qualité", professeur_id: "en-kane", professeur: "Mamadou KANE",
+    type: "devoir", poids: 40, type_evaluation_id: null, description: null, cree_par: null, date_creation: "2026-11-02", modifie_par: null, modifie_le: null, session: null };
+  const NOTE = { id: "no-awa-cc", etudiant: "Awa SECK", etudiant_id: "et-awa", matricule: "2026-LQHSE-0001", ec: "Qualité", ec_id: "ec-qualite", type: "CC", note: 12.5,
+    absent: false, statut: "publie", classe_id: "cl-l1", annee: "2026-2027", session: null, evaluation_id: "ev-devoir", date_creation: "2026-11-02T10:00:00+00:00", date_modification: null };
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], classes: [CLASSE], ues: [UE], ecs: [EC],
+    etudiants: [AWA], evaluations: [EVALUATION] });
+  const COMPTES = [
+    { id: "u-admin", role: "admin", displayName: "Saisie des notes", email: "notes@ucao.edu", identifiant: "ADM", actif: true },
+    { id: "u-kane", role: "teacher", displayName: "Mamadou KANE", email: "m.kane@ucao.edu", identifiant: "KANE", actif: true, linkedId: "en-kane" },
+    { id: "u-awa", role: "student", displayName: "Awa SECK", email: "awa@ucao.edu", identifiant: "2026-LQHSE-0001", actif: true, linkedId: "et-awa" },
+  ];
+
+  it("KANE saisit puis soumet : la note part en colonnes de la base, après son évaluation ; c'est la base qui prévient la scolarité", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    b.S.saveNoteEvaluationGrid("cl-l1", "ec-qualite", "Qualité", "ev-devoir", "devoir", undefined, [{ etudiantId: "et-awa", absent: true }], false, { respecterVerrou: true });
+    b.S.submitNotesForValidation("cl-l1", "ec-qualite");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["notes"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ etudiant_id: "et-awa", evaluation_id: "ev-devoir", type: "CC", note: 0, absent: true,
+      statut: "soumis_admin", classe_id: "cl-l1", annee: "2026-2027", session: null })]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("une note publiée reste telle quelle dans la saisie : rien ne part ; seule une correction acceptée la change, la décision partant avant la note", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const b = await avecBase({ ...base(), notes: [NOTE] });
+    await b.miroir.chargerMiroirs();
+    b.S.saveNoteEvaluationGrid("cl-l1", "ec-qualite", "Qualité", "ev-devoir", "devoir", undefined, [{ etudiantId: "et-awa", note: 18 }], false);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([]);
+    expect(b.S.getNotes()[0]).toMatchObject({ note: 12.5, statut: "publie" });
+
+    const C = await import("@/data/correctionNoteStore");
+    const demande = C.demanderCorrectionNote({ noteId: "no-awa-cc", nouvelleNote: 14, motif: "Erreur de report" }, "u-kane");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "demandes_correction", operation: "upsert", donnees: [expect.objectContaining({ id: demande.id, note_id: "no-awa-cc",
+      ancienne_note: 12.5, ancien_absent: false, nouvelle_note: 14, nouvel_absent: false, demande_par_id: "u-kane", statut: "en_attente" })] }]);
+    C.traiterDemandeCorrection(demande.id, "accepter", "u-admin");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.slice(1).map((e) => e.table)).toEqual(["demandes_correction", "notes"]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ id: demande.id, statut: "acceptee" })]);
+    expect(b.envois[2].donnees).toEqual([expect.objectContaining({ id: "no-awa-cc", note: 14, statut: "publie" })]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("une évaluation supprimée avec ses notes en brouillon : les notes partent d'abord, puis l'évaluation", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    const b = await avecBase({ ...base(), notes: [{ ...NOTE, statut: "brouillon_prof" }] });
+    await b.miroir.chargerMiroirs();
+    const R = await import("@/data/suppressionReferentiel");
+    expect(R.supprimerEvaluation("ev-devoir", "u-admin").ok).toBe(true);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => [e.operation, e.table])).toEqual([["delete", "notes"], ["delete", "evaluations"]]);
+  });
+});

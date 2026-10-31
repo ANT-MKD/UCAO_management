@@ -2176,6 +2176,13 @@ export function getNotes(): NoteRecord[] {
   return store.notes;
 }
 
+/** Notes de la base (avec Supabase) : toutes pour l'administration, celles de ses cours pour un
+ * professeur, ses notes publiées pour un étudiant. */
+export function remplacerNotes(records: NoteRecord[]) {
+  store.notes = records;
+  persist();
+}
+
 export function getNotesByClasseEc(classeId: string, ecId: string): NoteRecord[] {
   return store.notes.filter((n) => n.classeId === classeId && n.ecId === ecId);
 }
@@ -2266,6 +2273,8 @@ export function saveNotesGrid(
       const existing = store.notes.find(
         (n) => n.etudiantId === input.etudiantId && n.ecId === ecId && n.type === type && n.session === session,
       );
+      // Une note validée ou publiée ne change que par une demande de correction acceptée.
+      if (existing && noteEstOfficielle(existing)) continue;
       const statut = publish ? "publie" as const : "brouillon_prof" as const;
       if (existing) {
         existing.note = note;
@@ -2333,8 +2342,9 @@ export function saveNoteEvaluationGrid(
   options: {
     /** Note maximale de la filière (Paramétrage scolarité) — 20 par défaut. */
     bareme?: number;
-    /** Portail professeur : les notes validées ou publiées ne sont jamais réécrites (ni remises
-     * en brouillon), et une case vidée retire la note encore en brouillon ou soumise. */
+    /** Portail professeur : une case vidée retire la note encore en brouillon ou soumise. (Les notes
+     * validées ou publiées ne sont jamais réécrites ni remises en brouillon, d'où qu'on saisisse :
+     * elles ne changent que par une demande de correction acceptée.) */
     respecterVerrou?: boolean;
   } = {},
 ): void {
@@ -2357,7 +2367,7 @@ export function saveNoteEvaluationGrid(
     const etudiant = getEtudiantById(input.etudiantId);
     if (!etudiant) continue;
     const existing = store.notes.find((n) => n.etudiantId === input.etudiantId && n.evaluationId === evaluationId);
-    if (existing && options.respecterVerrou && noteEstOfficielle(existing)) continue;
+    if (existing && noteEstOfficielle(existing)) continue;
     const vide = !input.absent && (input.note === undefined || Number.isNaN(input.note));
     if (vide) {
       // Case vidée : la note encore modifiable est retirée (portail professeur uniquement).
@@ -2416,7 +2426,8 @@ export function corrigerNoteOfficielle(noteId: string, nouvelleNote: number, abs
   logAudit(actorUserId, "correction_note", "note", note.id, `${note.etudiant} (${note.matricule}) — ${note.ec} — ${typeLabel} : ${avant} → ${apres} — motif : ${motif}`);
   if (note.statut === "publie") {
     generateRelevesForClasseEc(note.classeId, note.ecId);
-    const compte = store.users.find((u) => u.role === "student" && u.linkedId === note.etudiantId);
+    // Avec Supabase, c'est la base qui prévient l'étudiant (en appliquant la correction).
+    const compte = modeSupabase ? undefined : store.users.find((u) => u.role === "student" && u.linkedId === note.etudiantId);
     if (compte) pushNotification(compte.id, `Note corrigée — ${note.ec} (${typeLabel}) : ${avant} → ${apres}.`);
   }
   persist();
@@ -2436,8 +2447,9 @@ export function publishNotesForClasseEc(classeId: string, ecId: string, session?
     }
   }
   if (count > 0) generateRelevesForClasseEc(classeId, ecId);
+  // Avec Supabase, c'est la base qui prévient les étudiants.
   const notifNote = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_NOTE");
-  if (notifNote?.actif && notifNote.envoyerEtudiant) {
+  if (!modeSupabase && notifNote?.actif && notifNote.envoyerEtudiant) {
     for (const n of publiees) {
       const studentUser = store.users.find((u) => u.linkedId === n.etudiantId && u.role === "student");
       if (studentUser) {
@@ -2459,7 +2471,8 @@ export function submitNotesForValidation(classeId: string, ecId: string, session
       count++;
     }
   }
-  if (count > 0) {
+  // Avec Supabase, c'est la base qui prévient la saisie des notes.
+  if (count > 0 && !modeSupabase) {
     const admin = store.users.find((u) => u.role === "admin");
     if (admin) pushNotification(admin.id, "De nouvelles notes attendent validation.");
   }

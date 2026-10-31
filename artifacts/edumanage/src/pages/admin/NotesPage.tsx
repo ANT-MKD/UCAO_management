@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { Save, Upload, CheckCircle, AlertCircle, TrendingUp, Users, Info } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "@/data/mockData";
-import { saveNoteEvaluationGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, getNoteForEvaluation, type EvaluationGridInput } from "@/data/studentStore";
+import { saveNoteEvaluationGrid, submitNotesForValidation, validateNotesByAdmin, publishNotesForClasseEc, getNoteForEvaluation, noteEstOfficielle, type EvaluationGridInput } from "@/data/studentStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
@@ -532,6 +532,8 @@ export default function NotesPage() {
                   const isAdmis = hasNote && noteVal >= 10;
                   const isAjourne = hasNote && noteVal < 10;
                   const noteExistante = evaluationChoisie ? getNoteForEvaluation(etu.id, evaluationChoisie.id) : undefined;
+                  // Validée ou publiée : elle ne change plus que par une demande de correction acceptée.
+                  const verrouillee = !!noteExistante && noteEstOfficielle(noteExistante);
                   if (statutFilter && noteExistante?.statut !== statutFilter) return null;
                   const rowBg = entry.absent ? "bg-red-50/40 dark:bg-red-950/20" : isAjourne ? "bg-red-50/30 dark:bg-red-950/10" : "";
 
@@ -557,12 +559,13 @@ export default function NotesPage() {
                           min={0}
                           max={bareme}
                           step={0.25}
-                          disabled={entry.absent}
+                          disabled={entry.absent || verrouillee}
+                          title={verrouillee ? "Note validée ou publiée : elle ne change que par une demande de correction acceptée." : undefined}
                           value={entry.note}
                           onChange={(e) => updateEntry(etu.id, { note: e.target.value })}
                           className={cn(
                             "w-20 text-center px-2 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background",
-                            entry.absent ? "opacity-30 cursor-not-allowed border-border" : isAdmis ? "border-emerald-300" : isAjourne ? "border-red-300" : "border-border",
+                            verrouillee ? "bg-muted/60 cursor-not-allowed border-border" : entry.absent ? "opacity-30 cursor-not-allowed border-border" : isAdmis ? "border-emerald-300" : isAjourne ? "border-red-300" : "border-border",
                           )}
                           placeholder="—"
                           data-testid={`saisie-note-${etu.id}`}
@@ -571,7 +574,8 @@ export default function NotesPage() {
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => toggleAbsent(etu.id)}
-                          className={cn("w-8 h-5 rounded-full transition-all duration-200 relative", entry.absent ? "bg-red-500" : "bg-muted border border-border")}
+                          disabled={verrouillee}
+                          className={cn("w-8 h-5 rounded-full transition-all duration-200 relative disabled:opacity-40 disabled:cursor-not-allowed", entry.absent ? "bg-red-500" : "bg-muted border border-border")}
                           data-testid={`saisie-absent-${etu.id}`}
                         >
                           <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200", entry.absent ? "left-3.5" : "left-0.5")} />

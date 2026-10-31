@@ -4,6 +4,7 @@ import {
 } from "@/data/studentStore";
 import { getEvaluations } from "@/data/evaluationStore";
 import { getDeliberationForClasseSemestre } from "@/data/deliberationStore";
+import { modeSupabase } from "@/lib/supabase";
 
 /** Demande de correction d'une note officielle (validée ou publiée) : le professeur ne modifie
  * plus une telle note lui-même ; il propose la nouvelle valeur avec un motif, et la scolarité
@@ -69,6 +70,13 @@ export function getDemandesCorrection(): DemandeCorrectionNoteRecord[] {
   return store;
 }
 
+/** Demandes de la base (avec Supabase) : toutes pour l'administration, les siennes pour un
+ * professeur. */
+export function remplacerDemandesCorrection(records: DemandeCorrectionNoteRecord[]) {
+  store = records;
+  persist();
+}
+
 export function libelleValeurNote(note: number, absent?: boolean): string {
   return absent ? "ABS" : note.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -121,6 +129,8 @@ export function demanderCorrectionNote(payload: DemanderCorrectionPayload, actor
   store = [record, ...store];
   persist();
   logAudit(actorUserId, "demande_correction_note", "note", note.id, `${note.etudiant} — ${note.ec} : ${libelleValeurNote(note.note, note.absent)} → ${libelleValeurNote(record.nouvelleNote, record.nouvelAbsent)} — motif : ${motif}`);
+  // Avec Supabase, c'est la base qui prévient la saisie des notes.
+  if (modeSupabase) return record;
   for (const admin of getUserAccounts().filter((u) => u.role === "admin" && u.actif !== false)) {
     pushNotificationEtPersister(admin.id, `Correction de note demandée par ${record.demandePar} : ${note.etudiant} — ${note.ec} (${record.typeLabel}) ${libelleValeurNote(note.note, note.absent)} → ${libelleValeurNote(record.nouvelleNote, record.nouvelAbsent)}.`);
   }
@@ -151,6 +161,8 @@ export function traiterDemandeCorrection(id: string, decision: "accepter" | "ref
   demande.traiteeLe = new Date().toISOString();
   demande.traiteePar = auteur?.displayName ?? "Administration";
   persist();
+  // Avec Supabase, c'est la base qui prévient le professeur (et corrige la note).
+  if (modeSupabase) return demande;
   const avantApres = `${libelleValeurNote(demande.ancienneNote, demande.ancienAbsent)} → ${libelleValeurNote(demande.nouvelleNote, demande.nouvelAbsent)}`;
   pushNotificationEtPersister(
     demande.demandeParId,
