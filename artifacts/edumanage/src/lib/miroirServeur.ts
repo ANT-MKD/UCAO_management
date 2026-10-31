@@ -49,6 +49,9 @@ export interface PartieMiroir<R extends { id: string }> {
   /** Ligne créée par la base (ex. établissement, à l'installation) : seulement mise à jour, ni
    * ajoutée ni supprimée depuis le navigateur. */
   miseAJourSeule?: boolean;
+  /** Avec miseAJourSeule : seuls ces champs partent (ex. « lue » d'une notification) ; les autres
+   * sont écrits par la base. */
+  champsModifiables?: readonly string[];
   /** Table qui complète une table principale du même miroir, ligne pour ligne (ex. dossier
    * personnel d'une fiche), et que tous les comptes ne lisent pas. Une ligne n'en part que si elle
    * était connue (lue à la connexion) ou si sa ligne principale part en même temps : un poste ne
@@ -175,6 +178,8 @@ export function depuisLigne(partie: PartieMiroir<{ id: string }>, ligne: Ligne, 
     if (fichier) fiche[champ] = typeof valeur === "string" ? affichage?.get(`${fichier.espace}/${valeur}`) ?? valeur : undefined;
     else fiche[champ] = valeur === null ? (partie.nulSiVide?.includes(champ) ? "" : undefined) : valeur;
   }
+  // Identifiant toujours en texte, même numéroté par la base (notifications).
+  fiche.id = String(ligne.id);
   return fiche;
 }
 
@@ -206,6 +211,13 @@ export function motifRefus(erreur: { code?: string; message?: string }): string 
       return "Vous n'avez pas le droit de modifier ces données. L'écran a été remis à jour.";
     case "23505":
       return "La base a refusé : cet élément existe déjà (enregistré depuis un autre poste ?). L'écran a été remis à jour.";
+    case "23P01": {
+      const conflit = /salle_libre/.test(erreur.message ?? "") ? "la salle est déjà occupée"
+        : /professeur_libre/.test(erreur.message ?? "") ? "le professeur a déjà cours"
+        : /classe_libre/.test(erreur.message ?? "") ? "la classe a déjà cours"
+        : "le créneau est déjà pris";
+      return `La base a refusé : ${conflit} sur ce créneau (enregistré depuis un autre poste ?). L'écran a été remis à jour.`;
+    }
     case "23514":
     case "23502":
       return "La base a refusé une valeur hors des limites autorisées. L'écran a été remis à jour.";
@@ -407,8 +419,10 @@ async function envoyer(): Promise<void> {
       };
       if (partie.miseAJourSeule) {
         await deposerFichiers(partie, changees);
+        const modifiables = partie.champsModifiables
+          && new Set(champsEtColonnes(partie).filter(([champ]) => partie.champsModifiables!.includes(champ)).map(([, colonne]) => colonne));
         for (const ligne of changees) {
-          await mettreAJour(partie.table, ligne);
+          await mettreAJour(partie.table, modifiables ? Object.fromEntries(Object.entries(ligne).filter(([c]) => c === "id" || modifiables.has(c))) : ligne);
           retenir(ligne);
         }
         connu.set(partie.table, etat);

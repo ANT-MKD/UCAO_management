@@ -744,3 +744,53 @@ describe("miroir de l'emploi du temps : séances et événements", () => {
     expect(autre.envois).toHaveLength(0);
   });
 });
+
+describe("emploi du temps et notifications tenus par la base", () => {
+  const CLASSE = { id: "cl-l1", nom: "LQHSE1-26/27", filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", niveau_id: "niv-l1", max: 40, delegue: "", annee: "2026-2027", salle_par_defaut_id: null, cloturee: null, date_cloture: null, cloturee_par: null, observation_cloture: null };
+  const SALLE = { id: "salle-a1", nom: "RDC 1A", type: "", capacite: 40, batiment: "", etage: "", equipements: [], statut: "actif" };
+  const UE = { id: "ue-l1", code: "UE11", libelle: "Fondamentaux QHSE", credits: 6, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", semestre: "S1", type: "", obligatoire: true, description: null };
+  const EC = { id: "ec-qualite", code: "QHSE111", libelle: "Qualité", abrege: null, ue: "UE11", ue_id: "ue-l1", credits: 3, vol_cm: 20, vol_td: 10, vol_tp: 0, vol_tpe: 0, vht: 30, responsable: "", responsable_id: null };
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27", classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+  const base = (): Record<string, Ligne[]> => ({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], classes: [CLASSE], salles: [SALLE], ues: [UE], ecs: [EC], etudiants: [AWA] });
+  const CRENEAU = { ecId: "ec-qualite", classeId: "cl-l1", salleId: "salle-a1", prof: "Mamadou KANE", profId: "en-kane", jour: 1, semaineDu: "2026-11-02", heureDebut: "08:00", heureFin: "10:00", type: "CM" };
+  const AWA_COMPTE = "00000000-0000-4000-8000-00000000000e";
+
+  it("salle prise depuis un autre poste : la base refuse, l'écran dit pourquoi et reprend l'emploi du temps de la base", async () => {
+    const b = await avecBase(base(), (table, operation) => (table === "seances" && operation === "upsert"
+      ? { code: "23P01", message: "conflicting key value violates exclusion constraint \"seances_salle_libre\"" } : null));
+    await b.miroir.chargerMiroirs();
+    const motifs: string[] = [];
+    window.addEventListener(b.miroir.EVENEMENT_REFUS_SERVEUR, (e) => motifs.push((e as CustomEvent<{ message: string }>).detail.message));
+    b.S.addSeance(CRENEAU);
+    await b.miroir.attendreEnvois();
+    expect(motifs).toEqual(["La base a refusé : la salle est déjà occupée sur ce créneau (enregistré depuis un autre poste ?). L'écran a été remis à jour."]);
+    expect(b.S.getSeances()).toEqual([]);
+  });
+
+  it("avec la base, l'application n'écrit plus elle-même les notifications d'emploi du temps : c'est la base qui prévient Awa", async () => {
+    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [{ id: "u-awa", role: "student", linkedId: "et-awa", displayName: "Awa SECK", email: "awa.seck@mail.sn", identifiant: "2026-LQHSE-0001", actif: true }] }));
+    const b = await avecBase(base());
+    await b.miroir.chargerMiroirs();
+    b.S.addSeance(CRENEAU);
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => e.table)).toEqual(["seances"]);
+    expect(b.S.getNotifications()).toEqual([]);
+  });
+
+  it("la cloche d'Awa : notifications de la base à la connexion ; « lue » seule repart ; une notification du poste reste et ne part pas", async () => {
+    const b = await avecBase({ ...base(), notifications: [
+      { id: 7, destinataire: AWA_COMPTE, message: "Emploi du temps : 2 nouveaux créneaux ajoutés — dernier : Qualité le lundi 09/11 à 08:00", cree_le: "2026-10-31T08:00:00+00:00",
+        lue: false, lue_le: null, archivee: false, groupe: "edt-nouveaux-creneaux", nombre: 2 },
+    ] });
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getNotifications()).toEqual([{ id: "7", userId: AWA_COMPTE, message: "Emploi du temps : 2 nouveaux créneaux ajoutés — dernier : Qualité le lundi 09/11 à 08:00",
+      createdAt: "2026-10-31T08:00:00+00:00", read: false, readAt: undefined, archived: false, groupe: "edt-nouveaux-creneaux", nombre: 2 }]);
+    b.S.markNotificationRead("7", AWA_COMPTE);
+    b.S.pushNotificationEtPersister(AWA_COMPTE, "Message créé sur ce poste");
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "notifications", operation: "update", donnees: { lue: true, archivee: false } }]);
+    await b.miroir.chargerMiroirs();
+    expect(b.S.getNotifications().map((n) => n.message)).toEqual([expect.stringContaining("2 nouveaux créneaux"), "Message créé sur ce poste"]);
+    expect(b.S.getNotifications()[0].read).toBe(true);
+  });
+});

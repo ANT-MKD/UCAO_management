@@ -6,3 +6,4 @@ import "./miroirsScolarite";
 import "./miroirsParametrage";
 import "./miroirsPersonnes";
 import "./miroirsEnseignement";
+import "./miroirsNotifications";

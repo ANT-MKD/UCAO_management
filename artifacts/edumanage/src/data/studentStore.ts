@@ -12,6 +12,7 @@ import { getEvaluations } from "./evaluationStore";
 import { creerPointageDepuisCahier } from "./pointageStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
+import { modeSupabase } from "@/lib/supabase";
 
 export interface EtudiantRecord {
   id: string;
@@ -2626,6 +2627,9 @@ function notifierChangementEdt(
    * Modifications et annulations restent une notification chacune. */
   regroupement?: { groupe: string; etudiant: (nombre: number) => string; prof: (nombre: number) => string },
 ) {
+  // Avec Supabase, la base prévient elle-même les étudiants et les professeurs, quel que soit le
+  // poste qui modifie l'emploi du temps.
+  if (modeSupabase) return;
   const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
   if (!notifEdt?.actif) return;
   if (notifEdt.envoyerEtudiant) {
@@ -3032,6 +3036,16 @@ export function getNotificationsByUser(userId: string): NotificationRecord[] {
 
 export function getNotifications(): NotificationRecord[] {
   return store.notifications;
+}
+
+/** Une notification venue de la base a un numéro ; celles créées sur ce poste, un « nt-… ». */
+export const estNotificationDeLaBase = (n: Pick<NotificationRecord, "id">) => /^\d+$/.test(n.id);
+
+/** Notifications de la base (avec Supabase) : celles du compte connecté. Celles que l'application
+ * crée encore sur ce poste (familles pas encore envoyées par la base) sont gardées. */
+export function remplacerNotifications(records: NotificationRecord[]) {
+  store.notifications = [...records, ...store.notifications.filter((n) => !estNotificationDeLaBase(n))];
+  persist();
 }
 
 export function markNotificationRead(notificationId: string, userId: string) {
