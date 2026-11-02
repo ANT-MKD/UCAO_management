@@ -61,8 +61,9 @@ montrée : la fonction `connexion` la retrouve, compte les échecs (15 minutes d
    reprise ». L'essai donne le rapport de contrôle (rien n'est enregistré) ; la reprise réelle ne se
    fait qu'une fois. Seule l'année en cours est reprise ; les comptes repris choisissent un nouveau
    mot de passe avec un code remis par l'administration (Sécurité → Codes PIN).
-3. **Rejouer les scénarios** du cahier de recette et y noter, pour chacun, « validé » ou
-   l'anomalie constatée.
+3. **Rejouer les scénarios** du cahier de recette
+   (https://claude.ai/artifact/KVW75vCdG5QK5meio33ZiB, à partager avec les testeurs en accès
+   « Contributeur ») et y noter, pour chacun, « validé » ou l'anomalie constatée.
 
 ### Remise à zéro du projet de test
 
