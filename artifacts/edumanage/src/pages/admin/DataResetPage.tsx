@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Trash2, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -6,7 +6,10 @@ import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
 import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
-import { modeSupabase } from "@/lib/supabase";
+import { modeSupabase, supabase } from "@/lib/supabase";
+import { lireSauvegarde } from "@/lib/stockageLocal";
+import type { RapportReprise } from "@/lib/reprise";
+import { VueRapportReprise } from "@/pages/reprise/RapportReprise";
 
 const PHRASE_CONFIRMATION = "REINITIALISER";
 
@@ -66,6 +69,7 @@ export default function DataResetPage() {
             Ce navigateur ne garde aucune copie des données de l&apos;établissement : elles sont chargées depuis la base à chaque connexion et oubliées à la déconnexion. Seuls le thème et la session restent sur ce poste. Il n&apos;y a donc rien à vider ici.
           </p>
         </div>
+        <RepriseDuPoste />
       </div>
     );
   }
@@ -176,6 +180,44 @@ function EspaceStockage() {
       <p className="text-xs text-muted-foreground">
         {mo(utilise)} Mo utilisés sur environ {mo(CAPACITE_STOCKAGE)} Mo. Les photos et pièces jointes (demandes, cahiers, ressources, documents) occupent l&apos;essentiel de l&apos;espace : supprimez celles devenues inutiles avant que le stockage soit plein.
       </p>
+    </div>
+  );
+}
+
+/** Avec la base : reprise des données que ce poste gardait avant elle (partie 9, lot 3). Faite une
+ * fois, par l'administrateur principal, depuis une page dédiée ; son rapport reste consultable ici. */
+function RepriseDuPoste() {
+  const [etat, setEtat] = useState<{ le: string; annee: string; rapport: RapportReprise } | null | "chargement" | "refus">("chargement");
+  const sauvegarde = useMemo(() => lireSauvegarde(), []);
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.rpc("etat_reprise").then(({ data, error }) => setEtat(error ? "refus" : (data as typeof etat) ?? null));
+  }, []);
+  if (etat === "chargement") return null;
+  return (
+    <div className="mt-5 max-w-5xl space-y-3 rounded-xl border border-border bg-card p-4" data-testid="reprise-du-poste">
+      <p className="text-sm font-semibold text-foreground">Reprise des données d&apos;avant la base</p>
+      {etat === "refus" ? (
+        <p className="text-sm text-muted-foreground">La reprise est réservée à l&apos;administrateur à accès complet.</p>
+      ) : etat ? (
+        <>
+          <p className="text-sm text-muted-foreground">Reprise faite le {new Date(etat.le).toLocaleString("fr-FR")}, année {etat.annee}. Elle ne se refait pas.</p>
+          <VueRapportReprise rapport={etat.rapport} />
+        </>
+      ) : sauvegarde ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Ce poste a mis de côté ses données d&apos;avant la base le {new Date(sauvegarde.le).toLocaleString("fr-FR")}. Elles peuvent être reprises une fois
+            (année en cours seulement), dans la base qui vient d&apos;être installée : un essai donne d&apos;abord le rapport de contrôle.
+          </p>
+          <button onClick={() => window.location.assign(`${import.meta.env.BASE_URL || "/"}?reprise=poste`)} data-testid="reprise-ouvrir"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+            Préparer la reprise
+          </button>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Aucune donnée d&apos;avant la base n&apos;a été mise de côté sur ce poste.</p>
+      )}
     </div>
   );
 }

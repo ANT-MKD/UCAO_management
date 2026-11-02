@@ -366,6 +366,53 @@ export function sansEnvoi<T>(fn: () => T): T {
   }
 }
 
+// ——— Reprise des données d'un poste (partie 9, lot 3) ——————————————————————————————————————————
+
+/** Tables que la reprise ne verse pas telles quelles : comptes (recréés à part), journaux et
+ * notifications de la base, mouvements déjà additionnés dans les soldes. */
+const TABLES_HORS_REPRISE = new Set(["comptes", "notifications", "mouvements_solde", "journal_audit", "codes_pin", "demandes_reinitialisation"]);
+
+/** Fichier d'une ligne reprise : à déposer à son chemin avant la reprise. */
+export interface FichierRepris {
+  espace: string;
+  chemin: string;
+  dataUrl: string;
+  table: string;
+  id: string;
+  colonne: string;
+}
+
+/** Contenu des stores (en mode reprise : les données du poste) écrit comme les lignes de la base,
+ * table par table ; chaque fichier choisi sur le poste reçoit son chemin dans son espace. */
+export function preparerReprise(): { tables: Record<string, Ligne[]>; fichiers: FichierRepris[] } {
+  const parTable = new Map<string, Map<string, Ligne>>();
+  const fichiers: FichierRepris[] = [];
+  // Chaque préparation repart de zéro : chaque fichier y reçoit son chemin.
+  chemins.clear();
+  aDeposer.clear();
+  for (const miroir of miroirs) {
+    for (const p of miroir.parties) {
+      if (p.rpc || p.ajoutSeul || TABLES_HORS_REPRISE.has(p.table)) continue;
+      const colonnes = new Map(champsEtColonnes(p) as [string, string][]);
+      if (!parTable.has(p.table)) parTable.set(p.table, new Map());
+      for (const fiche of p.lire().filter((f) => !p.envoyable || p.envoyable(f))) {
+        const ligne = versLigne(p, fiche as Fiche);
+        for (const [champ, fichier] of Object.entries(p.fichiers ?? {})) {
+          const colonne = colonnes.get(champ) ?? champ;
+          const chemin = ligne[colonne];
+          const cle = `${fichier.espace}/${chemin}`;
+          if (typeof chemin === "string" && aDeposer.has(cle)) {
+            fichiers.push({ espace: fichier.espace, chemin, dataUrl: aDeposer.get(cle)!, table: p.table, id: fiche.id, colonne });
+            aDeposer.delete(cle);
+          }
+        }
+        parTable.get(p.table)!.set(fiche.id, ligne);
+      }
+    }
+  }
+  return { tables: Object.fromEntries([...parTable].map(([table, lignes]) => [table, [...lignes.values()]])), fichiers };
+}
+
 /** Compte connecté, pour écouter ses canaux en direct (le sien ; celui de l'administration). */
 export interface AbonnementEnDirect {
   compteId: string;

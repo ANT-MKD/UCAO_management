@@ -99,6 +99,38 @@ export function mettreDeCoteLesDonneesDuPoste(): void {
 
 if (typeof window !== "undefined" && modeSupabase) mettreDeCoteLesDonneesDuPoste();
 
+/** Mode « reprise » (partie 9, lot 3) : la page est ouverte avec ?reprise=poste. Les stores se
+ * remplissent alors avec les données de ce poste d'avant la base (la sauvegarde, et ce qui serait
+ * resté en place si elle n'avait pu s'écrire), jamais avec la base : c'est ce qui part à la reprise.
+ * Rien n'est écrit dans le navigateur pour autant. */
+export const modeReprise = typeof window !== "undefined" && modeSupabase
+  && new URLSearchParams(window.location.search).get("reprise") === "poste";
+
+function chargerDonneesDuPoste(): void {
+  for (const [cle, valeur] of Object.entries(lireSauvegarde()?.donnees ?? {})) {
+    if (typeof valeur === "string" && !cleDuPoste(cle)) memoire.set(cle, valeur);
+  }
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const cle = localStorage.key(i);
+      if (cle && cle.startsWith("edumanage-") && !cleDuPoste(cle) && !memoire.has(cle)) memoire.set(cle, localStorage.getItem(cle) ?? "");
+    }
+  } catch {
+    // stockage illisible : la sauvegarde suffit
+  }
+}
+
+if (modeReprise) chargerDonneesDuPoste();
+
+/** Efface la sauvegarde de ce poste (après la reprise, ou si l'administration y renonce). */
+export function effacerSauvegarde(): void {
+  try {
+    localStorage.removeItem(CLE_SAUVEGARDE);
+  } catch {
+    // rien à effacer
+  }
+}
+
 /** Capacité usuelle du stockage d'un site (Chrome, Edge, Firefox), en caractères. */
 export const CAPACITE_STOCKAGE = 5_000_000;
 /** Marge gardée libre pour que les enregistrements courants (notes, présences…) passent toujours. */
