@@ -73,6 +73,9 @@ export interface PartieMiroir<R extends { id: string }> {
   /** Numéro donné par la base à l'enregistrement (ex. reçu de caisse) : après l'ajout d'une ligne,
    * le miroir est relu depuis cette table pour afficher le numéro définitif. */
   numeroteeParLaBase?: boolean;
+  /** Lignes qui ne changent plus une fois écrites (ex. ressource pédagogique) : ajoutées par
+   * simple insertion, retirées au besoin, jamais réécrites (la base n'accorde pas la modification). */
+  sansMiseAJour?: boolean;
   /** Lignes lues par une fonction de la base plutôt que dans la table (ex. l'annuaire de la
    * messagerie : les comptes que ce compte peut nommer, sans leurs coordonnées) ; « table » reste
    * le nom suivi par les compteurs de changements. Jamais envoyée. */
@@ -637,6 +640,18 @@ async function envoyer(): Promise<void> {
         const valeurs = new Set(Object.values(l));
         for (let k = enSuspens.length - 1; k >= 0; k--) if (valeurs.has(enSuspens[k].chemin)) enSuspens.splice(k, 1);
       };
+      if (partie.sansMiseAJour) {
+        const nouvelles = changees.filter((l) => !etat.has(String(l.id)));
+        for (let i = 0; i < nouvelles.length; i += 500) {
+          const paquet = nouvelles.slice(i, i + 500);
+          await deposerFichiers(partie, paquet, enSuspens);
+          const { error } = await client().from(partie.table).insert(paquet);
+          if (error) throw error;
+          paquet.forEach(retenir);
+        }
+        connu.set(partie.table, etat);
+        continue;
+      }
       if (partie.miseAJourSeule) {
         await deposerFichiers(partie, changees, enSuspens);
         const modifiables = partie.champsModifiables

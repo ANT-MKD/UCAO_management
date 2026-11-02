@@ -1890,4 +1890,63 @@ describe("communication en direct : messages, annuaire et mails tenus par la bas
     await b.miroir.attendreEnvois();
     expect(b.envois).toEqual([]);
   });
+
+  it("ressource de KANE : le fichier est déposé dans le dossier de la classe, la ressource est ajoutée (jamais réécrite) ; la base prévient les étudiants", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], ressources_pedagogiques: [], annuaire: [KANE, AWA],
+      etudiants: [{ id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27",
+        classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 }] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-kane", administration: false });
+    expect(b.S.getEtudiants().map((e) => e.classeId)).toEqual(["cl-l1"]);
+    const R = await import("@/data/ressourcePedagogiqueStore");
+    const r = R.addRessourcePedagogique({ classeId: "cl-l1", classe: "LQHSE1-26/27", ecId: "ec-qualite", ec: "Qualité", titre: "Cours chapitre 1",
+      nom: "cours.pdf", dataUrl: "data:application/pdf;base64,JVBERi0=", tailleOctets: 4, ajoutePar: "Mamadou KANE" }, "u-kane");
+    await b.miroir.attendreEnvois();
+    expect(b.stockage).toEqual([expect.objectContaining({ espace: "ressources", operation: "depot", envoisAvant: 0 })]);
+    const chemin = b.stockage[0].chemins[0];
+    expect(chemin.startsWith(`cl-l1/${r.id}/`)).toBe(true);
+    expect(b.envois).toEqual([{ table: "ressources_pedagogiques", operation: "insert", donnees: [expect.objectContaining({ id: r.id, classe_id: "cl-l1",
+      ec_id: "ec-qualite", titre: "Cours chapitre 1", nom: "cours.pdf", fichier_chemin: chemin, url: null, ajoute_par_id: "u-kane" })] }]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
+    expect(b.S.getNotifications()).toEqual([]);
+    R.deleteRessourcePedagogique(r.id, "u-kane");
+    await b.miroir.attendreEnvois();
+    expect(b.envois[1]).toEqual({ table: "ressources_pedagogiques", operation: "delete", donnees: [r.id] });
+    expect(b.stockage[1]).toEqual(expect.objectContaining({ espace: "ressources", operation: "retrait", chemins: [chemin], envoisAvant: 2 }));
+  });
+
+  it("Awa voit arriver en direct la ressource de sa classe, avec son fichier", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], ressources_pedagogiques: [], annuaire: [AWA, KANE] };
+    const fichiers = new Map([["ressources/cl-l1/res-1/f1.pdf", "data:application/pdf;base64,JVBERi0="]]);
+    const b = await avecBase(tables, undefined, fichiers);
+    await b.miroir.chargerMiroirs({ compteId: "u-awa", administration: false });
+    await attendreDirect(b);
+    const R = await import("@/data/ressourcePedagogiqueStore");
+    tables.ressources_pedagogiques.push({ id: "res-1", classe_id: "cl-l1", classe: "LQHSE1-26/27", ec_id: "ec-qualite", ec: "Qualité", titre: "Cours chapitre 1",
+      description: null, nom: "cours.pdf", fichier_chemin: "cl-l1/res-1/f1.pdf", taille_octets: 4, url: null, ajoute_le: "2026-11-03T08:00:00+00:00",
+      ajoute_par: "Mamadou KANE", ajoute_par_id: "u-kane" });
+    b.diffuser("compte:u-awa", "ressources_pedagogiques");
+    await attendreDirect(b);
+    expect(R.getRessourcesPourClasse("cl-l1")).toEqual([expect.objectContaining({ id: "res-1", titre: "Cours chapitre 1", ajoutePar: "Mamadou KANE",
+      dataUrl: "https://exemple.supabase.co/storage/v1/object/sign/ressources/cl-l1/res-1/f1.pdf?token=essai" })]);
+  });
+
+  it("actualité avec image : l'image est déposée une fois dans son dossier ; une modification ne la redépose pas", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], actualites: [], annuaire: [SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    const Pub = await import("@/data/publiciteStore");
+    const pub = Pub.upsertPublicite({ typeContenu: "image", profilCible: "student", titre: "Rentrée 2026", description: "Bienvenue", ordre: 1,
+      dateDebut: "2026-11-01", dateFin: "2026-12-01", imageDataUrl: "data:image/png;base64,iVBORw0KGgo=", auteurId: "u-admin", auteurLabel: "Scolarité" });
+    await b.miroir.attendreEnvois();
+    expect(b.stockage).toEqual([expect.objectContaining({ espace: "actualites", operation: "depot", type: "image/png" })]);
+    const chemin = b.stockage[0].chemins[0];
+    expect(chemin.startsWith(`${pub.id}/`)).toBe(true);
+    expect(b.envois).toEqual([{ table: "actualites", operation: "upsert", donnees: [expect.objectContaining({ id: pub.id, type_contenu: "image",
+      profil_cible: "student", image_chemin: chemin, lien_externe: null, auteur_id: "u-admin" })] }]);
+    Pub.upsertPublicite({ ...Pub.getPublicites()[0], titre: "Rentrée 2026-2027" }, pub.id);
+    await b.miroir.attendreEnvois();
+    expect(b.stockage.filter((o) => o.operation === "depot")).toHaveLength(1);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ titre: "Rentrée 2026-2027", image_chemin: chemin })]);
+  });
 });

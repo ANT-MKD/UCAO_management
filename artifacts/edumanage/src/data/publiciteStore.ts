@@ -90,6 +90,13 @@ export function getPublicites(): PubliciteRecord[] {
   return store;
 }
 
+/** Actualités de la base (avec Supabase) : toutes pour l'administration, celles de son portail
+ * (ou de tous) et pas encore terminées pour les autres. */
+export function remplacerPublicites(records: PubliciteRecord[]) {
+  store = records;
+  persist();
+}
+
 export interface PublicitePayload {
   typeContenu: TypeContenuPublicite;
   profilCible: ProfilCiblePublicite;

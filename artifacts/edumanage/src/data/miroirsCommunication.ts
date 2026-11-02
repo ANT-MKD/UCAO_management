@@ -11,6 +11,8 @@ import {
   type MessageRecord,
 } from "./studentStore";
 import { getMailsEnvoyes, remplacerMailsEnvoyes, type MailEnvoyeRecord } from "./mailEnvoyeStore";
+import { getPublicites, remplacerPublicites, type PubliciteRecord } from "./publiciteStore";
+import { getRessourcesPedagogiques, remplacerRessourcesPedagogiques, type RessourcePedagogiqueRecord } from "./ressourcePedagogiqueStore";
 
 /** Communication reflétée dans la base (partie 8).
  *
@@ -67,6 +69,40 @@ enregistrerMiroir({
         "fichiers", "statut", "validateurId", "validateurLabel", "dateTraitement", "motifRejet"],
       lire: getMailsEnvoyes,
       remplacer: remplacerMailsEnvoyes,
+    }),
+  ],
+});
+
+/** Actualités des bannières : rédigées par la page « Publicité et actualité », l'image dans l'espace
+ * « actualites » ; la base inscrit l'auteur et ne donne à chaque portail que les siennes. */
+enregistrerMiroir({
+  cle: "edumanage-publicites-v1",
+  parties: [
+    partie<PubliciteRecord>({
+      table: "actualites",
+      colonnes: ["id", "typeContenu", "profilCible", "titre", "description", "ordre", "dateDebut", "dateFin", ["imageDataUrl", "image_chemin"], "lienExterne",
+        "auteurId", "auteurLabel", ["createdAt", "cree_le"]],
+      fichiers: { imageDataUrl: { espace: "actualites", dossier: (p) => `${p.id}/` } },
+      lire: getPublicites,
+      remplacer: remplacerPublicites,
+    }),
+  ],
+});
+
+/** Ressources pédagogiques : déposées par le professeur pour ses classes (fichier dans l'espace
+ * « ressources », ou lien), retirées par leur auteur ; jamais réécrites. La base prévient les
+ * étudiants de la classe, en direct. */
+enregistrerMiroir({
+  cle: "edumanage-ressource-pedagogique-store-v1",
+  parties: [
+    partie<RessourcePedagogiqueRecord>({
+      table: "ressources_pedagogiques",
+      colonnes: ["id", "classeId", "classe", "ecId", "ec", "titre", "description", "nom", ["dataUrl", "fichier_chemin"], "tailleOctets", "url", "ajouteLe",
+        "ajoutePar", "ajouteParId"],
+      sansMiseAJour: true,
+      fichiers: { dataUrl: { espace: "ressources", dossier: (r) => `${r.classeId}/${r.id}/` } },
+      lire: getRessourcesPedagogiques,
+      remplacer: remplacerRessourcesPedagogiques,
     }),
   ],
 });
