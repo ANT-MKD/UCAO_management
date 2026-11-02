@@ -59,6 +59,12 @@ export function getContacts(): ContactRecord[] {
   return store;
 }
 
+/** Contacts de la base (avec Supabase) : tous pour l'administration, les siens pour un étudiant. */
+export function remplacerContacts(records: ContactRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getContactsPourEtudiant(etudiantId: string): ContactRecord[] {
   return store.filter((c) => c.etudiantId === etudiantId);
 }

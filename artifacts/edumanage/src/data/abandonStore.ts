@@ -76,6 +76,12 @@ function persist() {
   notify();
 }
 
+/** Abandons de la base (avec Supabase), lus par l'administration. */
+export function remplacerAbandons(records: AbandonRecord[]) {
+  store = { ...store, records };
+  persist();
+}
+
 export function getAbandons(): AbandonRecord[] {
   return store.records;
 }

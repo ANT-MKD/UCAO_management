@@ -53,6 +53,12 @@ export function getDocuments(): DocumentRecord[] {
   return store;
 }
 
+/** Documents de la base (avec Supabase), lus par l'administration. */
+export function remplacerDocuments(records: DocumentRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getDocumentsPourEntite(entiteType: DocumentEntiteType, entiteId: string): DocumentRecord[] {
   return store.filter((d) => d.entiteType === entiteType && d.entiteId === entiteId).sort((a, b) => b.ajouteLe.localeCompare(a.ajouteLe));
 }

@@ -1,4 +1,4 @@
-/** Tous les stores reflétés dans la base (parties 3 à 8). L'ordre d'import est l'ordre d'envoi :
+/** Tous les stores reflétés dans la base (parties 3 à 9). L'ordre d'import est l'ordre d'envoi :
  * les tables parentes d'abord. */
 import "./miroirsStructure";
 import "./miroirsSecurite";
@@ -9,4 +9,5 @@ import "./miroirsEnseignement";
 import "./miroirsNotes";
 import "./miroirsFinances";
 import "./miroirsCommunication";
+import "./miroirsDossiers";
 import "./miroirsNotifications";

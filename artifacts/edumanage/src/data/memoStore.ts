@@ -52,6 +52,12 @@ export function getMemos(): MemoRecord[] {
   return store;
 }
 
+/** Mémos de la base (avec Supabase), lus par les pages qui gèrent ces dossiers. */
+export function remplacerMemos(records: MemoRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getMemosPourEntite(entiteType: MemoEntiteType, entiteId: string): MemoRecord[] {
   return store.filter((m) => m.entiteType === entiteType && m.entiteId === entiteId).sort((a, b) => b.date.localeCompare(a.date));
 }

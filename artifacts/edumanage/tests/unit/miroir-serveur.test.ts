@@ -1950,3 +1950,56 @@ describe("communication en direct : messages, annuaire et mails tenus par la bas
     expect(b.envois[1].donnees).toEqual([expect.objectContaining({ titre: "Rentrée 2026-2027", image_chemin: chemin })]);
   });
 });
+
+describe("dossiers dans la base : contacts, documents, mémos et abandons (partie 9)", () => {
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27",
+    classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+
+  it("la scolarité ajoute un contact, un document et un mémo au dossier d'Awa : le fichier est rangé dans son dossier, document et mémo sont ajoutés sans réécriture", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], etudiants: [AWA], documents_dossiers: [],
+      contacts_etudiants: [{ id: "ct-mere", etudiant_id: "et-awa", role: "mere", nom_complet: "Aminata SECK", telephone: "770000011", email: null, adresse: null, lien: null }],
+      memos_dossiers: [{ id: "memo-ancien", entite_type: "etudiant", entite_id: "et-awa", type: "Suivi", date: "2026-10-15", objet: "Entretien", contenu: "RAS.", auteur: "Scolarité" }] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    const C = await import("@/data/contactStore");
+    const D = await import("@/data/documentStore");
+    const M = await import("@/data/memoStore");
+    expect(C.getContactsPourEtudiant("et-awa").map((c) => c.nomComplet)).toEqual(["Aminata SECK"]);
+    expect(M.getMemosPourEntite("etudiant", "et-awa").map((m) => m.objet)).toEqual(["Entretien"]);
+    C.addContact({ etudiantId: "et-awa", role: "pere", nomComplet: "Moussa SECK", telephone: "+221 77 000 00 10" }, "u-admin");
+    const doc = D.addDocument({ entiteType: "etudiant", entiteId: "et-awa", nom: "cni.pdf", dataUrl: "data:application/pdf;base64,JVBERi0=", tailleOctets: 4,
+      ajoutePar: "Scolarité" }, "u-admin");
+    M.addMemo({ entiteType: "etudiant", entiteId: "et-awa", type: "Discipline", date: "2026-11-02", objet: "Retards répétés", contenu: "Convoquée le 05/11.",
+      auteur: "Scolarité" }, "u-admin");
+    await b.miroir.attendreEnvois();
+    const chemin = b.stockage.find((o) => o.espace === "dossiers" && o.operation === "depot")!.chemins[0];
+    expect(chemin.startsWith(`etudiants/et-awa/${doc.id}/`)).toBe(true);
+    expect(b.envois.map((e) => `${e.table}:${e.operation}`)).toEqual(["contacts_etudiants:upsert", "documents_dossiers:insert", "memos_dossiers:insert"]);
+    expect(b.envois[0].donnees).toEqual([expect.objectContaining({ etudiant_id: "et-awa", role: "pere", nom_complet: "Moussa SECK" })]);
+    expect(b.envois[1].donnees).toEqual([expect.objectContaining({ id: doc.id, entite_type: "etudiant", entite_id: "et-awa", fichier_chemin: chemin })]);
+    expect(b.envois[2].donnees).toEqual([expect.objectContaining({ entite_type: "etudiant", type: "Discipline", date: "2026-11-02", objet: "Retards répétés" })]);
+  });
+
+  it("abandon d'Awa puis réintégration : le dossier figé part une fois, seule la réintégration repart", async () => {
+    const ANCIEN = { id: "ab-ancien", etudiant_id: "et-awa", matricule: "2026-LQHSE-0001", nom: "SECK", prenom: "Awa", email: "", telephone: "", date_naissance: "",
+      lieu_naissance: null, nationalite: null, filiere: "LQHSE", filiere_id: "fil-qhse", niveau: "L1", classe: "LQHSE1-26/27", classe_id: "cl-l1", annee: "2026-2027",
+      sessions_abandonnees: ["S1"], cumul_paye: 0, cumul_impaye: 0, statut_avant: "inscrit", date_abandon: "2026-10-01", motif: "Santé", valide_par_id: "u-admin",
+      valide_par_label: "Scolarité", reintegre: true, date_reintegration: "2026-10-20", reintegre_par_label: "Scolarité" };
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], etudiants: [AWA], abandons: [ANCIEN] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    const A = await import("@/data/abandonStore");
+    expect(A.getAbandons().map((x) => [x.id, x.reintegre])).toEqual([["ab-ancien", true]]);
+    const ab = A.creerAbandon({ etudiantId: "et-awa", sessionsAbandonnees: ["S1"], dateAbandon: "2026-11-02", motif: "Raisons familiales",
+      valideParId: "u-admin", valideParLabel: "Scolarité" })!;
+    await b.miroir.attendreEnvois();
+    const envoiAbandon = b.envois.find((e) => e.table === "abandons")!;
+    expect(envoiAbandon.donnees).toEqual([expect.objectContaining({ id: ab.id, etudiant_id: "et-awa", matricule: "2026-LQHSE-0001", email: "", telephone: "",
+      date_naissance: "", sessions_abandonnees: ["S1"], date_abandon: "2026-11-02", motif: "Raisons familiales", reintegre: false, date_reintegration: null })]);
+    expect(b.envois.some((e) => e.table === "etudiants" && JSON.stringify(e.donnees).includes("\"statut\":\"abandon\""))).toBe(true);
+    b.envois.length = 0;
+    A.reintegrerAbandon(ab.id, "Scolarité");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.find((e) => e.table === "abandons")!.donnees).toEqual([expect.objectContaining({ id: ab.id, reintegre: true, reintegre_par_label: "Scolarité" })]);
+  });
+});
