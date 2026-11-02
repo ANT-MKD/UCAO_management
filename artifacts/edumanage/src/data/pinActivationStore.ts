@@ -126,7 +126,8 @@ function genererCode6Chiffres(): string {
 
 /** Génère un nouveau PIN pour un compte, attribué à l'admin qui l'a créé — le rend actif tout de
  * suite ; les PIN précédents pour ce même compte deviennent naturellement obsolètes ("remplace"). */
-export function genererPin(userId: string, compteLabel: string, compteIdentifier: string, auteurId: string, auteurLabel: string): PinActivationRecord {
+export function genererPin(userId: string, compteLabel: string, compteIdentifier: string, auteurId: string, auteurLabel: string,
+  dureeMinutes = DUREE_VALIDITE_MINUTES): PinActivationRecord {
   const now = new Date();
   const record: PinActivationRecord = {
     id: `pin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -135,7 +136,7 @@ export function genererPin(userId: string, compteLabel: string, compteIdentifier
     compteIdentifier,
     pin: genererCode6Chiffres(),
     createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + DUREE_VALIDITE_MINUTES * 60 * 1000).toISOString(),
+    expiresAt: new Date(now.getTime() + dureeMinutes * 60 * 1000).toISOString(),
     auteurId,
     auteurLabel,
     utilise: false,

@@ -218,6 +218,27 @@ export async function genererCodeServeur(compteId: string): Promise<{ code: stri
   return { code: r.code, expireLe: r.expire_le };
 }
 
+/** Code d'un compte généré en masse (null pour un compte désactivé, avec le motif). */
+export interface CodeEnMasse {
+  compteId: string;
+  identifiant: string;
+  nomAffiche: string;
+  code: string | null;
+  expireLe: string | null;
+  motif?: string;
+}
+
+/** Codes pour plusieurs comptes à la fois (100 au plus par appel), valables de 1 à 14 jours ; en
+ * clair ici seulement, une fois. */
+export async function genererCodesServeur(compteIds: string[], jours: number): Promise<CodeEnMasse[]> {
+  const lignes = verifier(await client().rpc("generer_codes_pin", { p_comptes: compteIds, p_validite_jours: jours })) as {
+    compte: string; identifiant: string; nom_affiche: string; code: string | null; expire_le?: string; motif?: string;
+  }[];
+  await Promise.all([codesServeur.rafraichir(), demandesServeur.rafraichir()]);
+  return lignes.map((l) => ({ compteId: l.compte, identifiant: l.identifiant, nomAffiche: l.nom_affiche, code: l.code,
+    expireLe: l.expire_le ?? null, ...(l.motif ? { motif: l.motif } : {}) }));
+}
+
 export async function revoquerCodeServeur(id: string): Promise<void> {
   verifier(await client().rpc("revoquer_code_pin", { p_code: Number(id) }));
   await codesServeur.rafraichir();

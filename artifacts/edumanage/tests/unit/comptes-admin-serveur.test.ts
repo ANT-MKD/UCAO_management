@@ -46,11 +46,32 @@ async function avecBase(rpc: (nom: string, args: Record<string, unknown>) => { d
     ...(await original<typeof import("@supabase/supabase-js")>()),
     createClient: () => client,
   }));
+  const { FunctionsHttpError } = await import("@supabase/supabase-js");
   return {
     client,
+    FunctionsHttpError,
     actions: await import("@/data/comptesAdmin"),
     serveur: await import("@/data/comptesServeurStore"),
     mails: await import("@/data/mailEnvoyeStore"),
+    etudiants: await import("@/data/studentStore"),
+  };
+}
+
+const OUSMANE = "00000000-0000-4000-8000-0000000000f2";
+
+/** Fiche d'étudiant minimale pour les codes d'une classe. */
+function fiche(id: string, prenom: string, nom: string, matricule: string, classeId: string, statut = "inscrit") {
+  return { id, prenom, nom, matricule, classeId, statut, email: "", telephone: "", annee: "2026-2027" } as unknown as import("@/data/studentStore").EtudiantRecord;
+}
+
+/** Réponse de la base à generer_codes_pin : un code par compte demandé, dans l'ordre reçu. */
+function codesDeLaBase(nom: string, args: Record<string, unknown>) {
+  if (nom !== "generer_codes_pin") return { data: null, error: null };
+  return {
+    data: (args.p_comptes as string[]).map((id, i) => ({
+      compte: id, identifiant: `MAT-${i}`, nom_affiche: `Compte ${i}`, code: String(100000 + i), expire_le: "2026-11-09T10:00:00Z",
+    })),
+    error: null,
   };
 }
 
@@ -137,6 +158,95 @@ describe("écrans Utilisateurs, Portails et Codes PIN avec Supabase", () => {
   });
 });
 
+describe("codes PIN pour toute une classe avec Supabase", () => {
+  it("L1 QHSE : le compte d'Ousmane est ouvert, puis un seul appel donne les codes d'Ousmane et d'Awa", async () => {
+    const { client, actions, mails, etudiants } = await avecBase(codesDeLaBase);
+    client.functions.invoke.mockImplementation(async () => ({ data: { id: OUSMANE }, error: null }));
+    etudiants.remplacerEtudiants([
+      fiche("et-awa", "Awa", "SECK", "2026-LQHSE-0001", "cl-l1"),
+      fiche("et-ousmane", "Ousmane", "DIALLO", "2026-LQHSE-0002", "cl-l1"),
+      fiche("et-fatou", "Fatou", "SOW", "2026-LQHSE-0003", "cl-l1", "abandon"),
+      fiche("et-ibrahima", "Ibrahima", "FALL", "2026-LQHSE-0004", "cl-l2"),
+    ]);
+    const progression = vi.fn();
+    const lignes = await actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" }, progression);
+
+    expect(client.functions.invoke).toHaveBeenCalledTimes(1);
+    expect(client.functions.invoke).toHaveBeenCalledWith("comptes", {
+      body: expect.objectContaining({ action: "creer", type_compte: "etudiant", identifiant: "2026-LQHSE-0002", nom_affiche: "Ousmane DIALLO", lien_id: "et-ousmane" }),
+    });
+    const appels = client.rpc.mock.calls.filter(([nom]) => nom === "generer_codes_pin");
+    expect(appels).toEqual([["generer_codes_pin", { p_comptes: [OUSMANE, AWA], p_validite_jours: 7 }]]);
+    expect(lignes).toEqual([
+      { etudiantId: "et-ousmane", matricule: "2026-LQHSE-0002", nomComplet: "DIALLO Ousmane", code: "100000", expireLe: "2026-11-09T10:00:00Z" },
+      { etudiantId: "et-awa", matricule: "2026-LQHSE-0001", nomComplet: "SECK Awa", code: "100001", expireLe: "2026-11-09T10:00:00Z" },
+    ]);
+    expect(progression.mock.calls).toEqual([[0, 2], [2, 2]]);
+    expect(mails.getMailsEnvoyes()).toHaveLength(0);
+  });
+
+  it("une classe de 120 étudiants part en trois envois (50, 50, 20)", async () => {
+    const { client, actions, etudiants } = await avecBase(codesDeLaBase);
+    let n = 0;
+    client.functions.invoke.mockImplementation(async () => ({ data: { id: `compte-${String(++n).padStart(3, "0")}` }, error: null }));
+    etudiants.remplacerEtudiants(Array.from({ length: 120 }, (_, i) =>
+      fiche(`et-${i}`, "Prénom", `NOM${String(i).padStart(3, "0")}`, `2026-LQHSE-${String(i).padStart(4, "0")}`, "cl-grande")));
+    const progression = vi.fn();
+    const lignes = await actions.genererCodesClasse("cl-grande", 3, { id: ADMIN, name: "Fatou DIOP" }, progression);
+    const envois = client.rpc.mock.calls.filter(([nom]) => nom === "generer_codes_pin").map(([, a]) => a as { p_comptes: string[]; p_validite_jours: number });
+    expect(envois.map((a) => [a.p_comptes.length, a.p_validite_jours])).toEqual([[50, 3], [50, 3], [20, 3]]);
+    expect(progression.mock.calls.at(-1)).toEqual([120, 120]);
+    expect(lignes.filter((l) => l.code)).toHaveLength(120);
+  });
+
+  it("refus de droits : un seul essai d'ouverture, motif pour chacun ; Awa, qui a son compte, reçoit son code", async () => {
+    const { client, FunctionsHttpError, actions, etudiants } = await avecBase(codesDeLaBase);
+    client.functions.invoke.mockImplementation(async () => ({
+      data: null, error: new FunctionsHttpError(new Response(JSON.stringify({ message: "Vous n'avez pas accès à la gestion des comptes." }), { status: 403 })),
+    }));
+    etudiants.remplacerEtudiants([
+      fiche("et-awa", "Awa", "SECK", "2026-LQHSE-0001", "cl-l1"),
+      fiche("et-ousmane", "Ousmane", "DIALLO", "2026-LQHSE-0002", "cl-l1"),
+      fiche("et-fatou", "Fatou", "SOW", "2026-LQHSE-0003", "cl-l1"),
+    ]);
+    const lignes = await actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" });
+    expect(client.functions.invoke).toHaveBeenCalledTimes(1);
+    const motif = "compte non ouvert : Vous n'avez pas accès à la gestion des comptes.";
+    expect(lignes.map((l) => [l.nomComplet, l.code, l.motif])).toEqual([
+      ["DIALLO Ousmane", null, motif],
+      ["SECK Awa", "100000", undefined],
+      ["SOW Fatou", null, motif],
+    ]);
+  });
+
+  it("un refus propre à un étudiant (dossier pas encore dans la base) n'empêche pas d'ouvrir les autres", async () => {
+    const { client, FunctionsHttpError, actions, etudiants } = await avecBase(codesDeLaBase);
+    client.functions.invoke
+      .mockImplementationOnce(async () => ({
+        data: null, error: new FunctionsHttpError(new Response(JSON.stringify({ message: "Dossier introuvable." }), { status: 400 })),
+      }))
+      .mockImplementationOnce(async () => ({ data: { id: OUSMANE }, error: null }));
+    etudiants.remplacerEtudiants([
+      fiche("et-ousmane", "Ousmane", "DIALLO", "2026-LQHSE-0002", "cl-l1"),
+      fiche("et-fatou", "Fatou", "SOW", "2026-LQHSE-0003", "cl-l1"),
+    ]);
+    const lignes = await actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" });
+    expect(client.functions.invoke).toHaveBeenCalledTimes(2);
+    expect(lignes.map((l) => [l.nomComplet, l.code, l.motif])).toEqual([
+      ["DIALLO Ousmane", null, "compte non ouvert : Dossier introuvable."],
+      ["SOW Fatou", "100000", undefined],
+    ]);
+  });
+
+  it("une classe sans étudiant est refusée avant tout appel", async () => {
+    const { client, actions, etudiants } = await avecBase(codesDeLaBase);
+    etudiants.remplacerEtudiants([fiche("et-fatou", "Fatou", "SOW", "2026-LQHSE-0003", "cl-l1", "abandon")]);
+    await expect(actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" })).rejects.toThrow("Aucun étudiant dans cette classe.");
+    expect(client.functions.invoke).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+});
+
 describe("mêmes écrans sans Supabase (données du navigateur)", () => {
   it("créer, bloquer, code PIN et portail : comme avant", async () => {
     vi.resetModules();
@@ -158,5 +268,53 @@ describe("mêmes écrans sans Supabase (données du navigateur)", () => {
     await actions.definirPortail("student", false);
     expect(portails.isPortalActif("student")).toBe(false);
     await expect(actions.definirPortail("admin", false)).rejects.toThrow("ne peut pas être désactivé");
+  });
+
+  it("codes pour toute une classe : 14 jours, l'ancien code remplacé, aucun pour un compte désactivé", async () => {
+    vi.resetModules();
+    const e = await preparerEtablissement();
+    const actions = await import("@/data/comptesAdmin");
+    const pins = await import("@/data/pinActivationStore");
+    const mails = await import("@/data/mailEnvoyeStore");
+    const [awa, ousmane, fatou] = [e.inscrire("Awa", "SECK"), e.inscrire("Ousmane", "DIALLO"), e.inscrire("Fatou", "SOW")];
+    const compteDe = (id: string) => e.S.getUserAccounts().find((u) => u.linkedId === id)!;
+    e.S.setUserAccountActif(compteDe(fatou.id).id, false, e.admin.id);
+    const ancien = await actions.genererCodePin(compteDe(ousmane.id), { id: e.admin.id, name: "Administrateur" });
+    const mailsAvant = mails.getMailsEnvoyes().length;
+
+    const lignes = await actions.genererCodesClasse(e.classe.id, 14, { id: e.admin.id, name: "Administrateur" });
+    const classe = lignes.filter((l) => [awa.id, ousmane.id, fatou.id].includes(l.etudiantId));
+    expect(classe.map((l) => l.nomComplet)).toEqual(["DIALLO Ousmane", "SECK Awa", "SOW Fatou"]);
+    expect(classe[0].code).toMatch(/^\d{6}$/);
+    expect(classe[1].code).toMatch(/^\d{6}$/);
+    expect(classe[2]).toMatchObject({ code: null, motif: "compte désactivé" });
+    const jours = (new Date(classe[1].expireLe!).getTime() - Date.now()) / 86_400_000;
+    expect(jours).toBeGreaterThan(13.9);
+    expect(jours).toBeLessThanOrEqual(14);
+    const tous = pins.getPinsActivation();
+    expect(pins.statutPin(tous.find((p) => p.pin === ancien.code && p.userId === compteDe(ousmane.id).id)!, tous)).toBe("remplace");
+    expect(mails.getMailsEnvoyes()).toHaveLength(mailsAvant);
+  });
+});
+
+describe("liste imprimée des codes d'une classe", () => {
+  it("donne la marche à suivre, le matricule et le code de chacun ; un nom ne peut pas injecter de HTML", async () => {
+    vi.resetModules();
+    const { htmlCodesClasse } = await import("@/lib/impressionCodes");
+    const html = htmlCodesClasse("L1 QHSE <A>", [
+      { etudiantId: "et-ousmane", matricule: "2026-LQHSE-0002", nomComplet: "DIALLO Ousmane", code: "482913", expireLe: "2026-11-09T10:00:00Z" },
+      { etudiantId: "et-x", matricule: "2026-LQHSE-0009", nomComplet: "<img src=x onerror=alert(1)>", code: "130597", expireLe: "2026-11-09T10:00:00Z" },
+      { etudiantId: "et-fatou", matricule: "2026-LQHSE-0003", nomComplet: "SOW Fatou", code: null, expireLe: null, motif: "compte désactivé" },
+    ], "https://edumanage.vercel.app");
+    expect(html).toContain("https://edumanage.vercel.app");
+    expect(html).toContain("« Mot de passe oublié ? », puis sur « J'ai déjà un code »");
+    expect(html).toContain("codes valables jusqu'au 09/11/2026");
+    expect(html).toMatch(/2026-LQHSE-0002<\/td>\s*<td>DIALLO Ousmane<\/td>\s*<td class="code">482913<\/td>/);
+    expect(html).toContain("<em>compte désactivé</em>");
+    expect(html).toContain("Codes d'accès à EduManage — L1 QHSE &lt;A&gt;</h1>");
+    expect(html).not.toContain("L1 QHSE <A>");
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("Signature");
   });
 });

@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
-import { KeyRound, Search, X, Ban, Inbox } from "lucide-react";
+import { KeyRound, Search, X, Ban, Inbox, Users, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useCodesPin, useComptesAdmin, useDemandesAttente, type CodePinVue } from "@/hooks/useComptesAdmin";
 import type { StatutPin } from "@/data/pinActivationStore";
-import { genererCodePin, revoquerCodePin } from "@/data/comptesAdmin";
+import { genererCodePin, genererCodesClasse, revoquerCodePin, type CodeEtudiant } from "@/data/comptesAdmin";
+import { getAnneeActuelle } from "@/data/studentStore";
+import { useClasses } from "@/hooks/useStructureStore";
+import { imprimerCodesClasse } from "@/lib/impressionCodes";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { modeSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -232,6 +235,8 @@ export default function PinActivationPage() {
         </button>
       </div>
 
+      <CodesClasse />
+
       <DataTable
         columns={columns}
         data={pins as unknown as Record<string, unknown>[]}
@@ -239,6 +244,133 @@ export default function PinActivationPage() {
         searchPlaceholder="Compte..."
         emptyMessage="Aucun PIN généré pour l'instant."
       />
+    </div>
+  );
+}
+
+const DUREES = [1, 3, 7, 14];
+
+/** Codes pour toute une classe (partie 10, lot 1) : à la rentrée, une liste imprimée remise en
+ * classe contre signature plutôt qu'un passage de chaque étudiant au bureau. */
+function CodesClasse() {
+  const { currentUser } = useAuth();
+  const annee = getAnneeActuelle();
+  const classes = useClasses().filter((c) => c.annee === annee && !c.cloturee);
+  const [classeId, setClasseId] = useState("");
+  const [jours, setJours] = useState(7);
+  const [confirmer, setConfirmer] = useState(false);
+  const [enCours, setEnCours] = useState<{ fait: number; total: number } | null>(null);
+  const [resultat, setResultat] = useState<{ classe: string; lignes: CodeEtudiant[] } | null>(null);
+  const classe = classes.find((c) => c.id === classeId);
+
+  const lancer = async () => {
+    if (!currentUser || !classe) return;
+    setConfirmer(false);
+    setEnCours({ fait: 0, total: 0 });
+    try {
+      const lignes = await genererCodesClasse(classe.id, jours, { id: currentUser.id, name: currentUser.name },
+        (fait, total) => setEnCours({ fait, total }));
+      setResultat({ classe: classe.nom, lignes });
+      const sans = lignes.filter((l) => !l.code).length;
+      toast.success(`${lignes.length - sans} code(s) générés pour ${classe.nom}${sans ? `, ${sans} étudiant(s) sans code` : ""}.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Génération impossible");
+    } finally {
+      setEnCours(null);
+    }
+  };
+
+  const imprimer = () => {
+    if (resultat && !imprimerCodesClasse(resultat.classe, resultat.lignes)) {
+      toast.error("Le navigateur a bloqué la fenêtre d'impression : autorisez les fenêtres pour ce site.");
+    }
+  };
+
+  const champ = "px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 mb-6" style={{ boxShadow: "var(--shadow-sm)" }} data-testid="pin-classe">
+      <h3 className="font-bold text-foreground mb-1 flex items-center gap-2"><Users size={16} /> Codes pour toute une classe</h3>
+      <p className="text-xs text-muted-foreground mb-3">
+        Un code par étudiant de la classe, sur une liste à imprimer et à distribuer contre signature.
+        {modeSupabase && " Le compte d'un étudiant qui n'en a pas encore est ouvert au passage."}
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs font-medium text-muted-foreground flex flex-col gap-1">
+          Classe ({annee})
+          <select value={classeId} onChange={(e) => { setClasseId(e.target.value); setConfirmer(false); }} className={champ + " min-w-[220px]"}
+            disabled={!!enCours} data-testid="pin-classe-choix">
+            <option value="">Choisir une classe…</option>
+            {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-muted-foreground flex flex-col gap-1">
+          Validité
+          <select value={jours} onChange={(e) => setJours(Number(e.target.value))} className={champ} disabled={!!enCours} data-testid="pin-classe-duree">
+            {DUREES.map((d) => <option key={d} value={d}>{d === 1 ? "1 jour" : `${d} jours`}</option>)}
+          </select>
+        </label>
+        {!confirmer && (
+          <button onClick={() => setConfirmer(true)} disabled={!classe || !!enCours}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
+            data-testid="pin-classe-generer">
+            <KeyRound size={14} /> Générer les codes
+          </button>
+        )}
+      </div>
+
+      {confirmer && classe && (
+        <div className="mt-3 border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-3 flex flex-wrap items-center gap-3" data-testid="pin-classe-confirmation">
+          <p className="flex-1 min-w-[240px] text-xs text-foreground">
+            Chaque étudiant de {classe.nom} reçoit un nouveau code, valable {jours === 1 ? "1 jour" : `${jours} jours`} ; le code qu&apos;il avait reçu avant ne servira plus.
+          </p>
+          <button onClick={() => setConfirmer(false)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted">Annuler</button>
+          <button onClick={() => void lancer()} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90" data-testid="pin-classe-confirmer">
+            Confirmer
+          </button>
+        </div>
+      )}
+
+      {enCours && (
+        <p className="mt-3 text-xs text-muted-foreground" role="status" data-testid="pin-classe-progression">
+          {enCours.total > 0 ? `Codes générés : ${enCours.fait} sur ${enCours.total}…` : "Préparation des comptes…"}
+        </p>
+      )}
+
+      {resultat && (
+        <div className="mt-4 border-t border-border pt-4" data-testid="pin-classe-resultat">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <p className="flex-1 min-w-[240px] text-sm font-semibold text-foreground">
+              {resultat.classe} : {resultat.lignes.filter((l) => l.code).length} code(s)
+              {modeSupabase && <span className="block text-xs font-normal text-muted-foreground">Montrés une seule fois : imprimez la liste avant de quitter cette page.</span>}
+            </p>
+            <button onClick={imprimer} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-border hover:bg-muted" data-testid="pin-classe-imprimer">
+              <Printer size={14} /> Imprimer la liste
+            </button>
+            <button onClick={() => setResultat(null)} className="p-1.5 rounded-lg hover:bg-muted" aria-label="Fermer la liste"><X size={14} /></button>
+          </div>
+          <div className="max-h-72 overflow-auto border border-border rounded-xl">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/60 text-xs text-muted-foreground sticky top-0">
+                <tr><th className="text-left px-3 py-2">Matricule</th><th className="text-left px-3 py-2">Nom</th><th className="text-left px-3 py-2">Code</th></tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {resultat.lignes.map((l) => (
+                  <tr key={l.etudiantId} data-testid={`pin-classe-ligne-${l.etudiantId}`}>
+                    <td className="px-3 py-1.5 font-mono text-xs">{l.matricule}</td>
+                    <td className="px-3 py-1.5">{l.nomComplet}</td>
+                    <td className="px-3 py-1.5">
+                      {l.code
+                        ? <span className="font-mono font-semibold tracking-widest">{l.code}</span>
+                        : <span className="text-xs text-muted-foreground italic">{l.motif ?? "sans code"}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

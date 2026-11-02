@@ -59,4 +59,41 @@ test.describe("sécurité des comptes", () => {
     await connecter(page, d.matricule, MDP_ETUDIANT);
     await expect(page).toHaveURL(/\/student\/dashboard/);
   });
+
+  test("codes pour toute la classe d'Awa : liste imprimée, puis Awa choisit son mot de passe avec son code", async ({ page }) => {
+    const d = await preparerDonnees(page);
+    await connecter(page, "ADM-TEST", MDP_ADMIN);
+    await page.goto("/admin/security/pin-activation");
+    await page.getByTestId("pin-classe-choix").selectOption(d.classeId);
+    await page.getByTestId("pin-classe-duree").selectOption("3");
+    await page.getByTestId("pin-classe-generer").click();
+    await expect(page.getByTestId("pin-classe-confirmation")).toContainText("valable 3 jours");
+    await page.getByTestId("pin-classe-confirmer").click();
+    const ligne = page.getByTestId(`pin-classe-ligne-${d.etudiantId}`);
+    await expect(ligne).toContainText(d.matricule);
+    const code = (await ligne.locator("td").nth(2).innerText()).trim();
+    expect(code).toMatch(/^\d{6}$/);
+
+    // La liste à imprimer s'ouvre dans une fenêtre, avec le code d'Awa et la marche à suivre
+    const [fenetre] = await Promise.all([page.waitForEvent("popup"), page.getByTestId("pin-classe-imprimer").click()]);
+    await expect(fenetre.locator("body")).toContainText(d.matricule);
+    await expect(fenetre.locator("body")).toContainText(code);
+    await expect(fenetre.locator("body")).toContainText("J'ai déjà un code");
+    await expect(fenetre.locator("body")).toContainText("/login");
+    await fenetre.close();
+
+    // Awa choisit son mot de passe avec ce code, puis se connecte
+    await page.evaluate(async () => (await import("/src/data/studentStore.ts")).clearAuthSession());
+    await page.goto("/login");
+    await page.getByTestId("link-mot-de-passe-oublie").click();
+    await page.getByTestId("link-j-ai-un-code").click();
+    await page.getByTestId("input-reset-identifier").fill(d.matricule);
+    await page.getByTestId("input-reset-pin").fill(code);
+    await page.getByTestId("input-new-password").fill("Rentree2026");
+    await page.getByTestId("input-confirm-password").fill("Rentree2026");
+    await page.getByTestId("button-reset-password").click();
+    await expect(page.locator("body")).toContainText("Mot de passe réinitialisé");
+    await connecter(page, d.matricule, "Rentree2026");
+    await expect(page).toHaveURL(/\/student\/dashboard/);
+  });
 });

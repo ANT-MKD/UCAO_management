@@ -50,10 +50,10 @@ export function useApercuMatricule(filiereId: string | undefined, annee: string)
 /** Ouvre le compte de connexion d'un étudiant inscrit. Avec Supabase, une fois son dossier arrivé
  * dans la base (le serveur refuse un compte sans dossier) ; sans mot de passe remis, le compte
  * attend un code PIN. Dans le navigateur, registerNewEtudiant l'a déjà ouvert. */
-export async function ouvrirCompteEtudiant(etudiant: EtudiantRecord, motDePasse?: string): Promise<void> {
-  if (!modeSupabase) return;
+export async function ouvrirCompteEtudiant(etudiant: EtudiantRecord, motDePasse?: string): Promise<string | undefined> {
+  if (!modeSupabase) return undefined;
   await attendreEnvois();
-  await creerCompteServeur({
+  return creerCompteServeur({
     typeCompte: "etudiant",
     identifiant: etudiant.matricule,
     nomAffiche: `${etudiant.prenom} ${etudiant.nom}`,
