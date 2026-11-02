@@ -22,8 +22,12 @@ dans le document « Plan de migration EduManage ».
 
 | Environnement | Projet | Région | Marque |
 | --- | --- | --- | --- |
-| Développement et test (recette) | `UCAO_Kairos` (organisation `UCAO_ISAE`) | Paris (`eu-west-3`) | `test` |
-| Production | à créer (partie 10 du plan) | Paris (`eu-west-3`) | aucune |
+| Production (en service) | `UCAO_Kairos` (organisation `UCAO_ISAE`, offre gratuite) | Paris (`eu-west-3`) | `production` |
+| Test | aucun pour l'instant : un projet gratuit se crée au besoin, puis se supprime | Paris (`eu-west-3`) | `test` |
+
+**Sur la base en service, aucun script de test ne se lance**, même annulé à la fin : les changements
+sont vérifiés en local (`tests/lancer.sh`, `tests/lancer-fonctions.sh`) et dans les vérifications
+GitHub, puis appliqués ; sur la production, seules des lectures de contrôle.
 
 La marque (`private.environnement`) se pose à la main, jamais par une migration :
 
