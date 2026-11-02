@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { UES as SEED_UES, ECS as SEED_ECS } from "./mockData";
 import { getFiliereByCode } from "./filiereStore";
 
@@ -86,7 +86,7 @@ function buildFresh(): CurriculumStore {
 
 function load(): CurriculumStore {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<CurriculumStore>;

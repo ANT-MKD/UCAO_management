@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-communication-api-config-v1";
 const DEFAUT = "https://api-communication.edumanage.sn/api_communication";
 
@@ -9,7 +9,7 @@ function notify() {
 
 function load(): string {
   if (typeof window === "undefined") return DEFAUT;
-  return localStorage.getItem(STORAGE_KEY) ?? DEFAUT;
+  return lireStockage(STORAGE_KEY) ?? DEFAUT;
 }
 
 let url = load();

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import type { NiveauMethodeCalcul } from "@/lib/bulletinCalculs";
 
 const STORAGE_KEY = "edumanage-mentions-store-v1";
@@ -61,7 +61,7 @@ function notify() {
 function load(): MentionRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as MentionRecord[];
     return Array.isArray(parsed) && parsed.length > 0 ? parsed : seed();

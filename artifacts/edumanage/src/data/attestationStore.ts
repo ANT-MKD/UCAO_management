@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 import { modeSupabase, supabase } from "@/lib/supabase";
@@ -48,7 +48,7 @@ function notify() {
 function load(): AttestationRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as AttestationRecord[];
     return Array.isArray(parsed) ? parsed : [];

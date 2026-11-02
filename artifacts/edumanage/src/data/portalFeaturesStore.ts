@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 export type PortalWithFeatures = "student" | "teacher";
 
 export interface PortalFeatureItem {
@@ -79,7 +79,7 @@ function load(): FeaturesState {
   const state = defaultState();
   if (typeof window === "undefined") return state;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return state;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     for (const key of Object.keys(state)) {

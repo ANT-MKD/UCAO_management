@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { computeBulletin } from "./bulletinEngine";
 import { getUserAccounts, pushNotificationEtPersister, upsertReleve } from "./studentStore";
 import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
@@ -54,7 +54,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { generations: [], compteur: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { generations: [], compteur: 0 };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { generations: parsed.generations ?? [], compteur: parsed.compteur ?? 0 };

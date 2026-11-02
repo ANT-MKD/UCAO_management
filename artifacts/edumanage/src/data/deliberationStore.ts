@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { tronquer } from "@/lib/notes";
 import { computeBulletinPourClasse } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
@@ -81,7 +81,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { deliberations: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { deliberations: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { deliberations: parsed.deliberations ?? [] };

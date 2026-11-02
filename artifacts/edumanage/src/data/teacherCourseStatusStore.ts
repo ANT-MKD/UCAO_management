@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-course-status-v1";
 
 export type TypeComptabilisation = "" | "normal" | "a_terme";
@@ -21,7 +21,7 @@ function notify() {
 function load(): TeacherCourseStatusRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as TeacherCourseStatusRecord[];
   } catch {

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { collectAllLeaves, getLeafIdsForSection } from "@/lib/adminNavConfig";
 import { exigerAccesComplet, getUserAccounts, logAudit } from "./studentStore";
 
@@ -52,7 +52,7 @@ function seed(): RoleRecord[] {
 function load(): RoleRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RoleRecord[];
     if (!Array.isArray(parsed)) return seed();

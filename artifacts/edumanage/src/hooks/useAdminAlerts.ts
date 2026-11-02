@@ -8,6 +8,7 @@ import { useRolesAdmin } from "@/hooks/useComptesAdmin";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { pourcentageStockage } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 import { useDemandesCorrection } from "@/hooks/useCorrectionNoteStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
 import { useEtablissement } from "@/hooks/useEtablissementStore";
@@ -72,7 +73,8 @@ export function useAdminAlerts(): AdminAlert[] {
   const alerts: AdminAlert[] = [];
   const push = (a: AdminAlert) => { if (a.count > 0) alerts.push(a); };
 
-  const stockage = pourcentageStockage();
+  // Avec la base, le navigateur ne garde plus de données : sa place ne limite plus rien.
+  const stockage = modeSupabase ? 0 : pourcentageStockage();
   if (stockage >= 80) {
     alerts.push({ id: "stockage", type: stockage >= 90 ? "danger" : "warning", count: stockage, domaine: "Sécurité", action: "Voir l'espace",
       message: `Stockage du navigateur utilisé à ${stockage} % — au-delà de 100 %, plus rien ne s'enregistre`, temps: "Maintenant", href: "/admin/security/reinitialisation-donnees" });

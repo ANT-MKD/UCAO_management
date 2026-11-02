@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage, retirerStockage } from "@/lib/stockageLocal";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
 import { telephoneValide } from "@/lib/telephone";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "./mockData";
@@ -506,7 +506,7 @@ export function purgerNotificationsLues(notifications: NotificationRecord[], mai
 
 function loadStore(): StoreData {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY) ?? lireStockage(LEGACY_STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<StoreData>;
@@ -548,7 +548,7 @@ function writeStoreToLocalStorage(data: StoreData): boolean {
   if (typeof window === "undefined") return false;
   try {
     if (!ecrireStockage(STORAGE_KEY, JSON.stringify(data))) return false;
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    retirerStockage(LEGACY_STORAGE_KEY);
     return true;
   } catch (err) {
     console.error("[EduManage] Impossible d'enregistrer dans localStorage:", err);
@@ -612,7 +612,8 @@ function persist() {
 if (typeof window !== "undefined") {
   writeStoreToLocalStorage(store);
   window.addEventListener("storage", (event) => {
-    if (event.key !== STORAGE_KEY || !event.newValue) return;
+    // Avec la base, les autres onglets se tiennent à jour par elle, jamais par le navigateur.
+    if (modeSupabase || event.key !== STORAGE_KEY || !event.newValue) return;
     try {
       const parsed = JSON.parse(event.newValue) as StoreData;
       store = { ...buildFreshStore(), ...parsed };
@@ -629,8 +630,8 @@ if (typeof window !== "undefined") {
 
 export function resetStudentStore() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    retirerStockage(STORAGE_KEY);
+    retirerStockage(LEGACY_STORAGE_KEY);
   }
   store = buildFreshStore();
   persist();
@@ -689,7 +690,7 @@ export function saveAuthSession(user: AuthSessionSnapshot) {
 export function loadAuthSession(): AuthSessionSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    const raw = lireStockage(AUTH_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as AuthSessionSnapshot;
   } catch {
@@ -699,7 +700,7 @@ export function loadAuthSession(): AuthSessionSnapshot | null {
 
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  retirerStockage(AUTH_STORAGE_KEY);
 }
 
 /** Champs du dossier personnel (table etudiants_dossiers) : lus par l'administration et par

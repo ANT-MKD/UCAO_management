@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import type { BulletinEtudiant } from "./bulletinEngine";
 
 const STORAGE_KEY = "edumanage-resultats-figes-v1";
@@ -18,7 +18,7 @@ const cle = (classeId: string, semestreAlias: string) => `${classeId}|${semestre
 function load(): Record<string, ResultatsSession> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as Record<string, ResultatsSession>) : {};
   } catch {
     return {};

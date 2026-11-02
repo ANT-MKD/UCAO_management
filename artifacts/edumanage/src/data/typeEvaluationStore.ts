@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-type-evaluation-store-v1";
 
 export interface TypeEvaluationRecord {
@@ -28,7 +28,7 @@ function notify() {
 function load(): TypeEvaluationRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as TypeEvaluationRecord[];
     return Array.isArray(parsed) && parsed.length > 0 ? parsed : seed();

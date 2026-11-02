@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { CLASSES as SEED_CLASSES, SALLES as SEED_SALLES, FILIERES, NIVEAUX } from "./mockData";
 
 /** Classe pédagogique = groupe d'étudiants (ex. LPIG L1 A 2025-2026) */
@@ -105,7 +105,7 @@ function buildFresh(): StructureStore {
 
 function load(): StructureStore {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<StructureStore>;

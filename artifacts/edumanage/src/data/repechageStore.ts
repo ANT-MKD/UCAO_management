@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-repechage-ue-store-v1";
@@ -25,7 +25,7 @@ export interface RepechageUeRecord {
 function load(): RepechageUeRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     const parsed = raw ? (JSON.parse(raw) as RepechageUeRecord[]) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {

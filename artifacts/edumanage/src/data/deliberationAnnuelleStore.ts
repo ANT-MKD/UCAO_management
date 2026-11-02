@@ -1,7 +1,7 @@
 import { reglesDeCalcul } from "./scolariteConfigStore";
 import { formulesPour } from "./reglementCalculStore";
 import { executerFormule, interpreterDecisionAnnee, type FormulesCalcul } from "./formulesCalcul";
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { computeBulletin, computeMoyenneAnnuelle } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
 import { type RegleValidationRecord } from "./reglesValidationStore";
@@ -83,7 +83,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { deliberations: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { deliberations: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { deliberations: parsed.deliberations ?? [] };

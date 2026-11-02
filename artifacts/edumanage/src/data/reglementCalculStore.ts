@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getScolariteConfigs } from "./scolariteConfigStore";
 import { getAnneeActuelle, isAnneeCloturee, logAudit } from "./studentStore";
 import { FILIERES } from "./mockData";
@@ -72,7 +72,7 @@ function migrerFormulesDeFiliere(): ReglementCalcul[] {
 function load(): ReglementCalcul[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw === null) return migrerFormulesDeFiliere();
     const parsed = JSON.parse(raw) as ReglementCalcul[];
     return Array.isArray(parsed) ? parsed : [];
@@ -86,7 +86,7 @@ let store: ReglementCalcul[] = load();
 function loadHistorique(): VersionReglement[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORIQUE) ?? "[]") as VersionReglement[];
+    const parsed = JSON.parse(lireStockage(STORAGE_KEY_HISTORIQUE) ?? "[]") as VersionReglement[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];

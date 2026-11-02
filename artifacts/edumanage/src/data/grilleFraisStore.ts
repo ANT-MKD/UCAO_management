@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getAnneesAcademiques } from "./studentStore";
 import { decalerDeNAns, premiereAnneeCivile } from "@/lib/anneeAcademique";
 
@@ -197,7 +197,7 @@ function notify() {
 function load(): GrilleFraisRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     return (JSON.parse(raw) as GrilleFraisRecord[]).filter((g) => g.id !== ANCIENNE_GRILLE_DEMO_ID);
   } catch {

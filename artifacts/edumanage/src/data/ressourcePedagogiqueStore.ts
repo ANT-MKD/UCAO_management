@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { modeSupabase } from "@/lib/supabase";
 import { getEtudiants, getUserAccounts, logAudit, pushNotificationEtPersister } from "./studentStore";
 
@@ -35,7 +35,7 @@ function notify() {
 function load(): RessourcePedagogiqueRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as RessourcePedagogiqueRecord[];
   } catch {

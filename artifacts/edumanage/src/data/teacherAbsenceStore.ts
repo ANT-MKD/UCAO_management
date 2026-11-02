@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getUserAccounts, logAudit, pushNotificationEtPersister } from "./studentStore";
 import { modeSupabase } from "@/lib/supabase";
 import { getEcs } from "./curriculumStore";
@@ -44,7 +44,7 @@ function notify() {
 function load(): TeacherAbsenceRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as TeacherAbsenceRecord[];
   } catch {

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getEtudiantById, getPaiementsByEtudiant, marquerEtudiantAbandon, reintegrerEtudiantStatut } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-abandons-v1";
@@ -57,7 +57,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { records: parsed.records ?? [] };

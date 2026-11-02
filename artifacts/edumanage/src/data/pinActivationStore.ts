@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-pin-activation-v1";
 const DEMANDES_STORAGE_KEY = "edumanage-demandes-reinit-v1";
 
@@ -58,7 +58,7 @@ let demandes: DemandeReinitialisationRecord[] = loadDemandes();
 function loadDemandes(): DemandeReinitialisationRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(DEMANDES_STORAGE_KEY) ?? "[]") as DemandeReinitialisationRecord[];
+    const parsed = JSON.parse(lireStockage(DEMANDES_STORAGE_KEY) ?? "[]") as DemandeReinitialisationRecord[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -68,7 +68,7 @@ function loadDemandes(): DemandeReinitialisationRecord[] {
 function load(): PinActivationRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as PinActivationRecord[];
     return Array.isArray(parsed) ? parsed : [];

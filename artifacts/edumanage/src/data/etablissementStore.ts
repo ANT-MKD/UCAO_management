@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-etablissement-v1";
@@ -30,7 +30,7 @@ const DEFAULT_INFO: EtablissementInfo = {
 function load(): EtablissementInfo {
   if (typeof window === "undefined") return { ...DEFAULT_INFO };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_INFO };
     const parsed = JSON.parse(raw) as Partial<EtablissementInfo>;
     return { ...DEFAULT_INFO, ...parsed };

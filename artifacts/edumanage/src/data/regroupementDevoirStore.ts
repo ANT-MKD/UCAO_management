@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getTypesEvaluation } from "./typeEvaluationStore";
 
 const STORAGE_KEY = "edumanage-regroupement-devoir-store-v1";
@@ -33,7 +33,7 @@ function notify() {
 function load(): RegroupementDevoirRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RegroupementDevoirRecord[];
     return Array.isArray(parsed) && parsed.length > 0 ? parsed : seed();

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { modeSupabase } from "@/lib/supabase";
 import { getEtudiantById, getUserAccounts, logAudit } from "./studentStore";
 import { envoyerMailSysteme } from "./mailEnvoyeStore";
@@ -25,7 +25,7 @@ function notify() {
 function load(): RelanceRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as RelanceRecord[];
   } catch {

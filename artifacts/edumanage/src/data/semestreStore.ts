@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { SEMESTRES } from "./mockData";
 
 export interface SemestreRecord {
@@ -26,7 +26,7 @@ const semestres = SEMESTRES as unknown as SemestreRecord[];
 function loadPersisted() {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw) as SemestreRecord[];
     semestres.splice(0, semestres.length, ...saved);

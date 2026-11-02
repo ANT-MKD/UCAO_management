@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { modeSupabase } from "@/lib/supabase";
 import { getPaiements, getEtudiants, getUserAccounts, payerQuittance, pushNotificationEtPersister, logAudit, type PaiementRecord } from "./studentStore";
 import { enregistrerEncaissement } from "./encaissementStore";
@@ -40,7 +40,7 @@ const listeners = new Set<() => void>();
 function load(): PaiementDeclareRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as PaiementDeclareRecord[];
+    const parsed = JSON.parse(lireStockage(STORAGE_KEY) ?? "[]") as PaiementDeclareRecord[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];

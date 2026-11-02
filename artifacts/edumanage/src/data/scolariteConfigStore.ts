@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { sansEnvoi } from "@/lib/miroirServeur";
 import { FILIERES } from "./mockData";
 import { getFilieres, subscribeFilieres } from "./filiereStore";
@@ -162,7 +162,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { configs: seedConfigs(), valeursParDefaut: DEFAUT };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { configs: seedConfigs(), valeursParDefaut: DEFAUT };
     return JSON.parse(raw) as Persisted;
   } catch {

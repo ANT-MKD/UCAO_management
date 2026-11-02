@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-signature-config-v1";
@@ -39,7 +39,7 @@ function load(): SignatureState {
   const state = defaultState();
   if (typeof window === "undefined") return state;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return state;
     const parsed = JSON.parse(raw) as Partial<SignatureState>;
     (Object.keys(state) as SignatureDocType[]).forEach((key) => {

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 
 export interface FiliereRecord {
@@ -37,7 +37,7 @@ const filieres = FILIERES as unknown as FiliereRecord[];
 function loadPersisted() {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw) as FiliereRecord[];
     filieres.splice(0, filieres.length, ...saved);

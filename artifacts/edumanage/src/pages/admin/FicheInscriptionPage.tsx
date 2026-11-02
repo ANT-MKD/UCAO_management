@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, ArrowLeft, Info } from "lucide-react";
@@ -25,7 +25,7 @@ export default function FicheInscriptionPage() {
   const modelesFrais = useModelesFrais();
   const anneeActuelle = useAnneeActuelle();
 
-  const [filiereId, setFiliereId] = useState(() => localStorage.getItem(DEFAULT_FILIERE_KEY) ?? "");
+  const [filiereId, setFiliereId] = useState(() => lireStockage(DEFAULT_FILIERE_KEY) ?? "");
   const [niveauId, setNiveauId] = useState("");
   const [annee, setAnnee] = useState(anneeActuelle);
   const [specialite, setSpecialite] = useState("");

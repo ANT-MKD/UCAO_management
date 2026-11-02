@@ -6,6 +6,7 @@ import { AvisAccesComplet } from "@/components/admin/AvisAccesComplet";
 import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
 import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 
 const PHRASE_CONFIRMATION = "REINITIALISER";
 
@@ -49,6 +50,25 @@ export default function DataResetPage() {
       setResetting(false);
     }
   };
+
+  // Avec la base de données, le navigateur ne garde plus aucune donnée : rien à vider ici.
+  if (modeSupabase) {
+    return (
+      <div>
+        <PageHeader
+          breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Réinitialisation des données" }]}
+          title="Réinitialisation des données"
+          subtitle="Les données de l'établissement sont dans la base de données"
+        />
+        <div className="max-w-2xl rounded-xl border border-border bg-card p-4 flex gap-3" data-testid="reinitialisation-avec-base">
+          <HardDrive size={18} className="text-muted-foreground flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground">
+            Ce navigateur ne garde aucune copie des données de l&apos;établissement : elles sont chargées depuis la base à chaque connexion et oubliées à la déconnexion. Seuls le thème et la session restent sur ce poste. Il n&apos;y a donc rien à vider ici.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

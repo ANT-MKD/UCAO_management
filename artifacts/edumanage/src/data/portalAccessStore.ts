@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import type { UserRole } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-portal-access-v1";
@@ -16,7 +16,7 @@ const DEFAULT_STATE: PortalAccessState = { admin: true, teacher: true, student: 
 function load(): PortalAccessState {
   if (typeof window === "undefined") return { ...DEFAULT_STATE };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_STATE };
     const parsed = JSON.parse(raw) as Partial<PortalAccessState>;
     return { ...DEFAULT_STATE, ...parsed };

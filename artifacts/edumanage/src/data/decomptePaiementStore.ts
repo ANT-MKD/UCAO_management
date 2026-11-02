@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getDecompteById, payerDecompte, reverserPaiementDecompte, type DecompteLigne } from "./decompteStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 import { modeSupabase } from "@/lib/supabase";
@@ -74,7 +74,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {

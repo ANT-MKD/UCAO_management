@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-rates-v1";
 
 export type ModePaiementProf = "" | "taux_horaire" | "forfait";
@@ -26,7 +26,7 @@ function notify() {
 function load(): TeacherCourseRateRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as TeacherCourseRateRecord[];
   } catch {

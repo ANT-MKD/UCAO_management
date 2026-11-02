@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { FILIERES, NIVEAUX } from "./mockData";
 import { getClasses } from "./structureStore";
 import type { EtudiantRecord } from "./studentStore";
@@ -61,7 +61,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { externes: [], internes: [], personnalises: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { externes: [], internes: [], personnalises: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return {

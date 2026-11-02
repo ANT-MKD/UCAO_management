@@ -11,8 +11,8 @@ import {
   type UserRole,
 } from "@/data/studentStore";
 import { modeSupabase, supabase } from "@/lib/supabase";
-import { compteDeLaSession, connecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
-import { arreterMiroirs, chargerMiroirs } from "@/lib/miroirServeur";
+import { compteDeLaSession, connecterServeur, deconnecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
+import { chargerMiroirs } from "@/lib/miroirServeur";
 import "@/data/miroirs";
 
 const DONNEES_INJOIGNABLES = "Impossible de charger les données de l'établissement. Vérifiez votre connexion internet, puis reconnectez-vous.";
@@ -248,8 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
-    arreterMiroirs();
-    if (supabase) void supabase.auth.signOut();
+    if (modeSupabase) void deconnecterServeur();
     else clearAuthSession();
   };
 

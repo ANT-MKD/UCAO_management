@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import {
   corrigerNoteOfficielle, getNotes, getUserAccounts, logAudit, noteEstOfficielle, pushNotificationEtPersister,
 } from "@/data/studentStore";
@@ -46,7 +46,7 @@ function notify() {
 function load(): DemandeCorrectionNoteRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as DemandeCorrectionNoteRecord[]) : [];
   } catch {
     return [];

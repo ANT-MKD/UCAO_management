@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type ContactRole = "pere" | "mere" | "tuteur" | "autre";
@@ -32,7 +32,7 @@ function notify() {
 function load(): ContactRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as ContactRecord[];
   } catch {

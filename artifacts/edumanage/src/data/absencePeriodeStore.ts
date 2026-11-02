@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-absence-periode-v1";
 
 /** Absence déclarée sur une plage de dates (maladie, sortie scolaire, congé autorisé) plutôt
@@ -43,7 +43,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { records: parsed.records ?? [] };

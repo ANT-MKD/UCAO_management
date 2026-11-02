@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { ENSEIGNANTS } from "./mockData";
 import { logAudit } from "./studentStore";
 
@@ -45,7 +45,7 @@ const teachers = ENSEIGNANTS as unknown as TeacherRecord[];
 function loadPersisted() {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw) as TeacherRecord[];
     teachers.splice(0, teachers.length, ...saved);

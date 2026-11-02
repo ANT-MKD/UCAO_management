@@ -1,6 +1,7 @@
 import { changeOwnPassword, type UserRole } from "@/data/studentStore";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { appelerFonction, ErreurServeur, supabase } from "@/lib/supabase";
+import { arreterMiroirs } from "@/lib/miroirServeur";
 
 /** Ligne de public.comptes telle que la lit le compte connecté (le sien). */
 export interface CompteServeur {
@@ -65,6 +66,20 @@ export async function compteDeLaSession(): Promise<{ compte: CompteServeur } | {
     return { refus: `Le portail ${libelle} est actuellement fermé${portail.message ? ` : ${portail.message}` : ""}. Contactez l'administration.` };
   }
   return { compte };
+}
+
+/** Fin de session avec la base : plus rien ne part, la session Supabase est fermée, puis la page
+ * est rechargée. Les données ne vivant qu'en mémoire, il n'en reste ainsi rien sur le poste : le
+ * compte suivant repart de la base. */
+export async function deconnecterServeur(recharger: () => void = () => window.location.reload()): Promise<void> {
+  arreterMiroirs();
+  try {
+    await supabase?.auth.signOut();
+  } catch {
+    // réseau coupé : la session de ce poste est fermée quand même par Supabase
+  } finally {
+    recharger();
+  }
 }
 
 /** Connexion par matricule ou identifiant. null : identifiants incorrects ; une erreur porte le

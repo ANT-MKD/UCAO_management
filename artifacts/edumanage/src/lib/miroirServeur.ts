@@ -366,23 +366,6 @@ export function sansEnvoi<T>(fn: () => T): T {
   }
 }
 
-/** Avant le premier chargement depuis la base, les données de ce navigateur sont mises de côté
- * (une seule fois par store, y compris pour un store reflété plus tard) : rien de ce qui a été
- * saisi hors ligne n'est perdu. */
-function sauvegarderUneFois(): void {
-  const CLE = "edumanage-sauvegarde-avant-supabase-v1";
-  try {
-    const sauvegarde = (JSON.parse(localStorage.getItem(CLE) ?? "null") as { le: string; donnees: Record<string, string | null> } | null)
-      ?? { le: new Date().toISOString(), donnees: {} };
-    const nouvelles = [...new Set(miroirs.map((m) => m.cle))].filter((cle) => !(cle in sauvegarde.donnees));
-    if (nouvelles.length === 0) return;
-    for (const cle of nouvelles) sauvegarde.donnees[cle] = localStorage.getItem(cle);
-    localStorage.setItem(CLE, JSON.stringify(sauvegarde));
-  } catch {
-    // stockage plein : la sauvegarde est sautée, le chargement continue
-  }
-}
-
 /** Compte connecté, pour écouter ses canaux en direct (le sien ; celui de l'administration). */
 export interface AbonnementEnDirect {
   compteId: string;
@@ -397,7 +380,6 @@ export async function chargerMiroirs(enDirect?: AbonnementEnDirect): Promise<voi
   // Les modifications déjà parties arrivent d'abord : le chargement ne les écrase pas.
   await file;
   pret = false;
-  sauvegarderUneFois();
   // Compteurs lus avant les tables : ce qui change pendant le chargement sera vu au tour suivant.
   const compteurs = await lireCompteurs();
   for (const miroir of miroirs) await chargerMiroir(miroir);

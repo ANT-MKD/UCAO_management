@@ -8,6 +8,17 @@ type Ligne = Record<string, unknown>;
  * { code: "0 lignes" } imite une mise à jour que les règles d'accès filtrent sans erreur), et
  * espace de fichiers (« espace/chemin » → contenu en data URL ; un dépôt refusé se programme sur
  * la table « stockage:<espace> »). */
+/** Comptes que l'annuaire de la base donnera au prochain poste ouvert (avecBase), écrits comme
+ * les comptes de l'application. Avec la base, le poste ne garde aucun compte d'une session à
+ * l'autre : ses comptes viennent toujours de l'annuaire. */
+let comptesPrevus: Ligne[] | undefined;
+function comptesDeLaBase(comptes: Ligne[]): void {
+  const TYPE: Record<string, string> = { admin: "administration", teacher: "enseignant", student: "etudiant" };
+  comptesPrevus = comptes.map((c) => ({ id: c.id, type_compte: TYPE[c.role as string], identifiant: c.identifier ?? c.identifiant ?? "", nom_affiche: c.displayName,
+    fonction: c.fonction ?? null, lien_id: c.linkedId ?? null, role_id: c.roleId ?? null, actif: c.actif !== false, email: c.email ?? "", telephone: c.telephone ?? "",
+    doit_changer_mot_de_passe: false, mot_de_passe_change_le: null }));
+}
+
 async function avecBase(
   tables: Record<string, Ligne[]>,
   refus?: (table: string, operation: string) => { code?: string; message: string; statusCode?: string } | null,
@@ -28,7 +39,10 @@ async function avecBase(
   const compteurs: Record<string, number> = {};
   /** Tables lues, dans l'ordre (une entrée par page lue). */
   const lectures: string[] = [];
-  /** Annuaire de la base : celui que le test donne (tables.annuaire), sinon les comptes du poste. */
+  /** Annuaire de la base : celui que le test donne (tables.annuaire, ou comptesDeLaBase), sinon
+   * les comptes d'un poste neuf. */
+  const annuaireDonne = tables.annuaire ?? comptesPrevus;
+  comptesPrevus = undefined;
   let S: typeof import("@/data/studentStore") | undefined;
   const annuaireDuPoste = () => (S?.getAnnuaire() ?? []).map((c) => ({
     id: c.id, type_compte: c.typeCompte, identifiant: c.identifiant, nom_affiche: c.nomAffiche, fonction: c.fonction ?? null, lien_id: c.lienId ?? null,
@@ -91,7 +105,7 @@ async function avecBase(
     auth: { getSession: async () => ({ data: { session: null }, error: null }) },
     rpc: async (nom: string, args: Record<string, unknown>) => {
       if (nom === "versions_donnees") return { data: { ...compteurs }, error: null };
-      if (nom === "annuaire") return { data: tables.annuaire ?? annuaireDuPoste(), error: null };
+      if (nom === "annuaire") return { data: tables.annuaire ?? annuaireDonne ?? annuaireDuPoste(), error: null };
       appels.push({ nom, donnees: args, envoisAvant: envois.length });
       if (nom === "attribuer_matricule") return { data: `2026-LQHSE-${String(prochainMatricule++).padStart(4, "0")}`, error: null };
       if (nom === "apercu_matricule") return { data: `2026-LQHSE-${String(prochainMatricule).padStart(4, "0")}`, error: null };
@@ -387,6 +401,7 @@ describe("miroir des rôles, des pages des portails et des motifs de blocage", (
     expect(sauvegarde.donnees["edumanage-filiere-store-v1"]).toBe("[]");
     expect(JSON.parse(sauvegarde.donnees["edumanage-motifs-blocage-v1"])).toEqual([expect.objectContaining({ id: "motif-local" })]);
     expect(b.motifs.getMotifsBlocage()).toEqual([]);
+    expect(localStorage.getItem("edumanage-motifs-blocage-v1")).toBeNull();
   });
 });
 
@@ -846,7 +861,7 @@ describe("emploi du temps et notifications tenus par la base", () => {
   });
 
   it("avec la base, l'application n'écrit plus elle-même les notifications d'emploi du temps : c'est la base qui prévient Awa", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [{ id: "u-awa", role: "student", linkedId: "et-awa", displayName: "Awa SECK", email: "awa.seck@mail.sn", identifiant: "2026-LQHSE-0001", actif: true }] }));
+    comptesDeLaBase([{ id: "u-awa", role: "student", linkedId: "et-awa", displayName: "Awa SECK", email: "awa.seck@mail.sn", identifiant: "2026-LQHSE-0001", actif: true }]);
     const b = await avecBase(base());
     await b.miroir.chargerMiroirs();
     b.S.addSeance(CRENEAU);
@@ -895,7 +910,7 @@ describe("miroir des cahiers de séance, de l'appel et des pointages", () => {
     cree_le: "2024-09-02T10:00:00+00:00", modifie_le: "2024-09-02T10:00:00+00:00" };
 
   it("KANE soumet son cahier : le cahier, puis l'appel, puis la photo du tableau, déposée d'abord ; la base prévient, pas le poste", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [{ id: "u-admin", role: "admin", displayName: "Fatou DIOP", email: "f.diop@ucao.edu", identifiant: "ADM", actif: true }] }));
+    comptesDeLaBase([{ id: "u-admin", role: "admin", displayName: "Fatou DIOP", email: "f.diop@ucao.edu", identifiant: "ADM", actif: true }]);
     const b = await avecBase(base());
     await b.miroir.chargerMiroirs();
     const cahier = b.S.submitCahierSeance({ seanceId: "se-kane", prof: "Mamadou KANE", date: "2024-09-02", sujet: "Norme ISO 9001", resume: "Principes du management de la qualité",
@@ -993,7 +1008,7 @@ describe("miroir du dossier administratif des enseignants", () => {
   const KANE = { id: "u-kane", role: "teacher", displayName: "Mamadou KANE", email: "m.kane@ucao.edu", identifiant: "KANE", actif: true, linkedId: "en-kane" };
 
   it("un constat saisi par l'administration part en colonnes de la base ; c'est la base qui prévient KANE", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [KANE] }));
+    comptesDeLaBase([KANE]);
     const b = await avecBase({ annees_academiques: [ANNEE] });
     await b.miroir.chargerMiroirs();
     const A = await import("@/data/teacherAbsenceStore");
@@ -1051,7 +1066,7 @@ describe("miroir du dossier administratif des enseignants", () => {
   });
 
   it("nouveau contrat : numéro attribué par la base, lignes et avenants en JSON ; c'est la base qui prévient KANE", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [KANE] }));
+    comptesDeLaBase([KANE]);
     const b = await avecBase({ annees_academiques: [ANNEE] });
     await b.miroir.chargerMiroirs();
     const C = await import("@/data/teacherContractStore");
@@ -1066,7 +1081,7 @@ describe("miroir du dossier administratif des enseignants", () => {
   });
 
   it("taux, statut du cours et vacation payée : en colonnes de la base, sans notification du poste", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [KANE] }));
+    comptesDeLaBase([KANE]);
     const b = await avecBase({ annees_academiques: [ANNEE], vacations: [{ id: "va-kane", mois: "Novembre 2026", enseignant: "Mamadou KANE", enseignant_id: "en-kane",
       modules: ["Qualité"], heures_cm: 10, heures_td: 2, taux_horaire: 15000, montant_total: 180000, statut: "valide", moyen: "", observations: null }] });
     await b.miroir.chargerMiroirs();
@@ -1171,10 +1186,10 @@ describe("suivi des changements faits ailleurs", () => {
   });
 
   it("pièces et blocage : avec la base, le poste n'écrit plus ces notifications (c'est la base qui prévient)", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [
+    comptesDeLaBase([
       { id: "u-admin", role: "admin", displayName: "Secrétariat", email: "secretariat@ucao.edu", identifiant: "ADM", actif: true },
       { id: "u-awa", role: "student", displayName: "Awa SECK", email: "awa@ucao.edu", identifiant: "2026-LQHSE-0001", actif: true, linkedId: "et-awa" },
-    ] }));
+    ]);
     const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "", classe_id: null,
       niveau: "L1", statut: "preinscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
     const b = await avecBase({ annees_academiques: [ANNEE], filieres: [FILIERE], niveaux: [NIVEAU], etudiants: [AWA] });
@@ -1206,7 +1221,7 @@ describe("miroir des évaluations, des notes et des demandes de correction", () 
   ];
 
   it("KANE saisit puis soumet : la note part en colonnes de la base, après son évaluation ; c'est la base qui prévient la scolarité", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const b = await avecBase(base());
     await b.miroir.chargerMiroirs();
     b.S.saveNoteEvaluationGrid("cl-l1", "ec-qualite", "Qualité", "ev-devoir", "devoir", undefined, [{ etudiantId: "et-awa", absent: true }], false, { respecterVerrou: true });
@@ -1219,7 +1234,7 @@ describe("miroir des évaluations, des notes et des demandes de correction", () 
   });
 
   it("une note publiée reste telle quelle dans la saisie : rien ne part ; seule une correction acceptée la change, la décision partant avant la note", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const b = await avecBase({ ...base(), notes: [NOTE] });
     await b.miroir.chargerMiroirs();
     b.S.saveNoteEvaluationGrid("cl-l1", "ec-qualite", "Qualité", "ev-devoir", "devoir", undefined, [{ etudiantId: "et-awa", note: 18 }], false);
@@ -1241,7 +1256,7 @@ describe("miroir des évaluations, des notes et des demandes de correction", () 
   });
 
   it("une évaluation supprimée avec ses notes en brouillon : les notes partent d'abord, puis l'évaluation", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const b = await avecBase({ ...base(), notes: [{ ...NOTE, statut: "brouillon_prof" }] });
     await b.miroir.chargerMiroirs();
     const R = await import("@/data/suppressionReferentiel");
@@ -1299,7 +1314,7 @@ describe("miroir des relevés, délibérations, résultats figés et attestation
   });
 
   it("l'exemple d'Awa : clôture, la délibération part avant les bulletins figés ; réouverture, avant leur retrait ; son poste relit la même moyenne", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const tables = base();
     const b = await avecBase(tables);
     await b.miroir.chargerMiroirs();
@@ -1347,7 +1362,7 @@ describe("miroir des relevés, délibérations, résultats figés et attestation
   });
 
   it("génération de relevés : le relevé puis la génération ; le numéro est celui de la base, et c'est la base qui prévient Awa", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const b = await avecBase(base(), undefined, undefined, (table, l) => (table === "bulletin_generations" ? { ...l, numero: "GB-2027-042" } : l));
     await b.miroir.chargerMiroirs();
     const G = await import("@/data/bulletinGenerationStore");
@@ -1366,7 +1381,7 @@ describe("miroir des relevés, délibérations, résultats figés et attestation
   });
 
   it("attestation de réussite : numéro réservé par la base, moyenne et décision du jury clôturé ; Ousmane, ajourné, n'en obtient pas", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const tables = base();
     tables.deliberations = [{ ...DELIB, statut: "cloturee" }];
     const b = await avecBase(tables);
@@ -1489,7 +1504,7 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
   });
 
   it("deuxième versement d'Awa sur sa quittance : seuls les écarts partent, le reçu OP et le solde viennent de la base", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const tables = base();
     const b = await avecBase(tables, undefined, undefined, commeLaBase(tables));
     await b.miroir.chargerMiroirs();
@@ -1647,7 +1662,7 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
   });
 
   it("paiement déclaré par Awa sur son poste : la déclaration seule part, sans notification du poste (c'est la base qui prévient la caisse)", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [COMPTES[1], { ...COMPTES[0], id: "u-admin" }] }));
+    comptesDeLaBase([COMPTES[1], { ...COMPTES[0], id: "u-admin" }]);
     const tables = base();
     const b = await avecBase(tables);
     await b.miroir.chargerMiroirs();
@@ -1661,8 +1676,8 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
   });
 
   it("décompte de KANE : le poste propose, la base recalcule ; l'écran affiche les 57 000 F de la base et c'est elle qui prévient KANE", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: [COMPTES[0], { id: "u-kane", role: "teacher", displayName: "Mamadou KANE", email: "kane@ucao.edu",
-      identifiant: "KANE", actif: true, linkedId: "en-kane" }] }));
+    comptesDeLaBase([COMPTES[0], { id: "u-kane", role: "teacher", displayName: "Mamadou KANE", email: "kane@ucao.edu",
+      identifiant: "KANE", actif: true, linkedId: "en-kane" }]);
     const tables = base();
     tables.enseignants = [{ id: "en-kane", matricule: "ENS-2026-100", prenom: "Mamadou", nom: "KANE", grade: "Vacataire", specialites: [], statut: "actif" }];
     const b = await avecBase(tables, undefined, undefined, commeLaBaseLots234(tables));
@@ -1681,7 +1696,7 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
   });
 
   it("rappel de paiement depuis la caisse : chaque étudiante concernée est prévenue par la base, avec le numéro de sa quittance", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const b = await avecBase(base());
     await b.miroir.chargerMiroirs();
     expect(b.S.relancerQuittances(["q-awa"])).toBe(1);
@@ -1692,7 +1707,7 @@ describe("miroir des finances : quittances, encaissements, frais et soldes tenus
   });
 
   it("relance de paiement : la relance seule part ; son mail, la base l'inscrit elle-même (et prévient Awa une seule fois)", async () => {
-    localStorage.setItem("edumanage-app-store-v2", JSON.stringify({ users: COMPTES }));
+    comptesDeLaBase(COMPTES);
     const b = await avecBase(base());
     await b.miroir.chargerMiroirs();
     const R = await import("@/data/relancePaiementStore");
@@ -2001,5 +2016,79 @@ describe("dossiers dans la base : contacts, documents, mémos et abandons (parti
     A.reintegrerAbandon(ab.id, "Scolarité");
     await b.miroir.attendreEnvois();
     expect(b.envois.find((e) => e.table === "abandons")!.donnees).toEqual([expect.objectContaining({ id: ab.id, reintegre: true, reintegre_par_label: "Scolarité" })]);
+  });
+});
+
+describe("plus aucune donnée dans le navigateur (partie 9, lot 2)", () => {
+  const CLE = "edumanage-sauvegarde-avant-supabase-v1";
+  const AWA = { id: "et-awa", matricule: "2026-LQHSE-0001", prenom: "Awa", nom: "SECK", sexe: "F", filiere: "LQHSE", filiere_id: "fil-qhse", classe: "LQHSE1-26/27",
+    classe_id: "cl-l1", niveau: "L1", statut: "inscrit", annee: "2026-2027", annee_premiere_inscription: 2026 };
+  const CONTACT_HORS_LIGNE = [{ id: "ct-local", etudiantId: "et-awa", role: "pere", nomComplet: "Contact saisi hors ligne", telephone: "" }];
+  const clesDuNavigateur = () => Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)!).sort();
+
+  it("la scolarité travaille sur le dossier d'Awa : ce qu'elle charge et ce qu'elle saisit reste en mémoire, rien n'est écrit dans le navigateur", async () => {
+    localStorage.setItem("edumanage-theme", "dark");
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], etudiants: [AWA],
+      contacts_etudiants: [{ id: "ct-mere", etudiant_id: "et-awa", role: "mere", nom_complet: "Aminata SECK", telephone: "770000011", email: null, adresse: null, lien: null }] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    const C = await import("@/data/contactStore");
+    C.addContact({ etudiantId: "et-awa", role: "pere", nomComplet: "Moussa SECK", telephone: "+221 77 000 00 10" }, "u-admin");
+    await b.miroir.attendreEnvois();
+    expect(C.getContactsPourEtudiant("et-awa").map((c) => c.nomComplet)).toEqual(["Aminata SECK", "Moussa SECK"]);
+    expect(b.envois.map((e) => e.table)).toEqual(["contacts_etudiants"]);
+    expect(clesDuNavigateur()).toEqual(["edumanage-theme"]);
+    // Un onglet d'une ancienne version écrit ses données dans le navigateur : ce poste l'ignore.
+    window.dispatchEvent(new StorageEvent("storage", { key: "edumanage-app-store-v2", newValue: JSON.stringify({ etudiants: [] }) }));
+    expect(b.S.getEtudiants().map((e) => e.id)).toEqual(["et-awa"]);
+  });
+
+  it("les données d'avant la base sont mises de côté une fois pour la reprise, puis effacées ; thème et préférences d'affichage restent", async () => {
+    localStorage.setItem("edumanage-theme", "dark");
+    localStorage.setItem("edumanage-fiche-inscription-filiere-defaut", "fil-qhse");
+    localStorage.setItem("edumanage-requests-lastseen-u-awa", "2026-11-01T08:00:00Z");
+    localStorage.setItem("edumanage-auth-session", JSON.stringify({ id: "u-local" }));
+    localStorage.setItem("edumanage-contact-store-v1", JSON.stringify(CONTACT_HORS_LIGNE));
+    const b = await avecBase({ annees_academiques: [ANNEE], etudiants: [AWA], contacts_etudiants: [] });
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    const C = await import("@/data/contactStore");
+    expect(C.getContacts()).toEqual([]);
+    const sauvegarde = JSON.parse(localStorage.getItem(CLE)!);
+    expect(Object.keys(sauvegarde.donnees)).toEqual(["edumanage-contact-store-v1"]);
+    expect(JSON.parse(sauvegarde.donnees["edumanage-contact-store-v1"])).toEqual(CONTACT_HORS_LIGNE);
+    expect(clesDuNavigateur()).toEqual(["edumanage-fiche-inscription-filiere-defaut", "edumanage-requests-lastseen-u-awa", CLE, "edumanage-theme"]);
+    // Une version précédente avait recopié la base dans le navigateur : la copie est effacée au
+    // chargement suivant, la sauvegarde ne change pas.
+    localStorage.setItem("edumanage-contact-store-v1", "[]");
+    await avecBase({ annees_academiques: [ANNEE] });
+    expect(JSON.parse(localStorage.getItem(CLE)!)).toEqual(sauvegarde);
+    expect(localStorage.getItem("edumanage-contact-store-v1")).toBeNull();
+  });
+
+  it("navigateur plein : la sauvegarde ne s'écrit pas, rien n'est effacé (la reprise lira les données là où elles sont), et elles ne sont jamais relues", async () => {
+    localStorage.setItem("edumanage-contact-store-v1", JSON.stringify(CONTACT_HORS_LIGNE));
+    const ecrire = localStorage.setItem.bind(localStorage);
+    const plein = vi.spyOn(localStorage, "setItem").mockImplementation((cle: string, valeur: string) => {
+      if (cle === CLE) throw new DOMException("Le stockage est plein.", "QuotaExceededError");
+      ecrire(cle, valeur);
+    });
+    const erreurs = vi.spyOn(console, "error").mockImplementation(() => {});
+    const b = await avecBase({ annees_academiques: [ANNEE], etudiants: [AWA], contacts_etudiants: [] });
+    plein.mockRestore();
+    erreurs.mockRestore();
+    const C = await import("@/data/contactStore");
+    expect(C.getContacts()).toEqual([]);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    expect(localStorage.getItem(CLE)).toBeNull();
+    expect(JSON.parse(localStorage.getItem("edumanage-contact-store-v1")!)).toEqual(CONTACT_HORS_LIGNE);
+    expect(C.getContacts()).toEqual([]);
+  });
+
+  it("une pièce jointe part vers la base : la place restante du navigateur ne la limite plus", async () => {
+    localStorage.setItem(CLE, JSON.stringify({ le: "2026-10-30T10:00:00Z", donnees: { "edumanage-app-store-v2": "x".repeat(4_900_000) } }));
+    await avecBase({ annees_academiques: [ANNEE] });
+    const { lireFichierPourStockage } = await import("@/lib/stockageLocal");
+    const fichier = new File(["%PDF-1.4 attestation"], "attestation.pdf", { type: "application/pdf" });
+    await expect(lireFichierPourStockage(fichier, { maxOctets: 1_000_000 })).resolves.toMatch(/^data:application\/pdf;base64,/);
   });
 });

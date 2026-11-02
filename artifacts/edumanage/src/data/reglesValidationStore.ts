@@ -1,5 +1,5 @@
 import { reglesDeCalcul, getScolariteConfigs, subscribeScolariteConfigs } from "./scolariteConfigStore";
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { atteint } from "@/lib/notes";
 import { FILIERES } from "./mockData";
 
@@ -67,7 +67,7 @@ function notify() {
 function load(): RegleValidationRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as RegleValidationRecord[];
     if (!Array.isArray(parsed) || parsed.length === 0) return seed();

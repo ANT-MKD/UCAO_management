@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getCodesMethodesDisponibles, type NiveauMethodeCalcul } from "@/lib/bulletinCalculs";
 
 const STORAGE_KEY = "edumanage-bulletin-methodes-store-v1";
@@ -60,7 +60,7 @@ function notify() {
 function load(): MethodeCalculRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     return accorderAuCode(JSON.parse(raw) as MethodeCalculRecord[]);
   } catch {
