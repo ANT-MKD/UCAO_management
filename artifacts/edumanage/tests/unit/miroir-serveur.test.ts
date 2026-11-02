@@ -1837,4 +1837,57 @@ describe("communication en direct : messages, annuaire et mails tenus par la bas
     expect(b.S.getNotifications()).toEqual([]);
     expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
   });
+
+  const DEMANDE_AWA = { id: "req-awa-1", etudiant_id: "et-awa", type: "autre", objet: "Bourse", message: "Voir pièce", statut: "nouveau",
+    cree_le: "2026-11-03T08:00:00+00:00", modifie_le: "2026-11-03T08:00:00+00:00", traite_par: null, resolution: null, portee_rallonge: null,
+    date_fin_souhaitee: null, absence_cahier_id: null, absence_libelle: null, note_id: null, note_libelle: null, attestation_type: null, attestation_id: null,
+    attestation_numero: null, piece_nom: "certificat.pdf", piece_type: "application/pdf", piece_chemin: "et-awa/req-awa-1/f1.pdf" };
+
+  it("demande d'Awa avec pièce jointe : la pièce est déposée dans son dossier, puis la demande part ; c'est la base qui prévient le secrétariat", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], demandes_etudiants: [], annuaire: [AWA, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-awa", administration: false });
+    const req = b.S.addStudentRequest({ studentId: "et-awa", type: "autre", subject: "Bourse", message: "Voir pièce",
+      pieceJointe: { nom: "certificat.pdf", type: "application/pdf", dataUrl: "data:application/pdf;base64,JVBERi0=" } });
+    await b.miroir.attendreEnvois();
+    expect(b.stockage).toEqual([expect.objectContaining({ espace: "demandes", operation: "depot", envoisAvant: 0, type: "application/pdf" })]);
+    const chemin = b.stockage[0].chemins[0];
+    expect(chemin.startsWith(`et-awa/${req.id}/`)).toBe(true);
+    expect(b.envois).toEqual([{ table: "demandes_etudiants", operation: "upsert", donnees: [expect.objectContaining({ id: req.id, etudiant_id: "et-awa",
+      type: "autre", objet: "Bourse", statut: "nouveau", piece_nom: "certificat.pdf", piece_type: "application/pdf", piece_chemin: chemin, traite_par: null })] }]);
+    expect(b.S.getNotifications()).toEqual([]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
+  });
+
+  it("le secrétariat voit arriver la demande en direct, avec sa pièce ; il la prend en charge : seule la ligne part, la base prévient Awa", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], demandes_etudiants: [], annuaire: [AWA, SCOLARITE] };
+    const fichiers = new Map([["demandes/et-awa/req-awa-1/f1.pdf", "data:application/pdf;base64,JVBERi0="]]);
+    const b = await avecBase(tables, (table, operation) => (table === "demandes_etudiants" && operation === "upsert"
+      ? { code: "42501", message: "new row violates row-level security policy for table \"demandes_etudiants\"" } : null), fichiers);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    await attendreDirect(b);
+    expect(b.S.getStudentRequests()).toEqual([]);
+    tables.demandes_etudiants.push({ ...DEMANDE_AWA });
+    b.diffuser("administration", "demandes_etudiants");
+    await attendreDirect(b);
+    expect(b.S.getStudentRequests()).toEqual([expect.objectContaining({ id: "req-awa-1", studentId: "et-awa", status: "nouveau",
+      pieceJointe: { nom: "certificat.pdf", type: "application/pdf", dataUrl: "https://exemple.supabase.co/storage/v1/object/sign/demandes/et-awa/req-awa-1/f1.pdf?token=essai" } })]);
+    b.S.updateStudentRequestStatus("req-awa-1", "en_cours", "u-admin");
+    await b.miroir.attendreEnvois();
+    expect(b.envois.map((e) => `${e.table}:${e.operation}`)).toEqual(["demandes_etudiants:upsert", "demandes_etudiants:update"]);
+    expect(b.envois[1].donnees).toMatchObject({ statut: "en_cours", traite_par: "u-admin", piece_chemin: "et-awa/req-awa-1/f1.pdf" });
+    expect(b.stockage.filter((o) => o.operation === "depot")).toEqual([]);
+    expect(b.S.getNotifications()).toEqual([]);
+    expect(b.appels.filter((a) => a.nom === "notifier")).toEqual([]);
+  });
+
+  it("une demande traitée ne change plus, sur le poste comme dans la base", async () => {
+    const tables: Record<string, Ligne[]> = { annees_academiques: [ANNEE], demandes_etudiants: [{ ...DEMANDE_AWA, statut: "valide", traite_par: "u-admin" }],
+      annuaire: [AWA, SCOLARITE] };
+    const b = await avecBase(tables);
+    await b.miroir.chargerMiroirs({ compteId: "u-admin", administration: true });
+    expect(() => b.S.updateStudentRequestStatus("req-awa-1", "rejete", "u-admin", "Erreur")).toThrow(/déjà traitée/);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([]);
+  });
 });

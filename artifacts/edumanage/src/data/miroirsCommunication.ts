@@ -1,10 +1,13 @@
 import { enregistrerMiroir, partie } from "@/lib/miroirServeur";
 import {
   getAnnuaire,
+  getDemandesLignes,
   getMessages,
   remplacerAnnuaire,
+  remplacerDemandes,
   remplacerMessages,
   type CompteAnnuaire,
+  type DemandeLigne,
   type MessageRecord,
 } from "./studentStore";
 import { getMailsEnvoyes, remplacerMailsEnvoyes, type MailEnvoyeRecord } from "./mailEnvoyeStore";
@@ -33,6 +36,24 @@ enregistrerMiroir({
         ["motDePasseChangeLe", "mot_de_passe_change_le"]],
       lire: getAnnuaire,
       remplacer: remplacerAnnuaire,
+    }),
+  ],
+});
+
+/** Demandes des étudiants : l'étudiant dépose (pièce jointe dans l'espace « demandes ») et annule
+ * tant que rien n'est pris en charge ; la page « Demandes » traite, une fois. La base prévient le
+ * secrétariat puis l'étudiant, et diffuse en direct. */
+enregistrerMiroir({
+  cle: "edumanage-app-store-v2",
+  parties: [
+    partie<DemandeLigne>({
+      table: "demandes_etudiants",
+      colonnes: ["id", ["studentId", "etudiant_id"], "type", ["subject", "objet"], "message", ["status", "statut"], ["createdAt", "cree_le"],
+        ["updatedAt", "modifie_le"], ["handledBy", "traite_par"], "resolution", "porteeRallonge", "dateFinSouhaitee", "absenceCahierId", "absenceLibelle",
+        "noteId", "noteLibelle", "attestationType", "attestationId", "attestationNumero", "pieceNom", "pieceType", ["piece", "piece_chemin"]],
+      fichiers: { piece: { espace: "demandes", dossier: (d) => `${d.studentId}/${d.id}/` } },
+      lire: getDemandesLignes,
+      remplacer: remplacerDemandes,
     }),
   ],
 });

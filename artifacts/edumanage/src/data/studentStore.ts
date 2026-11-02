@@ -3119,6 +3119,25 @@ export function getStudentRequests(): StudentRequestRecord[] {
   return store.requests;
 }
 
+/** Demande telle que la base la range : la pièce jointe à plat (nom, type, fichier). */
+export interface DemandeLigne extends Omit<StudentRequestRecord, "pieceJointe"> {
+  pieceNom?: string;
+  pieceType?: string;
+  piece?: string;
+}
+
+export function getDemandesLignes(): DemandeLigne[] {
+  return store.requests.map(({ pieceJointe, ...d }) => ({ ...d, pieceNom: pieceJointe?.nom, pieceType: pieceJointe?.type, piece: pieceJointe?.dataUrl }));
+}
+
+/** Demandes de la base (avec Supabase) : toutes pour l'administration, les siennes pour un étudiant. */
+export function remplacerDemandes(lignes: DemandeLigne[]) {
+  store.requests = lignes
+    .map(({ pieceNom, pieceType, piece, ...d }) => ({ ...d, pieceJointe: piece ? { nom: pieceNom ?? "", type: pieceType ?? "", dataUrl: piece } : undefined }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  persist();
+}
+
 export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "updatedAt" | "status">): StudentRequestRecord {
   // Une seule demande en cours de traitement par absence ou par note : un doublon encombrerait
   // la file du secrétariat et resterait « Nouveau » une fois l'original traité.
@@ -3140,7 +3159,8 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
     ...payload,
   };
   store.requests = [req, ...store.requests];
-  const admin = store.users.find((u) => u.role === "admin");
+  // Avec Supabase, la base prévient elle-même le secrétariat (les comptes qui ont la page « Demandes »).
+  const admin = modeSupabase ? undefined : store.users.find((u) => u.role === "admin");
   if (admin) pushNotificationLocale(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
   const auteur = store.users.find((u) => u.linkedId === payload.studentId && u.role === "student");
   if (auteur) logAudit(auteur.id, "create_request", "request", req.id, req.subject);
@@ -3169,6 +3189,7 @@ export function cancelStudentRequest(id: string, studentId: string): void {
 export function updateStudentRequestStatus(id: string, status: StudentRequestRecord["status"], handledBy: string, resolution?: string) {
   const req = store.requests.find((r) => r.id === id);
   if (!req || req.status === "annule") return;
+  if (req.status === "valide" || req.status === "rejete") throw new Error("Cette demande est déjà traitée : elle ne change plus.");
   if (status === "valide" && req.type === "demande_rallonge" && !estAutorise("validateur_rallonge", handledBy)) {
     throw new Error("Seul un validateur désigné (Paramétrage communication) peut approuver une demande de rallonge.");
   }
@@ -3202,7 +3223,8 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
     }
   }
 
-  const studentUser = store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
+  // Avec Supabase, la base prévient elle-même l'étudiant de la prise en charge et de la décision.
+  const studentUser = modeSupabase ? undefined : store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
   const etat = status === "valide" ? "a été acceptée" : status === "rejete" ? "a été refusée" : status === "en_cours" ? "est en cours de traitement" : "a été mise à jour";
   if (studentUser) pushNotificationLocale(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
   logAudit(handledBy, "update_request", "request", id, status);
