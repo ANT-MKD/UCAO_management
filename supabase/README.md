@@ -25,6 +25,9 @@ dans le document « Plan de migration EduManage ».
 | Production (en service) | `UCAO_Kairos` (organisation `UCAO_ISAE`, offre gratuite) | Paris (`eu-west-3`) | `production` |
 | Test | aucun pour l'instant : un projet gratuit se crée au besoin, puis se supprime | Paris (`eu-west-3`) | `test` |
 
+L'application en ligne (Vercel) lit cette base : réglages et procédure dans
+[`artifacts/edumanage/MISE-EN-LIGNE.md`](../artifacts/edumanage/MISE-EN-LIGNE.md).
+
 **Sur la base en service, aucun script de test ne se lance**, même annulé à la fin : les changements
 sont vérifiés en local (`tests/lancer.sh`, `tests/lancer-fonctions.sh`) et dans les vérifications
 GitHub, puis appliqués ; sur la production, seules des lectures de contrôle.
