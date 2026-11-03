@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-login-security-v1";
 
 export const MAX_TENTATIVES = 5;
@@ -18,7 +18,7 @@ function normalize(identifier: string): string {
 function load(): SecurityState {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as SecurityState;
     return parsed && typeof parsed === "object" ? parsed : {};

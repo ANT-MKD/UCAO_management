@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import type { ModaliteFrais } from "./grilleFraisStore";
 
 const STORAGE_KEY = "edumanage-devis-v1";
@@ -51,7 +51,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -78,6 +78,12 @@ export function subscribeDevis(fn: () => void) {
 
 export function getDevis(): DevisRecord[] {
   return store.records;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerDevis(records: DevisRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 export function getDevisById(id: string): DevisRecord | undefined {

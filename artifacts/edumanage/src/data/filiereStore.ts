@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { FILIERES } from "./mockData";
 
 export interface FiliereRecord {
@@ -37,7 +37,7 @@ const filieres = FILIERES as unknown as FiliereRecord[];
 function loadPersisted() {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw) as FiliereRecord[];
     filieres.splice(0, filieres.length, ...saved);
@@ -93,6 +93,13 @@ export function updateFiliere(id: string, patch: Partial<FiliereInput>) {
   const f = filieres.find((x) => x.id === id);
   if (!f) return;
   Object.assign(f, patch);
+  persist();
+}
+
+/** Remplace toutes les filières (contenu de la base, avec Supabase) ; les compteurs calculés
+ * absents valent 0. */
+export function remplacerFilieres(records: FiliereRecord[]) {
+  filieres.splice(0, filieres.length, ...records.map((f) => ({ ...f, nbClasses: f.nbClasses ?? 0, nbEtudiants: f.nbEtudiants ?? 0 })));
   persist();
 }
 

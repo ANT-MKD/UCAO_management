@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage, retirerStockage } from "@/lib/stockageLocal";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
 import { telephoneValide } from "@/lib/telephone";
 import { FILIERES, NIVEAUX, ANNEES_ACADEMIQUES, SEMESTRES } from "./mockData";
@@ -6,12 +6,14 @@ import { getEcs, getUes } from "./curriculumStore";
 import { getNotificationEvenementielleParCode } from "./notificationEvenementielleStore";
 import { genererDerogation, type PorteeDerogation } from "./derogationPaiementStore";
 import { estAutorise } from "./communicationRolesStore";
-import { findClassePedagogique, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
+import { findClassePedagogique, fixerEffectifsClasses, getClasseById, getClasses, getSalleById, incrementClasseEffectif, upsertClasse } from "./structureStore";
 import { detectScheduleConflicts, type SeanceSlot } from "@/lib/scheduleUtils";
 import { getEvaluations } from "./evaluationStore";
 import { creerPointageDepuisCahier } from "./pointageStore";
 import { hashPassword, verifyPassword, isPasswordHashed } from "@/lib/passwordHash";
 import { decalerDUnAn, validerDatesAnnee } from "@/lib/anneeAcademique";
+import { modeSupabase, supabase } from "@/lib/supabase";
+import { apresEnvois, rechargerApres, rechargerTables } from "@/lib/miroirServeur";
 
 export interface EtudiantRecord {
   id: string;
@@ -504,7 +506,7 @@ export function purgerNotificationsLues(notifications: NotificationRecord[], mai
 
 function loadStore(): StoreData {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY) ?? lireStockage(LEGACY_STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<StoreData>;
@@ -546,7 +548,7 @@ function writeStoreToLocalStorage(data: StoreData): boolean {
   if (typeof window === "undefined") return false;
   try {
     if (!ecrireStockage(STORAGE_KEY, JSON.stringify(data))) return false;
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    retirerStockage(LEGACY_STORAGE_KEY);
     return true;
   } catch (err) {
     console.error("[EduManage] Impossible d'enregistrer dans localStorage:", err);
@@ -600,6 +602,7 @@ function persist() {
     auditLogs: store.auditLogs.slice(),
     cahiers: store.cahiers.slice(),
   };
+  noterMouvementsSolde();
   writeStoreToLocalStorage(store);
   invalidateDerivedCaches();
   notify();
@@ -609,10 +612,13 @@ function persist() {
 if (typeof window !== "undefined") {
   writeStoreToLocalStorage(store);
   window.addEventListener("storage", (event) => {
-    if (event.key !== STORAGE_KEY || !event.newValue) return;
+    // Avec la base, les autres onglets se tiennent à jour par elle, jamais par le navigateur.
+    if (modeSupabase || event.key !== STORAGE_KEY || !event.newValue) return;
     try {
       const parsed = JSON.parse(event.newValue) as StoreData;
       store = { ...buildFreshStore(), ...parsed };
+      // L'autre onglet envoie lui-même ses mouvements : ses soldes deviennent la référence d'ici.
+      reprendreSoldesConnus();
       syncAnneesToMockData();
       invalidateDerivedCaches();
       notify();
@@ -624,8 +630,8 @@ if (typeof window !== "undefined") {
 
 export function resetStudentStore() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    retirerStockage(STORAGE_KEY);
+    retirerStockage(LEGACY_STORAGE_KEY);
   }
   store = buildFreshStore();
   persist();
@@ -684,7 +690,7 @@ export function saveAuthSession(user: AuthSessionSnapshot) {
 export function loadAuthSession(): AuthSessionSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    const raw = lireStockage(AUTH_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as AuthSessionSnapshot;
   } catch {
@@ -694,7 +700,203 @@ export function loadAuthSession(): AuthSessionSnapshot | null {
 
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  retirerStockage(AUTH_STORAGE_KEY);
+}
+
+/** Champs du dossier personnel (table etudiants_dossiers) : lus par l'administration et par
+ * l'étudiant lui-même. */
+const CHAMPS_DOSSIER_ETUDIANT = ["email", "telephone", "dateNaissance", "lieuNaissance", "pays", "nationalite", "cni", "adresse",
+  "nomTuteur", "telTuteur", "photoDataUrl", "typeAdmission", "documentsFournis", "inscriptionUniquePayee", "modeleFraisId", "motifBlocageId"] as const;
+
+/** Fiches de la base (avec Supabase). Les soldes restent calculés par l'application jusqu'à la
+ * partie Finances ; les effectifs des classes sont recomptés. */
+export function remplacerEtudiants(records: EtudiantRecord[]) {
+  store.etudiants = records.map((e) => ({ ...e, soldeDu: e.soldeDu ?? 0, soldeAvoir: e.soldeAvoir ?? 0 }));
+  const effectifs = new Map<string, number>();
+  for (const e of store.etudiants) if (e.classeId) effectifs.set(e.classeId, (effectifs.get(e.classeId) ?? 0) + 1);
+  fixerEffectifsClasses(effectifs);
+  persist();
+}
+
+/** Dossiers personnels de la base : un dossier que ce compte ne lit pas est vidé du navigateur. */
+export function fusionnerDossiersEtudiants(dossiers: EtudiantRecord[]) {
+  const parId = new Map(dossiers.map((d) => [d.id, d]));
+  for (const e of store.etudiants) {
+    const dossier = parId.get(e.id);
+    for (const champ of CHAMPS_DOSSIER_ETUDIANT) (e as unknown as Record<string, unknown>)[champ] = dossier?.[champ];
+    e.email ??= "";
+    e.telephone ??= "";
+    e.inscriptionUniquePayee ??= false;
+  }
+  persist();
+}
+
+/** Pièce d'inscription déposée ou vérifiée (table pieces_etudiants) : une ligne par pièce d'un
+ * étudiant, lue par l'étudiant et par le secrétariat. */
+export interface PieceEtudiantRecord {
+  id: string;
+  etudiantId: string;
+  piece: string;
+  fichier?: string;
+  enVerification?: string;
+  deposeLe?: string;
+  motifRefus?: string;
+  refuseLe?: string;
+}
+
+/** Pièces des dossiers, une ligne par pièce (fichier accepté, dépôt à vérifier ou refus). */
+export function getPiecesEtudiants(): PieceEtudiantRecord[] {
+  return store.etudiants.flatMap((e) => {
+    const pieces = new Set([...Object.keys(e.documentsFichiers ?? {}), ...Object.keys(e.piecesEnVerification ?? {}), ...Object.keys(e.piecesRefusees ?? {})]);
+    return [...pieces]
+      .map((piece) => ({
+        id: `${e.id}:${piece}`,
+        etudiantId: e.id,
+        piece,
+        fichier: e.documentsFichiers?.[piece],
+        enVerification: e.piecesEnVerification?.[piece]?.dataUrl,
+        deposeLe: e.piecesEnVerification?.[piece]?.deposeLe,
+        motifRefus: e.piecesRefusees?.[piece]?.motif,
+        refuseLe: e.piecesRefusees?.[piece]?.refuseLe,
+      }))
+      .filter((p) => p.fichier || p.enVerification || p.motifRefus);
+  });
+}
+
+/** Pièces de la base (avec Supabase) : un compte qui ne les lit pas n'en garde aucune. */
+export function remplacerPiecesEtudiants(pieces: PieceEtudiantRecord[]) {
+  const parEtudiant = new Map<string, PieceEtudiantRecord[]>();
+  for (const p of pieces) parEtudiant.set(p.etudiantId, [...(parEtudiant.get(p.etudiantId) ?? []), p]);
+  for (const e of store.etudiants) {
+    const siennes = parEtudiant.get(e.id) ?? [];
+    e.documentsFichiers = Object.fromEntries(siennes.flatMap((p) => (p.fichier ? [[p.piece, p.fichier]] : [])));
+    e.piecesEnVerification = Object.fromEntries(siennes.flatMap((p) => (p.enVerification ? [[p.piece, { dataUrl: p.enVerification, deposeLe: p.deposeLe ?? "" }]] : [])));
+    e.piecesRefusees = Object.fromEntries(siennes.flatMap((p) => (p.motifRefus ? [[p.piece, { motif: p.motifRefus, refuseLe: p.refuseLe ?? "" }]] : [])));
+  }
+  persist();
+}
+
+/** Inscriptions de la base (avec Supabase) : celle de l'année en cours de l'étudiant porte son
+ * solde (tenu par la base) ; une année passée garde le dernier solde vu sur ce poste. */
+export function remplacerInscriptions(records: InscriptionRecord[]) {
+  const etudiants = new Map(store.etudiants.map((e) => [e.id, e]));
+  store.inscriptions = records.map((i) => {
+    const e = etudiants.get(i.etudiantId);
+    return { ...i, soldeDu: e && e.annee === i.annee ? e.soldeDu : i.soldeDu ?? 0 };
+  });
+  persist();
+}
+
+// ——— Soldes tenus par la base (partie 7) ———
+// Le solde dû et l'avoir d'un étudiant, et le montant réglé de chaque quittance, ne partent jamais
+// en valeur : à chaque enregistrement, l'écart avec ce que la base connaît devient un mouvement
+// (« −40 000 sur le solde d'Awa »), que la base additionne. Deux postes ne s'écrasent jamais.
+
+/** Mouvement d'un solde ou du montant réglé d'une quittance (table mouvements_solde). */
+export interface MouvementSoldeRecord {
+  id: string;
+  etudiantId: string;
+  quittanceId?: string;
+  deltaDu: number;
+  deltaAvoir: number;
+  deltaPaye: number;
+  motif: string;
+}
+
+/** Solde d'un étudiant tel que la base le tient (table soldes_etudiants). */
+export interface SoldeEtudiantLigne {
+  id: string;
+  soldeDu: number;
+  soldeAvoir: number;
+}
+
+/** Mouvements pas encore partis (gardés en mémoire seulement : au rechargement, la base fait foi). */
+let mouvementsSolde: MouvementSoldeRecord[] = [];
+/** Soldes et montants réglés tels que la base les connaît ; nul tant que les soldes de la base
+ * n'ont pas été lus (et toujours sans Supabase) : aucun mouvement n'est noté. */
+let soldesConnus: Map<string, { du: number; avoir: number }> | null = null;
+const payesConnus = new Map<string, number>();
+let motifMouvement = "";
+let numeroMouvement = 0;
+
+/** Motif du prochain mouvement (ex. « Encaissement »), noté au prochain enregistrement. */
+function motiver(motif: string) {
+  if (!motifMouvement) motifMouvement = motif;
+}
+
+const arrondi = (n: number) => Math.round(n * 100) / 100;
+
+function noterMouvementsSolde() {
+  const connus = soldesConnus;
+  if (!connus) return;
+  const motif = motifMouvement || "Mise à jour du solde";
+  motifMouvement = "";
+  const nouveau = (m: Omit<MouvementSoldeRecord, "id" | "motif">) => {
+    mouvementsSolde = [...mouvementsSolde, { id: `mv-${Date.now()}-${++numeroMouvement}-${Math.random().toString(36).slice(2, 7)}`, motif, ...m }];
+  };
+  for (const p of store.paiements) {
+    const avant = payesConnus.get(p.id);
+    // Une quittance enregistrée part avec un montant réglé nul : ce qui y est réglé suit en mouvement.
+    // Une quittance annulée ne reçoit plus de règlement.
+    const delta = arrondi(p.montant - (avant ?? 0));
+    if (delta !== 0 && !(delta > 0 && p.statut === "annule")) {
+      nouveau({ etudiantId: p.etudiantId, quittanceId: p.id, deltaDu: 0, deltaAvoir: 0, deltaPaye: delta });
+    }
+    payesConnus.set(p.id, p.montant);
+  }
+  for (const e of store.etudiants) {
+    const avant = connus.get(e.id) ?? { du: 0, avoir: 0 };
+    const deltaDu = arrondi(e.soldeDu - avant.du);
+    const deltaAvoir = arrondi(e.soldeAvoir - avant.avoir);
+    if (deltaDu !== 0 || deltaAvoir !== 0) nouveau({ etudiantId: e.id, deltaDu, deltaAvoir, deltaPaye: 0 });
+    connus.set(e.id, { du: e.soldeDu, avoir: e.soldeAvoir });
+  }
+}
+
+/** Les soldes actuels du store deviennent la référence (sans mouvement). */
+function reprendreSoldesConnus() {
+  if (!soldesConnus) return;
+  for (const e of store.etudiants) soldesConnus.set(e.id, { du: e.soldeDu, avoir: e.soldeAvoir });
+  for (const p of store.paiements) payesConnus.set(p.id, p.montant);
+}
+
+export function getMouvementsSolde(): MouvementSoldeRecord[] {
+  return mouvementsSolde;
+}
+
+/** Mouvements restant à envoyer (le miroir retire ceux qui sont partis). */
+export function remplacerMouvementsSolde(records: MouvementSoldeRecord[]) {
+  mouvementsSolde = records;
+}
+
+export function getSoldesEtudiants(): SoldeEtudiantLigne[] {
+  return store.etudiants.map((e) => ({ id: e.id, soldeDu: e.soldeDu, soldeAvoir: e.soldeAvoir }));
+}
+
+/** Soldes de la base (avec Supabase) : un étudiant sans ligne n'a encore rien de dû. Ils deviennent
+ * la référence des prochains mouvements. */
+export function remplacerSoldes(lignes: SoldeEtudiantLigne[]) {
+  const parId = new Map(lignes.map((l) => [l.id, l]));
+  const connus = new Map<string, { du: number; avoir: number }>();
+  for (const e of store.etudiants) {
+    const l = parId.get(e.id);
+    e.soldeDu = Number(l?.soldeDu ?? 0);
+    e.soldeAvoir = Number(l?.soldeAvoir ?? 0);
+    connus.set(e.id, { du: e.soldeDu, avoir: e.soldeAvoir });
+    const ins = store.inscriptions.find((i) => i.etudiantId === e.id && i.annee === e.annee);
+    if (ins) ins.soldeDu = e.soldeDu;
+  }
+  soldesConnus = connus;
+  persist();
+}
+
+/** Quittances de la base (avec Supabase) : leur montant réglé devient la référence des prochains
+ * mouvements. */
+export function remplacerQuittances(records: PaiementRecord[]) {
+  store.paiements = records;
+  payesConnus.clear();
+  for (const p of records) payesConnus.set(p.id, p.montant);
+  persist();
 }
 
 export function getEtudiants(): EtudiantRecord[] {
@@ -718,8 +920,9 @@ export function setEtudiantMotifBlocage(etudiantId: string, motifBlocageId: stri
   if (!etudiant) return;
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, motifBlocageId } : e));
   logAudit(actorId, motifBlocageId ? "assign_motif_blocage" : "clear_motif_blocage", "etudiant", etudiantId, motifBlocageId ?? "");
+  // Avec Supabase, c'est la base qui prévient l'étudiant.
   const notif = getNotificationEvenementielleParCode(motifBlocageId ? "NOTIFICATION_BLOCAGE_ETUDIANT" : "NOTIFICATION_DEBLOCAGE_ETUDIANT");
-  if (notif?.actif && notif.envoyerEtudiant) {
+  if (!modeSupabase && notif?.actif && notif.envoyerEtudiant) {
     const studentUser = store.users.find((u) => u.linkedId === etudiantId && u.role === "student");
     if (studentUser) {
       pushNotification(studentUser.id, motifBlocageId ? "Un blocage a été appliqué à votre dossier. Contactez l'administration." : "Le blocage sur votre dossier a été levé.");
@@ -811,6 +1014,57 @@ export function refleterCompteServeur(compte: {
 
 export function getUserAccounts(): UserAccountRecord[] {
   return store.users;
+}
+
+/** Compte tel que l'annuaire de la base le décrit (avec Supabase) : tous les comptes, en détail,
+ * pour l'administration ; pour un professeur ou un étudiant, ceux qu'il peut nommer dans sa
+ * messagerie, sans leurs coordonnées. */
+export interface CompteAnnuaire {
+  id: string;
+  typeCompte: "administration" | "enseignant" | "etudiant";
+  identifiant: string;
+  nomAffiche: string;
+  fonction?: string;
+  lienId?: string;
+  roleId?: string;
+  actif: boolean;
+  email?: string;
+  telephone?: string;
+  doitChangerMotDePasse?: boolean;
+  motDePasseChangeLe?: string;
+}
+
+const ROLE_DU_TYPE: Record<CompteAnnuaire["typeCompte"], UserRole> = { administration: "admin", enseignant: "teacher", etudiant: "student" };
+const TYPE_DU_ROLE: Record<UserRole, CompteAnnuaire["typeCompte"]> = { admin: "administration", teacher: "enseignant", student: "etudiant" };
+
+export function getAnnuaire(): CompteAnnuaire[] {
+  return store.users.map((u) => ({
+    id: u.id, typeCompte: TYPE_DU_ROLE[u.role], identifiant: u.identifier, nomAffiche: u.displayName, fonction: u.fonction, lienId: u.linkedId,
+    roleId: u.roleId, actif: u.actif, email: u.email, telephone: u.telephone, doitChangerMotDePasse: u.doitChangerMotDePasse, motDePasseChangeLe: u.passwordUpdatedAt,
+  }));
+}
+
+/** Les comptes de ce poste deviennent ceux de l'annuaire de la base : les comptes d'avant Supabase
+ * qu'il ne contient pas disparaissent, rien n'en est gardé sinon le mot de passe local inutilisable. */
+export function remplacerAnnuaire(records: CompteAnnuaire[]) {
+  const existants = new Map(store.users.map((u) => [u.id, u]));
+  store.users = records.map((r): UserAccountRecord => ({
+    password: existants.get(r.id)?.password ?? COMPTE_SANS_MOT_DE_PASSE_HASH,
+    id: r.id,
+    role: ROLE_DU_TYPE[r.typeCompte],
+    email: r.email ?? "",
+    identifier: r.identifiant ?? "",
+    displayName: r.nomAffiche,
+    linkedId: r.lienId || undefined,
+    fonction: r.fonction || undefined,
+    telephone: r.telephone || undefined,
+    actif: r.actif,
+    roleId: r.roleId || undefined,
+    passwordUpdatedAt: r.motDePasseChangeLe || undefined,
+    doitChangerMotDePasse: r.doitChangerMotDePasse ?? false,
+    photoDataUrl: existants.get(r.id)?.photoDataUrl,
+  }));
+  persist();
 }
 
 export function authenticateUser(identifierOrEmail: string, password: string): UserAccountRecord | null {
@@ -1046,6 +1300,17 @@ export function updateUserAccountInfo(userId: string, payload: UpdateUserAccount
 }
 
 export function pushNotification(userId: string, message: string) {
+  // Avec Supabase, la notification part par la base : elle arrive sur le poste de son destinataire.
+  if (modeSupabase) {
+    notifierParLaBase(userId, message);
+    return;
+  }
+  pushNotificationLocale(userId, message);
+}
+
+/** Notification gardée sur ce poste seulement : messages, demandes et mails, dont le contenu ne
+ * passe par la base qu'avec la partie Communication. */
+export function pushNotificationLocale(userId: string, message: string) {
   store.notifications.unshift({
     id: `nt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     userId,
@@ -1059,6 +1324,12 @@ export function pushNotification(userId: string, message: string) {
  * on la met à jour (compteur, message, date) au lieu d'en empiler une nouvelle — la publication
  * des 12 notes d'un semestre donne une seule ligne, pas 12. Une fois lue, la suivante repart à 1. */
 export function pushNotificationGroupee(userId: string, groupe: string, messageUnitaire: string, messageGroupe: (nombre: number) => string) {
+  if (modeSupabase) {
+    // La base regroupe elle-même : « {n} » y devient le nombre d'événements.
+    const repere = 987654321;
+    notifierParLaBase(userId, messageUnitaire, groupe, messageGroupe(repere).replace(String(repere), "{n}"));
+    return;
+  }
   const idx = store.notifications.findIndex((n) => n.userId === userId && n.groupe === groupe && !n.read && !n.archived);
   if (idx < 0) {
     store.notifications.unshift({
@@ -1082,9 +1353,26 @@ export function pushNotificationGroupee(userId: string, groupe: string, messageU
  * qui n'a pas de persist() de suivi déjà prévu dans un flux existant — pushNotification() seul ne
  * suffit pas car il ne persiste pas lui-même (les appels internes s'appuient sur le persist() de la
  * fonction exportée englobante). */
-export function pushNotificationEtPersister(userId: string, message: string) {
-  pushNotification(userId, message);
+export function pushNotificationEtPersister(userId: string, message: string, localeSeulement = false) {
+  if (localeSeulement) pushNotificationLocale(userId, message);
+  else pushNotification(userId, message);
   persist();
+}
+
+/** Envoie la notification par la base (fonction notifier), après les envois en cours pour qu'elle
+ * arrive après ce qu'elle annonce ; la cloche de ce poste est relue si elle lui est destinée. */
+function notifierParLaBase(userId: string, message: string, groupe?: string, messageGroupe?: string) {
+  const client = supabase;
+  if (!client) return;
+  void apresEnvois(async () => {
+    const { error } = await client.rpc("notifier", { p_destinataire: userId, p_message: message, p_groupe: groupe ?? null, p_message_groupe: messageGroupe ?? null });
+    if (error) {
+      console.warn("[EduManage] Notification non envoyée :", error.message);
+      return;
+    }
+    const { data } = await client.auth.getSession();
+    if (data.session?.user.id === userId) void rechargerTables(["notifications"]);
+  });
 }
 
 /** Persiste et notifie elle-même (pas seulement une mutation en mémoire) : logAudit() est aussi
@@ -1117,6 +1405,13 @@ export function getInscriptionsByEtudiant(etudiantId: string): InscriptionRecord
 
 export function getInscriptions(): InscriptionRecord[] {
   return store.inscriptions;
+}
+
+/** Remplace les années académiques (contenu de la base, avec Supabase). */
+export function remplacerAnneesAcademiques(annees: AnneeAcademiqueRecord[]) {
+  store.annees = annees.slice();
+  syncAnneesToMockData();
+  persist();
 }
 
 export function getAnneesAcademiques() {
@@ -1222,6 +1517,7 @@ export function registerNewEtudiant(payload: NewEtudiantPayload, matricule: stri
   const filiere = FILIERES.find((f) => f.id === payload.filiereId);
   const classe = payload.classeId ? getClasseById(payload.classeId) : undefined;
   const anneePremiere = parseMatriculeYear(matricule);
+  if (payload.soldeDu) motiver("Inscription");
 
   const etudiant: EtudiantRecord = {
     id: `et-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1331,7 +1627,8 @@ export function deposerDocumentEtudiant(etudiantId: string, docId: string, fileD
   delete piecesRefusees[docId];
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, piecesEnVerification, piecesRefusees } : e));
   logAudit(actorId, "upload_document", "etudiant", etudiantId, docId);
-  for (const admin of store.users.filter((u) => u.role === "admin" && u.actif !== false)) {
+  // Avec Supabase, c'est la base qui prévient le secrétariat (même depuis le poste de l'étudiant).
+  for (const admin of modeSupabase ? [] : store.users.filter((u) => u.role === "admin" && u.actif !== false)) {
     pushNotification(admin.id, `Pièce à vérifier : ${etudiant.prenom} ${etudiant.nom} (${etudiant.matricule}) a déposé « ${libellePiece} ».`);
   }
   persist();
@@ -1371,7 +1668,7 @@ export function verifierPieceEtudiant(
   }
   store.etudiants = store.etudiants.map((e) => (e.id === etudiantId ? { ...e, ...maj } : e));
   logAudit(actorId, decision === "accepter" ? "accept_document" : "refuse_document", "etudiant", etudiantId, motif ? `${libelle} — motif : ${motif}` : libelle);
-  const compte = store.users.find((u) => u.role === "student" && u.linkedId === etudiantId);
+  const compte = modeSupabase ? undefined : store.users.find((u) => u.role === "student" && u.linkedId === etudiantId);
   if (compte) {
     pushNotification(compte.id, decision === "accepter"
       ? `Votre pièce « ${libelle} » a été acceptée : elle figure désormais comme fournie à votre dossier.`
@@ -1435,6 +1732,7 @@ function creerInscriptionEtMettreAJourEtudiant(
   etudiant.classe = inscription.classe;
   etudiant.classeId = payload.classeId;
   etudiant.statut = payload.statut;
+  if (etudiant.soldeDu !== payload.soldeDu) motiver("Inscription de l'année");
   etudiant.soldeDu = payload.soldeDu;
 
   persist();
@@ -1675,6 +1973,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
   const numeroRecu = `RECU-${year}-${String(store.receiptCounter).padStart(3, "0")}`;
 
   const statut = payload.statut === "annule" ? "annule" : "paye";
+  motiver(payload.recordOnly ? "Facture d'inscription réglée" : "Quittance et encaissement");
 
   const lignes =
     payload.lignes && payload.lignes.length > 0
@@ -1724,7 +2023,8 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
       );
       if (ins) ins.soldeDu = etudiant.soldeDu;
 
-      const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
+      // Avec Supabase, c'est la base qui prévient l'étudiant, avec le numéro définitif du reçu.
+      const studentUser = modeSupabase ? undefined : store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
       const notifEncaissement = getNotificationEvenementielleParCode("NOTIFICATION_ENCAISSEMENT");
       if (studentUser && notifEncaissement?.actif && notifEncaissement.envoyerEtudiant) {
         pushNotification(studentUser.id, `Paiement validé — reçu ${numeroRecu} (${montantPaye} FCFA)`);
@@ -1774,6 +2074,7 @@ export function registerPaiement(payload: RegisterPaiementPayload): PaiementReco
 export function cancelPaiement(id: string): void {
   const idx = store.paiements.findIndex((p) => p.id === id);
   if (idx < 0) return;
+  motiver("Annulation de quittance");
   const p = store.paiements[idx];
   if (p.statut !== "annule") {
     const etudiant = getEtudiantById(p.etudiantId);
@@ -1809,6 +2110,7 @@ export function emettreQuittanceBrute(payload: EmettreQuittanceBrutePayload): Pa
   store.receiptCounter = (store.receiptCounter ?? 0) + 1;
   const numeroRecu = `RECU-${year}-${String(store.receiptCounter).padStart(3, "0")}`;
   const montantFacture = payload.lignes.reduce((s, l) => s + l.montant, 0);
+  motiver("Quittance émise");
 
   const paiement: PaiementRecord = {
     id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1841,6 +2143,7 @@ export function emettreQuittanceBrute(payload: EmettreQuittanceBrutePayload): Pa
 export function cancelQuittanceEmise(id: string): void {
   const idx = store.paiements.findIndex((p) => p.id === id);
   if (idx < 0) return;
+  motiver("Annulation de quittance émise");
   const p = store.paiements[idx];
   if (p.statut !== "annule" && p.montant === 0) {
     const etudiant = getEtudiantById(p.etudiantId);
@@ -1873,12 +2176,13 @@ export function payerQuittance(payload: PayerQuittancePayload): PaiementRecord |
   const montantFacture = p.lignes && p.lignes.length > 0 ? p.lignes.reduce((s, l) => s + l.montant, 0) : p.montant;
   const nouveauMontantPaye = Math.min(montantFacture, p.montant + Math.max(0, payload.montant));
   const diff = nouveauMontantPaye - p.montant;
+  motiver(payload.moyen === "Prise en charge" ? "Prise en charge" : "Règlement sur quittance");
 
   if (etudiant && diff > 0) {
     etudiant.soldeDu = Math.max(0, etudiant.soldeDu - diff);
     const ins = store.inscriptions.find((i) => i.etudiantId === etudiant.id && i.annee === etudiant.annee);
     if (ins) ins.soldeDu = etudiant.soldeDu;
-    const studentUser = store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
+    const studentUser = modeSupabase ? undefined : store.users.find((u) => u.linkedId === etudiant.id && u.role === "student");
     if (studentUser) {
       pushNotification(studentUser.id, `Paiement validé — reçu ${p.numeroRecu} : ${nouveauMontantPaye.toLocaleString("fr-FR")} F CFA réglés à ce jour sur cette facture`);
     }
@@ -1903,6 +2207,7 @@ export function reverserReglementQuittance(id: string, montant: number): void {
 
   const nouveauMontantPaye = Math.max(0, p.montant - Math.max(0, montant));
   const diff = p.montant - nouveauMontantPaye;
+  motiver("Règlement retiré");
 
   const etudiant = getEtudiantById(p.etudiantId);
   if (etudiant && diff > 0) {
@@ -1919,6 +2224,7 @@ export function reverserReglementQuittance(id: string, montant: number): void {
 export function crediterAvoir(etudiantId: string, montant: number): void {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return;
+  motiver("Avoir crédité");
   etudiant.soldeAvoir = etudiant.soldeAvoir + montant;
   persist();
 }
@@ -1928,6 +2234,7 @@ export function debiterAvoir(etudiantId: string, montant: number): boolean {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return false;
   if (etudiant.soldeAvoir < montant) return false;
+  motiver("Avoir utilisé");
   etudiant.soldeAvoir = etudiant.soldeAvoir - montant;
   persist();
   return true;
@@ -1937,6 +2244,7 @@ export function debiterAvoir(etudiantId: string, montant: number): boolean {
 export function appliquerReductionSolde(etudiantId: string, montant: number): void {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return;
+  motiver("Réduction");
   etudiant.soldeDu = Math.max(0, etudiant.soldeDu - montant);
   persist();
 }
@@ -1945,6 +2253,7 @@ export function appliquerReductionSolde(etudiantId: string, montant: number): vo
 export function annulerReductionSolde(etudiantId: string, montant: number): void {
   const etudiant = getEtudiantById(etudiantId);
   if (!etudiant || montant <= 0) return;
+  motiver("Annulation de réduction");
   etudiant.soldeDu = etudiant.soldeDu + montant;
   persist();
 }
@@ -2086,6 +2395,13 @@ export function getNotes(): NoteRecord[] {
   return store.notes;
 }
 
+/** Notes de la base (avec Supabase) : toutes pour l'administration, celles de ses cours pour un
+ * professeur, ses notes publiées pour un étudiant. */
+export function remplacerNotes(records: NoteRecord[]) {
+  store.notes = records;
+  persist();
+}
+
 export function getNotesByClasseEc(classeId: string, ecId: string): NoteRecord[] {
   return store.notes.filter((n) => n.classeId === classeId && n.ecId === ecId);
 }
@@ -2176,6 +2492,8 @@ export function saveNotesGrid(
       const existing = store.notes.find(
         (n) => n.etudiantId === input.etudiantId && n.ecId === ecId && n.type === type && n.session === session,
       );
+      // Une note validée ou publiée ne change que par une demande de correction acceptée.
+      if (existing && noteEstOfficielle(existing)) continue;
       const statut = publish ? "publie" as const : "brouillon_prof" as const;
       if (existing) {
         existing.note = note;
@@ -2243,8 +2561,9 @@ export function saveNoteEvaluationGrid(
   options: {
     /** Note maximale de la filière (Paramétrage scolarité) — 20 par défaut. */
     bareme?: number;
-    /** Portail professeur : les notes validées ou publiées ne sont jamais réécrites (ni remises
-     * en brouillon), et une case vidée retire la note encore en brouillon ou soumise. */
+    /** Portail professeur : une case vidée retire la note encore en brouillon ou soumise. (Les notes
+     * validées ou publiées ne sont jamais réécrites ni remises en brouillon, d'où qu'on saisisse :
+     * elles ne changent que par une demande de correction acceptée.) */
     respecterVerrou?: boolean;
   } = {},
 ): void {
@@ -2267,7 +2586,7 @@ export function saveNoteEvaluationGrid(
     const etudiant = getEtudiantById(input.etudiantId);
     if (!etudiant) continue;
     const existing = store.notes.find((n) => n.etudiantId === input.etudiantId && n.evaluationId === evaluationId);
-    if (existing && options.respecterVerrou && noteEstOfficielle(existing)) continue;
+    if (existing && noteEstOfficielle(existing)) continue;
     const vide = !input.absent && (input.note === undefined || Number.isNaN(input.note));
     if (vide) {
       // Case vidée : la note encore modifiable est retirée (portail professeur uniquement).
@@ -2326,7 +2645,8 @@ export function corrigerNoteOfficielle(noteId: string, nouvelleNote: number, abs
   logAudit(actorUserId, "correction_note", "note", note.id, `${note.etudiant} (${note.matricule}) — ${note.ec} — ${typeLabel} : ${avant} → ${apres} — motif : ${motif}`);
   if (note.statut === "publie") {
     generateRelevesForClasseEc(note.classeId, note.ecId);
-    const compte = store.users.find((u) => u.role === "student" && u.linkedId === note.etudiantId);
+    // Avec Supabase, c'est la base qui prévient l'étudiant (en appliquant la correction).
+    const compte = modeSupabase ? undefined : store.users.find((u) => u.role === "student" && u.linkedId === note.etudiantId);
     if (compte) pushNotification(compte.id, `Note corrigée — ${note.ec} (${typeLabel}) : ${avant} → ${apres}.`);
   }
   persist();
@@ -2346,8 +2666,9 @@ export function publishNotesForClasseEc(classeId: string, ecId: string, session?
     }
   }
   if (count > 0) generateRelevesForClasseEc(classeId, ecId);
+  // Avec Supabase, c'est la base qui prévient les étudiants.
   const notifNote = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_NOTE");
-  if (notifNote?.actif && notifNote.envoyerEtudiant) {
+  if (!modeSupabase && notifNote?.actif && notifNote.envoyerEtudiant) {
     for (const n of publiees) {
       const studentUser = store.users.find((u) => u.linkedId === n.etudiantId && u.role === "student");
       if (studentUser) {
@@ -2369,7 +2690,8 @@ export function submitNotesForValidation(classeId: string, ecId: string, session
       count++;
     }
   }
-  if (count > 0) {
+  // Avec Supabase, c'est la base qui prévient la saisie des notes.
+  if (count > 0 && !modeSupabase) {
     const admin = store.users.find((u) => u.role === "admin");
     if (admin) pushNotification(admin.id, "De nouvelles notes attendent validation.");
   }
@@ -2394,6 +2716,42 @@ export function validateNotesByAdmin(classeId: string, ecId: string, actorUserId
 
 export function getReleves(): ReleveRecord[] {
   return store.releves;
+}
+
+/** Relevés de la base (avec Supabase) : tous pour l'administration, les siens pour un étudiant. */
+export function remplacerReleves(records: ReleveRecord[]) {
+  store.releves = records;
+  persist();
+}
+
+/** Années de notes chargées depuis la base, en plus de celles des étudiants actuels : celles qu'un
+ * écran a demandées (jury d'une ancienne promotion, attestation d'un diplômé…). */
+const anneesNotesDemandees = new Set<string>();
+
+/** Années dont les notes, évaluations et résultats sont lus dans la base (avec Supabase) :
+ * l'année en cours et toutes celles où un étudiant actuel a été inscrit — ses moyennes de
+ * programme, UE acquises et crédits cumulés en dépendent —, plus les années demandées. Les
+ * années plus anciennes ne concernent que des étudiants partis. Sans étudiant actuel (ancien
+ * étudiant connecté, installation neuve) : toutes. */
+export function getAnneesNotesChargees(): string[] | undefined {
+  const actuelle = getAnneeActuelle();
+  if (!actuelle) return undefined;
+  const actuels = new Set(store.etudiants.filter((e) => e.annee === actuelle).map((e) => e.id));
+  if (actuels.size === 0) return undefined;
+  const annees = new Set([actuelle, ...anneesNotesDemandees]);
+  for (const i of store.inscriptions) if (actuels.has(i.etudiantId) && i.annee) annees.add(i.annee);
+  return [...annees].sort();
+}
+
+/** Charge depuis la base les notes et résultats d'années plus anciennes, si ce n'est déjà fait. */
+export function demanderNotesAnnees(annees: readonly (string | undefined)[]): void {
+  if (!modeSupabase) return;
+  const chargees = getAnneesNotesChargees();
+  if (!chargees) return;
+  const nouvelles = [...new Set(annees)].filter((a): a is string => !!a && !chargees.includes(a));
+  if (nouvelles.length === 0) return;
+  nouvelles.forEach((a) => anneesNotesDemandees.add(a));
+  void rechargerTables(["evaluations", "notes", "deliberations", "resultats_figes", "deliberations_annuelles"]);
 }
 
 export function generateRelevesForClasseEc(classeId: string, ecId: string): void {
@@ -2488,6 +2846,13 @@ export function getSeances(): SeanceRecord[] {
   return store.seances;
 }
 
+/** Séances de la base (avec Supabase) : celles que ce compte lit (toutes pour l'administration,
+ * les siennes pour un professeur, celles de sa classe pour un étudiant). */
+export function remplacerSeances(records: SeanceRecord[]) {
+  store.seances = records;
+  persist();
+}
+
 export function checkSeanceConflicts(candidate: SeanceSlot, excludeId?: string) {
   return detectScheduleConflicts(store.seances, candidate, excludeId);
 }
@@ -2533,6 +2898,9 @@ function notifierChangementEdt(
    * Modifications et annulations restent une notification chacune. */
   regroupement?: { groupe: string; etudiant: (nombre: number) => string; prof: (nombre: number) => string },
 ) {
+  // Avec Supabase, la base prévient elle-même les étudiants et les professeurs, quel que soit le
+  // poste qui modifie l'emploi du temps.
+  if (modeSupabase) return;
   const notifEdt = getNotificationEvenementielleParCode("NOTIFICATION_UPDATE_EDT");
   if (!notifEdt?.actif) return;
   if (notifEdt.envoyerEtudiant) {
@@ -2752,6 +3120,25 @@ export function getStudentRequests(): StudentRequestRecord[] {
   return store.requests;
 }
 
+/** Demande telle que la base la range : la pièce jointe à plat (nom, type, fichier). */
+export interface DemandeLigne extends Omit<StudentRequestRecord, "pieceJointe"> {
+  pieceNom?: string;
+  pieceType?: string;
+  piece?: string;
+}
+
+export function getDemandesLignes(): DemandeLigne[] {
+  return store.requests.map(({ pieceJointe, ...d }) => ({ ...d, pieceNom: pieceJointe?.nom, pieceType: pieceJointe?.type, piece: pieceJointe?.dataUrl }));
+}
+
+/** Demandes de la base (avec Supabase) : toutes pour l'administration, les siennes pour un étudiant. */
+export function remplacerDemandes(lignes: DemandeLigne[]) {
+  store.requests = lignes
+    .map(({ pieceNom, pieceType, piece, ...d }) => ({ ...d, pieceJointe: piece ? { nom: pieceNom ?? "", type: pieceType ?? "", dataUrl: piece } : undefined }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  persist();
+}
+
 export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "createdAt" | "updatedAt" | "status">): StudentRequestRecord {
   // Une seule demande en cours de traitement par absence ou par note : un doublon encombrerait
   // la file du secrétariat et resterait « Nouveau » une fois l'original traité.
@@ -2773,8 +3160,9 @@ export function addStudentRequest(payload: Omit<StudentRequestRecord, "id" | "cr
     ...payload,
   };
   store.requests = [req, ...store.requests];
-  const admin = store.users.find((u) => u.role === "admin");
-  if (admin) pushNotification(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
+  // Avec Supabase, la base prévient elle-même le secrétariat (les comptes qui ont la page « Demandes »).
+  const admin = modeSupabase ? undefined : store.users.find((u) => u.role === "admin");
+  if (admin) pushNotificationLocale(admin.id, `Nouvelle demande étudiant: ${req.subject}`);
   const auteur = store.users.find((u) => u.linkedId === payload.studentId && u.role === "student");
   if (auteur) logAudit(auteur.id, "create_request", "request", req.id, req.subject);
   persist();
@@ -2802,6 +3190,7 @@ export function cancelStudentRequest(id: string, studentId: string): void {
 export function updateStudentRequestStatus(id: string, status: StudentRequestRecord["status"], handledBy: string, resolution?: string) {
   const req = store.requests.find((r) => r.id === id);
   if (!req || req.status === "annule") return;
+  if (req.status === "valide" || req.status === "rejete") throw new Error("Cette demande est déjà traitée : elle ne change plus.");
   if (status === "valide" && req.type === "demande_rallonge" && !estAutorise("validateur_rallonge", handledBy)) {
     throw new Error("Seul un validateur désigné (Paramétrage communication) peut approuver une demande de rallonge.");
   }
@@ -2835,9 +3224,10 @@ export function updateStudentRequestStatus(id: string, status: StudentRequestRec
     }
   }
 
-  const studentUser = store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
+  // Avec Supabase, la base prévient elle-même l'étudiant de la prise en charge et de la décision.
+  const studentUser = modeSupabase ? undefined : store.users.find((u) => u.linkedId === req.studentId && u.role === "student");
   const etat = status === "valide" ? "a été acceptée" : status === "rejete" ? "a été refusée" : status === "en_cours" ? "est en cours de traitement" : "a été mise à jour";
-  if (studentUser) pushNotification(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
+  if (studentUser) pushNotificationLocale(studentUser.id, `Votre demande « ${req.subject} » ${etat}${resolution?.trim() ? ` : ${resolution.trim()}` : "."}`);
   logAudit(handledBy, "update_request", "request", id, status);
   persist();
 }
@@ -2859,6 +3249,12 @@ export function getMessagesForUser(userId: string): MessageRecord[] {
 
 export function getMessages(): MessageRecord[] {
   return store.messages;
+}
+
+/** Messages de la base (avec Supabase) : ceux que ce compte a envoyés ou reçus. */
+export function remplacerMessages(records: MessageRecord[]) {
+  store.messages = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  persist();
 }
 
 /** Professeurs (comptes actifs) qui enseignent réellement dans une classe : un créneau d'emploi du
@@ -2918,7 +3314,8 @@ export function sendMessage(fromUserId: string, toUserId: string, subject: strin
     read: false,
   };
   store.messages.unshift(msg);
-  pushNotification(toUserId, `Nouveau message: ${subject}`);
+  // Avec Supabase, la base prévient elle-même le destinataire, sur son poste.
+  if (!modeSupabase) pushNotificationLocale(toUserId, `Nouveau message: ${subject}`);
   logAudit(fromUserId, "send_message", "message", msg.id, `to:${toUserId}`);
   persist();
   return msg;
@@ -2939,6 +3336,16 @@ export function getNotificationsByUser(userId: string): NotificationRecord[] {
 
 export function getNotifications(): NotificationRecord[] {
   return store.notifications;
+}
+
+/** Une notification venue de la base a un numéro ; celles créées sur ce poste, un « nt-… ». */
+export const estNotificationDeLaBase = (n: Pick<NotificationRecord, "id">) => /^\d+$/.test(n.id);
+
+/** Notifications de la base (avec Supabase) : celles du compte connecté. Celles que l'application
+ * crée encore sur ce poste (familles pas encore envoyées par la base) sont gardées. */
+export function remplacerNotifications(records: NotificationRecord[]) {
+  store.notifications = [...records, ...store.notifications.filter((n) => !estNotificationDeLaBase(n))];
+  persist();
 }
 
 export function markNotificationRead(notificationId: string, userId: string) {
@@ -2981,6 +3388,121 @@ export function getCahiers(): CahierSeanceRecord[] {
     cahiersCache = store.cahiers.map(normalizeCahier);
   }
   return cahiersCache;
+}
+
+/** Cahiers tels qu'enregistrés (sans les compléments d'affichage de normalizeCahier) : ce qui part
+ * vers la base et en revient. */
+export function getCahiersEnregistres(): CahierSeanceRecord[] {
+  return store.cahiers;
+}
+
+/** Années dont les cahiers (avec leur appel et leurs fichiers) sont chargés depuis la base, en plus
+ * de l'année en cours : celles qu'un écran a demandées (délibération d'une année passée…). */
+const anneesCahiersDemandees = new Set<string>();
+
+/** Années de cahiers à lire dans la base (avec Supabase) ; aucune année en cours : toutes. */
+export function getAnneesCahiersChargees(): string[] | undefined {
+  const actuelle = getAnneeActuelle();
+  return actuelle ? [actuelle, ...[...anneesCahiersDemandees].filter((a) => a !== actuelle)] : undefined;
+}
+
+/** Charge depuis la base les cahiers d'une année passée, si ce n'est déjà fait. Avec Supabase, seuls
+ * ceux de l'année en cours le sont à la connexion. */
+export function demanderCahiersAnnee(annee: string | undefined): void {
+  if (!modeSupabase || !annee || annee === getAnneeActuelle() || anneesCahiersDemandees.has(annee)) return;
+  anneesCahiersDemandees.add(annee);
+  void rechargerTables(["cahiers"]);
+}
+
+/** Cahiers de la base (avec Supabase) : ceux que ce compte lit, des années chargées. L'appel et les
+ * fichiers arrivent ensuite (remplacerPresencesCahiers, remplacerFichiersCahiers). */
+export function remplacerCahiers(records: CahierSeanceRecord[]) {
+  store.cahiers = records;
+  persist();
+}
+
+/** Présence d'un étudiant relevée dans un cahier (table presences), dans l'ordre de l'appel. */
+export interface PresenceCahierRecord {
+  id: string;
+  cahierId: string;
+  etudiantId: string;
+  nom: string;
+  statut: CahierPresenceEntry["statut"];
+  justification?: string;
+  retardMinutes?: number;
+  ordre: number;
+}
+
+export function getPresencesCahiers(): PresenceCahierRecord[] {
+  return store.cahiers.flatMap((c) => (c.presences ?? []).map((p, ordre) => ({
+    id: `${c.id}:${p.etudiantId}`,
+    cahierId: c.id,
+    etudiantId: p.etudiantId,
+    nom: p.nom,
+    statut: p.statut,
+    justification: p.justification,
+    retardMinutes: p.retardMinutes,
+    ordre,
+  })));
+}
+
+/** Présences de la base : un étudiant ne reçoit que les siennes. */
+export function remplacerPresencesCahiers(presences: PresenceCahierRecord[]) {
+  const parCahier = new Map<string, PresenceCahierRecord[]>();
+  for (const p of presences) parCahier.set(p.cahierId, [...(parCahier.get(p.cahierId) ?? []), p]);
+  store.cahiers = store.cahiers.map((c) => {
+    const appel = (parCahier.get(c.id) ?? []).sort((a, b) => a.ordre - b.ordre)
+      .map(({ etudiantId, nom, statut, justification, retardMinutes }) => ({ etudiantId, nom, statut, justification, retardMinutes }));
+    return {
+      ...c,
+      presences: appel,
+      absents: appel.filter((p) => p.statut === "absent").map((p) => p.etudiantId),
+      retards: appel.filter((p) => p.statut === "retard").map((p) => p.etudiantId),
+    };
+  });
+  persist();
+}
+
+/** Photo du tableau ou pièce jointe d'un cahier (table cahiers_fichiers). */
+export interface FichierCahierRecord {
+  id: string;
+  cahierId: string;
+  genre: "photo" | "piece";
+  ordre: number;
+  nom: string;
+  type: string;
+  tailleKo?: number;
+  ref?: string;
+  /** Contenu choisi sur ce poste, ou lien signé de l'espace de fichiers. */
+  fichier?: string;
+}
+
+export function getFichiersCahiers(): FichierCahierRecord[] {
+  return store.cahiers.flatMap((c) => [
+    ...(c.photosTableau ?? []).map((fichier, ordre) => ({
+      id: `${c.id}:photo:${ordre}`, cahierId: c.id, genre: "photo" as const, ordre, nom: `Photo ${ordre + 1}`, type: "", fichier,
+    })),
+    ...(c.piecesJointes ?? []).map((pj, ordre) => ({
+      id: `${c.id}:piece:${pj.id}`, cahierId: c.id, genre: "piece" as const, ordre, nom: pj.nom, type: pj.type, tailleKo: pj.tailleKo,
+      ref: pj.ref || undefined, fichier: pj.dataUrl,
+    })),
+  ]);
+}
+
+export function remplacerFichiersCahiers(fichiers: FichierCahierRecord[]) {
+  const parCahier = new Map<string, FichierCahierRecord[]>();
+  for (const f of fichiers) parCahier.set(f.cahierId, [...(parCahier.get(f.cahierId) ?? []), f]);
+  store.cahiers = store.cahiers.map((c) => {
+    const siens = (parCahier.get(c.id) ?? []).sort((a, b) => a.ordre - b.ordre);
+    return {
+      ...c,
+      photosTableau: siens.filter((f) => f.genre === "photo" && f.fichier).map((f) => f.fichier as string),
+      piecesJointes: siens.filter((f) => f.genre === "piece").map((f) => ({
+        id: f.id.slice(`${c.id}:piece:`.length), nom: f.nom, type: f.type, tailleKo: f.tailleKo, ref: f.ref ?? "", dataUrl: f.fichier,
+      })),
+    };
+  });
+  persist();
 }
 
 export function getCahierById(id: string): CahierSeanceRecord | undefined {
@@ -3179,12 +3701,15 @@ export function submitCahierSeance(payload: CahierSubmitPayload): CahierSeanceRe
   if (existingIdx >= 0) {
     base.id = store.cahiers[existingIdx].id;
     base.createdAt = store.cahiers[existingIdx].createdAt;
+    // Un cahier rejeté puis corrigé garde la trace de qui l'a rejeté (le professeur n'y touche pas).
+    base.validatedBy = store.cahiers[existingIdx].validatedBy;
     store.cahiers[existingIdx] = base;
   } else {
     store.cahiers.unshift(base);
   }
 
-  if (!payload.asDraft) {
+  // Avec Supabase, la base prévient elle-même l'administration et les étudiants absents.
+  if (!payload.asDraft && !modeSupabase) {
     const admin = store.users.find((u) => u.role === "admin");
     if (admin) pushNotification(admin.id, `Cahier de texte soumis : ${base.ec} — ${base.classe} (${base.date.split("-").reverse().join("/")})`);
 
@@ -3209,6 +3734,15 @@ export function validateCahier(id: string, actorUserId: string, approve: boolean
   const seance = store.seances.find((x) => x.id === row.seanceId);
   const profId = row.profId ?? seance?.profId;
   const teacher = compteProfDeSeance({ prof: row.prof, profId });
+  if (modeSupabase) {
+    // La base crée elle-même le pointage et prévient le professeur ; l'écran le reçoit juste après.
+    logAudit(actorUserId, approve ? "validate_cahier" : "reject_cahier", "cahier", id);
+    persist();
+    void rechargerApres("edumanage-pointages-v1");
+    return approve && row.etatSeance === "realisee" && durationHours(row.heureDebut, row.heureFin) > 0
+      ? { volumePointe: Math.round(durationHours(row.heureDebut, row.heureFin) * 100) / 100 }
+      : undefined;
+  }
   // Séance réalisée et validée : le pointage est préparé, il ne reste qu'à le confirmer.
   const pointage = approve && row.etatSeance === "realisee"
     ? creerPointageDepuisCahier(row, profId ?? teacher?.linkedId ?? "")

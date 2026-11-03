@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-declassement-parametre-store-v1";
 
 export interface DeclassementParametreRecord {
@@ -21,7 +21,7 @@ function notify() {
 function load(): DeclassementParametreRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as DeclassementParametreRecord[];
     return Array.isArray(parsed) ? parsed : [];
@@ -47,6 +47,12 @@ export function subscribeDeclassementParametres(fn: () => void) {
 
 export function getDeclassementParametres(): DeclassementParametreRecord[] {
   return store;
+}
+
+/** Paramètres de la base (avec Supabase). */
+export function remplacerDeclassementParametres(records: DeclassementParametreRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getDeclassementParametresPour(filiereId: string, niveau: string, annee: string): DeclassementParametreRecord[] {

@@ -1,5 +1,7 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
+  demanderCahiersAnnee,
+  demanderNotesAnnees,
   subscribe,
   getEtudiants,
   getEtudiantById,
@@ -120,4 +122,17 @@ export function useAuditLogs() {
 
 export function useCahiers() {
   return useSyncExternalStore(subscribe, getCahiers, getCahiers);
+}
+
+/** Avec Supabase, seuls les cahiers de l'année en cours sont chargés à la connexion : ceux d'une
+ * année passée (avec leur appel) le sont quand un écran l'affiche. */
+export function useCahiersAnnee(annee: string | undefined) {
+  useEffect(() => demanderCahiersAnnee(annee), [annee]);
+}
+
+/** Avec Supabase, les notes et résultats sont chargés pour l'année en cours et les années des
+ * étudiants actuels : ceux d'une année plus ancienne le sont quand un écran l'affiche. */
+export function useNotesAnnees(...annees: (string | undefined)[]) {
+  const cle = annees.filter(Boolean).join("|");
+  useEffect(() => demanderNotesAnnees(cle ? cle.split("|") : []), [cle]);
 }

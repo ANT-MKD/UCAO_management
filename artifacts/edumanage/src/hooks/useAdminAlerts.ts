@@ -1,13 +1,14 @@
 import { useStudentStore, useNotes, useStudentRequests, useCahiers } from "@/hooks/useStudentStore";
 import { useMailsEnvoyes } from "@/hooks/useMailEnvoyeStore";
-import { useDemandesReinitialisation } from "@/hooks/usePinActivationStore";
+import { useDemandesAttente } from "@/hooks/useComptesAdmin";
 import { usePaiementsDeclares } from "@/hooks/usePaiementDeclareStore";
 import { usePointages } from "@/hooks/usePointageStore";
 import { useRallonges } from "@/hooks/useRallongeStore";
-import { useRoles } from "@/hooks/useRoleStore";
+import { useRolesAdmin } from "@/hooks/useComptesAdmin";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
 import { pourcentageStockage } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 import { useDemandesCorrection } from "@/hooks/useCorrectionNoteStore";
 import { useTeacherAbsences } from "@/hooks/useTeacherAbsenceStore";
 import { useEtablissement } from "@/hooks/useEtablissementStore";
@@ -41,11 +42,11 @@ function depuis(dates: string[]): string {
  * propre limite d'affichage. */
 export function useAdminAlerts(): AdminAlert[] {
   const { currentUser } = useAuth();
-  const roles = useRoles();
+  const roles = useRolesAdmin();
   const etudiants = useStudentStore();
   const notes = useNotes();
   const mailsEnvoyes = useMailsEnvoyes();
-  const demandesReinit = useDemandesReinitialisation();
+  const reinitEnAttente = useDemandesAttente();
   const paiementsDeclares = usePaiementsDeclares();
   const demandes = useStudentRequests();
   const cahiers = useCahiers();
@@ -59,7 +60,6 @@ export function useAdminAlerts(): AdminAlert[] {
   const notesEnAttente = notes.filter((n) => n.statut === "soumis_admin");
   const mailsEnAttente = mailsEnvoyes.filter((m) => m.statut === "en_attente_validation");
   const enAttenteInscription = etudiants.filter((e) => e.statut === "preinscrit" || e.statut === "en_attente").length;
-  const reinitEnAttente = demandesReinit.filter((d) => !d.traiteeLe);
   const paiementsAVerifier = paiementsDeclares.filter((d) => d.statut === "a_verifier");
   const demandesNouvelles = demandes.filter((r) => r.status === "nouveau");
   const demandesEnCours = demandes.filter((r) => r.status === "en_cours");
@@ -73,7 +73,8 @@ export function useAdminAlerts(): AdminAlert[] {
   const alerts: AdminAlert[] = [];
   const push = (a: AdminAlert) => { if (a.count > 0) alerts.push(a); };
 
-  const stockage = pourcentageStockage();
+  // Avec la base, le navigateur ne garde plus de données : sa place ne limite plus rien.
+  const stockage = modeSupabase ? 0 : pourcentageStockage();
   if (stockage >= 80) {
     alerts.push({ id: "stockage", type: stockage >= 90 ? "danger" : "warning", count: stockage, domaine: "Sécurité", action: "Voir l'espace",
       message: `Stockage du navigateur utilisé à ${stockage} % — au-delà de 100 %, plus rien ne s'enregistre`, temps: "Maintenant", href: "/admin/security/reinitialisation-donnees" });

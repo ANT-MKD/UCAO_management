@@ -13,9 +13,9 @@ import { useTypesEvaluation } from "@/hooks/useTypeEvaluationStore";
 import { usePortefeuilleCours } from "@/hooks/usePortefeuilleCoursStore";
 import { getEtudiantsAjoutesPourCours, getEtudiantsRetiresPourCours } from "@/data/portefeuilleCoursStore";
 import { saveNoteEvaluationGrid, submitNotesForValidation, getNoteForEvaluation, noteEstOfficielle, type EvaluationGridInput, type NoteRecord } from "@/data/studentStore";
-import { demanderCorrectionNote, libelleValeurNote } from "@/data/correctionNoteStore";
+import { libelleValeurNote } from "@/data/correctionNoteStore";
 import { useDemandesCorrection } from "@/hooks/useCorrectionNoteStore";
-import { FormModal } from "@/components/admin/FormModal";
+import { DemandeCorrectionModal } from "@/components/notes/DemandeCorrectionModal";
 import { resolveRoleEvaluation } from "@/data/evaluationStore";
 import { ANNEES_ACADEMIQUES } from "@/data/mockData";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
@@ -58,9 +58,6 @@ export default function TeacherGradesPage() {
   usePortefeuilleCours();
   const demandesCorrection = useDemandesCorrection();
   const [correction, setCorrection] = useState<NoteRecord | null>(null);
-  const [correctionNote, setCorrectionNote] = useState("");
-  const [correctionAbsent, setCorrectionAbsent] = useState(false);
-  const [correctionMotif, setCorrectionMotif] = useState("");
 
   const myTeacher = useMemo(() => teachers.find((t) => t.id === currentUser?.linkedId) ?? null, [teachers, currentUser?.linkedId]);
   const annee = ANNEES_ACADEMIQUES.find((a) => a.actuelle)?.libelle ?? ANNEES_ACADEMIQUES[0]?.libelle ?? "";
@@ -242,22 +239,7 @@ export default function TeacherGradesPage() {
     }
   };
 
-  const ouvrirCorrection = (n: NoteRecord) => {
-    setCorrection(n);
-    setCorrectionNote(n.absent ? "" : String(n.note).replace(".", ","));
-    setCorrectionAbsent(!!n.absent);
-    setCorrectionMotif("");
-  };
-  const envoyerCorrection = () => {
-    if (!correction || !currentUser) return;
-    try {
-      demanderCorrectionNote({ noteId: correction.id, nouvelleNote: lireNote(correctionNote), absent: correctionAbsent, motif: correctionMotif, bareme }, currentUser.id);
-      toast.success("Demande de correction envoyée à la scolarité.");
-      setCorrection(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Demande impossible.");
-    }
-  };
+  const ouvrirCorrection = (n: NoteRecord) => setCorrection(n);
 
   return (
     <div className="space-y-5">
@@ -405,13 +387,15 @@ export default function TeacherGradesPage() {
                 </thead>
                 <tbody>
                   {classeStudents.map((etu, i) => {
-                    const entry = getEntry(etu.id);
+                    const noteExistante = getNoteForEvaluation(etu.id, evaluationChoisie.id);
+                    // Validée ou publiée : la grille montre toujours sa valeur enregistrée (corrigée comprise).
+                    const verrouillee = !!noteExistante && noteEstOfficielle(noteExistante);
+                    const entry = verrouillee && noteExistante
+                      ? { note: noteExistante.absent ? "" : String(noteExistante.note).replace(".", ","), absent: !!noteExistante.absent } : getEntry(etu.id);
                     const noteVal = lireNote(entry.note);
                     const hasNote = !isNaN(noteVal) && !entry.absent;
                     const isAdmis = hasNote && noteVal >= bareme / 2;
                     const isAjourne = hasNote && noteVal < bareme / 2;
-                    const noteExistante = getNoteForEvaluation(etu.id, evaluationChoisie.id);
-                    const verrouillee = !!noteExistante && noteEstOfficielle(noteExistante);
                     const demandeEnCours = noteExistante ? demandesCorrection.find((d) => d.noteId === noteExistante.id && d.statut === "en_attente") : undefined;
                     const dernierRefus = noteExistante && !demandeEnCours ? demandesCorrection.find((d) => d.noteId === noteExistante.id && d.statut === "refusee") : undefined;
                     if (statutFilter && noteExistante?.statut !== statutFilter) return null;
@@ -531,34 +515,7 @@ export default function TeacherGradesPage() {
           </div>
         </div>
       )}
-      <FormModal
-        open={!!correction}
-        onClose={() => setCorrection(null)}
-        title="Demander une correction"
-        subtitle={correction ? `${correction.etudiant} — ${correction.ec} : ${libelleValeurNote(correction.note, correction.absent)} actuellement` : undefined}
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">Cette note est validée par la scolarité : vous ne pouvez plus la modifier vous-même. Indiquez la note juste et le motif ; la scolarité acceptera ou refusera la correction, et elle sera inscrite au journal.</p>
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <label htmlFor="correction-note" className="block text-xs font-medium text-muted-foreground mb-1.5">Nouvelle note /{bareme}</label>
-              <input id="correction-note" type="text" inputMode="decimal" disabled={correctionAbsent} value={correctionAbsent ? "ABS" : correctionNote} onChange={(e) => setCorrectionNote(e.target.value)} className={inputClass} data-testid="correction-note" />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-foreground pb-2.5">
-              <input type="checkbox" checked={correctionAbsent} onChange={(e) => setCorrectionAbsent(e.target.checked)} data-testid="correction-absent" />
-              Absent (ABS = 0)
-            </label>
-          </div>
-          <div>
-            <label htmlFor="correction-motif" className="block text-xs font-medium text-muted-foreground mb-1.5">Motif *</label>
-            <textarea id="correction-motif" rows={3} value={correctionMotif} onChange={(e) => setCorrectionMotif(e.target.value)} placeholder="Ex. : erreur de report, copie recorrigée" className={inputClass} data-testid="correction-motif" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setCorrection(null)} className="px-4 py-2 border border-border rounded-xl text-sm">Annuler</button>
-            <button type="button" onClick={envoyerCorrection} disabled={!correctionMotif.trim() || (!correctionAbsent && !correctionNote.trim())} className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium disabled:opacity-50" data-testid="correction-envoyer">Envoyer la demande</button>
-          </div>
-        </div>
-      </FormModal>
+      <DemandeCorrectionModal note={correction} bareme={bareme} acteurId={currentUser?.id} onClose={() => setCorrection(null)} />
     </div>
   );
 }

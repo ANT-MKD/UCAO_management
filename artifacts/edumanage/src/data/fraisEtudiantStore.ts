@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { emettreQuittanceBrute, cancelQuittanceEmise, type PaiementRecord } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-frais-etudiant-v1";
@@ -42,7 +42,7 @@ function notify() {
 function load(): FraisEtudiantLigne[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return (JSON.parse(raw) as FraisEtudiantLigne[]).map((l) => ({ ...l, annulee: l.annulee ?? false }));
   } catch {
@@ -67,6 +67,12 @@ export function subscribeFraisEtudiant(fn: () => void) {
 
 export function getFraisEtudiant(): FraisEtudiantLigne[] {
   return store;
+}
+
+/** Frais de la base (avec Supabase). */
+export function remplacerFraisEtudiant(records: FraisEtudiantLigne[]) {
+  store = records;
+  persist();
 }
 
 /** Lignes actives (non annulées) pour un étudiant/année/type — utilisé pour avertir d'un doublon avant ajout. */

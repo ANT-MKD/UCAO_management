@@ -31,6 +31,7 @@ import { markNotificationRead } from "@/data/studentStore";
 import { STUDENT_PORTAL_FEATURES } from "@/data/portalFeaturesStore";
 import { lienNotificationEtudiant } from "@/lib/notificationsEtudiant";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
+import { lireStockage } from "@/lib/stockageLocal";
 
 interface StudentLayoutProps {
   children: React.ReactNode;
@@ -108,7 +109,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
 
   const allRequests = useStudentRequests();
   const requestsLastSeen = currentUser && typeof window !== "undefined"
-    ? localStorage.getItem(requestsLastSeenKey(currentUser.id)) ?? ""
+    ? lireStockage(requestsLastSeenKey(currentUser.id)) ?? ""
     : "";
   const unreadRequests = allRequests.filter(
     (r) => r.studentId === currentUser?.linkedId && r.status !== "nouveau" && r.status !== "annule" && r.updatedAt > requestsLastSeen,

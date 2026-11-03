@@ -13,14 +13,29 @@ dans le document « Plan de migration EduManage ».
   - `connexion` (sans session) : connexion par matricule ou identifiant, installation, « mot de
     passe oublié », réinitialisation par code PIN ;
   - `comptes` (avec session) : création d'un compte par l'administration, changement de mot de
-    passe.
+    passe ;
+  - `reprise` (avec session, administrateur principal) : reprise, une fois, des données d'un poste
+    d'avant la base (essai avec rapport de contrôle, comptes, fichiers, puis reprise réelle).
 - `config.toml` : réglages de l'outil `supabase` (développement local).
 
 ## Projets Supabase
 
-| Environnement | Projet | Région |
-| --- | --- | --- |
-| Développement | `UCAO_Kairos` (organisation `UCAO_ISAE`) | Paris (`eu-west-3`) |
+| Environnement | Projet | Région | Marque |
+| --- | --- | --- | --- |
+| Production (en service) | `UCAO_Kairos` (organisation `UCAO_ISAE`, offre gratuite) | Paris (`eu-west-3`) | `production` |
+| Test | aucun pour l'instant : un projet gratuit se crée au besoin, puis se supprime | Paris (`eu-west-3`) | `test` |
+
+**Sur la base en service, aucun script de test ne se lance**, même annulé à la fin : les changements
+sont vérifiés en local (`tests/lancer.sh`, `tests/lancer-fonctions.sh`) et dans les vérifications
+GitHub, puis appliqués ; sur la production, seules des lectures de contrôle.
+
+La marque (`private.environnement`) se pose à la main, jamais par une migration :
+
+```sql
+insert into private.environnement (nom) values ('test');
+```
+
+Seul un projet marqué `test` peut être remis à zéro (voir plus bas).
 
 ## Réglages du projet dans le tableau de bord Supabase
 
@@ -41,6 +56,33 @@ montrée : la fonction `connexion` la retrouve, compte les échecs (15 minutes d
 5 échecs) et contrôle le compte et son portail. L'application n'utilise la base que si
 `artifacts/edumanage/.env.local` donne l'adresse du projet (voir `.env.example`).
 
+## Campagne de recette (environnement de test)
+
+1. **Installer** : ouvrir l'application branchée sur le projet de test ; l'écran d'installation
+   crée l'administrateur principal, l'établissement et l'année en cours.
+2. **Reprendre les données** d'un poste qui servait avant la base : sur ce poste, se connecter avec
+   l'administrateur principal, puis Sécurité → Réinitialisation des données → « Préparer la
+   reprise ». L'essai donne le rapport de contrôle (rien n'est enregistré) ; la reprise réelle ne se
+   fait qu'une fois. Seule l'année en cours est reprise ; les comptes repris choisissent un nouveau
+   mot de passe avec un code remis par l'administration (Sécurité → Codes PIN).
+3. **Rejouer les scénarios** du cahier de recette
+   (https://claude.ai/artifact/KVW75vCdG5QK5meio33ZiB, à partager avec les testeurs en accès
+   « Contributeur ») et y noter, pour chacun, « validé » ou l'anomalie constatée.
+
+### Remise à zéro du projet de test
+
+Entre deux campagnes (par exemple après une correction de la reprise), dans l'éditeur SQL du
+projet de test :
+
+```sql
+select private.remettre_a_zero_test('REMETTRE A ZERO');
+```
+
+Toutes les données, identités, compteurs et la trace de la reprise sont effacés ; les portails
+sont rouverts. Le compte rendu indique les fichiers restants (`fichiers_a_retirer`) : Supabase
+interdit de les effacer par SQL, ils se retirent depuis le tableau de bord (Storage → chaque
+espace → tout sélectionner → supprimer). Sur un projet sans la marque `test`, la fonction refuse.
+
 ## Ajouter une migration
 
 1. `npx supabase@2.122.0 migration new <nom>` crée le fichier daté dans `migrations/`.
@@ -57,6 +99,13 @@ Supabase (`tests/supabase-local.sql`). Le script prend les variables de connexio
 
 ```bash
 PGHOST=localhost PGPORT=5432 PGUSER=postgres supabase/tests/lancer.sh
+```
+
+La fonction serveur `reprise`, qui se connecte directement à la base, se teste avec Deno sur une
+base neuve (Supabase Auth et l'espace de fichiers imités) :
+
+```bash
+PGHOST=localhost PGPORT=5432 PGUSER=postgres supabase/tests/lancer-fonctions.sh
 ```
 
 Ils sont aussi joués par les vérifications GitHub à chaque envoi.

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { CLASSES as SEED_CLASSES, SALLES as SEED_SALLES, FILIERES, NIVEAUX } from "./mockData";
 
 /** Classe pédagogique = groupe d'étudiants (ex. LPIG L1 A 2025-2026) */
@@ -105,7 +105,7 @@ function buildFresh(): StructureStore {
 
 function load(): StructureStore {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<StructureStore>;
@@ -140,6 +140,25 @@ function persist() {
 }
 
 if (typeof window !== "undefined") persist();
+
+/** Remplacent classes et salles (contenu de la base, avec Supabase) ; l'effectif calculé absent
+ * vaut 0. */
+export function remplacerClasses(records: ClassePedagogiqueRecord[]) {
+  store.classes = records.map((c) => ({ ...c, inscrits: c.inscrits ?? 0 }));
+  persist();
+}
+
+/** Effectifs recomptés depuis les étudiants (avec Supabase, après leur chargement) : l'effectif
+ * reste un compteur de l'application, jamais envoyé à la base. */
+export function fixerEffectifsClasses(effectifs: Map<string, number>) {
+  store.classes = store.classes.map((c) => ({ ...c, inscrits: effectifs.get(c.id) ?? 0 }));
+  persist();
+}
+
+export function remplacerSalles(records: SallePhysiqueRecord[]) {
+  store.salles = records.slice();
+  persist();
+}
 
 export function getClasses(): ClassePedagogiqueRecord[] {
   return store.classes;

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-notification-evenementielle-v1";
 const MIGRATION_KEY = "edumanage-notification-evenementielle-actives-par-defaut";
 
@@ -45,14 +45,14 @@ function notify() {
 function load(): NotificationEvenementielleRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
     const parsed = JSON.parse(raw) as NotificationEvenementielleRecord[];
     if (!Array.isArray(parsed) || parsed.length === 0) return seed();
     // Navigateurs enregistrés avec l'ancienne configuration d'origine (tout désactivé, jamais
     // touché) : on applique une seule fois les nouvelles valeurs d'origine. Si au moins une
     // notification a été activée, la configuration de l'établissement est respectée telle quelle.
-    if (!localStorage.getItem(MIGRATION_KEY)) {
+    if (!lireStockage(MIGRATION_KEY)) {
       ecrireStockage(MIGRATION_KEY, "1");
       if (parsed.every((n) => !n.actif)) {
         const actives = parsed.map((n) => (n.brancheReellement ? { ...n, actif: true } : n));
@@ -83,6 +83,12 @@ export function subscribeNotificationsEvenementielles(fn: () => void) {
 
 export function getNotificationsEvenementielles(): NotificationEvenementielleRecord[] {
   return store;
+}
+
+/** Notifications de la base (avec Supabase) ; aucune : celles de l'application, actives d'origine. */
+export function remplacerNotificationsEvenementielles(records: NotificationEvenementielleRecord[]) {
+  store = records.length > 0 ? records : seed();
+  persist();
 }
 
 export function getNotificationEvenementielleParCode(code: string): NotificationEvenementielleRecord | undefined {

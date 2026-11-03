@@ -7,10 +7,11 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
 import { FormModal } from "@/components/admin/FormModal";
 import { UserAvatar } from "@/components/admin/UserAvatar";
-import { useUserAccounts } from "@/hooks/useStudentStore";
-import { useRoles } from "@/hooks/useRoleStore";
+import { useComptesAdmin, useRolesAdmin } from "@/hooks/useComptesAdmin";
 import { useTeachers } from "@/hooks/useTeacherStore";
-import { creerCompteStaff, type UserAccountRecord } from "@/data/studentStore";
+import type { UserAccountRecord } from "@/data/studentStore";
+import { creerCompte } from "@/data/comptesAdmin";
+import { modeSupabase } from "@/lib/supabase";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
@@ -43,8 +44,8 @@ const EMPTY_FORM = {
 export default function UsersPage() {
   const { currentUser } = useAuth();
   const [, setLocation] = useLocation();
-  const comptes = useUserAccounts().filter((c) => c.role !== "student");
-  const roles = useRoles();
+  const comptes = useComptesAdmin().filter((c) => c.role !== "student");
+  const roles = useRolesAdmin();
   const teachers = useTeachers();
   const [roleFilter, setRoleFilter] = useState<"" | "admin" | "teacher">("");
   const [open, setOpen] = useState(false);
@@ -52,6 +53,7 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkResults, setBulkResults] = useState<CompteGenere[] | null>(null);
+  const [envoi, setEnvoi] = useState(false);
 
   const filtered = roleFilter ? comptes.filter((c) => c.role === roleFilter) : comptes;
 
@@ -75,11 +77,12 @@ export default function UsersPage() {
   const roleRequis = form.role === "admin" && !acteurAccesComplet;
   const peutSauvegarder = (!roleRequis || form.roleId) && form.prenom.trim() && form.nom.trim() && form.identifier.trim() && form.email.trim() && isPasswordValid(form.password) && (form.role !== "teacher" || form.teacherId);
 
-  const handleSave = () => {
-    if (!currentUser || !peutSauvegarder) return;
+  const handleSave = async () => {
+    if (!currentUser || !peutSauvegarder || envoi) return;
     setError("");
+    setEnvoi(true);
     try {
-      creerCompteStaff(
+      await creerCompte(
         {
           role: form.role,
           prenom: form.prenom,
@@ -100,17 +103,20 @@ export default function UsersPage() {
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Création impossible");
+    } finally {
+      setEnvoi(false);
     }
   };
 
-  const handleBulkLink = () => {
-    if (!currentUser) return;
+  const handleBulkLink = async () => {
+    if (!currentUser || envoi) return;
+    setEnvoi(true);
     const crees: CompteGenere[] = [];
     const echecs: string[] = [];
     for (const t of teachersDisponibles) {
       const motDePasse = generateMotDePasse();
       try {
-        creerCompteStaff(
+        await creerCompte(
           {
             role: "teacher",
             prenom: t.prenom,
@@ -129,6 +135,7 @@ export default function UsersPage() {
         echecs.push(`${t.prenom} ${t.nom} (${err instanceof Error ? err.message : "erreur inconnue"})`);
       }
     }
+    setEnvoi(false);
     setBulkResults(crees);
     if (echecs.length) toast.error(`${echecs.length} fiche(s) non reliée(s) : ${echecs.join(", ")}`);
     if (crees.length) toast.success(`${crees.length} compte(s) créé(s).`);
@@ -251,7 +258,8 @@ export default function UsersPage() {
 
       <FormModal open={open} onClose={() => setOpen(false)} title="Nouvel utilisateur" size="md">
         <div className="space-y-3">
-          <div>
+          {/* Avec Supabase, les photos arrivent avec l'espace de fichiers (partie 4). */}
+          {!modeSupabase && <div>
             <label className="inline-flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
               <ImageIcon size={13} />
               Choisir une photo
@@ -260,7 +268,7 @@ export default function UsersPage() {
             {form.photoDataUrl && (
               <img src={form.photoDataUrl} alt="Aperçu" className="mt-2 w-16 h-16 rounded-full object-cover border border-border" data-testid="user-photo-apercu" />
             )}
-          </div>
+          </div>}
           <div>
             <label htmlFor="users-champ-1" className="block text-xs font-medium text-muted-foreground mb-1.5">Profil *</label>
             <select id="users-champ-1"
@@ -336,6 +344,9 @@ export default function UsersPage() {
               <option value="" disabled={roleRequis}>{roleRequis ? "Choisissez un rôle" : "Aucun — accès complet"}</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
             </select>
+            {roles.length === 0 && (
+              <p className="text-[11px] text-muted-foreground mt-1">Aucun rôle n&apos;est encore défini (Sécurité → Les rôles).</p>
+            )}
             {roleRequis && (
               <p className="text-[11px] text-muted-foreground mt-1" data-testid="user-role-requis">
                 Seul un administrateur à accès complet peut créer un compte sans rôle.
@@ -351,8 +362,8 @@ export default function UsersPage() {
           {error && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>}
 
           <button
-            onClick={handleSave}
-            disabled={!peutSauvegarder}
+            onClick={() => void handleSave()}
+            disabled={!peutSauvegarder || envoi}
             className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
             data-testid="user-sauvegarder"
           >
@@ -376,7 +387,8 @@ export default function UsersPage() {
               ))}
             </div>
             <button
-              onClick={handleBulkLink}
+              onClick={() => void handleBulkLink()}
+              disabled={envoi}
               className="w-full px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
               data-testid="user-bulk-confirm"
             >

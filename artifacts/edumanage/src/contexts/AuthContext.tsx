@@ -11,7 +11,11 @@ import {
   type UserRole,
 } from "@/data/studentStore";
 import { modeSupabase, supabase } from "@/lib/supabase";
-import { compteDeLaSession, connecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
+import { compteDeLaSession, connecterServeur, deconnecterServeur, utilisateurDuCompte, type CompteServeur } from "@/lib/comptesServeur";
+import { chargerMiroirs } from "@/lib/miroirServeur";
+import "@/data/miroirs";
+
+const DONNEES_INJOIGNABLES = "Impossible de charger les données de l'établissement. Vérifiez votre connexion internet, puis reconnectez-vous.";
 import { isPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
 import { isLocked, registerFailedAttempt, registerSuccessfulLogin, MAX_TENTATIVES } from "@/data/loginSecurityStore";
 import { getCommunicationRolesParType } from "@/data/communicationRolesStore";
@@ -128,6 +132,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const etat = await compteDeLaSession();
         if (!monte) return;
         if (etat && "compte" in etat) {
+          // Données de référence (structure académique…) chargées avant d'ouvrir les écrans.
+          try {
+            await chargerMiroirs({ compteId: etat.compte.id, administration: etat.compte.type_compte === "administration" });
+          } catch {
+            await client.auth.signOut();
+            if (monte) setCurrentUser(null);
+            return;
+          }
+          if (!monte) return;
           setCurrentUser(utilisateurServeur(etat.compte));
         } else {
           if (etat) await client.auth.signOut();
@@ -155,6 +168,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (modeSupabase) {
       const compte = await connecterServeur(identifierOrEmail, password);
       if (!compte) return null;
+      try {
+        await chargerMiroirs({ compteId: compte.id, administration: compte.type_compte === "administration" });
+      } catch {
+        await supabase?.auth.signOut();
+        throw new Error(DONNEES_INJOIGNABLES);
+      }
       const user = utilisateurServeur(compte);
       setCurrentUser(user);
       return user;
@@ -229,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
-    if (supabase) void supabase.auth.signOut();
+    if (modeSupabase) void deconnecterServeur();
     else clearAuthSession();
   };
 

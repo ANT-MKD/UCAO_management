@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type MemoEntiteType = "etudiant" | "enseignant";
@@ -25,7 +25,7 @@ function notify() {
 function load(): MemoRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as MemoRecord[];
   } catch {
@@ -50,6 +50,12 @@ export function subscribeMemos(fn: () => void) {
 
 export function getMemos(): MemoRecord[] {
   return store;
+}
+
+/** Mémos de la base (avec Supabase), lus par les pages qui gèrent ces dossiers. */
+export function remplacerMemos(records: MemoRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getMemosPourEntite(entiteType: MemoEntiteType, entiteId: string): MemoRecord[] {

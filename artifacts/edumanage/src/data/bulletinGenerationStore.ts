@@ -1,7 +1,9 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { computeBulletin } from "./bulletinEngine";
 import { getUserAccounts, pushNotificationEtPersister, upsertReleve } from "./studentStore";
 import { detecterDeclassementEtudiant, type RaisonDeclassement } from "./declassementEngine";
+import { modeSupabase } from "@/lib/supabase";
+import { rechargerApres } from "@/lib/miroirServeur";
 
 const STORAGE_KEY = "edumanage-bulletin-generation-store-v1";
 
@@ -52,7 +54,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { generations: [], compteur: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { generations: [], compteur: 0 };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { generations: parsed.generations ?? [], compteur: parsed.compteur ?? 0 };
@@ -78,6 +80,12 @@ export function subscribeBulletinGenerations(fn: () => void) {
 
 export function getGenerations(): BulletinGenerationRecord[] {
   return store.generations;
+}
+
+/** Générations de la base (avec Supabase), numérotées par elle. */
+export function remplacerGenerations(records: BulletinGenerationRecord[]) {
+  store = { ...store, generations: records };
+  persist();
 }
 
 export function getGenerationById(id: string): BulletinGenerationRecord | undefined {
@@ -150,7 +158,8 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
         annee: input.annee,
       });
       releveId = releve.id;
-      const compte = getUserAccounts().find((u) => u.role === "student" && u.linkedId === e.id);
+      // Avec Supabase, c'est la base qui prévient l'étudiant.
+      const compte = modeSupabase ? undefined : getUserAccounts().find((u) => u.role === "student" && u.linkedId === e.id);
       if (compte) pushNotificationEtPersister(compte.id, `Votre relevé de notes ${input.semestreLabel} (${input.annee}) est disponible dans « Relevés & bulletins ».`);
     }
     return {
@@ -190,5 +199,7 @@ export function creerGeneration(input: CreerGenerationInput): BulletinGeneration
   };
   store.generations.unshift(record);
   persist();
+  // Avec Supabase, le numéro définitif est donné par la base : il revient à l'écran juste après.
+  if (modeSupabase) void rechargerApres(STORAGE_KEY);
   return record;
 }

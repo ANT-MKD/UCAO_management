@@ -1,5 +1,6 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
+import { modeSupabase } from "@/lib/supabase";
 
 const STORAGE_KEY = "edumanage-decomptes-v1";
 
@@ -52,7 +53,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -79,6 +80,12 @@ export function subscribeDecomptes(fn: () => void) {
 
 export function getDecomptes(): DecompteRecord[] {
   return store.records;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerDecomptes(records: DecompteRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 export function getDecompteById(id: string): DecompteRecord | undefined {
@@ -133,7 +140,8 @@ export function genererDecompte(payload: GenererDecomptePayload): DecompteRecord
   store.records = [record, ...store.records];
   persist();
 
-  const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
+  // Avec Supabase, c'est la base qui prévient le professeur, avec le numéro définitif.
+  const compte = modeSupabase ? undefined : getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === record.teacherId);
   if (compte) pushNotificationEtPersister(compte.id, `Nouveau décompte disponible : ${record.reference} (${record.netAPayer.toLocaleString("fr-FR")} FCFA net à payer)`);
 
   return record;

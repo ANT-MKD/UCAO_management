@@ -1,7 +1,7 @@
 import { reglesDeCalcul } from "./scolariteConfigStore";
 import { formulesPour } from "./reglementCalculStore";
 import { executerFormule, interpreterDecisionAnnee, type FormulesCalcul } from "./formulesCalcul";
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { computeBulletin, computeMoyenneAnnuelle } from "./bulletinEngine";
 import { getHeuresAbsenceNonJustifieePourEtudiant } from "./assiduiteEngine";
 import { type RegleValidationRecord } from "./reglesValidationStore";
@@ -83,7 +83,7 @@ function notify() {
 function load(): Persisted {
   if (typeof window === "undefined") return { deliberations: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { deliberations: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { deliberations: parsed.deliberations ?? [] };
@@ -113,6 +113,35 @@ export function getDeliberationsAnnuelles(): DeliberationAnnuelleRecord[] {
 
 export function getDeliberationAnnuelleById(id: string): DeliberationAnnuelleRecord | undefined {
   return store.deliberations.find((d) => d.id === id);
+}
+
+/** Ligne d'un étudiant telle que rangée dans la base (table deliberations_annuelles_lignes). */
+export interface LigneDeliberationAnnuelleBase extends DeliberationAnnuelleLigne {
+  id: string;
+  deliberationId: string;
+  ordre: number;
+}
+
+/** Délibérations de l'année de la base (avec Supabase) ; leurs lignes arrivent ensuite. */
+export function remplacerDeliberationsAnnuelles(records: DeliberationAnnuelleRecord[]) {
+  store = { deliberations: records.map((d) => ({ ...d, lignes: d.lignes ?? [] })) };
+  persist();
+}
+
+export function getLignesDeliberationsAnnuelles(): LigneDeliberationAnnuelleBase[] {
+  return store.deliberations.flatMap((d) => d.lignes.map((l, ordre) => ({ ...l, id: `${d.id}:${l.etudiantId}`, deliberationId: d.id, ordre })));
+}
+
+export function remplacerLignesDeliberationsAnnuelles(lignes: LigneDeliberationAnnuelleBase[]) {
+  const parDeliberation = new Map<string, LigneDeliberationAnnuelleBase[]>();
+  for (const l of lignes) parDeliberation.set(l.deliberationId, [...(parDeliberation.get(l.deliberationId) ?? []), l]);
+  store = {
+    deliberations: store.deliberations.map((d) => ({
+      ...d,
+      lignes: (parDeliberation.get(d.id) ?? []).sort((a, b) => a.ordre - b.ordre).map(({ id: _id, deliberationId: _d, ordre: _o, ...l }) => l),
+    })),
+  };
+  persist();
 }
 
 /** Une classe est propre à une année (CLASSES a un champ "annee") donc filière+niveau+année en

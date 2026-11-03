@@ -69,6 +69,22 @@ describe("comptes sur le serveur (partie 2)", () => {
     expect(utilisateurDuCompte({ ...AWA, type_compte: "administration", role_id: "role-secretariat" }).roleId).toBe("role-secretariat");
   });
 
+  it("déconnexion : la session est fermée, puis la page rechargée (il ne reste rien des données en mémoire), même réseau coupé", async () => {
+    const { client, serveur } = await avecFauxServeur({ reponse: async () => ({ data: null, error: null }) });
+    const ordre: string[] = [];
+    client.auth.signOut.mockImplementationOnce(async () => {
+      ordre.push("session fermée");
+      return { error: null };
+    });
+    await serveur.deconnecterServeur(() => ordre.push("page rechargée"));
+    expect(ordre).toEqual(["session fermée", "page rechargée"]);
+    client.auth.signOut.mockImplementationOnce(async () => {
+      throw new Error("réseau coupé");
+    });
+    await serveur.deconnecterServeur(() => ordre.push("page rechargée"));
+    expect(ordre).toEqual(["session fermée", "page rechargée", "page rechargée"]);
+  });
+
   it("Awa se connecte avec son matricule : la session reçue est ouverte dans le navigateur", async () => {
     const { client, serveur } = await avecFauxServeur({ reponse: async () => ({ data: { access_token: "a", refresh_token: "r" }, error: null }) });
     expect(await serveur.connecterServeur("2026-lqhse-0001", "provisoire")).toEqual(AWA);

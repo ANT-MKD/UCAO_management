@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { NIVEAUX } from "./mockData";
 
 export interface NiveauRecord {
@@ -39,7 +39,7 @@ const niveaux = NIVEAUX as unknown as NiveauRecord[];
 function loadPersisted() {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw) as NiveauRecord[];
     niveaux.splice(0, niveaux.length, ...saved);
@@ -63,6 +63,12 @@ function persist() {
   }
   refreshSnapshot();
   notify();
+}
+
+/** Remplace tous les niveaux (contenu de la base, avec Supabase). */
+export function remplacerNiveaux(records: NiveauRecord[]) {
+  niveaux.splice(0, niveaux.length, ...records);
+  persist();
 }
 
 export function subscribeNiveaux(fn: () => void) {

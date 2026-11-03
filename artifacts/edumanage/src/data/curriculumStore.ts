@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { UES as SEED_UES, ECS as SEED_ECS } from "./mockData";
 import { getFiliereByCode } from "./filiereStore";
 
@@ -86,7 +86,7 @@ function buildFresh(): CurriculumStore {
 
 function load(): CurriculumStore {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<CurriculumStore>;
@@ -127,6 +127,19 @@ if (typeof window !== "undefined") {
 function recalcUeNbEc(ueId: string) {
   const ue = store.ues.find((u) => u.id === ueId);
   if (ue) ue.nbEc = store.ecs.filter((e) => e.ueId === ueId).length;
+}
+
+/** Remplacent UE et EC (contenu de la base, avec Supabase) ; le nombre d'EC de chaque UE est
+ * recompté. */
+export function remplacerUes(records: UeRecord[]) {
+  store.ues = records.map((u) => ({ ...u, nbEc: store.ecs.filter((e) => e.ueId === u.id).length }));
+  persist();
+}
+
+export function remplacerEcs(records: EcRecord[]) {
+  store.ecs = records.slice();
+  store.ues = store.ues.map((u) => ({ ...u, nbEc: store.ecs.filter((e) => e.ueId === u.id).length }));
+  persist();
 }
 
 export function getUes(): UeRecord[] {

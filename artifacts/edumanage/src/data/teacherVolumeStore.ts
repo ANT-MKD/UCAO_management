@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-teacher-volumes-v1";
 
 export interface TeacherCourseVolumeRecord {
@@ -19,7 +19,7 @@ function notify() {
 function load(): TeacherCourseVolumeRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as TeacherCourseVolumeRecord[];
   } catch {
@@ -39,6 +39,12 @@ function persist() {
 export function subscribeTeacherVolumes(fn: () => void) {
   listeners.add(fn);
   return () => listeners.delete(fn);
+}
+
+/** Volumes de la base (avec Supabase), rallonges validées comprises. */
+export function remplacerVolumesEnseignants(records: TeacherCourseVolumeRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getTeacherVolumes(): TeacherCourseVolumeRecord[] {

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import type { BulletinEtudiant } from "./bulletinEngine";
 
 const STORAGE_KEY = "edumanage-resultats-figes-v1";
@@ -18,7 +18,7 @@ const cle = (classeId: string, semestreAlias: string) => `${classeId}|${semestre
 function load(): Record<string, ResultatsSession> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as Record<string, ResultatsSession>) : {};
   } catch {
     return {};
@@ -30,6 +30,38 @@ let store: Record<string, ResultatsSession> = load();
 function persist() {
   store = { ...store };
   if (typeof window !== "undefined") ecrireStockage(STORAGE_KEY, JSON.stringify(store));
+}
+
+/** Bulletin figé d'un étudiant tel que rangé dans la base (table resultats_figes). */
+export interface ResultatFigeLigne {
+  id: string;
+  deliberationId: string;
+  classeId: string;
+  semestreAlias: string;
+  etudiantId: string;
+  figeLe: string;
+  bulletin: BulletinEtudiant;
+}
+
+export function getResultatsFigesLignes(): ResultatFigeLigne[] {
+  return Object.entries(store).flatMap(([c, s]) => {
+    const [classeId, semestreAlias] = c.split("|");
+    return Object.entries(s.bulletins).map(([etudiantId, bulletin]) => ({
+      id: `${c}|${etudiantId}`, deliberationId: s.deliberationId, classeId, semestreAlias, etudiantId, figeLe: s.figeLe, bulletin,
+    }));
+  });
+}
+
+/** Résultats figés de la base (avec Supabase) : tous pour l'administration, les siens pour un
+ * étudiant. */
+export function remplacerResultatsFiges(lignes: ResultatFigeLigne[]) {
+  const nouveau: Record<string, ResultatsSession> = {};
+  for (const l of lignes) {
+    const s = (nouveau[cle(l.classeId, l.semestreAlias)] ??= { deliberationId: l.deliberationId, figeLe: l.figeLe, bulletins: {} });
+    s.bulletins[l.etudiantId] = l.bulletin;
+  }
+  store = nouveau;
+  persist();
 }
 
 export function figerResultats(classeId: string, semestreAlias: string, deliberationId: string, bulletins: Record<string, BulletinEtudiant>): void {

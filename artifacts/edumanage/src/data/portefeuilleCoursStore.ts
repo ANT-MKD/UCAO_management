@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-portefeuille-cours-v1";
 
 export type ActionPortefeuille = "ajout" | "retrait";
@@ -40,7 +40,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { records: parsed.records ?? [] };
@@ -61,6 +61,12 @@ function persist() {
 
 export function getPortefeuilleCours(): PortefeuilleCoursRecord[] {
   return store.records;
+}
+
+/** Portefeuille de la base (avec Supabase), la dernière action en tête (c'est elle qui compte). */
+export function remplacerPortefeuilleCours(records: PortefeuilleCoursRecord[]) {
+  store = { records: [...records].sort((a, b) => b.dateAction.localeCompare(a.dateAction) || b.id.localeCompare(a.id)) };
+  persist();
 }
 
 /** Dernière action pour un (étudiant, classe, EC) — les nouveaux enregistrements sont ajoutés

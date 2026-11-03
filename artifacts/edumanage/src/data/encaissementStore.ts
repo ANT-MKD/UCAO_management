@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-encaissements-v1";
 
 export interface EncaissementLigneDetail {
@@ -42,7 +42,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -69,6 +69,12 @@ export function subscribeEncaissements(fn: () => void) {
 
 export function getEncaissements(): EncaissementRecord[] {
   return store.records;
+}
+
+/** Encaissements de la base (avec Supabase), numérotés par elle. */
+export function remplacerEncaissements(records: EncaissementRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 export function getEncaissementById(id: string): EncaissementRecord | undefined {

@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import { connecter, MDP_ADMIN, MDP_ETUDIANT, MDP_PROF, preparerDonnees } from "./outils";
 
-test.describe("portail professeur", () => {
-  test("note publiée : demande de correction → acceptée par la scolarité → visible par l'étudiante", async ({ page }) => {
-    const d = await preparerDonnees(page);
-    // Examen de Mamadou KANE noté 14 pour Awa SECK, validé et publié.
-    const evaluationId = await page.evaluate(async (a) => {
+/** Examen de Mamadou KANE noté 14 pour Awa SECK, validé et publié ; rend de quoi le retrouver. */
+async function notePubliee(page: Page) {
+  const d = await preparerDonnees(page);
+  const choix = await page.evaluate(async (a) => {
       const S = await import("/src/data/studentStore.ts");
       const Ev = await import("/src/data/evaluationStore.ts");
       const St = await import("/src/data/structureStore.ts");
@@ -24,8 +24,15 @@ test.describe("portail professeur", () => {
       S.submitNotesForValidation(classe.id, a.ecId);
       S.validateNotesByAdmin(classe.id, a.ecId, admin.id);
       S.publishNotesForClasseEc(classe.id, a.ecId);
-      return ev.id;
+      return { evaluationId: ev.id, filiereId: classe.filiereId, niveauId: niveau.id, semestreId: sem.id, professeurId: prof.id };
     }, d);
+  return { ...d, ...choix };
+}
+
+test.describe("portail professeur", () => {
+  test("note publiée : demande de correction → acceptée par la scolarité → visible par l'étudiante", async ({ page }) => {
+    const d = await notePubliee(page);
+    const evaluationId = d.evaluationId;
 
     await connecter(page, "PROF-KANE", MDP_PROF);
     await page.goto(`/teacher/grades?classeId=${d.classeId}&ecId=${d.ecId}`);
@@ -52,5 +59,30 @@ test.describe("portail professeur", () => {
     await expect(page.locator("main")).toContainText("15,50");
     await page.goto("/student/notifications");
     await expect(page.locator("main")).toContainText("Note corrigée");
+  });
+
+  test("saisie de la scolarité : une note publiée se corrige par une demande, comme au portail professeur", async ({ page }) => {
+    const d = await notePubliee(page);
+    await connecter(page, "ADM-TEST", MDP_ADMIN);
+    await page.goto("/admin/notes");
+    await page.getByTestId("saisie-filiere").selectOption(d.filiereId);
+    await page.getByTestId("saisie-annee").selectOption("2025-2026");
+    await page.getByTestId("saisie-niveau").selectOption(d.niveauId);
+    await page.getByTestId("saisie-classe").selectOption(d.classeId);
+    await page.getByTestId("saisie-semestre").selectOption(d.semestreId);
+    await page.getByTestId("saisie-cours").selectOption(d.ecId);
+    await page.getByTestId("saisie-professeur").selectOption(d.professeurId);
+    await page.getByTestId("saisie-evaluation").selectOption(d.evaluationId);
+    await expect(page.getByTestId(`saisie-note-${d.etudiantId}`)).toBeDisabled();
+    await page.getByTestId(`saisie-corriger-${d.etudiantId}`).click();
+    await page.getByTestId("correction-note").fill("12");
+    await page.getByTestId("correction-motif").fill("Barème mal appliqué");
+    await page.getByTestId("correction-envoyer").click();
+    await expect(page.getByTestId(`saisie-correction-attente-${d.etudiantId}`)).toContainText("12");
+    const demandes = page.getByTestId("demandes-correction");
+    await expect(demandes).toContainText("Barème mal appliqué");
+    await demandes.locator('[data-testid^="demande-correction-accepter-"]').click();
+    await expect(page.getByTestId(`saisie-note-${d.etudiantId}`)).toHaveValue(/^12/);
+    await expect(page.getByTestId(`saisie-corriger-${d.etudiantId}`)).toBeVisible();
   });
 });

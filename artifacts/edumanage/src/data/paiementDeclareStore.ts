@@ -1,4 +1,5 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 import { getPaiements, getEtudiants, getUserAccounts, payerQuittance, pushNotificationEtPersister, logAudit, type PaiementRecord } from "./studentStore";
 import { enregistrerEncaissement } from "./encaissementStore";
 
@@ -39,7 +40,7 @@ const listeners = new Set<() => void>();
 function load(): PaiementDeclareRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as PaiementDeclareRecord[];
+    const parsed = JSON.parse(lireStockage(STORAGE_KEY) ?? "[]") as PaiementDeclareRecord[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -59,6 +60,12 @@ export function subscribePaiementsDeclares(fn: () => void) {
 
 export function getPaiementsDeclares(): PaiementDeclareRecord[] {
   return store;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerPaiementsDeclares(records: PaiementDeclareRecord[]) {
+  store = records;
+  persist();
 }
 
 /** Montant déjà déclaré et encore en vérification sur une facture : il ne peut pas être déclaré
@@ -105,13 +112,16 @@ export function declarerPaiement(payload: DeclarerPaiementPayload): PaiementDecl
   };
   store = [record, ...store];
   persist();
-  for (const admin of getUserAccounts().filter((u) => u.role === "admin" && u.actif !== false)) {
+  // Avec Supabase, c'est la base qui prévient la caisse.
+  for (const admin of modeSupabase ? [] : getUserAccounts().filter((u) => u.role === "admin" && u.actif !== false)) {
     pushNotificationEtPersister(admin.id, `Paiement en ligne à vérifier : ${record.etudiantLabel} — ${record.montant.toLocaleString("fr-FR")} F CFA (${record.moyen}, réf. ${record.referenceTransaction}).`);
   }
   return record;
 }
 
+/** Compte de l'étudiant à prévenir sur ce poste (avec Supabase, c'est la base qui le prévient). */
 function compteEtudiant(etudiantId: string) {
+  if (modeSupabase) return undefined;
   return getUserAccounts().find((u) => u.role === "student" && u.linkedId === etudiantId);
 }
 

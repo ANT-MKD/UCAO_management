@@ -6,13 +6,14 @@ import { ShieldAlert } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { AlerteStockage } from "@/components/AlerteStockage";
+import { AlerteServeur } from "@/components/AlerteServeur";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { StudentLayout } from "@/components/layout/StudentLayout";
 import { resolveNavFromLocation } from "@/lib/adminNavConfig";
-import { useRoles } from "@/hooks/useRoleStore";
+import { useRolesAdmin } from "@/hooks/useComptesAdmin";
 import { resolveFeatureIdFromLocation } from "@/data/portalFeaturesStore";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 import "@/data/hydrateStores";
@@ -296,7 +297,7 @@ function AccessDenied({ homeHref = "/admin/dashboard", message }: { homeHref?: s
  * filtrage du sidebar dans AdminLayout, pour ne jamais diverger de ce que montre le menu. */
 function useRoleGuard(): boolean {
   const { currentUser } = useAuth();
-  const roles = useRoles();
+  const roles = useRolesAdmin();
   const [location] = useLocation();
   if (!currentUser?.roleId) return true;
   const role = roles.find((r) => r.id === currentUser.roleId);
@@ -1097,6 +1098,7 @@ function App() {
             <Toaster />
             <SonnerToaster />
             <AlerteStockage />
+            <AlerteServeur />
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>

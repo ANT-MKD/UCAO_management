@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-credit-dette-store-v1";
@@ -32,7 +32,7 @@ export interface CreditDetteRecord {
 function load(): CreditDetteRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as CreditDetteRecord[];
     return Array.isArray(parsed) ? parsed : [];
@@ -63,6 +63,12 @@ export function subscribeCreditDettes(fn: () => void) {
 
 export function getCreditDettes(): CreditDetteRecord[] {
   return store;
+}
+
+/** Dettes de la base (avec Supabase) : toutes pour l'administration, les siennes pour un étudiant. */
+export function remplacerCreditDettes(records: CreditDetteRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getDettesActivesPourEtudiant(etudiantId: string): CreditDetteRecord[] {

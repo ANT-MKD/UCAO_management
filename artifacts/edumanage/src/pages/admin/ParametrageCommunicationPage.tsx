@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { FILIERES, NIVEAUX } from "@/data/mockData";
 import { useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
-import { getUserAccounts } from "@/data/studentStore";
+import { useComptesAdmin } from "@/hooks/useComptesAdmin";
 
 import { useGroupesExternes, useGroupesInternes, useGroupesPersonnalises } from "@/hooks/useCommunicationGroupsStore";
 import {
@@ -27,6 +27,7 @@ import {
 
 import { useCommunicationApiUrl } from "@/hooks/useCommunicationApiConfigStore";
 import { setCommunicationApiUrl } from "@/data/communicationApiConfigStore";
+import { modeSupabase } from "@/lib/supabase";
 
 import { useNotificationsEvenementielles } from "@/hooks/useNotificationEvenementielleStore";
 import { upsertNotificationEvenementielle, type NotificationEvenementielleRecord } from "@/data/notificationEvenementielleStore";
@@ -460,7 +461,7 @@ function UrlApiComTab() {
     <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-semibold text-foreground uppercase tracking-wide">URL API COM</p>
-        {!editing && (
+        {!editing && !modeSupabase && (
           <button onClick={() => { setValue(url); setEditing(true); }} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors" data-testid="api-com-modifier">
             <Pencil size={14} /> Mettre à jour
           </button>
@@ -481,8 +482,10 @@ function UrlApiComTab() {
           <a href={url} target="_blank" rel="noreferrer" className="text-primary hover:underline" data-testid="api-com-url-affichee">{url}</a>
         </div>
       )}
-      <p className="text-xs text-muted-foreground mt-4">
-        Point d'intégration externe (passerelle SMS/email) — aucun envoi réel n'est déclenché par cette application, cette URL est conservée pour une future intégration.
+      <p className="text-xs text-muted-foreground mt-4" data-testid="api-com-note">
+        {modeSupabase
+          ? "Avec la base de données, la passerelle d'envoi (SMS, e-mail) se règlera sur le serveur, ses clés comprises, à la mise en production : elle ne se règle pas depuis un poste et n'y est jamais enregistrée."
+          : "Point d'intégration externe (passerelle SMS/email) — aucun envoi réel n'est déclenché par cette application, cette URL est conservée pour une future intégration."}
       </p>
     </div>
   );
@@ -493,7 +496,8 @@ function UrlApiComTab() {
 function RoleCommunicationTab({ role, titre, colonneLabel, testIdPrefix, avecAction }: { role: RoleCommunication; titre: string; colonneLabel: string; testIdPrefix: string; avecAction?: boolean }) {
   useCommunicationRoles();
   const roles = getCommunicationRolesParType(role);
-  const comptes = useMemo(() => getUserAccounts().filter((u) => u.role === "admin" || u.role === "teacher"), []);
+  const tousLesComptes = useComptesAdmin();
+  const comptes = useMemo(() => tousLesComptes.filter((u) => u.role === "admin" || u.role === "teacher"), [tousLesComptes]);
   const [modalOpen, setModalOpen] = useState(false);
   const [userId, setUserId] = useState("");
   const [remarque, setRemarque] = useState("");

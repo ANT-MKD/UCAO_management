@@ -1,4 +1,5 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 import {
   getGroupesExternes,
   getGroupesInternes,
@@ -55,7 +56,7 @@ let store: MailEnvoyeRecord[] = load();
 function load(): MailEnvoyeRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as MailEnvoyeRecord[];
     return Array.isArray(parsed) ? parsed : [];
@@ -80,6 +81,12 @@ function persist() {
 export function subscribeMailsEnvoyes(fn: () => void) {
   listeners.add(fn);
   return () => listeners.delete(fn);
+}
+
+/** Mails de la base (avec Supabase), lus par l'administration. */
+export function remplacerMailsEnvoyes(records: MailEnvoyeRecord[]) {
+  store = [...records].sort((a, b) => b.date.localeCompare(a.date));
+  persist();
 }
 
 export function getMailsEnvoyes(): MailEnvoyeRecord[] {
@@ -139,6 +146,8 @@ export function resolveDestinataires(selections: SelectionDestinataireMail[]): D
  * communicationApiConfigStore). Les contacts externes / comptes sans lien restent dans le log mais
  * ne reçoivent rien de plus qu'une trace. */
 function notifierDestinataires(mail: MailEnvoyeRecord) {
+  // Avec Supabase, la base dépose elle-même le mail chez chaque destinataire, à son départ.
+  if (modeSupabase) return;
   // Un mail rédigé par un membre de l'administration est déposé dans la messagerie du portail de
   // chaque destinataire (lisible en entier, et il peut y répondre) ; sendMessage le notifie aussi.
   // Les mails système (codes, identifiants) n'ont pas d'expéditeur à qui répondre : notification seule.
@@ -147,7 +156,7 @@ function notifierDestinataires(mail: MailEnvoyeRecord) {
   for (const d of mail.destinataires) {
     if (!d.userId) continue;
     if (auteurAUnCompte && d.userId !== mail.auteurId) sendMessage(mail.auteurId, d.userId, mail.objet, contenu);
-    else pushNotificationEtPersister(d.userId, `Nouveau message : ${mail.objet}`);
+    else pushNotificationEtPersister(d.userId, `Nouveau message : ${mail.objet}`, true);
   }
 }
 
@@ -268,8 +277,10 @@ export function rejeterMail(id: string, validateurId: string, validateurLabel: s
   mail.motifRejet = motif;
   persist();
 
-  pushNotificationEtPersister(mail.auteurId, `Votre mail "${mail.objet}" a été rejeté par ${validateurLabel}${motif ? " — " + motif : ""}.`);
+  // Avec Supabase, la base prévient elle-même l'auteur et les destinataires des alertes.
+  if (modeSupabase) return;
+  pushNotificationEtPersister(mail.auteurId, `Votre mail "${mail.objet}" a été rejeté par ${validateurLabel}${motif ? " — " + motif : ""}.`, true);
   for (const alerte of getCommunicationRolesParType("destinataire_alert")) {
-    pushNotificationEtPersister(alerte.userId, `Mail rejeté : "${mail.objet}" (auteur : ${mail.auteurLabel}, par ${validateurLabel}).`);
+    pushNotificationEtPersister(alerte.userId, `Mail rejeté : "${mail.objet}" (auteur : ${mail.auteurLabel}, par ${validateurLabel}).`, true);
   }
 }

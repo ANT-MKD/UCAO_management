@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 export type PortalWithFeatures = "student" | "teacher";
 
 export interface PortalFeatureItem {
@@ -79,7 +79,7 @@ function load(): FeaturesState {
   const state = defaultState();
   if (typeof window === "undefined") return state;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return state;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     for (const key of Object.keys(state)) {
@@ -119,6 +119,32 @@ export function getPortalFeaturesState(): FeaturesState {
  * après une évolution du catalogue. */
 export function isFeatureActif(featureId: string): boolean {
   return store[featureId] !== false;
+}
+
+/** Pages des portails telles que la base les range (table pages_portails) : une ligne par page du
+ * menu, ouverte ou fermée. */
+export interface PagePortailRecord {
+  id: string;
+  portail: "etudiant" | "enseignant";
+  active: boolean;
+}
+
+export function getPagesPortails(): PagePortailRecord[] {
+  return [...STUDENT_PORTAL_FEATURES, ...TEACHER_PORTAL_FEATURES].map((f) => ({
+    id: f.id,
+    portail: f.id.startsWith("student-") ? "etudiant" : "enseignant",
+    active: store[f.id] !== false,
+  }));
+}
+
+/** Reprend les pages de la base (avec Supabase) ; une page qu'elle ne connaît pas reste ouverte. */
+export function remplacerPagesPortails(pages: { id: string; active?: boolean }[]) {
+  const state = defaultState();
+  for (const p of pages) {
+    if (p.id in state && typeof p.active === "boolean") state[p.id] = p.active;
+  }
+  store = state;
+  persist();
 }
 
 export function setFeatureActif(portal: PortalWithFeatures, featureId: string, actif: boolean): void {

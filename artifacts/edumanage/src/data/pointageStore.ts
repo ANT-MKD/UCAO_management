@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-pointages-v1";
 
 export type PointageStatut = "brouillon" | "soumis" | "valide" | "rejete";
@@ -33,7 +33,7 @@ function notify() {
 function load(): PointageRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as PointageRecord[];
   } catch {
@@ -60,6 +60,12 @@ export function subscribePointages(fn: () => void) {
 
 export function getPointages(): PointageRecord[] {
   return store;
+}
+
+/** Pointages de la base (avec Supabase) : tous pour l'administration, les siens pour un professeur. */
+export function remplacerPointages(records: PointageRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getPointagesForCourse(

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-organismes-pec-v1";
 
 export interface OrganismePECRecord {
@@ -24,7 +24,7 @@ function notify() {
 function load(): OrganismePECRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as OrganismePECRecord[];
   } catch {
@@ -51,6 +51,12 @@ export function subscribeOrganismesPEC(fn: () => void) {
 
 export function getOrganismesPEC(): OrganismePECRecord[] {
   return store;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerOrganismesPEC(records: OrganismePECRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getOrganismePECById(id: string): OrganismePECRecord | undefined {

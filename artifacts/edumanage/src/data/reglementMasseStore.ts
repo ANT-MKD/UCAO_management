@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { enregistrerEncaissementSurPEC, retirerEncaissementSurPEC } from "./priseEnChargeStore";
 
 const STORAGE_KEY = "edumanage-reglements-masse-v1";
@@ -39,7 +39,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -66,6 +66,12 @@ export function subscribeReglementsMasse(fn: () => void) {
 
 export function getReglementsMasse(): ReglementMasseRecord[] {
   return store.records;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerReglementsMasse(records: ReglementMasseRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 export function getReglementMasseById(id: string): ReglementMasseRecord | undefined {

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-derogation-paiement-v1";
 
 export type PorteeDerogation = "reinscription" | "documents" | "global";
@@ -41,7 +41,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -66,6 +66,12 @@ export function subscribeDerogationsPaiement(fn: () => void) {
 
 export function getDerogationsPaiement(): DerogationPaiementRecord[] {
   return store.records;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerDerogationsPaiement(records: DerogationPaiementRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 export type StatutDerogation = "active" | "expiree" | "revoquee";

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { FILIERES, ENSEIGNANTS } from "./mockData";
 import { getEcById } from "./curriculumStore";
 import { getClasseById } from "./structureStore";
@@ -59,7 +59,7 @@ function buildFresh(): EvaluationStore {
 
 function load(): EvaluationStore {
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<EvaluationStore>;
@@ -88,6 +88,12 @@ function persist() {
 
 export function getEvaluations(): EvaluationRecord[] {
   return store.evaluations;
+}
+
+/** Évaluations de la base (avec Supabase) : celles que ce compte lit. */
+export function remplacerEvaluations(records: EvaluationRecord[]) {
+  store.evaluations = records;
+  persist();
 }
 
 export function getEvaluationById(id: string): EvaluationRecord | undefined {

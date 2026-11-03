@@ -7,7 +7,8 @@ import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useDevisList } from "@/hooks/useDevisStore";
 import { marquerDevisConverti } from "@/data/devisStore";
 import { useStudentStore } from "@/hooks/useStudentStore";
-import { registerNewEtudiant, emettreQuittanceBrute, allocateMatricule, type EtudiantRecord } from "@/data/studentStore";
+import { registerNewEtudiant, emettreQuittanceBrute, type EtudiantRecord } from "@/data/studentStore";
+import { ouvrirCompteEtudiant, reserverMatricule } from "@/data/inscriptionEtudiant";
 import { FILIERES } from "@/data/mockData";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, cn } from "@/lib/utils";
@@ -96,17 +97,19 @@ export default function DevisConvertirPage({ id }: { id: string }) {
       ? !!selectedStudent
       : prenom.trim().length > 0 && nom.trim().length > 0 && dateNaissance.trim().length > 0);
 
-  const handleConvertir = () => {
-    if (!canSubmit) return;
+  const [envoi, setEnvoi] = useState(false);
+  const handleConvertir = async () => {
+    if (!canSubmit || envoi) return;
     const lignes = selectedLignes.map((l) => ({ label: l.intitule, montant: l.montantTTC }));
-
+    setEnvoi(true);
     try {
       let etudiant: EtudiantRecord;
+      let nouveau = false;
       if (mode === "recherche" && selectedStudent) {
         etudiant = selectedStudent;
       } else {
-        const filiere = FILIERES.find((f) => f.id === record.filiereId);
-        const matricule = allocateMatricule(filiere?.code ?? "XXX", record.annee);
+        const matricule = await reserverMatricule(record.filiereId, record.annee);
+        nouveau = true;
         etudiant = registerNewEtudiant(
           {
             prenom: prenom.trim(),
@@ -137,9 +140,15 @@ export default function DevisConvertirPage({ id }: { id: string }) {
 
       marquerDevisConverti(record.id, etudiant.id);
       toast.success(`Devis converti — facture de ${formatCFA(totalSelectionne)} émise pour ${etudiant.prenom} ${etudiant.nom}`);
+      if (nouveau) {
+        // Sans mot de passe remis : le compte attend un code PIN de l'administration.
+        await ouvrirCompteEtudiant(etudiant).catch((err) =>
+          toast.error(`Dossier enregistré, mais le compte de connexion n'a pas été ouvert : ${err instanceof Error ? err.message : "serveur injoignable"}.`));
+      }
       setLocation(`/admin/students/${etudiant.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Conversion impossible");
+      setEnvoi(false);
     }
   };
 
@@ -292,7 +301,7 @@ export default function DevisConvertirPage({ id }: { id: string }) {
           </button>
           <button
             onClick={handleConvertir}
-            disabled={!canSubmit}
+            disabled={!canSubmit || envoi}
             className="flex items-center gap-2 flex-1 justify-center py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
             data-testid="devis-convertir-submit"
           >

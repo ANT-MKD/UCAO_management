@@ -2,8 +2,10 @@ import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { usePortalAccess } from "@/hooks/usePortalAccessStore";
-import { setPortalActif, PORTAL_LABELS } from "@/data/portalAccessStore";
+import { usePortailsAdmin } from "@/hooks/useComptesAdmin";
+import { PORTAL_LABELS } from "@/data/portalAccessStore";
+import { definirPortail } from "@/data/comptesAdmin";
+import { modeSupabase } from "@/lib/supabase";
 import { usePortalFeatures } from "@/hooks/usePortalFeaturesStore";
 import { getFeaturesForPortal, isHomeFeature, setFeatureActif, type PortalWithFeatures } from "@/data/portalFeaturesStore";
 import type { UserRole } from "@/data/studentStore";
@@ -35,17 +37,21 @@ function Toggle({ value, onChange, disabled, title, testId }: { value: boolean; 
 }
 
 export default function PortailsPage() {
-  const access = usePortalAccess();
+  const portails = usePortailsAdmin();
   const features = usePortalFeatures();
   const [active, setActive] = useState<UserRole>("student");
+  // Message montré aux comptes refusés pendant la fermeture (enregistré avec Supabase).
+  const [messages, setMessages] = useState<Partial<Record<UserRole, string>>>({});
 
   const current = PORTAILS.find((p) => p.role === active)!;
-  const portailActif = access[current.role];
+  const portailActif = portails.ouverts[current.role];
+  const message = messages[current.role] ?? portails.messages[current.role];
   const featureList = getFeaturesForPortal(current.portal);
 
-  const handleTogglePortail = (actif: boolean) => {
+  const handleTogglePortail = async (actif: boolean) => {
     try {
-      setPortalActif(current.role, actif);
+      await definirPortail(current.role, actif, actif ? "" : message.trim());
+      setMessages((m) => ({ ...m, [current.role]: undefined }));
       toast.success(`Portail ${PORTAL_LABELS[current.role]} ${actif ? "activé" : "désactivé"}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action impossible");
@@ -93,8 +99,29 @@ export default function PortailsPage() {
                 {portailActif ? "Connexion autorisée pour ce portail" : "Connexion bloquée — plus aucun compte de ce portail ne peut se connecter"}
               </p>
             </div>
-            <Toggle value={portailActif} onChange={handleTogglePortail} testId={`portail-toggle-global-${current.role}`} />
+            <Toggle value={portailActif} onChange={(v) => void handleTogglePortail(v)} testId={`portail-toggle-global-${current.role}`} />
           </div>
+
+          {modeSupabase && (
+            <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
+              <label htmlFor="portail-message" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Message affiché aux comptes refusés pendant la fermeture
+              </label>
+              <input
+                id="portail-message"
+                value={message}
+                onChange={(e) => setMessages((m) => ({ ...m, [current.role]: e.target.value }))}
+                disabled={!portailActif}
+                maxLength={500}
+                placeholder="ex : Saisie des notes en cours, réouverture lundi à 8 h"
+                className="w-full px-3 py-2.5 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                data-testid="portail-message"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {portailActif ? "À saisir avant de désactiver le portail." : "Réactivez le portail pour changer le message."}
+              </p>
+            </div>
+          )}
 
           <div className="bg-card border border-border rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-sm)" }}>
             <div className="px-5 py-3 border-b border-border">

@@ -4,12 +4,13 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { NIVEAUX, SEMESTRES } from "@/data/mockData";
-import { useStudentStore } from "@/hooks/useStudentStore";
+import { useStudentStore, useInscriptions, useNotesAnnees } from "@/hooks/useStudentStore";
 import { useAttestations } from "@/hooks/useAttestationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import {
   genererAttestation,
   marquerEnvoyee,
+  reserverNumeroAttestation,
   verifierEligibiliteReussite,
   TYPE_LABELS,
   type AttestationRecord,
@@ -91,6 +92,9 @@ export default function AttestationsPage() {
 
   const [search, setSearch] = useState("");
   const [selectedEtudiantId, setSelectedEtudiantId] = useState("");
+  // Réussite d'une année ancienne : les délibérations de l'étudiant se chargent quand on le choisit.
+  const inscriptionsChoisi = useInscriptions(selectedEtudiantId);
+  useNotesAnnees(...inscriptionsChoisi.map((i) => i.annee));
   const [type, setType] = useState<AttestationType>("scolarite");
   const [semestreId, setSemestreId] = useState("");
   const [preview, setPreview] = useState<AttestationRecord | null>(null);
@@ -125,10 +129,15 @@ export default function AttestationsPage() {
     return true;
   });
 
-  const handleGenerer = () => {
+  const [emission, setEmission] = useState(false);
+
+  const handleGenerer = async () => {
     if (!selectedEtudiant) return;
     const semestre = semestresDisponibles.find((s) => s.id === semestreId);
+    setEmission(true);
     try {
+      // Le numéro vient de la base avec Supabase : jamais deux fois le même, même depuis deux postes.
+      const numero = await reserverNumeroAttestation();
       genererAttestation({
         etudiantId: selectedEtudiant.id,
         etudiant: `${selectedEtudiant.prenom} ${selectedEtudiant.nom}`,
@@ -143,13 +152,15 @@ export default function AttestationsPage() {
         semestreId: type === "reussite" ? semestreId : undefined,
         semestreLabel: type === "reussite" ? `${semestre?.nom} (${semestre?.alias})` : undefined,
         effectuePar: currentUser?.name ?? "Administration",
-      });
+      }, numero);
       toast.success(`${TYPE_LABELS[type]} générée pour ${selectedEtudiant.prenom} ${selectedEtudiant.nom}`);
       setSelectedEtudiantId("");
       setSearch("");
       setSemestreId("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Génération impossible");
+    } finally {
+      setEmission(false);
     }
   };
 
@@ -257,8 +268,8 @@ export default function AttestationsPage() {
           )}
 
           <button
-            onClick={handleGenerer}
-            disabled={!peutGenerer}
+            onClick={() => void handleGenerer()}
+            disabled={!peutGenerer || emission}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             data-testid="attestation-generer"
           >

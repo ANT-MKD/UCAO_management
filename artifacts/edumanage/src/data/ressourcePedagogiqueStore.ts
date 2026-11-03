@@ -1,4 +1,5 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
+import { modeSupabase } from "@/lib/supabase";
 import { getEtudiants, getUserAccounts, logAudit, pushNotificationEtPersister } from "./studentStore";
 
 export const TAILLE_MAX_RESSOURCE_OCTETS = 800 * 1024;
@@ -34,7 +35,7 @@ function notify() {
 function load(): RessourcePedagogiqueRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as RessourcePedagogiqueRecord[];
   } catch {
@@ -67,6 +68,12 @@ export function getRessourcesPedagogiques(): RessourcePedagogiqueRecord[] {
   return store;
 }
 
+/** Ressources de la base (avec Supabase) : celles des classes que ce compte peut lire. */
+export function remplacerRessourcesPedagogiques(records: RessourcePedagogiqueRecord[]) {
+  store = records;
+  persist();
+}
+
 export function getRessourcesPourClasse(classeId: string): RessourcePedagogiqueRecord[] {
   if (!parClasseCache.has(classeId)) {
     const sorted = store.filter((r) => r.classeId === classeId).sort((a, b) => b.ajouteLe.localeCompare(a.ajouteLe));
@@ -87,7 +94,8 @@ export function addRessourcePedagogique(payload: RessourcePedagogiqueInput, acto
   store.unshift(record);
   logAudit(actorId, "add_ressource_pedagogique", "classe", payload.classeId, payload.titre);
   persist();
-  // Les étudiants de la classe sont prévenus du nouveau support.
+  // Les étudiants de la classe sont prévenus du nouveau support (avec Supabase, par la base).
+  if (modeSupabase) return record;
   const etudiants = new Set(getEtudiants().filter((e) => e.classeId === payload.classeId && e.statut !== "abandon").map((e) => e.id));
   for (const compte of getUserAccounts().filter((u) => u.role === "student" && u.linkedId && etudiants.has(u.linkedId))) {
     pushNotificationEtPersister(compte.id, `Nouvelle ressource pédagogique${payload.ec ? ` en ${payload.ec}` : ""} : « ${payload.titre} ».`);

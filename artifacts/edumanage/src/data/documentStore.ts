@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type DocumentEntiteType = "etudiant" | "enseignant";
@@ -26,7 +26,7 @@ function notify() {
 function load(): DocumentRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as DocumentRecord[];
   } catch {
@@ -51,6 +51,12 @@ export function subscribeDocuments(fn: () => void) {
 
 export function getDocuments(): DocumentRecord[] {
   return store;
+}
+
+/** Documents de la base (avec Supabase), lus par l'administration. */
+export function remplacerDocuments(records: DocumentRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getDocumentsPourEntite(entiteType: DocumentEntiteType, entiteId: string): DocumentRecord[] {

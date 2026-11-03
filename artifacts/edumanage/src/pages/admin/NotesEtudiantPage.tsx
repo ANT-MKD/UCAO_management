@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { DataTable, Column } from "@/components/admin/DataTable";
-import { useStudentStore, useNotes } from "@/hooks/useStudentStore";
+import { useStudentStore, useNotes, useInscriptions, useNotesAnnees } from "@/hooks/useStudentStore";
 import { deleteNote, noteOfficielle, type EtudiantRecord, type NoteRecord } from "@/data/studentStore";
 import { FormModal } from "@/components/admin/FormModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,6 +56,9 @@ export default function NotesEtudiantPage() {
   const [etudiantId, setEtudiantId] = useState(() => new URLSearchParams(searchStr).get("etudiant") ?? "");
 
   const etudiant = etudiants.find((e) => e.id === etudiantId);
+  // Toutes les années de l'étudiant, un ancien étudiant compris : ses notes se chargent à l'ouverture.
+  const inscriptionsEtudiant = useInscriptions(etudiantId);
+  useNotesAnnees(...inscriptionsEtudiant.map((i) => i.annee));
 
   const suggestions = searchQuery.trim().length > 0 && !etudiantId
     ? etudiants.filter((e) => {

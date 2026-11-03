@@ -11,7 +11,7 @@ import { useTeacherRates } from "@/hooks/useTeacherRateStore";
 import { useTeacherVolumes } from "@/hooks/useTeacherVolumeStore";
 import { makeTeacherRateId, type ModePaiementProf } from "@/data/teacherRateStore";
 import { makeTeacherVolumeId } from "@/data/teacherVolumeStore";
-import { addTeacherContract } from "@/data/teacherContractStore";
+import { addTeacherContract, reserverNumeroContrat } from "@/data/teacherContractStore";
 import { buildTeacherCourses } from "@/lib/teacherCourseUtils";
 import { filterTeachers, teacherDisplayLabel, type EnseignantRecord } from "@/lib/teacherUtils";
 import { formatCFA, cn } from "@/lib/utils";
@@ -124,7 +124,9 @@ export default function TeacherContractFormPage() {
     setShowSuggestions(false);
   };
 
-  const handleSubmit = () => {
+  const [enregistrement, setEnregistrement] = useState(false);
+
+  const handleSubmit = async () => {
     if (!selected) {
       toast.error("Sélectionnez un professeur");
       return;
@@ -150,13 +152,23 @@ export default function TeacherContractFormPage() {
       return;
     }
 
+    // Le numéro vient de la base avec Supabase : jamais deux fois le même, même depuis deux postes.
+    setEnregistrement(true);
+    let numero: string;
+    try {
+      numero = await reserverNumeroContrat();
+    } catch (e) {
+      toast.error((e as Error).message);
+      setEnregistrement(false);
+      return;
+    }
     const contract = addTeacherContract({
       teacherId: selected.id,
       annee: anneeScolaire,
       dateDebut,
       dateFin,
       lignes,
-    });
+    }, numero);
 
     toast.success(`Contrat ${contract.id} créé`);
     setLocation("/admin/teachers/contracts");
@@ -297,8 +309,9 @@ export default function TeacherContractFormPage() {
           <div className="flex justify-end px-5 py-4 border-t border-border">
             <button
               type="button"
-              onClick={handleSubmit}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+              onClick={() => void handleSubmit()}
+              disabled={enregistrement}
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
               <Save size={15} /> Créer le contrat
             </button>

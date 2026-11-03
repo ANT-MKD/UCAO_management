@@ -61,4 +61,16 @@ begin
   raise exception 'ÉCHEC : % — l''instruction a été acceptée', p_message;
 end $$;
 
+-- Nombre de lignes touchées par une instruction, sous les règles d'accès du compte connecté (ex.
+-- fichiers effectivement retirés).
+create or replace function tests.lignes(p_sql text) returns bigint
+language plpgsql as $$
+declare
+  v_lignes bigint;
+begin
+  execute p_sql;
+  get diagnostics v_lignes = row_count;
+  return v_lignes;
+end $$;
+
 grant execute on all functions in schema tests to anon, authenticated, service_role;

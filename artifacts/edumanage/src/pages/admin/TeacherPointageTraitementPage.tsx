@@ -12,6 +12,7 @@ import { updatePointageStatut, type PointageRecord, type PointageStatut } from "
 import { usePointages } from "@/hooks/usePointageStore";
 import { useAnneesAcademiques } from "@/hooks/useStudentStore";
 import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
+import { modeSupabase } from "@/lib/supabase";
 import { useEcs, useUes } from "@/hooks/useCurriculumStore";
 import { useClasses, useSalles } from "@/hooks/useStructureStore";
 import {
@@ -167,10 +168,11 @@ export default function TeacherPointageTraitementPage() {
   const pendingCount = pointages.filter((p) => p.statut === "soumis").length;
   const hasActiveRefinement = hasAnyCriterion(applied) || quickSearch.trim() !== "";
 
-  /** Le professeur apprend sur son portail que son pointage est validé ou rejeté (avec le motif). */
+  /** Le professeur apprend sur son portail que son pointage est validé ou rejeté (avec le motif) ;
+   * avec Supabase, c'est la base qui le prévient. */
   const notifierProfesseur = (id: string, message: (p: PointageRecord, date: string) => string) => {
     const p = pointages.find((x) => x.id === id);
-    if (!p) return;
+    if (!p || modeSupabase) return;
     const compte = getUserAccounts().find((u) => u.role === "teacher" && u.linkedId === p.teacherId);
     if (compte) pushNotificationEtPersister(compte.id, message(p, p.date.slice(0, 10).split("-").reverse().join("/")));
   };

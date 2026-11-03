@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { relancerQuittances, reporterEcheanceQuittances } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-rappel-paiement-v1";
@@ -33,7 +33,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -58,6 +58,12 @@ export function subscribeRappelsPaiement(fn: () => void) {
 
 export function getRappelsPaiement(): RappelPaiementRecord[] {
   return store.records;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerRappelsPaiement(records: RappelPaiementRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 /** Cherche un rappel déjà envoyé pour exactement la même cohorte et le même seuil d'échéance — utilisé pour

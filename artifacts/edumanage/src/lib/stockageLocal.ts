@@ -1,7 +1,135 @@
-/** Toutes les données d'EduManage vivent dans le stockage du navigateur (localStorage), limité à
- * environ 5 millions de caractères pour tout le site. Une fois plein, chaque enregistrement échoue :
- * sans ce module, l'échec passait inaperçu et tout ce qui était saisi ensuite était perdu au
- * rechargement. Ici, chaque écriture est surveillée et un échec est signalé à l'écran. */
+import { modeSupabase } from "@/lib/supabase";
+
+/** Sans base de données, toutes les données d'EduManage vivent dans le stockage du navigateur
+ * (localStorage), limité à environ 5 millions de caractères pour tout le site. Une fois plein,
+ * chaque enregistrement échoue : sans ce module, l'échec passait inaperçu et tout ce qui était
+ * saisi ensuite était perdu au rechargement. Ici, chaque écriture est surveillée et un échec est
+ * signalé à l'écran.
+ *
+ * Avec la base de données (partie 9), plus aucune donnée n'est écrite dans le navigateur : les
+ * stores gardent la leur en mémoire, le temps de la page, et la base en reste la seule copie.
+ * Ne restent sur le poste que le thème, la session (tenue par Supabase), deux préférences
+ * d'affichage sans donnée personnelle et, jusqu'à sa reprise, la sauvegarde d'avant la base. */
+
+/** Données de ce poste d'avant la base, mises de côté une fois pour la reprise. */
+export const CLE_SAUVEGARDE = "edumanage-sauvegarde-avant-supabase-v1";
+/** Ce que le poste garde avec la base : thème, sauvegarde, préférences d'affichage. */
+const CLES_DU_POSTE = new Set(["edumanage-theme", CLE_SAUVEGARDE, "edumanage-fiche-inscription-filiere-defaut"]);
+const PREFIXES_DU_POSTE = ["edumanage-requests-lastseen-"];
+/** Session de l'ancienne connexion sans base : sans objet avec Supabase, effacée sans être gardée. */
+const ANCIENNE_SESSION = "edumanage-auth-session";
+
+/** Vrai pour une clé que le poste garde même avec la base (thème, préférences, sauvegarde). */
+export function cleDuPoste(cle: string): boolean {
+  return CLES_DU_POSTE.has(cle) || PREFIXES_DU_POSTE.some((p) => cle.startsWith(p));
+}
+
+/** Avec la base : contenu des stores, en mémoire seulement. */
+const memoire = new Map<string, string>();
+const enMemoire = (cle: string) => modeSupabase && !cleDuPoste(cle);
+
+/** Lit une valeur enregistrée (null si absente). Avec la base, une donnée n'est lue qu'en mémoire :
+ * ce que le navigateur aurait gardé d'une session précédente n'est jamais relu. */
+export function lireStockage(cle: string): string | null {
+  if (typeof window === "undefined") return null;
+  if (enMemoire(cle)) return memoire.get(cle) ?? null;
+  try {
+    return localStorage.getItem(cle);
+  } catch {
+    return null;
+  }
+}
+
+/** Retire une valeur enregistrée. */
+export function retirerStockage(cle: string): void {
+  if (typeof window === "undefined") return;
+  if (enMemoire(cle)) {
+    memoire.delete(cle);
+    return;
+  }
+  try {
+    localStorage.removeItem(cle);
+  } catch {
+    // stockage indisponible : rien à retirer
+  }
+}
+
+interface Sauvegarde {
+  le: string;
+  donnees: Record<string, string | null>;
+}
+
+/** Lit la sauvegarde d'avant la base laissée sur ce poste (null s'il n'y en a pas). */
+export function lireSauvegarde(): Sauvegarde | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const lu = JSON.parse(localStorage.getItem(CLE_SAUVEGARDE) ?? "null") as Sauvegarde | null;
+    return lu && typeof lu === "object" && lu.donnees && typeof lu.donnees === "object" ? lu : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Avec la base, au chargement de la page : les données que le navigateur garde encore (usage sans
+ * base, ou copies écrites par une version précédente) sont mises de côté une fois dans la
+ * sauvegarde, pour la reprise, puis effacées. Une clé déjà mise de côté ne contient plus qu'une
+ * copie de la base : elle est effacée d'abord, ce qui libère la place de la sauvegarde. Si la
+ * sauvegarde ne peut pas s'écrire (stockage plein), rien n'est effacé de ce qui n'y est pas encore :
+ * la reprise le lira là où il est. */
+export function mettreDeCoteLesDonneesDuPoste(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const cles: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const cle = localStorage.key(i);
+      if (cle && cle.startsWith("edumanage-") && !cleDuPoste(cle)) cles.push(cle);
+    }
+    if (cles.length === 0) return;
+    const sauvegarde = lireSauvegarde() ?? { le: new Date().toISOString(), donnees: {} };
+    const nouvelles = cles.filter((cle) => cle !== ANCIENNE_SESSION && !(cle in sauvegarde.donnees));
+    cles.filter((cle) => !nouvelles.includes(cle)).forEach((cle) => localStorage.removeItem(cle));
+    if (nouvelles.length === 0) return;
+    for (const cle of nouvelles) sauvegarde.donnees[cle] = localStorage.getItem(cle);
+    localStorage.setItem(CLE_SAUVEGARDE, JSON.stringify(sauvegarde));
+    nouvelles.forEach((cle) => localStorage.removeItem(cle));
+  } catch (err) {
+    console.error("[EduManage] Données du poste non mises de côté :", err);
+  }
+}
+
+if (typeof window !== "undefined" && modeSupabase) mettreDeCoteLesDonneesDuPoste();
+
+/** Mode « reprise » (partie 9, lot 3) : la page est ouverte avec ?reprise=poste. Les stores se
+ * remplissent alors avec les données de ce poste d'avant la base (la sauvegarde, et ce qui serait
+ * resté en place si elle n'avait pu s'écrire), jamais avec la base : c'est ce qui part à la reprise.
+ * Rien n'est écrit dans le navigateur pour autant. */
+export const modeReprise = typeof window !== "undefined" && modeSupabase
+  && new URLSearchParams(window.location.search).get("reprise") === "poste";
+
+function chargerDonneesDuPoste(): void {
+  for (const [cle, valeur] of Object.entries(lireSauvegarde()?.donnees ?? {})) {
+    if (typeof valeur === "string" && !cleDuPoste(cle)) memoire.set(cle, valeur);
+  }
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const cle = localStorage.key(i);
+      if (cle && cle.startsWith("edumanage-") && !cleDuPoste(cle) && !memoire.has(cle)) memoire.set(cle, localStorage.getItem(cle) ?? "");
+    }
+  } catch {
+    // stockage illisible : la sauvegarde suffit
+  }
+}
+
+if (modeReprise) chargerDonneesDuPoste();
+
+/** Efface la sauvegarde de ce poste (après la reprise, ou si l'administration y renonce). */
+export function effacerSauvegarde(): void {
+  try {
+    localStorage.removeItem(CLE_SAUVEGARDE);
+  } catch {
+    // rien à effacer
+  }
+}
 
 /** Capacité usuelle du stockage d'un site (Chrome, Edge, Firefox), en caractères. */
 export const CAPACITE_STOCKAGE = 5_000_000;
@@ -10,11 +138,29 @@ const MARGE_STOCKAGE = 250_000;
 
 export const EVENEMENT_STOCKAGE_PLEIN = "edumanage:stockage-plein";
 
-/** Écrit une valeur ; en cas d'échec (stockage plein), prévient l'écran au lieu d'échouer en silence. */
+type ObservateurEcriture = (cle: string) => void;
+const observateurs = new Set<ObservateurEcriture>();
+
+/** Prévient à chaque enregistrement réussi d'une clé (le miroir Supabase y envoie les modifications). */
+export function observerEcritures(fn: ObservateurEcriture): () => void {
+  observateurs.add(fn);
+  return () => {
+    observateurs.delete(fn);
+  };
+}
+
+/** Écrit une valeur (avec la base : en mémoire) ; en cas d'échec (stockage plein), prévient l'écran
+ * au lieu d'échouer en silence. */
 export function ecrireStockage(cle: string, valeur: string): boolean {
   if (typeof window === "undefined") return false;
+  if (enMemoire(cle)) {
+    memoire.set(cle, valeur);
+    observateurs.forEach((fn) => fn(cle));
+    return true;
+  }
   try {
     localStorage.setItem(cle, valeur);
+    observateurs.forEach((fn) => fn(cle));
     return true;
   } catch (err) {
     console.error(`[EduManage] Enregistrement impossible (${cle}) :`, err);
@@ -42,7 +188,10 @@ export function pourcentageStockage(): number {
   return Math.min(100, Math.round((stockageUtilise() / CAPACITE_STOCKAGE) * 100));
 }
 
+/** Avec la base, un fichier part dans l'espace de fichiers du serveur : le navigateur ne le garde
+ * pas, sa place n'y compte donc pas (la taille de chaque espace reste limitée par la base). */
 function placeDisponible(): number {
+  if (modeSupabase) return Number.POSITIVE_INFINITY;
   return CAPACITE_STOCKAGE - MARGE_STOCKAGE - stockageUtilise();
 }
 
@@ -86,6 +235,19 @@ function lireBrut(file: File): Promise<string> {
     reader.onerror = () => reject(new Error("Fichier illisible."));
     reader.readAsDataURL(file);
   });
+}
+
+/** Ouvre dans un nouvel onglet un fichier enregistré : son contenu (choisi sur ce poste) ou son lien
+ * signé dans l'espace de fichiers privé. */
+export function ouvrirFichier(fichier: string): void {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  if (!fichier.startsWith("data:") || fichier.startsWith("data:application/pdf")) {
+    win.location.href = fichier;
+  } else {
+    win.document.write(`<!DOCTYPE html><html><body style="margin:0"><img src="${fichier}" style="max-width:100%" /></body></html>`);
+    win.document.close();
+  }
 }
 
 /** Prépare un fichier avant de l'enregistrer : les photos sont réduites et recompressées (une photo

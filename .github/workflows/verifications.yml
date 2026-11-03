@@ -84,3 +84,10 @@ jobs:
 
       - name: Migrations et tests de la base
         run: supabase/tests/lancer.sh
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+
+      - name: Fonction serveur « reprise » sur la base
+        run: supabase/tests/lancer-fonctions.sh

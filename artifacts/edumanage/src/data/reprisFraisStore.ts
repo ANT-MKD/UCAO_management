@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { ajouterFraisEtudiant } from "./fraisEtudiantStore";
 
 const STORAGE_KEY = "edumanage-reprise-frais-v1";
@@ -27,7 +27,7 @@ function notify() {
 function load(): ReprisFraisLigne[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as ReprisFraisLigne[];
   } catch {
@@ -52,6 +52,12 @@ export function subscribeReprisFrais(fn: () => void) {
 
 export function getReprisFrais(): ReprisFraisLigne[] {
   return store;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerReprisFrais(records: ReprisFraisLigne[]) {
+  store = records;
+  persist();
 }
 
 /** Codes déjà importés (quel que soit leur statut) — utilisé pour avertir d'un ré-import du même fichier. */

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-signature-config-v1";
@@ -39,7 +39,7 @@ function load(): SignatureState {
   const state = defaultState();
   if (typeof window === "undefined") return state;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return state;
     const parsed = JSON.parse(raw) as Partial<SignatureState>;
     (Object.keys(state) as SignatureDocType[]).forEach((key) => {
@@ -80,6 +80,23 @@ export function getSignatureConfigState(): SignatureState {
  * document imprime simplement une ligne de signature vide comme avant. */
 export function getSignatureConfig(docType: SignatureDocType): SignatureConfig {
   return store[docType];
+}
+
+/** Signataires tels que la base les range (table signatures_documents) : une ligne par document.
+ * L'image de la signature reste dans le navigateur jusqu'au stockage des fichiers (partie 4). */
+export type SignatureDocumentRecord = SignatureConfig & { id: SignatureDocType };
+
+export function getSignaturesDocuments(): SignatureDocumentRecord[] {
+  return (Object.keys(store) as SignatureDocType[]).map((id) => ({ id, ...store[id] }));
+}
+
+export function remplacerSignaturesDocuments(lignes: SignatureDocumentRecord[]) {
+  const state = defaultState();
+  for (const { id, ...config } of lignes) {
+    if (id in state) state[id] = { ...state[id], ...config };
+  }
+  store = state;
+  persist();
 }
 
 export function setSignatureConfig(docType: SignatureDocType, config: SignatureConfig, actorId: string): void {

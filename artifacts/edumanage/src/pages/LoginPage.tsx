@@ -13,7 +13,9 @@ import { DISPLAY, MONO } from "@/components/site/Decor";
 import { cn } from "@/lib/utils";
 import { signalerDemandeReinitialisation, verifierEtConsommerPin } from "@/data/pinActivationStore";
 import { isPasswordValid, PASSWORD_HINT } from "@/lib/passwordPolicy";
-import { modeSupabase, supabase } from "@/lib/supabase";
+import { modeSupabase } from "@/lib/supabase";
+import { attendreEnvois } from "@/lib/miroirServeur";
+import { getEtablissement, updateEtablissement } from "@/data/etablissementStore";
 import { demanderCodeServeur, installationFaiteServeur, reinitialiserServeur } from "@/lib/comptesServeur";
 
 /** Avec Supabase, on se connecte par matricule ou identifiant uniquement (l'adresse de connexion
@@ -187,8 +189,12 @@ export default function LoginPage() {
           onInstalled={async (identifiant, motDePasse, adresse) => {
             try {
               await login(identifiant, motDePasse);
-              // La ville de l'établissement, que l'installation sur le serveur ne reçoit pas.
-              if (supabase && adresse.trim()) await supabase.from("etablissement").update({ adresse: adresse.trim() }).eq("id", 1);
+              // La ville de l'établissement, que l'installation sur le serveur ne reçoit pas : elle
+              // part vers la base comme toute modification de l'identité.
+              if (modeSupabase && adresse.trim()) {
+                updateEtablissement({ ...getEtablissement(), adresse: adresse.trim() }, "installation");
+                await attendreEnvois();
+              }
               toast.success("EduManage est installé. Bienvenue !");
               setLocation("/admin/dashboard");
             } catch {

@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 const STORAGE_KEY = "edumanage-absence-periode-v1";
 
 /** Absence déclarée sur une plage de dates (maladie, sortie scolaire, congé autorisé) plutôt
@@ -43,7 +43,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [] };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [] };
     const parsed = JSON.parse(raw) as Partial<Persisted>;
     return { records: parsed.records ?? [] };
@@ -64,6 +64,12 @@ function persist() {
 
 export function getAbsencesPeriode(): AbsencePeriodeRecord[] {
   return store.records;
+}
+
+/** Absences déclarées de la base (avec Supabase), les plus récentes d'abord. */
+export function remplacerAbsencesPeriode(records: AbsencePeriodeRecord[]) {
+  store = { records: [...records].sort((a, b) => b.dateDeclaration.localeCompare(a.dateDeclaration) || b.id.localeCompare(a.id)) };
+  persist();
 }
 
 /** Déclaration de période qui couvre une date donnée pour un étudiant — utilisée par Les

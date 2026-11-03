@@ -1,4 +1,5 @@
 import { aAccesComplet, logAudit, resetOperationalData, verifierMotDePasseCompte } from "@/data/studentStore";
+import { modeSupabase } from "@/lib/supabase";
 
 /** Clés localStorage explicitement conservées lors d'une réinitialisation : uniquement ce qui
  * est édité depuis l'une des 6 pages « Paramétrage X » (académique, finances, scolarité, emploi
@@ -45,6 +46,8 @@ const KEEP_KEYS = new Set([
  * qui mutent un tableau mockData.ts en place (filiereStore, teacherStore...) — se réinitialisent
  * proprement depuis un localStorage nettoyé. */
 export function resetTestData(keepUserId: string, motDePasse: string) {
+  // Avec la base, le navigateur ne garde aucune donnée : il n'y a rien à vider sur ce poste.
+  if (modeSupabase) throw new Error("Avec la base de données, ce navigateur ne garde aucune donnée à vider.");
   // Tout l'établissement est effacé : réservé à un administrateur à accès complet, qui confirme
   // avec son propre mot de passe (une session laissée ouverte ne suffit pas).
   if (!aAccesComplet(keepUserId)) throw new Error("La réinitialisation est réservée aux administrateurs à accès complet.");

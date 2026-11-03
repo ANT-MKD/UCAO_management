@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getEtudiantById, getEtudiants, logAudit } from "./studentStore";
 import { getRelanceActivePour, relanceEstExpiree } from "./relancePaiementStore";
 import { trouverDerogationIdentique } from "./derogationPaiementStore";
@@ -31,7 +31,7 @@ export interface MotifBlocageRecord {
 function load(): MotifBlocageRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as MotifBlocageRecord[];
     return Array.isArray(parsed) ? parsed : [];
@@ -66,6 +66,12 @@ export function getMotifsBlocage(): MotifBlocageRecord[] {
 
 export function getMotifBlocageById(id: string): MotifBlocageRecord | undefined {
   return store.find((m) => m.id === id);
+}
+
+/** Remplace tous les motifs (contenu de la base, avec Supabase). */
+export function remplacerMotifsBlocage(records: MotifBlocageRecord[]) {
+  store = records;
+  persist();
 }
 
 export interface MotifBlocagePayload {

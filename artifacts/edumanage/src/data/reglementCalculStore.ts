@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getScolariteConfigs } from "./scolariteConfigStore";
 import { getAnneeActuelle, isAnneeCloturee, logAudit } from "./studentStore";
 import { FILIERES } from "./mockData";
@@ -21,6 +21,9 @@ export interface ReglementCalcul {
   creeLe: string;
   modifiePar?: string;
   modifieLe?: string;
+  /** Dernier enregistrement : retour au contenu de cette ancienne version (la base l'inscrit
+   * comme un retour dans l'historique). */
+  depuisVersion?: number;
 }
 
 /** Une version d'un règlement : son contenu juste après l'action, qui l'a faite et quand. Chaque
@@ -69,7 +72,7 @@ function migrerFormulesDeFiliere(): ReglementCalcul[] {
 function load(): ReglementCalcul[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (raw === null) return migrerFormulesDeFiliere();
     const parsed = JSON.parse(raw) as ReglementCalcul[];
     return Array.isArray(parsed) ? parsed : [];
@@ -83,7 +86,7 @@ let store: ReglementCalcul[] = load();
 function loadHistorique(): VersionReglement[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORIQUE) ?? "[]") as VersionReglement[];
+    const parsed = JSON.parse(lireStockage(STORAGE_KEY_HISTORIQUE) ?? "[]") as VersionReglement[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -128,6 +131,18 @@ export function getHistoriqueReglement(reglementId: string): VersionReglement[] 
 
 export function getHistorique(): VersionReglement[] {
   return historique;
+}
+
+/** Règlements de la base (avec Supabase). */
+export function remplacerReglements(records: ReglementCalcul[]) {
+  store = records;
+  persist();
+}
+
+/** Historique tenu par la base (avec Supabase) : elle seule y ajoute les versions. */
+export function remplacerHistorique(versions: VersionReglement[]) {
+  historique = versions;
+  persist();
 }
 
 /** Règlements supprimés d'une année : leur dernière version (celle de la suppression). */
@@ -247,10 +262,10 @@ export function enregistrerReglement(payload: ReglementPayload, id: string | und
   const derniere = existant ? getHistoriqueReglement(existant.id)[0] : undefined;
   let reglement: ReglementCalcul;
   if (existant) {
-    reglement = { ...existant, ...propre, modifiePar: par, modifieLe: maintenant };
+    reglement = { ...existant, ...propre, modifiePar: par, modifieLe: maintenant, depuisVersion: options.depuisVersion };
     store = store.map((r) => (r.id === id ? reglement : r));
   } else {
-    reglement = { id: recree ? id! : `reglement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...propre, creePar: par, creeLe: maintenant };
+    reglement = { id: recree ? id! : `reglement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...propre, creePar: par, creeLe: maintenant, depuisVersion: options.depuisVersion };
     store = [...store, reglement];
   }
   // Un enregistrement sans aucun changement n'ajoute pas de version.

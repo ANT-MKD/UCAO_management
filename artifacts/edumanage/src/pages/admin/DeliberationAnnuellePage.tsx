@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, Column } from "@/components/admin/DataTable";
 import { FILIERES, NIVEAUX, SEMESTRES } from "@/data/mockData";
-import { useStudentStore, useAnneesAcademiques } from "@/hooks/useStudentStore";
+import { useStudentStore, useAnneesAcademiques, useNotesAnnees } from "@/hooks/useStudentStore";
 import { useClasses } from "@/hooks/useStructureStore";
 import { useReglesValidation } from "@/hooks/useReglesValidationStore";
 import { useNiveaux } from "@/hooks/useNiveauStore";
@@ -114,14 +114,16 @@ export default function DeliberationAnnuellePage() {
   const [mode, setMode] = useState<"liste" | "form" | "detail">("liste");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // Une année ancienne (étudiants tous partis) : ses délibérations se chargent quand on la choisit.
+  const [anneeFiltre, setAnneeFiltre] = useState("");
+  useNotesAnnees(anneeFiltre);
   const [editingEtudiantId, setEditingEtudiantId] = useState<string | null>(null);
   const [drillDownEtudiantId, setDrillDownEtudiantId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return deliberations;
-    return deliberations.filter((d) => `${d.classe} ${d.effectuePar}`.toLowerCase().includes(q));
-  }, [deliberations, search]);
+    return deliberations.filter((d) => (!anneeFiltre || d.annee === anneeFiltre) && (!q || `${d.classe} ${d.effectuePar}`.toLowerCase().includes(q)));
+  }, [deliberations, search, anneeFiltre]);
 
   const open = (id: string) => { setActiveId(id); setMode("detail"); };
 
@@ -171,8 +173,12 @@ export default function DeliberationAnnuellePage() {
 
       {mode === "liste" && (
         <>
-          <div className="mb-4 max-w-sm">
-            <input aria-label="Classe, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, utilisateur..." className={inputClass} />
+          <div className="mb-4 flex flex-wrap gap-2">
+            <input aria-label="Classe, utilisateur" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Classe, utilisateur..." className={cn(inputClass, "max-w-sm")} />
+            <select aria-label="Année académique" value={anneeFiltre} onChange={(e) => setAnneeFiltre(e.target.value)} className={cn(inputClass, "max-w-[11rem]")} data-testid="deliberation-annuelle-annee-filtre">
+              <option value="">Toutes les années</option>
+              {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}</option>)}
+            </select>
           </div>
           <DataTable columns={columns} data={filtered as unknown as Record<string, unknown>[]} emptyMessage="Aucune délibération annuelle — lancez-en une nouvelle." />
         </>
@@ -227,6 +233,7 @@ interface FormProps {
 function NouvelleDeliberationAnnuelleForm({ annees, classes, niveaux, etudiants, reglesValidation, auteur, onCharge }: FormProps) {
   const [filiereId, setFiliereId] = useState("");
   const [annee, setAnnee] = useState("");
+  useNotesAnnees(annee);
   const [niveauId, setNiveauId] = useState("");
   const [classeId, setClasseId] = useState("");
 

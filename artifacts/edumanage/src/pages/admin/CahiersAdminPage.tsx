@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Check, X, NotebookPen, Search } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCahiers } from "@/hooks/useStudentStore";
+import { useAnneesAcademiques, useCahiers, useCahiersAnnee } from "@/hooks/useStudentStore";
 import { validateCahier } from "@/data/studentStore";
 import { toast } from "sonner";
 import { cn, formatShortDate } from "@/lib/utils";
@@ -27,6 +27,10 @@ export default function CahiersAdminPage() {
   const [filiereFilter, setFiliereFilter] = useState("");
   const [dateDebut, setDateDebut] = useState("");
   const [dateFin, setDateFin] = useState("");
+  const [anneeFilter, setAnneeFilter] = useState("");
+  const annees = useAnneesAcademiques();
+  // Une année passée choisie : ses cahiers sont chargés depuis la base.
+  useCahiersAnnee(anneeFilter || undefined);
 
   // Dimensions du filtre avancé — toujours dérivées des cahiers réellement soumis, jamais
   // d'une liste fabriquée : une classe/prof/filière n'apparaît que si un cahier existe déjà.
@@ -36,16 +40,17 @@ export default function CahiersAdminPage() {
 
   const list = useMemo(() => {
     let l = filtre === "tous" ? cahiers : cahiers.filter((c) => c.statut === filtre);
+    if (anneeFilter) l = l.filter((c) => c.annee === anneeFilter);
     if (classeFilter) l = l.filter((c) => c.classe === classeFilter);
     if (profFilter) l = l.filter((c) => c.prof === profFilter);
     if (filiereFilter) l = l.filter((c) => c.filiere === filiereFilter);
     if (dateDebut) l = l.filter((c) => c.date >= dateDebut);
     if (dateFin) l = l.filter((c) => c.date <= dateFin);
     return l;
-  }, [cahiers, filtre, classeFilter, profFilter, filiereFilter, dateDebut, dateFin]);
+  }, [cahiers, filtre, anneeFilter, classeFilter, profFilter, filiereFilter, dateDebut, dateFin]);
 
   const pending = cahiers.filter((c) => c.statut === "soumis");
-  const nbFiltresActifs = [classeFilter, profFilter, filiereFilter, dateDebut, dateFin].filter(Boolean).length;
+  const nbFiltresActifs = [anneeFilter, classeFilter, profFilter, filiereFilter, dateDebut, dateFin].filter(Boolean).length;
 
   function act(id: string, approve: boolean) {
     if (!currentUser) return;
@@ -74,7 +79,14 @@ export default function CahiersAdminPage() {
 
       {showFilters && (
         <div className="bg-card border border-border rounded-xl mb-5" style={{ boxShadow: "var(--shadow-sm)" }}>
-          <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
+            <div>
+              <label htmlFor="cahiers-admin-champ-annee" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Année</label>
+              <select id="cahiers-admin-champ-annee" value={anneeFilter} onChange={(e) => setAnneeFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+                <option value="">Toutes</option>
+                {annees.map((a) => <option key={a.id} value={a.libelle}>{a.libelle}{a.actuelle ? " (courante)" : ""}</option>)}
+              </select>
+            </div>
             <div>
               <label htmlFor="cahiers-admin-champ-1" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Classe</label>
               <select id="cahiers-admin-champ-1" value={classeFilter} onChange={(e) => setClasseFilter(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
@@ -108,7 +120,7 @@ export default function CahiersAdminPage() {
           {nbFiltresActifs > 0 && (
             <div className="px-4 pb-3">
               <button
-                onClick={() => { setClasseFilter(""); setProfFilter(""); setFiliereFilter(""); setDateDebut(""); setDateFin(""); }}
+                onClick={() => { setAnneeFilter(""); setClasseFilter(""); setProfFilter(""); setFiliereFilter(""); setDateDebut(""); setDateFin(""); }}
                 className="text-xs text-muted-foreground underline"
               >
                 Réinitialiser les filtres

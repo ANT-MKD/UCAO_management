@@ -1,6 +1,8 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getTeacherVolume, makeTeacherVolumeId, upsertTeacherVolumes } from "@/data/teacherVolumeStore";
 import { getUserAccounts, pushNotificationEtPersister } from "@/data/studentStore";
+import { modeSupabase } from "@/lib/supabase";
+import { rechargerApres } from "@/lib/miroirServeur";
 
 const STORAGE_KEY = "edumanage-rallonges-v1";
 
@@ -32,7 +34,7 @@ function notify() {
 function load(): RallongeRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as RallongeRecord[];
   } catch {
@@ -59,6 +61,12 @@ export function subscribeRallonges(fn: () => void) {
 
 export function getRallonges(): RallongeRecord[] {
   return store;
+}
+
+/** Demandes de la base (avec Supabase) : toutes pour l'administration, les siennes pour un professeur. */
+export function remplacerRallonges(records: RallongeRecord[]) {
+  store = records;
+  persist();
 }
 
 export function makeRallongeId(): string {
@@ -104,6 +112,14 @@ export function updateRallongeStatut(
     dateTraitement: new Date().toISOString(),
   };
   store[idx] = record;
+
+  if (modeSupabase) {
+    // La base ajoute elle-même la rallonge validée au volume du cours et prévient le professeur ;
+    // l'écran reçoit le nouveau volume juste après.
+    persist();
+    void rechargerApres("edumanage-teacher-volumes-v1");
+    return record;
+  }
 
   if (statut === "valide") {
     const volumeId = makeTeacherVolumeId(record.teacherId, record.ecId, record.classeId, record.annee);

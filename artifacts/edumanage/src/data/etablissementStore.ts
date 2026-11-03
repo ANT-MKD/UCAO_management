@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-etablissement-v1";
@@ -30,7 +30,7 @@ const DEFAULT_INFO: EtablissementInfo = {
 function load(): EtablissementInfo {
   if (typeof window === "undefined") return { ...DEFAULT_INFO };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_INFO };
     const parsed = JSON.parse(raw) as Partial<EtablissementInfo>;
     return { ...DEFAULT_INFO, ...parsed };
@@ -64,6 +64,21 @@ export function subscribeEtablissement(fn: () => void) {
  * sur tous les documents officiels, jamais un nom codé en dur par template. */
 export function getEtablissement(): EtablissementInfo {
   return store;
+}
+
+/** Identité telle que la base la range (une seule ligne, créée à l'installation). Le logo reste
+ * dans le navigateur jusqu'au stockage des fichiers (partie 4). */
+export function getEtablissementLignes(): (EtablissementInfo & { id: string })[] {
+  return [{ id: "1", ...store }];
+}
+
+/** Identité de la base (avec Supabase) ; pas encore installé : celle du navigateur reste. */
+export function remplacerEtablissement(lignes: (EtablissementInfo & { id: string })[]) {
+  const ligne = lignes[0];
+  if (!ligne) return;
+  const { id: _id, ...info } = ligne;
+  store = { ...DEFAULT_INFO, ...info };
+  persist();
 }
 
 export function updateEtablissement(payload: EtablissementInfo, actorId: string): void {

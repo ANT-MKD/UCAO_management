@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { logAudit } from "./studentStore";
 
 export type ContactRole = "pere" | "mere" | "tuteur" | "autre";
@@ -32,7 +32,7 @@ function notify() {
 function load(): ContactRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as ContactRecord[];
   } catch {
@@ -57,6 +57,12 @@ export function subscribeContacts(fn: () => void) {
 
 export function getContacts(): ContactRecord[] {
   return store;
+}
+
+/** Contacts de la base (avec Supabase) : tous pour l'administration, les siens pour un étudiant. */
+export function remplacerContacts(records: ContactRecord[]) {
+  store = records;
+  persist();
 }
 
 export function getContactsPourEtudiant(etudiantId: string): ContactRecord[] {

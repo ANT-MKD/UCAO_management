@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import type { UserRole } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-publicites-v1";
@@ -59,7 +59,7 @@ let store: PubliciteRecord[] = load();
 function load(): PubliciteRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as PubliciteRecord[];
     return Array.isArray(parsed) ? parsed : [];
@@ -88,6 +88,13 @@ export function subscribePublicites(fn: () => void) {
 
 export function getPublicites(): PubliciteRecord[] {
   return store;
+}
+
+/** Actualités de la base (avec Supabase) : toutes pour l'administration, celles de son portail
+ * (ou de tous) et pas encore terminées pour les autres. */
+export function remplacerPublicites(records: PubliciteRecord[]) {
+  store = records;
+  persist();
 }
 
 export interface PublicitePayload {

@@ -90,9 +90,9 @@ export function getAssiduiteRowsPourEtudiant(etudiantId: string): AssiduiteRow[]
 /** Taux de présence réel d'un étudiant : séances où il a été noté présent ou en retard, sur toutes les
  * séances où il apparaît dans un cahier de textes réellement soumis — jamais un total de
  * séances fabriqué. Filtrable par semestre (alias réel, ex. "S1") pour scoper aux séances de
- * la période sélectionnée plutôt qu'à l'historique complet. */
-export function getTauxPresencePourEtudiant(etudiantId: string, semestreAlias?: string): { present: number; total: number; pct: number } {
-  const cahiers = getCahiers().filter((c) => cahierCompteAssiduite(c) && (!semestreAlias || c.semestre === semestreAlias));
+ * la période sélectionnée plutôt qu'à l'historique complet, et par année (dossier étudiant). */
+export function getTauxPresencePourEtudiant(etudiantId: string, semestreAlias?: string, annee?: string): { present: number; total: number; pct: number } {
+  const cahiers = getCahiers().filter((c) => cahierCompteAssiduite(c) && (!semestreAlias || c.semestre === semestreAlias) && (!annee || c.annee === annee));
   let present = 0;
   let total = 0;
   for (const c of cahiers) {

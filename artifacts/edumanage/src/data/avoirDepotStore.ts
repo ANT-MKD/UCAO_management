@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { crediterAvoir, debiterAvoir } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-avoir-depots-v1";
@@ -31,7 +31,7 @@ interface Persisted {
 function load(): Persisted {
   if (typeof window === "undefined") return { records: [], counter: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return { records: [], counter: 0 };
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -58,6 +58,12 @@ export function subscribeAvoirDepots(fn: () => void) {
 
 export function getAvoirDepots(): AvoirDepotRecord[] {
   return store.records;
+}
+
+/** Fiches de la base (avec Supabase), numérotées par elle. */
+export function remplacerAvoirDepots(records: AvoirDepotRecord[]) {
+  store = { ...store, records };
+  persist();
 }
 
 export function getAvoirDepotById(id: string): AvoirDepotRecord | undefined {

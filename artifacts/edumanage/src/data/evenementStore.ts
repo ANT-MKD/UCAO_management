@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getSeances } from "./studentStore";
 import { dateToJour, mondayOf } from "@/lib/teacherUtils";
 import { detectEvenementConflicts, type ScheduleConflict } from "@/lib/scheduleUtils";
@@ -33,7 +33,7 @@ function notify() {
 function load(): EvenementRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as EvenementRecord[]) : [];
   } catch {
     return [];
@@ -57,6 +57,12 @@ export function subscribeEvenements(fn: () => void) {
 
 export function getEvenements(): EvenementRecord[] {
   return evenements;
+}
+
+/** Événements de la base (avec Supabase). */
+export function remplacerEvenements(records: EvenementRecord[]) {
+  evenements = records;
+  persist();
 }
 
 export interface NewEvenementPayload {

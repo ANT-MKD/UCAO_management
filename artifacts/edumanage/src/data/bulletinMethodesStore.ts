@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { getCodesMethodesDisponibles, type NiveauMethodeCalcul } from "@/lib/bulletinCalculs";
 
 const STORAGE_KEY = "edumanage-bulletin-methodes-store-v1";
@@ -60,20 +60,23 @@ function notify() {
 function load(): MethodeCalculRecord[] {
   if (typeof window === "undefined") return seed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = lireStockage(STORAGE_KEY);
     if (!raw) return seed();
-    const parsed = JSON.parse(raw) as MethodeCalculRecord[];
-    // Complète avec les méthodes techniques nouvellement enregistrées côté code, absentes du
-    // localStorage existant (ex. après un déploiement qui ajoute une méthode).
-    // Retire les méthodes qui n'existent plus (ex. pondération par coefficient, abandonnée : l'UCAO
-    // ne travaille qu'avec les crédits) — une filière qui les utilisait retombe sur la méthode par défaut.
-    const existantes = parsed.filter((m) => getCodesMethodesDisponibles(m.niveau).includes(m.code));
-    const known = new Set(existantes.map((m) => `${m.niveau}:${m.code}`));
-    const fresh = seed().filter((m) => !known.has(`${m.niveau}:${m.code}`));
-    return [...existantes, ...fresh];
+    return accorderAuCode(JSON.parse(raw) as MethodeCalculRecord[]);
   } catch {
     return seed();
   }
+}
+
+/** Complète avec les méthodes techniques nouvellement enregistrées côté code, absentes des
+ * méthodes enregistrées (ex. après un déploiement qui ajoute une méthode). Retire les méthodes qui
+ * n'existent plus (ex. pondération par coefficient, abandonnée : l'UCAO ne travaille qu'avec les
+ * crédits) — une filière qui les utilisait retombe sur la méthode par défaut. */
+function accorderAuCode(enregistrees: MethodeCalculRecord[]): MethodeCalculRecord[] {
+  const existantes = enregistrees.filter((m) => getCodesMethodesDisponibles(m.niveau).includes(m.code));
+  const known = new Set(existantes.map((m) => `${m.niveau}:${m.code}`));
+  const fresh = seed().filter((m) => !known.has(`${m.niveau}:${m.code}`));
+  return [...existantes, ...fresh];
 }
 
 let store: MethodeCalculRecord[] = load();
@@ -93,6 +96,12 @@ export function subscribeBulletinMethodes(fn: () => void) {
 
 export function getMethodesCalcul(): MethodeCalculRecord[] {
   return store;
+}
+
+/** Méthodes de la base (avec Supabase), accordées aux méthodes que l'application sait calculer. */
+export function remplacerMethodesCalcul(records: MethodeCalculRecord[]) {
+  store = accorderAuCode(records);
+  persist();
 }
 
 export function getMethodesCalculParNiveau(niveau: NiveauMethodeCalcul): MethodeCalculRecord[] {

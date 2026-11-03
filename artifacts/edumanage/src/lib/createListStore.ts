@@ -1,4 +1,4 @@
-import { ecrireStockage } from "@/lib/stockageLocal";
+import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 /** Fabrique de store générique pour une liste de paramétrage (code/intitulé + champs propres),
  * persistée en localStorage avec CRUD add/update/remove et souscription useSyncExternalStore. */
 export function createListStore<T extends { id: string }>(storageKey: string, seed: T[]) {
@@ -11,7 +11,7 @@ export function createListStore<T extends { id: string }>(storageKey: string, se
   function load(): T[] {
     if (typeof window === "undefined") return seed;
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = lireStockage(storageKey);
       if (!raw) return seed;
       return JSON.parse(raw) as T[];
     } catch {
@@ -53,6 +53,11 @@ export function createListStore<T extends { id: string }>(storageKey: string, se
     },
     remove(id: string) {
       store = store.filter((r) => r.id !== id);
+      persist();
+    },
+    /** Remplace toute la liste (contenu de la base, avec Supabase). */
+    remplacer(records: T[]) {
+      store = records.slice();
       persist();
     },
   };
