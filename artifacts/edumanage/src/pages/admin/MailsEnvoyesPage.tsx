@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Eye, Paperclip } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DataTable, type Column } from "@/components/admin/DataTable";
@@ -6,6 +6,8 @@ import { FormModal } from "@/components/admin/FormModal";
 import { useMailsEnvoyes } from "@/hooks/useMailEnvoyeStore";
 import type { MailEnvoyeRecord } from "@/data/mailEnvoyeStore";
 import { cn } from "@/lib/utils";
+import { modeSupabase } from "@/lib/supabase";
+import { lireLivraisons, resumeLivraison, type LivraisonCourriels } from "@/lib/courriels";
 
 const STATUT_CONFIG: Record<MailEnvoyeRecord["statut"], { label: string; cls: string }> = {
   traite: { label: "Traité", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" },
@@ -17,9 +19,25 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+/** Ce que chaque mail a donné par e-mail (avec la base). */
+function useLivraisons(mails: MailEnvoyeRecord[]): Record<string, LivraisonCourriels> {
+  const ids = useMemo(() => mails.filter((m) => m.statut === "traite").map((m) => m.id).slice(0, 500), [mails]);
+  const cle = ids.join("|");
+  const [livraisons, setLivraisons] = useState<Record<string, LivraisonCourriels>>({});
+  useEffect(() => {
+    if (!modeSupabase || ids.length === 0) return;
+    let actif = true;
+    void lireLivraisons(ids).then((l) => { if (actif) setLivraisons(l); });
+    return () => { actif = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cle]);
+  return livraisons;
+}
+
 export default function MailsEnvoyesPage() {
   const mails = useMailsEnvoyes();
   const [preview, setPreview] = useState<MailEnvoyeRecord | null>(null);
+  const livraisons = useLivraisons(mails);
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: "auteurLabel", header: "Auteur", sortable: true },
@@ -39,6 +57,15 @@ export default function MailsEnvoyesPage() {
         return <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full", st.cls)}>{st.label}</span>;
       },
     },
+    ...(modeSupabase ? [{
+      key: "courriels",
+      header: "E-mails",
+      render: (row: Record<string, unknown>) => {
+        const m = row as unknown as MailEnvoyeRecord;
+        const l = livraisons[m.id];
+        return <span className="text-xs text-muted-foreground" title={l?.motif ?? undefined} data-testid={`mail-courriels-${m.id}`}>{resumeLivraison(l)}</span>;
+      },
+    }] : []),
     {
       key: "actions",
       header: "",
@@ -104,6 +131,13 @@ export default function MailsEnvoyesPage() {
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Paperclip size={12} /> {preview.fichiers.join(", ")}
               </div>
+            )}
+
+            {modeSupabase && preview.statut === "traite" && (
+              <p className="text-xs text-muted-foreground" data-testid="mail-courriels-detail">
+                E-mails : {resumeLivraison(livraisons[preview.id])}
+                {livraisons[preview.id]?.motif && ` — ${livraisons[preview.id]?.motif}`}
+              </p>
             )}
 
             {preview.statut === "rejete" && preview.motifRejet && (

@@ -144,7 +144,8 @@ describe("encadré « Sauvegarde chiffrée »", () => {
     expect(telechargements).toHaveLength(1);
     expect(telechargements[0]).toMatch(/^edumanage-sauvegarde-\d{4}-\d{2}-\d{2}-\d{2}h\d{2}\.edumanage$/);
     expect(q("sauvegarde-faite").textContent).toContain("2 fichiers");
-    expect(invoke.mock.calls.map(([, { body }]) => body.action)).toEqual(["fichiers", "donnees", "noter"]);
+    // L'encadré lit aussi l'état des e-mails (« etat ») ; la sauvegarde, elle, fait ses trois appels dans l'ordre.
+    expect(invoke.mock.calls.map(([, { body }]) => body.action).filter((a) => a !== "etat")).toEqual(["fichiers", "donnees", "noter"]);
     expect(q("sauvegarde-phrase")).toBeNull();
     clic.mockRestore();
     act(() => racine.unmount());

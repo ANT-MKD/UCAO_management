@@ -2,6 +2,7 @@ import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { modeSupabase } from "@/lib/supabase";
 import { getEtudiantById, getUserAccounts, logAudit } from "./studentStore";
 import { envoyerMailSysteme } from "./mailEnvoyeStore";
+import { declencherEnvoiCourriels } from "@/lib/courriels";
 
 export type RelanceStatut = "active" | "resolue" | "annulee";
 
@@ -94,7 +95,9 @@ export function envoyerRelancePaiement(etudiantId: string, delaiJours: number, a
   };
   store.push(record);
 
-  // Avec Supabase, la base inscrit elle-même le mail de la relance (et prévient l'étudiant).
+  // Avec Supabase, la base inscrit elle-même le mail de la relance (et prévient l'étudiant) ;
+  // son e-mail part par la file des e-mails.
+  if (modeSupabase) void declencherEnvoiCourriels();
   if (!modeSupabase) envoyerMailSysteme({
     destinataireUserId: compteEtudiant.id,
     destinataireLabel: `${etudiant.prenom} ${etudiant.nom}`,

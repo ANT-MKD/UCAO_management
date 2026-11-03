@@ -5,6 +5,7 @@ import { motifPhrase } from "@/lib/archiveSauvegarde";
 import { formatTaille } from "@/lib/etatService";
 import { faireSauvegarde, type EtapeSauvegarde } from "@/lib/sauvegarde";
 import { useEtatService, VueEspaceService } from "@/components/admin/EtatServicePanels";
+import { EtatCourrielsPanel } from "@/components/admin/CourrielsPanel";
 
 /** Texte de la progression, pour l'administrateur. */
 export function texteEtape(e: EtapeSauvegarde): string {
@@ -127,6 +128,7 @@ export function SauvegardeEtEspace() {
         {erreur && <p className="text-sm text-red-600" role="alert" data-testid="sauvegarde-erreur">{erreur}</p>}
       </div>
       <VueEspaceService etat={etat} />
+      <EtatCourrielsPanel />
     </>
   );
 }

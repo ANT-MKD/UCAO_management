@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { erreursDeConfiguration } from "@/lib/verificationDeploiement";
 
@@ -69,6 +70,8 @@ describe("réglages Vercel (vercel.json)", () => {
     const { crons } = vercel as unknown as { crons: { path: string; schedule: string }[] };
     expect(crons).toEqual([{ path: "/api/veille", schedule: expect.stringMatching(/^\d{1,2} \d{1,2} \* \* \*$/) }]);
     expect(readFileSync(path.join(racine, "api/veille.ts"), "utf8")).toContain("export async function GET");
+    // La visite attend la fin d'un passage de la file des e-mails (45 s au plus).
+    expect((vercel as unknown as { functions: Record<string, { maxDuration: number }> }).functions["api/veille.ts"].maxDuration).toBe(60);
   });
 
   it("en-têtes de sécurité sur toutes les pages ; fichiers construits gardés en cache", () => {
@@ -89,6 +92,36 @@ describe("réglages Vercel (vercel.json)", () => {
     expect(majeure).toBeTruthy();
     for (const commande of [vercel.installCommand, vercel.buildCommand]) expect(commande).toContain(`pnpm@${majeure}.`);
     expect(vercel.installCommand).toContain("--frozen-lockfile");
+  });
+});
+
+describe("fonctions Vercel (api/) : compilées comme le fait Vercel", () => {
+  const dossier = path.resolve(import.meta.dirname, "../../api");
+  const fonctions = readdirSync(dossier).filter((f) => f.endsWith(".ts"));
+  /** Options que @vercel/node impose par-dessus le tsconfig le plus proche de la fonction. */
+  const IMPOSEES = { sourceMap: true, inlineSourceMap: false, inlineSources: true, declaration: false, noEmit: false, outDir: "$$ts-node$$" };
+
+  it("le dossier contient la visite quotidienne", () => {
+    expect(fonctions).toContain("veille.ts");
+  });
+
+  it.each(fonctions)("%s : réglages acceptés, aucune erreur, code produit", (nom) => {
+    const entree = path.join(dossier, nom);
+    const fichierConfig = ts.findConfigFile(entree, ts.sys.fileExists);
+    expect(fichierConfig && path.relative(dossier, fichierConfig)).toBe("tsconfig.json");
+    const brute = ts.readConfigFile(fichierConfig!, ts.sys.readFile);
+    expect(brute.error).toBeUndefined();
+    const config = brute.config as { compilerOptions?: Record<string, unknown> };
+    config.compilerOptions = { ...config.compilerOptions, ...IMPOSEES };
+    const lue = ts.parseJsonConfigFileContent(config, ts.sys, dossier, undefined, fichierConfig!);
+    const programme = ts.createProgram([entree], lue.options);
+    const texte = (d: ts.Diagnostic) => ts.flattenDiagnosticMessageText(d.messageText, "\n");
+    expect([...lue.errors, ...programme.getOptionsDiagnostics(), ...programme.getGlobalDiagnostics()].map(texte)).toEqual([]);
+    expect(ts.getPreEmitDiagnostics(programme, programme.getSourceFile(entree)).map(texte)).toEqual([]);
+    const sorties: string[] = [];
+    const resultat = programme.emit(programme.getSourceFile(entree), (f) => sorties.push(path.basename(f)));
+    expect(resultat.emitSkipped).toBe(false);
+    expect(sorties).toContain(nom.replace(/\.ts$/, ".js"));
   });
 });
 
