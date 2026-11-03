@@ -399,6 +399,9 @@ verify_jwt = false
 [functions.reprise]
 verify_jwt = false
 
+[functions.sauvegarde]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

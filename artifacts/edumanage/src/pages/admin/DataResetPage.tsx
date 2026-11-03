@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
 import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
 import { modeSupabase, supabase } from "@/lib/supabase";
-import { EspaceService } from "@/components/admin/EtatServicePanels";
+import { SauvegardeEtEspace } from "@/components/admin/SauvegardePanel";
 import { lireSauvegarde } from "@/lib/stockageLocal";
 import type { RapportReprise } from "@/lib/reprise";
 import { VueRapportReprise } from "@/pages/reprise/RapportReprise";
@@ -60,9 +60,9 @@ export default function DataResetPage() {
     return (
       <div>
         <PageHeader
-          breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Réinitialisation des données" }]}
-          title="Réinitialisation des données"
-          subtitle="Les données de l'établissement sont dans la base de données"
+          breadcrumb={[{ label: "Admin" }, { label: "Sécurité" }, { label: "Données et sauvegarde" }]}
+          title="Données et sauvegarde"
+          subtitle="Les données de l'établissement sont dans la base de données : sauvegardez-les chaque semaine"
         />
         <div className="max-w-2xl rounded-xl border border-border bg-card p-4 flex gap-3" data-testid="reinitialisation-avec-base">
           <HardDrive size={18} className="text-muted-foreground flex-shrink-0 mt-0.5" />
@@ -70,7 +70,7 @@ export default function DataResetPage() {
             Ce navigateur ne garde aucune copie des données de l&apos;établissement : elles sont chargées depuis la base à chaque connexion et oubliées à la déconnexion. Seuls le thème et la session restent sur ce poste. Il n&apos;y a donc rien à vider ici.
           </p>
         </div>
-        <EspaceService />
+        <SauvegardeEtEspace />
         <RepriseDuPoste />
       </div>
     );

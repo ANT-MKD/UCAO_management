@@ -10,6 +10,7 @@ const SAIN: EtatService = {
   baseOctets: 42_000_000, baseLimite: 500_000_000,
   fichiersOctets: 120_000_000, fichiersNombre: 310, fichiersLimite: 1_000_000_000,
   derniereVeille: "2026-11-10T06:17:00Z",
+  derniereSauvegarde: "2026-11-07T16:00:00Z",
 };
 
 afterEach(() => {
@@ -51,6 +52,18 @@ describe("alertes de l'offre gratuite", () => {
     expect(alertesService({ ...SAIN, derniereVeille: "2026-11-08T09:00:00Z" }, MAINTENANT)).toEqual([]);
   });
 
+  it("sauvegarde : rappel après 7 jours, critique après 30 jours ou s'il n'y en a jamais eu", () => {
+    expect(alertesService({ ...SAIN, derniereSauvegarde: "2026-11-04T09:00:00Z" }, MAINTENANT)).toEqual([]);
+    const [rappel] = alertesService({ ...SAIN, derniereSauvegarde: "2026-11-02T07:00:00Z" }, MAINTENANT);
+    expect(rappel).toMatchObject({ niveau: "attention", titre: "Sauvegarde à faire" });
+    expect(rappel.message).toContain("il y a 8 jours");
+    expect(rappel.message).toContain("Sécurité → Données et sauvegarde");
+    expect(alertesService({ ...SAIN, derniereSauvegarde: "2026-10-10T07:00:00Z" }, MAINTENANT)[0].niveau).toBe("critique");
+    const [jamais] = alertesService({ ...SAIN, derniereSauvegarde: null }, MAINTENANT);
+    expect(jamais).toMatchObject({ niveau: "critique" });
+    expect(jamais.message).toContain("Aucune sauvegarde n'a encore été faite");
+  });
+
   it("tailles en unités décimales, comme les limites de l'offre", () => {
     expect(formatTaille(500_000_000)).toBe("500 Mo");
     expect(formatTaille(1_000_000_000)).toBe("1 Go");
@@ -81,7 +94,7 @@ describe("affichage pour l'administrateur principal", () => {
   it("l'état est lu dans la base ; un refus (compte sans accès complet) n'affiche rien", async () => {
     for (const [reponse, attendu] of [
       [{ data: { base_octets: 42000000, base_limite: 500000000, fichiers_octets: 0, fichiers_nombre: 0, fichiers_limite: 1000000000, derniere_veille: null }, error: null },
-        { baseOctets: 42000000, baseLimite: 500000000, fichiersOctets: 0, fichiersNombre: 0, fichiersLimite: 1000000000, derniereVeille: null }],
+        { baseOctets: 42000000, baseLimite: 500000000, fichiersOctets: 0, fichiersNombre: 0, fichiersLimite: 1000000000, derniereVeille: null, derniereSauvegarde: null }],
       [{ data: null, error: { message: "L'état du service est réservé à un administrateur à accès complet." } }, null],
     ] as const) {
       vi.resetModules();

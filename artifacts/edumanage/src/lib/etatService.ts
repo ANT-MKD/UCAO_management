@@ -10,6 +10,7 @@ export interface EtatService {
   fichiersNombre: number;
   fichiersLimite: number;
   derniereVeille: string | null;
+  derniereSauvegarde: string | null;
 }
 
 export type NiveauAlerte = "attention" | "critique";
@@ -25,6 +26,9 @@ export const SEUIL_ATTENTION = 0.8;
 export const SEUIL_CRITIQUE = 0.95;
 /** Délai au-delà duquel la visite quotidienne est considérée comme arrêtée. */
 export const RETARD_VEILLE_HEURES = 48;
+/** Rappel de sauvegarde (offre gratuite : Supabase n'en fait aucune), puis insistance. */
+export const RAPPEL_SAUVEGARDE_JOURS = 7;
+export const ALERTE_SAUVEGARDE_JOURS = 30;
 
 /** Tailles en unités décimales, comme les limites de l'offre (500 Mo, 1 Go). */
 export function formatTaille(octets: number): string {
@@ -80,6 +84,17 @@ export function alertesService(etat: EtatService, maintenant: Date = new Date())
         + "Vérifiez la tâche planifiée /api/veille dans Vercel (Settings → Cron Jobs).",
     });
   }
+  const sauvegarde = etat.derniereSauvegarde ? new Date(etat.derniereSauvegarde) : null;
+  const jours = sauvegarde ? Math.floor((maintenant.getTime() - sauvegarde.getTime()) / 86_400_000) : null;
+  if (jours === null || jours >= RAPPEL_SAUVEGARDE_JOURS) {
+    alertes.push({
+      niveau: jours === null || jours >= ALERTE_SAUVEGARDE_JOURS ? "critique" : "attention",
+      titre: "Sauvegarde à faire",
+      message: (jours === null ? "Aucune sauvegarde n'a encore été faite. " : `Dernière sauvegarde il y a ${jours} jours. `)
+        + "L'offre gratuite de Supabase n'en garde aucune : téléchargez-en une (Sécurité → Données et sauvegarde) "
+        + "et rangez-la sur un ordinateur de l'université.",
+    });
+  }
   return alertes.sort((a, b) => (a.niveau === b.niveau ? 0 : a.niveau === "critique" ? -1 : 1));
 }
 
@@ -96,5 +111,6 @@ export async function lireEtatService(): Promise<EtatService | null> {
     fichiersNombre: Number(e.fichiers_nombre),
     fichiersLimite: Number(e.fichiers_limite),
     derniereVeille: typeof e.derniere_veille === "string" ? e.derniere_veille : null,
+    derniereSauvegarde: typeof e.derniere_sauvegarde === "string" ? e.derniere_sauvegarde : null,
   };
 }

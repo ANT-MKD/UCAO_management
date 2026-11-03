@@ -63,24 +63,21 @@ export function VueEspaceService({ etat, maintenant }: { etat: EtatService; main
   );
 }
 
-function useEtatService(): EtatService | null {
+/** État du service lu dans la base (null : sans base, ou compte sans accès complet). */
+export function useEtatService(): { etat: EtatService | null; recharger: () => void } {
   const [etat, setEtat] = useState<EtatService | null>(null);
+  const [tour, setTour] = useState(0);
   useEffect(() => {
     if (!modeSupabase) return;
     let actif = true;
     void lireEtatService().then((e) => { if (actif) setEtat(e); });
     return () => { actif = false; };
-  }, []);
-  return etat;
+  }, [tour]);
+  return { etat, recharger: () => setTour((t) => t + 1) };
 }
 
 /** Avec la base, pour l'administrateur à accès complet ; rien sinon. */
 export function AlerteServiceTableauDeBord() {
-  const etat = useEtatService();
+  const { etat } = useEtatService();
   return etat ? <BandeauService etat={etat} /> : null;
-}
-
-export function EspaceService() {
-  const etat = useEtatService();
-  return etat ? <VueEspaceService etat={etat} /> : null;
 }
