@@ -15,7 +15,10 @@ dans le document « Plan de migration EduManage ».
   - `comptes` (avec session) : création d'un compte par l'administration, changement de mot de
     passe ;
   - `reprise` (avec session, administrateur principal) : reprise, une fois, des données d'un poste
-    d'avant la base (essai avec rapport de contrôle, comptes, fichiers, puis reprise réelle).
+    d'avant la base (essai avec rapport de contrôle, comptes, fichiers, puis reprise réelle) ;
+  - `sauvegarde` (avec session, accès complet) : données et liens des fichiers pour la sauvegarde
+    chiffrée, liens de dépôt pour la restauration.
+- `restauration/` : l'outil qui restaure une sauvegarde sur un projet neuf (voir plus bas).
 - `config.toml` : réglages de l'outil `supabase` (développement local).
 
 ## Projets Supabase
@@ -85,6 +88,68 @@ Toutes les données, identités, compteurs et la trace de la reprise sont effac�
 sont rouverts. Le compte rendu indique les fichiers restants (`fichiers_a_retirer`) : Supabase
 interdit de les effacer par SQL, ils se retirent depuis le tableau de bord (Storage → chaque
 espace → tout sélectionner → supprimer). Sur un projet sans la marque `test`, la fonction refuse.
+
+## Sauvegarder et restaurer
+
+L'offre gratuite de Supabase ne garde **aucune** sauvegarde. La veille quotidienne (Vercel,
+`/api/veille`) empêche la mise en pause et mesure l'espace occupé ; les sauvegardes sont faites
+par l'établissement lui-même.
+
+### Sauvegarder (chaque semaine)
+
+L'administrateur à accès complet ouvre *Sécurité → Données et sauvegarde → Préparer une
+sauvegarde*. Il choisit une phrase secrète (12 caractères au moins) et télécharge un fichier
+`edumanage-sauvegarde-AAAA-MM-JJ-HHhMM.edumanage`. Ce fichier contient :
+
+- toutes les données, y compris les identités et les mots de passe chiffrés ;
+- tous les fichiers (photos, pièces, documents) ;
+- mais pas la marque d'environnement, la veille ni les tentatives de connexion.
+
+Il est chiffré dans le navigateur avec la phrase secrète : sans elle, il est illisible, y compris
+pour l'établissement. Le tableau de bord rappelle la sauvegarde après 7 jours (critique après 30).
+
+- Ranger le fichier sur un ordinateur ou un disque de l'université, si possible à deux endroits.
+  **Jamais sur GitHub** (le dépôt est public), ni par e-mail.
+- Garder la phrase à part du fichier (coffre, enveloppe scellée). Une phrase perdue rend la
+  sauvegarde inutilisable.
+
+### Restaurer (projet perdu ou données détruites)
+
+La restauration se fait toujours sur un projet Supabase **neuf** : l'outil refuse une base où des
+comptes existent. Tout ce qui a été saisi après la sauvegarde est à ressaisir.
+
+1. **Préparer le projet neuf** (région Paris) :
+   - appliquer les migrations : `supabase link --project-ref <ref>` puis `supabase db push` ;
+   - déployer les fonctions : `supabase functions deploy connexion comptes reprise sauvegarde` ;
+   - faire les réglages du tableau de bord (section plus haut) ;
+   - poser la marque : `insert into private.environnement (nom) values ('production');`.
+2. **Installer Deno** ([deno.com](https://deno.com)), puis, depuis la racine du dépôt, vérifier la
+   sauvegarde (la phrase secrète est demandée) :
+   ```sh
+   deno run --config supabase/restauration/deno.json --allow-read --allow-write --allow-net --allow-env \
+     supabase/restauration/restaurer.ts lire edumanage-sauvegarde-….edumanage
+   ```
+3. **Restaurer les données**, d'un bloc : rien n'est gardé en cas d'erreur. Le mot de passe de la
+   base est demandé. L'adresse est celle du *Session pooler* (*Connect* dans le tableau de bord).
+   ```sh
+   deno run … supabase/restauration/restaurer.ts base edumanage-sauvegarde-….edumanage \
+     --base "postgresql://postgres.<ref>@aws-0-eu-west-3.pooler.supabase.com:5432/postgres"
+   ```
+4. **Restaurer les fichiers**, sans jamais remplacer un fichier présent. L'outil se connecte comme
+   l'administrateur principal, avec son mot de passe d'avant (restauré avec les données) ; il le
+   demande sans l'afficher.
+   ```sh
+   deno run … supabase/restauration/restaurer.ts fichiers edumanage-sauvegarde-….edumanage \
+     --projet https://<ref>.supabase.co --cle sb_publishable_… --identifiant <identifiant>
+   ```
+5. **Rebrancher l'application** : dans Vercel, remplacer `VITE_SUPABASE_URL` et
+   `VITE_SUPABASE_PUBLISHABLE_KEY` (Production seulement), puis *Redeploy*. Chacun se reconnecte
+   avec son mot de passe habituel.
+
+La commande `lire … --extraire <dossier>` écrit une copie **en clair**, à effacer après usage.
+L'outil a été vérifié de bout en bout sur PostgreSQL (`tests/restauration.test.ts`). Un exercice
+sur un projet gratuit temporaire, une fois par semestre, confirme qu'il marche aussi chez Supabase.
+Supprimer ensuite ce projet : il contient les données réelles.
 
 ## Ajouter une migration
 

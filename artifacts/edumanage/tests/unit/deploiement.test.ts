@@ -62,6 +62,13 @@ describe("réglages Vercel (vercel.json)", () => {
     expect(regle.destination).toBe("/index.html");
     for (const chemin of ["/", "/login", "/admin/security/pin-activation", "/student/dashboard"]) expect(motif(regle.source).test(chemin)).toBe(true);
     expect(motif(regle.source).test("/assets/index-ancien.js")).toBe(false);
+    expect(motif(regle.source).test("/api/veille")).toBe(false);
+  });
+
+  it("la visite quotidienne est planifiée une fois par jour (offre gratuite de Vercel)", () => {
+    const { crons } = vercel as unknown as { crons: { path: string; schedule: string }[] };
+    expect(crons).toEqual([{ path: "/api/veille", schedule: expect.stringMatching(/^\d{1,2} \d{1,2} \* \* \*$/) }]);
+    expect(readFileSync(path.join(racine, "api/veille.ts"), "utf8")).toContain("export async function GET");
   });
 
   it("en-têtes de sécurité sur toutes les pages ; fichiers construits gardés en cache", () => {
