@@ -1,5 +1,6 @@
 import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
 import { modeSupabase } from "@/lib/supabase";
+import { declencherEnvoiCourriels } from "@/lib/courriels";
 import {
   getGroupesExternes,
   getGroupesInternes,
@@ -207,7 +208,10 @@ export function envoyerMail(payload: EnvoyerMailPayload): MailEnvoyeRecord {
   store = [mail, ...store];
   persist();
 
-  if (autorise) notifierDestinataires(mail);
+  if (autorise) {
+    notifierDestinataires(mail);
+    void declencherEnvoiCourriels();
+  }
 
   return mail;
 }
@@ -244,6 +248,7 @@ export function envoyerMailSysteme(payload: MailSystemePayload): MailEnvoyeRecor
   store = [mail, ...store];
   persist();
   notifierDestinataires(mail);
+  void declencherEnvoiCourriels();
   return mail;
 }
 
@@ -259,6 +264,7 @@ export function validerMail(id: string, validateurId: string, validateurLabel: s
   mail.dateTraitement = new Date().toISOString();
   persist();
   notifierDestinataires(mail);
+  void declencherEnvoiCourriels();
 }
 
 /** Un rejet est traité comme le cas d'usage réel du rôle "destinataire_alert" (jusqu'ici désigné

@@ -10,6 +10,9 @@
   "crons": [
     { "path": "/api/veille", "schedule": "17 6 * * *" }
   ],
+  "functions": {
+    "api/veille.ts": { "maxDuration": 60 }
+  },
   "headers": [
     {
       "source": "/assets/(.*)",

@@ -69,6 +69,8 @@ describe("réglages Vercel (vercel.json)", () => {
     const { crons } = vercel as unknown as { crons: { path: string; schedule: string }[] };
     expect(crons).toEqual([{ path: "/api/veille", schedule: expect.stringMatching(/^\d{1,2} \d{1,2} \* \* \*$/) }]);
     expect(readFileSync(path.join(racine, "api/veille.ts"), "utf8")).toContain("export async function GET");
+    // La visite attend la fin d'un passage de la file des e-mails (45 s au plus).
+    expect((vercel as unknown as { functions: Record<string, { maxDuration: number }> }).functions["api/veille.ts"].maxDuration).toBe(60);
   });
 
   it("en-têtes de sécurité sur toutes les pages ; fichiers construits gardés en cache", () => {

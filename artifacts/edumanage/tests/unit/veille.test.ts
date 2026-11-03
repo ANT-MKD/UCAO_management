@@ -126,10 +126,29 @@ describe("visite quotidienne (fonction Vercel /api/veille)", () => {
     const { GET } = await import("../../api/veille");
     const reponse = await GET(appel());
     expect(reponse.status).toBe(200);
-    expect(await reponse.json()).toEqual({ ok: true });
-    expect(fetchFn).toHaveBeenCalledWith("https://mrexzmmkvcusfpqhpowk.supabase.co/rest/v1/rpc/veille", {
+    expect(await reponse.json()).toEqual({ ok: true, courriels: "ok" });
+    expect(fetchFn).toHaveBeenNthCalledWith(1, "https://mrexzmmkvcusfpqhpowk.supabase.co/rest/v1/rpc/veille", {
       method: "POST", headers: { apikey: "sb_publishable_essai", "Content-Type": "application/json" }, body: "{}",
     });
+    expect(fetchFn).toHaveBeenNthCalledWith(2, "https://mrexzmmkvcusfpqhpowk.supabase.co/functions/v1/courriels", {
+      method: "POST", headers: { apikey: "sb_publishable_essai", "Content-Type": "application/json" }, body: '{"action":"envoyer"}',
+    });
+  });
+
+  it("la file des e-mails ne fait jamais échouer la visite : son état est seulement rapporté", async () => {
+    base();
+    const { GET } = await import("../../api/veille");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.endsWith("/courriels") ? new Response("{}", { status: 500 }) : new Response("{}", { status: 200 }))));
+    let reponse = await GET(appel());
+    expect(reponse.status).toBe(200);
+    expect(await reponse.json()).toEqual({ ok: true, courriels: "réponse 500" });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => { if (url.endsWith("/courriels")) throw new TypeError("fetch failed"); return new Response("{}"); }));
+    reponse = await GET(appel());
+    expect(await reponse.json()).toEqual({ ok: true, courriels: "injoignable" });
+    const veilleSeule = vi.fn(async () => new Response("pause", { status: 503 }));
+    vi.stubGlobal("fetch", veilleSeule);
+    expect((await GET(appel())).status).toBe(502);
+    expect(veilleSeule).toHaveBeenCalledTimes(1);
   });
 
   it("avec CRON_SECRET, un appel sans le bon jeton est refusé sans toucher à la base", async () => {

@@ -21,7 +21,7 @@ export class ErreurServeur extends Error {
 
 /** Appelle une fonction serveur (supabase/functions) ; une réponse d'erreur devient une
  * ErreurServeur portant le message renvoyé par le serveur. */
-export async function appelerFonction<T = { ok: true }>(nom: "connexion" | "comptes" | "reprise" | "sauvegarde", corps: Record<string, unknown>): Promise<T> {
+export async function appelerFonction<T = { ok: true }>(nom: "connexion" | "comptes" | "reprise" | "sauvegarde" | "courriels", corps: Record<string, unknown>): Promise<T> {
   if (!supabase) throw new ErreurServeur("La base de données n'est pas configurée.", 0);
   const { data, error } = await supabase.functions.invoke(nom, { body: corps });
   if (!error) return data as T;

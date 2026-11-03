@@ -17,7 +17,9 @@ dans le document « Plan de migration EduManage ».
   - `reprise` (avec session, administrateur principal) : reprise, une fois, des données d'un poste
     d'avant la base (essai avec rapport de contrôle, comptes, fichiers, puis reprise réelle) ;
   - `sauvegarde` (avec session, accès complet) : données et liens des fichiers pour la sauvegarde
-    chiffrée, liens de dépôt pour la restauration.
+    chiffrée, liens de dépôt pour la restauration ;
+  - `courriels` (sans session pour vider la file, accès complet pour son état) : envoi par Resend
+    des e-mails mis en file par la base (procédure : `artifacts/edumanage/MISE-EN-LIGNE.md`).
 - `restauration/` : l'outil qui restaure une sauvegarde sur un projet neuf (voir plus bas).
 - `config.toml` : réglages de l'outil `supabase` (développement local).
 
@@ -120,7 +122,9 @@ comptes existent. Tout ce qui a été saisi après la sauvegarde est à ressaisi
 
 1. **Préparer le projet neuf** (région Paris) :
    - appliquer les migrations : `supabase link --project-ref <ref>` puis `supabase db push` ;
-   - déployer les fonctions : `supabase functions deploy connexion comptes reprise sauvegarde` ;
+   - déployer les fonctions : `supabase functions deploy connexion comptes reprise sauvegarde courriels` ;
+   - remettre les secrets de Resend (`RESEND_API_KEY`, `EDUMANAGE_ALERTES`, et `EDUMANAGE_EXPEDITEUR`
+     s'il existe) ;
    - faire les réglages du tableau de bord (section plus haut) ;
    - poser la marque : `insert into private.environnement (nom) values ('production');`.
 2. **Installer Deno** ([deno.com](https://deno.com)), puis, depuis la racine du dépôt, vérifier la

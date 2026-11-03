@@ -1,7 +1,9 @@
-/** Visite quotidienne (tâche planifiée Vercel, « crons » de vercel.json ; partie 10, lot 3).
+/** Visite quotidienne (tâche planifiée Vercel, « crons » de vercel.json ; partie 10, lots 3 et 4).
  * Une lecture par l'API de la base empêche la mise en pause du projet Supabase gratuit (7 jours
- * sans activité), vacances comprises ; la base en profite pour mesurer l'espace occupé. Seule la
- * clé publique sert ici. Si CRON_SECRET est défini dans Vercel, seul l'appel planifié est accepté. */
+ * sans activité), vacances comprises ; la base en profite pour mesurer l'espace occupé et préparer
+ * les alertes. Puis la file des e-mails est vidée (fonction serveur « courriels » : ce qui reste ou
+ * a échoué repart). Seule la clé publique sert ici. Si CRON_SECRET est défini dans Vercel, seul
+ * l'appel planifié est accepté. */
 export async function GET(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -17,8 +19,22 @@ export async function GET(request: Request): Promise<Response> {
       body: "{}",
     });
     if (!reponse.ok) return Response.json({ ok: false, erreur: `Base : réponse ${reponse.status}` }, { status: 502 });
-    return Response.json({ ok: true });
+    await reponse.body?.cancel();
   } catch {
     return Response.json({ ok: false, erreur: "Base injoignable" }, { status: 502 });
   }
+  // Les e-mails ne font jamais échouer la visite : leur état est seulement rapporté.
+  let courriels: string;
+  try {
+    const envoi = await fetch(`${url}/functions/v1/courriels`, {
+      method: "POST",
+      headers: { apikey: cle, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "envoyer" }),
+    });
+    courriels = envoi.ok ? "ok" : `réponse ${envoi.status}`;
+    await envoi.body?.cancel();
+  } catch {
+    courriels = "injoignable";
+  }
+  return Response.json({ ok: true, courriels });
 }

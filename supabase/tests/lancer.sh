@@ -95,4 +95,19 @@ wait
 "${P[@]}" -c "select tests.verifier((select count(*) = 200 and count(distinct reference) = 200 and max(split_part(reference, '-', 3)::int) = 200 from public.encaissements where quittance_id = 'q-conc') and (select montant = 200000 from public.quittances where id = 'q-conc') and (select solde_du = 200000 from public.soldes_etudiants where id = 'et-conc'), 'encaissements simultanés : 200 reçus OP-2030-001 à 200, sans doublon ni trou ; 200 000 F réglés, rien de perdu')" 2>&1 | sed -n 's/^.*NOTICE:  /  /p; /ERROR/p'
 test "${PIPESTATUS[0]}" -eq 0
 
+echo "• e-mails réservés simultanément (4 envois × 50 sur une file de 200)"
+"${P[@]}" >/dev/null <<SQL
+create table tests.reserves (id bigint);
+delete from private.courriels;
+insert into private.courriels (nature, cle_alerte, objet, texte) select 'alerte', 'conc-' || g, 'Essai', 'x' from generate_series(1, 200) g;
+SQL
+for i in 1 2 3 4; do
+  # Chaque envoi garde sa réservation ouverte un instant : les autres doivent prendre d'autres e-mails.
+  printf 'begin;\ninsert into tests.reserves select id from private.courriels_reserver(50);\nselect pg_sleep(0.3);\ncommit;\n' \
+    | psql -v ON_ERROR_STOP=1 -q -X -d "$BASE" >/dev/null &
+done
+wait
+"${P[@]}" -c "select tests.verifier((select count(*) = 200 and count(distinct id) = 200 from tests.reserves), 'e-mails réservés simultanément : 200 réservations, aucun e-mail pris deux fois')" 2>&1 | sed -n 's/^.*NOTICE:  /  /p; /ERROR/p'
+test "${PIPESTATUS[0]}" -eq 0
+
 echo "Tous les tests de la base sont passés."
