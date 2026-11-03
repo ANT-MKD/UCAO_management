@@ -57,8 +57,8 @@ select tests.verifier(not exists (
   select 1 from pg_proc p
   where p.pronamespace = 'public'::regnamespace and p.prosecdef
     and has_function_privilege('anon', p.oid, 'execute')
-    and p.oid <> 'public.etat_installation()'::regprocedure
-), 'aucune fonction à droits étendus n''est ouverte aux visiteurs, sauf l''état de l''installation');
+    and p.oid not in ('public.etat_installation()'::regprocedure, 'public.veille()'::regprocedure)
+), 'aucune fonction à droits étendus n''est ouverte aux visiteurs, sauf l''état de l''installation et la visite quotidienne');
 
 -- ——— Installation (fonction serveur) ———
 select tests.service();

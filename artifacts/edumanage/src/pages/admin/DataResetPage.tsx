@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { resetTestData } from "@/lib/dataReset";
 import { CAPACITE_STOCKAGE, stockageUtilise } from "@/lib/stockageLocal";
 import { modeSupabase, supabase } from "@/lib/supabase";
+import { EspaceService } from "@/components/admin/EtatServicePanels";
 import { lireSauvegarde } from "@/lib/stockageLocal";
 import type { RapportReprise } from "@/lib/reprise";
 import { VueRapportReprise } from "@/pages/reprise/RapportReprise";
@@ -69,6 +70,7 @@ export default function DataResetPage() {
             Ce navigateur ne garde aucune copie des données de l&apos;établissement : elles sont chargées depuis la base à chaque connexion et oubliées à la déconnexion. Seuls le thème et la session restent sur ce poste. Il n&apos;y a donc rien à vider ici.
           </p>
         </div>
+        <EspaceService />
         <RepriseDuPoste />
       </div>
     );

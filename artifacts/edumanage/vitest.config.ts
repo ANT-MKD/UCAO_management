@@ -5,6 +5,8 @@ import path from "path";
  * dans un navigateur simulé (happy-dom) pour disposer du stockage local. */
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+  // Composants React rendus dans certains tests : même transformation JSX que l'application.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "happy-dom",
     include: ["tests/unit/**/*.test.ts"],

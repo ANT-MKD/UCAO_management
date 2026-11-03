@@ -5,7 +5,10 @@
   "buildCommand": "npx --yes pnpm@10.28.0 run build",
   "outputDirectory": "dist/public",
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/veille", "schedule": "17 6 * * *" }
   ],
   "headers": [
     {
