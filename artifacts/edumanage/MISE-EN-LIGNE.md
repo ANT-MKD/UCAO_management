@@ -14,7 +14,9 @@ dans `vercel.json`, à côté de ce fichier, et n'ont pas à être repris dans l
 | En-têtes | `nosniff`, page non encadrable, pas d'indexation, HTTPS imposé, caméra et micro coupés | Sécurité |
 | Cache | fichiers de `/assets` gardés un an | Leur nom change à chaque version |
 
-Node 22 est fixé dans `package.json` (`engines`).
+Node 22 est fixé dans `package.json` (`engines`). Les fonctions de `api/` (visite quotidienne) sont
+compilées par Vercel avec leurs propres réglages, `api/tsconfig.json` : ceux de l'application les
+empêcheraient de produire leur code, et toute la mise en ligne échouerait.
 
 La construction **s'arrête** avec un message clair :
 
