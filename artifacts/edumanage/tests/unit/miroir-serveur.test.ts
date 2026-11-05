@@ -554,6 +554,23 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
     expect(Et.getEtablissement().banniereDataUrl).toBe("data:image/png;base64,QkFOTklFUkU=");
   });
 
+  it("textes des attestations : ceux de la base à la connexion ; un texte réécrit part seul, tel quel", async () => {
+    const PARAGRAPHES = [{ texte: "Je soussigné, {soussigne}, certifie que :", centre: false }, { texte: "{NOM}", centre: true }, { texte: "matricule {matricule}", centre: false }];
+    const { MODELES_PAR_DEFAUT } = await import("@/lib/modelesAttestations");
+    const b = await avecBase({ annees_academiques: [ANNEE], modeles_attestations: [{ id: "inscription", titre: "CERTIFICAT D'INSCRIPTION", paragraphes: PARAGRAPHES },
+      { id: "scolarite", ...MODELES_PAR_DEFAUT.scolarite }, { id: "reussite", ...MODELES_PAR_DEFAUT.reussite }] });
+    await b.miroir.chargerMiroirs();
+    const M = await import("@/data/modeleAttestationStore");
+    expect(M.getModeleAttestation("inscription")).toEqual({ titre: "CERTIFICAT D'INSCRIPTION", paragraphes: PARAGRAPHES });
+    expect(M.getModeleAttestation("scolarite")).toEqual(MODELES_PAR_DEFAUT.scolarite);
+    expect(b.envois).toEqual([]);
+
+    const reussite = { titre: "ATTESTATION DE RÉUSSITE", paragraphes: [{ texte: "{NOM}, matricule {matricule} : {decision} avec {moyenne}/20.", centre: false }] };
+    M.setModeleAttestation("reussite", reussite, ADMIN);
+    await b.miroir.attendreEnvois();
+    expect(b.envois).toEqual([{ table: "modeles_attestations", operation: "upsert", donnees: [{ id: "reussite", ...reussite }] }]);
+  });
+
   it("Mamadou KANE désigné validateur des messages : son compte part en colonnes de la base", async () => {
     const b = await avecBase({ annees_academiques: [ANNEE] });
     await b.miroir.chargerMiroirs();
@@ -1415,6 +1432,16 @@ describe("miroir des relevés, délibérations, résultats figés et attestation
     await b.miroir.attendreEnvois();
     expect(b.envois).toEqual([{ table: "attestations", operation: "upsert", donnees: [expect.objectContaining({ id: att.id, numero: "ATT-2026-007",
       etudiant_id: "et-awa", type: "reussite", semestre_id: "sem-s1", moyenne_constatee: 13.2, decision_constatee: "admis", statut: "genere" })] }]);
+    // Le texte du moment voyage avec l'attestation (la base le recopie de toute façon, et le fige).
+    const { MODELES_PAR_DEFAUT } = await import("@/lib/modelesAttestations");
+    expect((b.envois[0].donnees as Ligne[])[0].modele).toEqual(MODELES_PAR_DEFAUT.reussite);
+    expect(att.modele).toEqual(MODELES_PAR_DEFAUT.reussite);
+    // L'envoi noté renvoie la ligne entière : la base la fait passer par les contrôles d'une mise à
+    // jour (seul le statut change) et garde le texte figé (supabase/tests/textes_attestations).
+    A.marquerEnvoyee(att.id);
+    await b.miroir.attendreEnvois();
+    expect(b.envois[1]).toEqual({ table: "attestations", operation: "upsert", donnees: [expect.objectContaining({ id: att.id, numero: "ATT-2026-007", statut: "envoyee",
+      modele: MODELES_PAR_DEFAUT.reussite })] });
     expect(b.S.getNotifications()).toEqual([]);
   });
 

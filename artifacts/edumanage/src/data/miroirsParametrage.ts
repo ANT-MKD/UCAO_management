@@ -25,6 +25,7 @@ import { getCommunicationRoles, remplacerCommunicationRoles, type CommunicationR
 import { getNotificationsEvenementielles, remplacerNotificationsEvenementielles, type NotificationEvenementielleRecord } from "./notificationEvenementielleStore";
 import { getSignaturesDocuments, remplacerSignaturesDocuments, type SignatureDocumentRecord } from "./signatureConfigStore";
 import { getEtablissementLignes, remplacerEtablissement, type EtablissementInfo } from "./etablissementStore";
+import { getModelesAttestationsLignes, remplacerModelesAttestations, type ModeleAttestationRecord } from "./modeleAttestationStore";
 
 /** Paramétrage de l'emploi du temps, des finances, de la communication, des signatures et identité
  * de l'établissement reflétés dans la base (partie 3, lot 4). Le logo et l'image des signatures
@@ -115,6 +116,17 @@ enregistrerMiroir({
     fichiers: { imageDataUrl: { espace: "etablissement", dossier: (s) => `signatures/${s.id}/`, forme: "donnees" } },
     lire: getSignaturesDocuments,
     remplacer: remplacerSignaturesDocuments,
+  })],
+});
+
+// Textes des attestations : la base les contrôle et en copie un dans chaque attestation émise.
+enregistrerMiroir({
+  cle: "edumanage-modeles-attestations-v1",
+  parties: [partie<ModeleAttestationRecord>({
+    table: "modeles_attestations",
+    colonnes: ["id", "titre", "paragraphes"],
+    lire: getModelesAttestationsLignes,
+    remplacer: remplacerModelesAttestations,
   })],
 });
 

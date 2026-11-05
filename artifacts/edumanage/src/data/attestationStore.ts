@@ -1,4 +1,6 @@
 import { ecrireStockage, lireStockage } from "@/lib/stockageLocal";
+import { copieModele, type ModeleAttestation } from "@/lib/modelesAttestations";
+import { getModeleAttestation } from "./modeleAttestationStore";
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "./deliberationStore";
 import { getUserAccounts, pushNotificationEtPersister } from "./studentStore";
 import { modeSupabase, supabase } from "@/lib/supabase";
@@ -38,6 +40,9 @@ export interface AttestationRecord {
   statut: "genere" | "envoyee";
   dateGeneration: string;
   effectuePar: string;
+  /** Titre et texte figés à l'émission (copie du modèle réglé dans Paramètres) ; absent pour une
+   * attestation émise avant les textes réglables : le texte d'origine de l'application. */
+  modele?: ModeleAttestation;
 }
 
 const listeners = new Set<() => void>();
@@ -180,6 +185,8 @@ export function genererAttestation(input: GenererAttestationInput, numero: strin
     statut: "genere",
     dateGeneration: new Date().toISOString().split("T")[0],
     effectuePar: input.effectuePar,
+    // Avec la base, c'est elle qui fige le texte (le même : celui du moment).
+    modele: copieModele(getModeleAttestation(input.type)),
   };
   store.unshift(record);
   persist();

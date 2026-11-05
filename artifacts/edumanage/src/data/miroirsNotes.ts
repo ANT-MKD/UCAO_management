@@ -218,7 +218,9 @@ enregistrerMiroir({
     partie<AttestationRecord>({
       table: "attestations",
       colonnes: ["id", "numero", "etudiantId", "etudiant", "matricule", "classeId", "classe", "filiereId", "filiere", "annee", "type", "typeLabel",
-        "semestreId", "semestreLabel", "moyenneConstatee", "decisionConstatee", "soldeDuConstate", "statut", "dateGeneration", "effectuePar"],
+        "semestreId", "semestreLabel", "moyenneConstatee", "decisionConstatee", "soldeDuConstate", "statut", "dateGeneration", "effectuePar",
+        // Texte figé par la base à l'émission ; ce que le poste envoie est ignoré.
+        "modele"],
       defauts: { etudiant: "", matricule: "", classe: "", filiere: "", typeLabel: "", soldeDuConstate: 0, effectuePar: "" },
       nulSiVide: ["classeId", "filiereId", "semestreId"],
       lire: getAttestations,
