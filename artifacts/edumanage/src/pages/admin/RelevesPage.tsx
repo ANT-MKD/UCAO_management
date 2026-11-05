@@ -19,7 +19,8 @@ import { creerGeneration, type BulletinGenerationRecord, type EtudiantConcerneGe
 import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } from "@/data/deliberationStore";
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { useAuth } from "@/contexts/AuthContext";
-import { getEtablissement } from "@/data/etablissementStore";
+import { getEtablissement, villeEtablissement } from "@/data/etablissementStore";
+import { echapperHtml, enteteScolaireHtml, piedScolaireHtml, signataireDe } from "@/lib/enteteDocuments";
 import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
 import { formatDate, cn } from "@/lib/utils";
@@ -132,6 +133,10 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
   const etab = getEtablissement();
   const sceau = etab.nom.split(/\s+/).filter((w) => w.length > 2).map((w) => w[0]).join("").slice(0, 3).toUpperCase() || "EM";
   const sig = getSignatureConfig("bulletin");
+  // En-tête et pied de page des Documents officiels, quand l'établissement les a réglés.
+  const enteteOfficiel = enteteScolaireHtml(etab);
+  const piedOfficiel = piedScolaireHtml(etab);
+  const signataire = signataireDe(sig);
 
   let tableRows = "";
   resolved.ues.forEach((ue) => {
@@ -202,7 +207,7 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
 </head>
 <body>
   <!-- HEADER -->
-  <div class="header-box">
+  ${enteteOfficiel ?? `<div class="header-box">
     <div class="seal"><span class="seal-top">INSTITUT</span><span class="seal-main">${sceau}</span><span class="seal-top">&nbsp;</span></div>
     <div class="header-text">
       ${etab.logoDataUrl ? `<img src="${etab.logoDataUrl}" style="height:36px;object-fit:contain;margin-bottom:4px" />` : ""}
@@ -210,7 +215,7 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
       <div class="l2">${etab.adresse}</div>
     </div>
     <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${anneeReleve.split("-")[0]}</span><span class="seal-top">&nbsp;</span></div>
-  </div>
+  </div>`}
 
   <div class="title-pill">Relevé de Notes ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</div>
 
@@ -249,26 +254,27 @@ export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | u
     <thead>
       <tr>
         <th>Appréciation du Jury</th>
-        <th>Le Directeur</th>
+        <th>${signataire?.qualite ? echapperHtml(signataire.qualite) : "Le Directeur"}</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td>${resolved.appreciation}</td>
-        <td>${sig.actif && sig.imageDataUrl ? `<img src="${sig.imageDataUrl}" style="height:36px;object-fit:contain" />` : ""}${sig.actif && sig.signataireNom ? `<div style="font-size:10px;font-weight:700;margin-top:2px;">${sig.signataireNom}</div>` : ""}</td>
+        <td>${sig.actif && sig.imageDataUrl ? `<img src="${sig.imageDataUrl}" style="height:36px;object-fit:contain" />` : ""}${signataire ? `<div style="font-size:10px;font-weight:700;margin-top:2px;">${echapperHtml(signataire.nom)}</div>` : ""}</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="date-line">Fait à ${etab.adresse.split(",")[0]}, le ${now}</div>
-  <div class="signature-block">
+  <div class="date-line">Fait à ${echapperHtml(villeEtablissement(etab))}, le ${now}</div>
+  ${enteteOfficiel ? "" : `<div class="signature-block">
     <div class="seal" style="border-color:#dc2626;color:#dc2626;"><span class="seal-top">${sceau}</span><span class="seal-main">OK</span><span class="seal-top">Officiel</span></div>
-  </div>
+  </div>`}
 
   <!-- FOOTER -->
-  <div class="footer">
-    <div>${etab.nom}${etab.adresse ? ` — ${etab.adresse}` : ""}</div>
-    <div>${[etab.telephone && `Tél : ${etab.telephone}`, etab.email && `Email : ${etab.email}`, etab.siteWeb && `Site web : ${etab.siteWeb}`].filter(Boolean).join(" · ")}</div>
+  ${piedOfficiel ?? ""}
+  <div class="footer"${piedOfficiel ? ' style="border-top:none;margin-top:6px;padding-top:0"' : ""}>
+    ${piedOfficiel ? "" : `<div>${etab.nom}${etab.adresse ? ` — ${etab.adresse}` : ""}</div>
+    <div>${[etab.telephone && `Tél : ${etab.telephone}`, etab.email && `Email : ${etab.email}`, etab.siteWeb && `Site web : ${etab.siteWeb}`].filter(Boolean).join(" · ")}</div>`}
     <div>N° REL-${resolved.semestreAlias}-${anneeReleve.split("-")[0]}-${entry.matricule.split("-").pop()?.padStart(4,"0")} — Ce document est officiel et certifié conforme aux registres de l'institution.</div>
   </div>
 </body>

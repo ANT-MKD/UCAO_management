@@ -1,12 +1,13 @@
 import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState } from "react";
 import { Link } from "wouter";
-import { Save, Building2, ShieldOff, PenTool, Shield, Plug, Users, BookOpen, Image as ImageIcon, Plus, Pencil, Trash2 } from "lucide-react";
+import { Save, Building2, ShieldOff, PenTool, Shield, Plug, Users, BookOpen, Image as ImageIcon, Plus, Pencil, Trash2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { useEtablissement } from "@/hooks/useEtablissementStore";
-import { nomEtablissementParDefaut, NOM_ETABLISSEMENT_PAR_DEFAUT, updateEtablissement, type EtablissementInfo } from "@/data/etablissementStore";
+import { getEtablissement, nomEtablissementParDefaut, NOM_ETABLISSEMENT_PAR_DEFAUT, updateEtablissement, type EtablissementInfo } from "@/data/etablissementStore";
+import { DocumentsOfficielsPanel } from "@/components/admin/DocumentsOfficielsPanel";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
 import { upsertMotifBlocage, deleteMotifBlocage, ACTIONS_INTERDITES, type MotifBlocageRecord } from "@/data/motifBlocageStore";
 import { useSignatureConfigs } from "@/hooks/useSignatureConfigStore";
@@ -19,6 +20,7 @@ const TAILLE_MAX_IMAGE_OCTETS = 400 * 1024;
 const TABS = [
   { key: "universite", label: "Université", icon: Building2 },
   { key: "motifs", label: "Motifs de blocage", icon: ShieldOff },
+  { key: "documents", label: "Documents officiels", icon: FileText },
   { key: "signature", label: "Signature électronique", icon: PenTool },
   { key: "academique", label: "Académique", icon: BookOpen, href: "/admin/annees" },
   { key: "securite", label: "Sécurité", icon: Shield, href: "/admin/security/portails" },
@@ -54,7 +56,9 @@ export default function SettingsPage() {
 
   const handleSaveEtablissement = () => {
     if (!currentUser || !etabForm.nom.trim()) return;
-    updateEtablissement({ ...etabForm, nom: etabForm.nom.trim() }, currentUser.id);
+    // Seule l'identité part d'ici : l'en-tête des documents (onglet Documents officiels) reste tel quel.
+    const { nom, adresse, telephone, email, siteWeb, agrement, logoDataUrl } = etabForm;
+    updateEtablissement({ ...getEtablissement(), nom: nom.trim(), adresse, telephone, email, siteWeb, agrement, logoDataUrl }, currentUser.id);
     toast.success("Informations de l'établissement enregistrées.");
   };
 
@@ -236,10 +240,12 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {activeTab === "documents" && <DocumentsOfficielsPanel />}
+
             {activeTab === "signature" && (
               <div className="space-y-5">
                 <h3 className="font-bold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>Signature électronique</h3>
-                <p className="text-xs text-muted-foreground -mt-3">Par type de document réellement généré par l'appli — active un bloc signature (image + nom) sur le document imprimé.</p>
+                <p className="text-xs text-muted-foreground -mt-3">Par type de document réellement généré par l'appli — active un bloc signature (image + nom) sur le document imprimé. Le nom et la qualité ouvrent aussi le texte des attestations : « Je soussigné(e), M. …, Responsable de la scolarité, certifie… ».</p>
                 {(Object.keys(SIGNATURE_DOC_LABELS) as SignatureDocType[]).map((docType) => {
                   const cfg = sigForms[docType];
                   return (

@@ -19,7 +19,8 @@ import {
 import { formatNote } from "@/lib/notes";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate, cn } from "@/lib/utils";
-import { enteteEtablissementHtml, faitALe } from "@/lib/printDocument";
+import { enteteDocumentScolaireHtml, faitALe } from "@/lib/printDocument";
+import { piedScolaireHtml } from "@/lib/enteteDocuments";
 import { MotifModal } from "@/components/admin/MotifModal";
 
 const DECISION_CONFIG: Record<DecisionAnnuelle, { label: string; color: string; bg: string; icon: React.ElementType; border: string }> = {
@@ -74,7 +75,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
     .sig-box { border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-family: Arial, sans-serif; font-size: 10px; color: #6b7280; }
   </style>
   </head><body>
-    ${enteteEtablissementHtml()}
+    ${enteteDocumentScolaireHtml()}
     <h1>Procès-verbal de délibération annuelle</h1>
     <div class="meta">
       <strong>Filière :</strong> ${deliberation.filiere} — ${deliberation.niveauLabel} — ${deliberation.annee}<br/>
@@ -91,6 +92,7 @@ function buildPvHtml(deliberation: DeliberationAnnuelleRecord): string {
       <div class="sig-box">Le Secrétaire<br/><br/><br/>Signature</div>
       <div class="sig-box">${faitALe()}</div>
     </div>
+    ${piedScolaireHtml() ?? ""}
     <script>window.onload = function(){ window.print(); }</script>
   </body></html>`;
 }

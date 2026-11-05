@@ -1,5 +1,6 @@
 import { formatCFA } from "@/lib/utils";
 import { getEtablissement, villeEtablissement } from "@/data/etablissementStore";
+import { enteteScolaireHtml } from "@/lib/enteteDocuments";
 
 export interface PrintDocumentLigne {
   label: string;
@@ -195,6 +196,12 @@ export function enteteEtablissementHtml(): string {
     ${etab.agrement ? `<div style="font-size:11px;color:#777;margin-top:2px">Agrément : ${echapperHtml(etab.agrement)}</div>` : ""}
   </div>
 </div>`;
+}
+
+/** En-tête des documents scolaires (procès-verbaux…) : celui des Documents officiels quand il est
+ * réglé, sinon l'en-tête d'origine. */
+export function enteteDocumentScolaireHtml(): string {
+  return enteteScolaireHtml() ?? enteteEtablissementHtml();
 }
 
 /** « Fait à Dakar, le 8 octobre 2026 » — la ville vient de l'adresse de l'établissement. */
