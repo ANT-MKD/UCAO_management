@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -14,7 +14,9 @@ import { remplacerNiveaux, type NiveauRecord } from "@/data/niveauStore";
 import { buildAttestationHtml } from "@/pages/admin/AttestationsPage";
 import type { AttestationRecord } from "@/data/attestationStore";
 
-const MIGRATION = readFileSync(resolve(__dirname, "../../../../supabase/migrations/20261105233000_textes_attestations.sql"), "utf8");
+// Le fichier prend la version enregistrée sur la base en service : on le trouve par son nom.
+const MIGRATIONS = resolve(__dirname, "../../../../supabase/migrations");
+const MIGRATION = readFileSync(resolve(MIGRATIONS, readdirSync(MIGRATIONS).find((f) => f.endsWith("_textes_attestations.sql"))!), "utf8");
 
 const ETAB: EtablissementInfo = {
   nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Route de Mont-Rolland, Thiès", telephone: "", email: "", siteWeb: "", agrement: "",
