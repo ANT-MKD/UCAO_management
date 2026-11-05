@@ -1,13 +1,14 @@
 import { lireFichierPourStockage } from "@/lib/stockageLocal";
 import { useState } from "react";
 import { Link } from "wouter";
-import { Save, Building2, ShieldOff, PenTool, Shield, Plug, Users, BookOpen, Image as ImageIcon, Plus, Pencil, Trash2, FileText } from "lucide-react";
+import { Save, Building2, ShieldOff, PenTool, Shield, Plug, Users, BookOpen, Image as ImageIcon, Plus, Pencil, Trash2, FileText, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormModal } from "@/components/admin/FormModal";
 import { useEtablissement } from "@/hooks/useEtablissementStore";
 import { getEtablissement, nomEtablissementParDefaut, NOM_ETABLISSEMENT_PAR_DEFAUT, updateEtablissement, type EtablissementInfo } from "@/data/etablissementStore";
 import { DocumentsOfficielsPanel } from "@/components/admin/DocumentsOfficielsPanel";
+import { TextesAttestationsPanel } from "@/components/admin/TextesAttestationsPanel";
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
 import { upsertMotifBlocage, deleteMotifBlocage, ACTIONS_INTERDITES, type MotifBlocageRecord } from "@/data/motifBlocageStore";
 import { useSignatureConfigs } from "@/hooks/useSignatureConfigStore";
@@ -21,6 +22,7 @@ const TABS = [
   { key: "universite", label: "Université", icon: Building2 },
   { key: "motifs", label: "Motifs de blocage", icon: ShieldOff },
   { key: "documents", label: "Documents officiels", icon: FileText },
+  { key: "textes", label: "Textes des attestations", icon: ScrollText },
   { key: "signature", label: "Signature électronique", icon: PenTool },
   { key: "academique", label: "Académique", icon: BookOpen, href: "/admin/annees" },
   { key: "securite", label: "Sécurité", icon: Shield, href: "/admin/security/portails" },
@@ -241,6 +243,8 @@ export default function SettingsPage() {
             )}
 
             {activeTab === "documents" && <DocumentsOfficielsPanel />}
+
+            {activeTab === "textes" && <TextesAttestationsPanel />}
 
             {activeTab === "signature" && (
               <div className="space-y-5">

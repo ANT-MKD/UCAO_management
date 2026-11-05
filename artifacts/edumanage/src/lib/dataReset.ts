@@ -36,6 +36,7 @@ const KEEP_KEYS = new Set([
   "edumanage-portal-access-v1",
   "edumanage-portal-features-v1",
   "edumanage-signature-config-v1",
+  "edumanage-modeles-attestations-v1",
   "edumanage-motifs-blocage-v1",
 ]);
 

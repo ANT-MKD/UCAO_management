@@ -18,6 +18,11 @@ import {
 } from "@/data/attestationStore";
 import { buildPrintDocumentHtml, faitALe } from "@/lib/printDocument";
 import { documentScolaireHtml, echapperHtml, enteteScolaireActif, phraseSoussigne, signataireDe } from "@/lib/enteteDocuments";
+import { corpsModeleHtml, valeursDesChamps, type ModeleAttestation, type ValeursAttestation } from "@/lib/modelesAttestations";
+import { getEtudiants } from "@/data/studentStore";
+import { getClasses } from "@/data/structureStore";
+import { getNiveauById } from "@/data/niveauStore";
+import { DECISION_LABELS } from "@/data/deliberationStore";
 import { getEtablissement } from "@/data/etablissementStore";
 import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
@@ -42,49 +47,80 @@ const STATUT_CONFIG = {
   envoyee: { label: "Envoyée", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" },
 };
 
+/** Ce que le document sait de l'étudiant au-delà de l'attestation (fiche et classe) ; l'aperçu des
+ * Paramètres fournit celui d'un étudiant fictif. */
+export interface ContexteAttestation {
+  etudiant?: { sexe?: "M" | "F"; dateNaissance?: string; lieuNaissance?: string; nationalite?: string };
+  niveau?: string;
+}
+
+/** Valeurs des champs du texte : l'attestation (figée à l'émission), la fiche de l'étudiant, sa
+ * classe, l'établissement et le signataire réglé pour ce document. */
+export function valeursPourAttestation(entry: AttestationRecord, contexte?: ContexteAttestation): ValeursAttestation {
+  const etab = getEtablissement();
+  const fiche = contexte?.etudiant ?? getEtudiants().find((e) => e.id === entry.etudiantId);
+  const classe = entry.classeId ? getClasses().find((c) => c.id === entry.classeId) : undefined;
+  return {
+    nom: entry.etudiant,
+    matricule: entry.matricule,
+    sexe: fiche?.sexe,
+    dateNaissance: fiche?.dateNaissance,
+    lieuNaissance: fiche?.lieuNaissance,
+    nationalite: fiche?.nationalite,
+    classe: entry.classe,
+    niveau: contexte?.niveau ?? (classe ? getNiveauById(classe.niveauId)?.nom : undefined),
+    filiere: entry.filiere,
+    annee: entry.annee,
+    etablissement: etab.nom,
+    signataire: signataireDe(getSignatureConfig(entry.type)) ?? undefined,
+    semestre: entry.semestreLabel,
+    moyenne: entry.moyenneConstatee !== undefined ? formatNote(entry.moyenneConstatee) : undefined,
+    decision: entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee ? DECISION_LABELS[entry.decisionConstatee] : undefined,
+  };
+}
+
+/** Texte d'origine de l'application, pour une attestation émise avant les textes réglables (elle
+ * n'a pas de texte figé) : on la réimprime telle qu'elle a été délivrée. */
+function corpsHistorique(entry: AttestationRecord, avecMatricule: boolean): string {
+  const etab = getEtablissement();
+  const soussigne = `<p>${phraseSoussigne(getSignatureConfig(entry.type), etab.nom)}</p>`;
+  const blocNom = `<p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${echapperHtml(entry.etudiant)}</p>`
+    + (avecMatricule ? `<p style="text-align:center;margin:-12px 0 18px">Matricule : <strong>${echapperHtml(entry.matricule)}</strong></p>` : "");
+  if (entry.type === "reussite") {
+    return `${soussigne}${blocNom}
+      <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${formatNote(entry.moyenneConstatee)}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
+      <p>En foi de quoi, la présente attestation de réussite est délivrée pour servir et valoir ce que de droit.</p>`;
+  }
+  if (entry.type === "inscription") {
+    return `${soussigne}${blocNom}
+      <p>Est régulièrement inscrit(e) dans notre établissement pour l'année académique ${entry.annee}, en ${entry.filiere} — ${entry.classe}.</p>
+      <p>En foi de quoi, la présente attestation d'inscription est délivrée pour servir et valoir ce que de droit.</p>`;
+  }
+  return `${soussigne}${blocNom}
+      <p>Est régulièrement inscrit(e) dans notre établissement pour l'année universitaire en cours et suit assidûment les cours dispensés.</p>
+      <p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>`;
+}
+
 /** Réutilisée telle quelle par le portail étudiant (StudentDocumentsPage.tsx) pour imprimer une
  * attestation déjà générée — jamais un second gabarit qui risquerait de diverger de celui-ci.
- * Avec un en-tête réglé (Paramètres généraux → Documents officiels), l'attestation prend la
- * présentation des documents de l'établissement (en-tête, titre, « Fait à », signature, pied de
- * page) ; sinon, la présentation d'origine. Le signataire nommé (Signature électronique) ouvre le
- * texte : « Je soussigné(e), M. …, Responsable de la scolarité, certifie… ». */
-export function buildAttestationHtml(entry: AttestationRecord) {
+ * Le texte est celui figé dans l'attestation à son émission (Paramètres généraux → Textes des
+ * attestations), ses champs remplis par les informations de l'étudiant ; « modele » remplace ce
+ * texte pour l'aperçu des Paramètres. Avec un en-tête réglé (Documents officiels), le document
+ * prend la présentation de l'établissement ; sinon, la présentation d'origine. */
+export function buildAttestationHtml(entry: AttestationRecord, contexte?: ContexteAttestation & { modele?: ModeleAttestation }) {
   const etab = getEtablissement();
   const sig = getSignatureConfig(entry.type);
   const signataire = signataireDe(sig);
   const enteteEtablissement = enteteScolaireActif(etab);
-  const nom = echapperHtml(entry.etudiant);
-  const soussigne = `<p>${phraseSoussigne(sig, etab.nom)}</p>`;
-  // Avec l'en-tête de l'établissement, le matricule suit le nom (il n'y a plus de bloc « Concerne »).
-  const blocNom = `<p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${nom}</p>`
-    + (enteteEtablissement ? `<p style="text-align:center;margin:-12px 0 18px">Matricule : <strong>${echapperHtml(entry.matricule)}</strong></p>` : "");
-  let corps = "";
-  if (entry.type === "reussite") {
-    corps = `
-      ${soussigne}
-      ${blocNom}
-      <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${formatNote(entry.moyenneConstatee)}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
-      <p>En foi de quoi, la présente attestation de réussite est délivrée pour servir et valoir ce que de droit.</p>
-    `;
-  } else if (entry.type === "inscription") {
-    corps = `
-      ${soussigne}
-      ${blocNom}
-      <p>Est régulièrement inscrit(e) dans notre établissement pour l'année académique ${entry.annee}, en ${entry.filiere} — ${entry.classe}.</p>
-      <p>En foi de quoi, la présente attestation d'inscription est délivrée pour servir et valoir ce que de droit.</p>
-    `;
-  } else {
-    corps = `
-      ${soussigne}
-      ${blocNom}
-      <p>Est régulièrement inscrit(e) dans notre établissement pour l'année universitaire en cours et suit assidûment les cours dispensés.</p>
-      <p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>
-    `;
-  }
+  const modele = contexte?.modele ?? entry.modele;
+  const titre = modele ? modele.titre.trim() : entry.typeLabel.toUpperCase();
+  const corps = modele
+    ? corpsModeleHtml(modele, valeursDesChamps(valeursPourAttestation(entry, contexte)))
+    : corpsHistorique(entry, enteteEtablissement);
   const image = sig.actif ? sig.imageDataUrl : undefined;
   if (enteteEtablissement) {
     return documentScolaireHtml({
-      titre: entry.typeLabel.toUpperCase(),
+      titre,
       reference: `Réf. ${entry.numero}`,
       corps,
       faitLe: faitALe(new Date(entry.dateGeneration)),
@@ -92,12 +128,12 @@ export function buildAttestationHtml(entry: AttestationRecord) {
     }, etab);
   }
   return buildPrintDocumentHtml({
-    badge: entry.typeLabel.toUpperCase(),
+    badge: echapperHtml(titre),
     numeroLabel: "Réf.",
     numero: entry.numero,
     date: formatDate(entry.dateGeneration),
     destinataireLabel: "Concerne",
-    destinataireNom: nom,
+    destinataireNom: echapperHtml(entry.etudiant),
     destinataireLignes: [`Matricule : ${entry.matricule}`, `${entry.filiere} — Classe ${entry.classe}`, `Année académique : ${entry.annee}`],
     corps,
     messageMerci: "",
