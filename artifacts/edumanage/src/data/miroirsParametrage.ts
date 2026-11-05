@@ -122,9 +122,16 @@ enregistrerMiroir({
   cle: "edumanage-etablissement-v1",
   parties: [partie<EtablissementInfo & { id: string }>({
     table: "etablissement",
-    colonnes: ["id", "nom", "adresse", "telephone", "email", "siteWeb", "agrement", ["logoDataUrl", "logo_chemin"]],
-    defauts: { telephone: "", email: "", siteWeb: "", agrement: "" },
-    fichiers: { logoDataUrl: { espace: "etablissement", dossier: () => "logo/", forme: "donnees" } },
+    colonnes: ["id", "nom", "adresse", "telephone", "email", "siteWeb", "agrement", ["logoDataUrl", "logo_chemin"],
+      // En-tête et pied de page des documents scolaires (Documents officiels).
+      "ville", "enteteForme", ["banniereDataUrl", "banniere_chemin"], ["logoDroitDataUrl", "logo_droit_chemin"],
+      "enteteLignes", "enteteCadre", "piedLignes"],
+    defauts: { telephone: "", email: "", siteWeb: "", agrement: "", ville: "", enteteForme: "standard", enteteLignes: [], enteteCadre: true, piedLignes: [] },
+    fichiers: {
+      logoDataUrl: { espace: "etablissement", dossier: () => "logo/", forme: "donnees" },
+      banniereDataUrl: { espace: "etablissement", dossier: () => "entete/", forme: "donnees" },
+      logoDroitDataUrl: { espace: "etablissement", dossier: () => "entete/", forme: "donnees" },
+    },
     lire: getEtablissementLignes,
     remplacer: remplacerEtablissement,
     miseAJourSeule: true,

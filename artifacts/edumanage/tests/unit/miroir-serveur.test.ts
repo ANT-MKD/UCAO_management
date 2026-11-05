@@ -488,7 +488,8 @@ describe("miroir du paramétrage de la scolarité et des bulletins", () => {
 
 describe("miroir du paramétrage de l'emploi du temps, des finances, de la communication et de l'établissement", () => {
   const KANE = "00000000-0000-4000-8000-00000000000c";
-  const ETABLISSEMENT = { id: 1, nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "", email: "", site_web: "", agrement: "", logo_chemin: null, modifie_le: "2026-10-30T10:00:00+00:00", modifie_par: null };
+  const ENTETE_BASE = { ville: "", entete_forme: "standard", banniere_chemin: null, logo_droit_chemin: null, entete_lignes: [], entete_cadre: true, pied_lignes: [] };
+  const ETABLISSEMENT = { id: 1, nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "", email: "", site_web: "", agrement: "", logo_chemin: null, ...ENTETE_BASE, modifie_le: "2026-10-30T10:00:00+00:00", modifie_par: null };
 
   it("à la connexion : listes et identité de la base ; le logo et l'image de signature viennent de l'espace de fichiers, en contenu pour l'impression", async () => {
     localStorage.setItem("edumanage-etablissement-v1", JSON.stringify({ nom: "Ancien nom", adresse: "", logoDataUrl: "data:image/png;base64,QU5DSUVO" }));
@@ -525,7 +526,7 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
     const logo = b.stockage[0]?.chemins[0];
     expect(b.stockage).toEqual([{ espace: "etablissement", operation: "depot", chemins: [expect.stringMatching(/^logo\/[\w-]+\.png$/)], envoisAvant: 0, type: "image/png" }]);
     expect(b.envois).toEqual([{ table: "etablissement", operation: "update", donnees: {
-      nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "33 800 00 00", email: "", site_web: "", agrement: "", logo_chemin: logo,
+      nom: "Université Catholique de l'Afrique de l'Ouest", adresse: "Dakar, Sénégal", telephone: "33 800 00 00", email: "", site_web: "", agrement: "", logo_chemin: logo, ...ENTETE_BASE,
     } }]);
     refus.actif = true;
     const motifs: string[] = [];
@@ -535,6 +536,22 @@ describe("miroir du paramétrage de l'emploi du temps, des finances, de la commu
     expect(motifs).toEqual([expect.stringContaining("pas le droit")]);
     expect(Et.getEtablissement()).toMatchObject({ nom: "Université Catholique de l'Afrique de l'Ouest", logoDataUrl: "data:image/png;base64,TE9HTw==" });
     expect(b.stockage).toHaveLength(1);
+  });
+
+  it("en-tête des documents : la bannière est déposée dans entete/, puis la forme, le pied de page et la ville partent avec l'identité", async () => {
+    const b = await avecBase({ annees_academiques: [ANNEE], etablissement: [ETABLISSEMENT] });
+    await b.miroir.chargerMiroirs();
+    const Et = await import("@/data/etablissementStore");
+    expect(Et.getEtablissement()).toMatchObject({ enteteForme: "standard", enteteLignes: [], enteteCadre: true, piedLignes: [], ville: "" });
+    Et.updateEtablissement({ ...Et.getEtablissement(), enteteForme: "banniere", banniereDataUrl: "data:image/png;base64,QkFOTklFUkU=",
+      piedLignes: ["Route de Mont-Rolland"], ville: "Thiès" }, ADMIN);
+    await b.miroir.attendreEnvois();
+    const banniere = b.stockage[0]?.chemins[0];
+    expect(b.stockage).toEqual([{ espace: "etablissement", operation: "depot", chemins: [expect.stringMatching(/^entete\/[\w-]+\.png$/)], envoisAvant: 0, type: "image/png" }]);
+    expect(b.envois).toEqual([{ table: "etablissement", operation: "update", donnees: expect.objectContaining({
+      entete_forme: "banniere", banniere_chemin: banniere, logo_droit_chemin: null, entete_lignes: [], entete_cadre: true, pied_lignes: ["Route de Mont-Rolland"], ville: "Thiès",
+    }) }]);
+    expect(Et.getEtablissement().banniereDataUrl).toBe("data:image/png;base64,QkFOTklFUkU=");
   });
 
   it("Mamadou KANE désigné validateur des messages : son compte part en colonnes de la base", async () => {

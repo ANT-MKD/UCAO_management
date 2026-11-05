@@ -3,6 +3,19 @@ import { logAudit } from "./studentStore";
 
 const STORAGE_KEY = "edumanage-etablissement-v1";
 
+/** Présentation de l'en-tête des documents scolaires (Paramètres généraux → Documents officiels) :
+ * « standard » (celle livrée avec l'application), « banniere » (une image qui contient tout
+ * l'en-tête) ou « compose » (logo de l'établissement, logo de droite, lignes de texte). */
+export type FormeEntete = "standard" | "banniere" | "compose";
+
+/** Une ligne de l'en-tête composé ; la base en contrôle le contenu (au plus 6, 120 caractères). */
+export interface LigneEntete {
+  texte: string;
+  taille: "grande" | "moyenne" | "petite";
+  style: "gras" | "normal" | "italique";
+  couleur: "noir" | "bleu" | "bordeaux";
+}
+
 export interface EtablissementInfo {
   nom: string;
   adresse: string;
@@ -11,6 +24,18 @@ export interface EtablissementInfo {
   siteWeb: string;
   agrement: string;
   logoDataUrl?: string;
+  /** Ville de « Fait à …, le … » ; vide : le début de l'adresse. */
+  ville: string;
+  enteteForme: FormeEntete;
+  /** Image de l'en-tête entier (forme « banniere »). */
+  banniereDataUrl?: string;
+  /** Logo de droite de l'en-tête composé (celui de gauche est le logo de l'établissement). */
+  logoDroitDataUrl?: string;
+  enteteLignes: LigneEntete[];
+  /** Cadre autour de l'en-tête composé. */
+  enteteCadre: boolean;
+  /** Lignes du bas de page des documents scolaires (au plus 3). */
+  piedLignes: string[];
 }
 
 /** Nom livré avec l'application : tant qu'il n'est pas remplacé, les documents officiels portent
@@ -25,6 +50,13 @@ const DEFAULT_INFO: EtablissementInfo = {
   siteWeb: "",
   agrement: "",
   logoDataUrl: undefined,
+  ville: "",
+  enteteForme: "standard",
+  banniereDataUrl: undefined,
+  logoDroitDataUrl: undefined,
+  enteteLignes: [],
+  enteteCadre: true,
+  piedLignes: [],
 };
 
 function load(): EtablissementInfo {
@@ -77,7 +109,9 @@ export function remplacerEtablissement(lignes: (EtablissementInfo & { id: string
   const ligne = lignes[0];
   if (!ligne) return;
   const { id: _id, ...info } = ligne;
-  store = { ...DEFAULT_INFO, ...info };
+  // Un champ absent de la ligne garde sa valeur par défaut (jamais « undefined » à la place d'une liste).
+  const presents = Object.fromEntries(Object.entries(info).filter(([, v]) => v !== undefined));
+  store = { ...DEFAULT_INFO, ...presents };
   persist();
 }
 
@@ -92,9 +126,10 @@ export function nomEtablissementParDefaut(info: EtablissementInfo = store): bool
   return !info.nom.trim() || info.nom.trim() === NOM_ETABLISSEMENT_PAR_DEFAUT;
 }
 
-/** Ville pour « Fait à … » : début de l'adresse (« Dakar, Sénégal » → « Dakar »). */
+/** Ville pour « Fait à … » : celle des Documents officiels, sinon le début de l'adresse
+ * (« Dakar, Sénégal » → « Dakar »). */
 export function villeEtablissement(info: EtablissementInfo = store): string {
-  return info.adresse.split(/[,\n]/)[0].trim();
+  return info.ville?.trim() || info.adresse.split(/[,\n]/)[0].trim();
 }
 
 /** Identité saisie à l'installation : le reste (téléphone, logo…) se complète dans les Paramètres. */

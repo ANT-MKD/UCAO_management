@@ -16,7 +16,8 @@ import {
   type AttestationRecord,
   type AttestationType,
 } from "@/data/attestationStore";
-import { buildPrintDocumentHtml } from "@/lib/printDocument";
+import { buildPrintDocumentHtml, faitALe } from "@/lib/printDocument";
+import { documentScolaireHtml, echapperHtml, enteteScolaireActif, phraseSoussigne, signataireDe } from "@/lib/enteteDocuments";
 import { getEtablissement } from "@/data/etablissementStore";
 import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
@@ -42,45 +43,68 @@ const STATUT_CONFIG = {
 };
 
 /** Réutilisée telle quelle par le portail étudiant (StudentDocumentsPage.tsx) pour imprimer une
- * attestation déjà générée — jamais un second gabarit qui risquerait de diverger de celui-ci. */
+ * attestation déjà générée — jamais un second gabarit qui risquerait de diverger de celui-ci.
+ * Avec un en-tête réglé (Paramètres généraux → Documents officiels), l'attestation prend la
+ * présentation des documents de l'établissement (en-tête, titre, « Fait à », signature, pied de
+ * page) ; sinon, la présentation d'origine. Le signataire nommé (Signature électronique) ouvre le
+ * texte : « Je soussigné(e), M. …, Responsable de la scolarité, certifie… ». */
 export function buildAttestationHtml(entry: AttestationRecord) {
-  const nomEtablissement = getEtablissement().nom;
+  const etab = getEtablissement();
+  const sig = getSignatureConfig(entry.type);
+  const signataire = signataireDe(sig);
+  const enteteEtablissement = enteteScolaireActif(etab);
+  const nom = echapperHtml(entry.etudiant);
+  const soussigne = `<p>${phraseSoussigne(sig, etab.nom)}</p>`;
+  // Avec l'en-tête de l'établissement, le matricule suit le nom (il n'y a plus de bloc « Concerne »).
+  const blocNom = `<p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${nom}</p>`
+    + (enteteEtablissement ? `<p style="text-align:center;margin:-12px 0 18px">Matricule : <strong>${echapperHtml(entry.matricule)}</strong></p>` : "");
   let corps = "";
   if (entry.type === "reussite") {
     corps = `
-      <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
-      <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
+      ${soussigne}
+      ${blocNom}
       <p>A subi avec succès les épreuves du <strong>${entry.semestreLabel ?? ""}</strong> (${entry.filiere} — ${entry.classe}), avec une moyenne de <strong>${formatNote(entry.moyenneConstatee)}/20</strong> et la décision de jury <strong>${entry.decisionConstatee === "admis" ? "Admis" : entry.decisionConstatee}</strong>, délibérée le ${formatDate(entry.dateGeneration)}.</p>
       <p>En foi de quoi, la présente attestation de réussite est délivrée pour servir et valoir ce que de droit.</p>
     `;
   } else if (entry.type === "inscription") {
     corps = `
-      <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
-      <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
+      ${soussigne}
+      ${blocNom}
       <p>Est régulièrement inscrit(e) dans notre établissement pour l'année académique ${entry.annee}, en ${entry.filiere} — ${entry.classe}.</p>
       <p>En foi de quoi, la présente attestation d'inscription est délivrée pour servir et valoir ce que de droit.</p>
     `;
   } else {
     corps = `
-      <p>Je soussigné(e), le Directeur de ${nomEtablissement}, certifie par la présente que :</p>
-      <p style="text-align:center;font-size:16px;font-weight:bold;margin:20px 0">${entry.etudiant}</p>
+      ${soussigne}
+      ${blocNom}
       <p>Est régulièrement inscrit(e) dans notre établissement pour l'année universitaire en cours et suit assidûment les cours dispensés.</p>
       <p>En foi de quoi, la présente attestation est délivrée pour servir et valoir ce que de droit.</p>
     `;
   }
-  const sig = getSignatureConfig(entry.type);
+  const image = sig.actif ? sig.imageDataUrl : undefined;
+  if (enteteEtablissement) {
+    return documentScolaireHtml({
+      titre: entry.typeLabel.toUpperCase(),
+      reference: `Réf. ${entry.numero}`,
+      corps,
+      faitLe: faitALe(new Date(entry.dateGeneration)),
+      signature: signataire ? { qualite: signataire.qualite, nom: signataire.nom, imageDataUrl: image } : { qualite: "Le Directeur", imageDataUrl: image },
+    }, etab);
+  }
   return buildPrintDocumentHtml({
     badge: entry.typeLabel.toUpperCase(),
     numeroLabel: "Réf.",
     numero: entry.numero,
     date: formatDate(entry.dateGeneration),
     destinataireLabel: "Concerne",
-    destinataireNom: entry.etudiant,
+    destinataireNom: nom,
     destinataireLignes: [`Matricule : ${entry.matricule}`, `${entry.filiere} — Classe ${entry.classe}`, `Année académique : ${entry.annee}`],
     corps,
     messageMerci: "",
-    signatureLabel: sig.actif && sig.signataireNom ? sig.signataireNom : "Le Directeur",
-    signatureImageDataUrl: sig.actif ? sig.imageDataUrl : undefined,
+    signatureLabel: signataire
+      ? `${signataire.qualite ? `${echapperHtml(signataire.qualite)}<br />` : ""}${echapperHtml(signataire.nom)}`
+      : "Le Directeur",
+    signatureImageDataUrl: image,
   });
 }
 
