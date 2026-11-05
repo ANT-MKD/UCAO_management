@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import {
   Pencil, Trash2, Plus, Users, UsersRound, Filter, Link2, ShieldCheck, Clock3, Bell, BellRing, X,
@@ -38,7 +39,8 @@ const TABS = [
   { id: "externes", label: "Groupes externes", icon: Users },
   { id: "internes", label: "Groupes internes", icon: UsersRound },
   { id: "personnalises", label: "Groupes personnalisés", icon: Filter },
-  { id: "api", label: "URL API COM", icon: Link2 },
+  // Avec la base, l'onglet décrit l'envoi réel des e-mails (Resend) au lieu d'une adresse de passerelle.
+  { id: "api", label: modeSupabase ? "Envoi des e-mails" : "URL API COM", icon: Link2 },
   { id: "validateur-messages", label: "Validateur Messages", icon: ShieldCheck },
   { id: "validateur-rallonge", label: "Validateur demande rallonge", icon: Clock3 },
   { id: "destinataires-alert", label: "Destinataires alert", icon: BellRing },
@@ -94,7 +96,7 @@ export default function ParametrageCommunicationPage() {
       {tab === "externes" && <GroupesExternesTab />}
       {tab === "internes" && <GroupesInternesTab />}
       {tab === "personnalises" && <GroupesPersonnalisesTab />}
-      {tab === "api" && <UrlApiComTab />}
+      {tab === "api" && (modeSupabase ? <EnvoiCourrielsTab /> : <UrlApiComTab />)}
       {tab === "validateur-messages" && <RoleCommunicationTab role="validateur_message" titre="Les validateurs de messages" colonneLabel="Remarques" testIdPrefix="validateur-msg" />}
       {tab === "validateur-rallonge" && <RoleCommunicationTab role="validateur_rallonge" titre="Les validateurs de demande de rallonge" colonneLabel="Remarques" testIdPrefix="validateur-rallonge" />}
       {tab === "destinataires-alert" && <RoleCommunicationTab role="destinataire_alert" titre="Les destinataires alert" colonneLabel="Action" testIdPrefix="destinataire-alert" avecAction />}
@@ -444,6 +446,36 @@ function GroupesPersonnalisesTab() {
   );
 }
 
+// ===================== ENVOI DES E-MAILS (avec la base) =====================
+
+/** Avec la base, aucune adresse de passerelle ne se règle depuis un poste : les e-mails partent
+ * par Resend, réglé dans les secrets du serveur (partie 10, lot 4). L'onglet dit où le régler et
+ * où en voir l'état, sans afficher l'adresse fictive du mode navigateur. */
+export function EnvoiCourrielsTab() {
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 space-y-3 text-sm" style={{ boxShadow: "var(--shadow-sm)" }} data-testid="api-com-envoi-courriels">
+      <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Envoi des e-mails</p>
+      <p>
+        Chaque mail validé, chaque relance de paiement et chaque alerte du service est déposé dans la messagerie
+        des portails et part aussi par e-mail, par le service Resend. Les codes PIN et les mots de passe ne
+        partent jamais par e-mail.
+      </p>
+      <p>
+        L'envoi se règle sur le serveur, dans les secrets de Supabase (<span className="font-mono text-xs">RESEND_API_KEY</span>,{" "}
+        <span className="font-mono text-xs">EDUMANAGE_ALERTES</span>, puis <span className="font-mono text-xs">EDUMANAGE_EXPEDITEUR</span> une
+        fois un nom de domaine vérifié) : jamais depuis un poste, et la clé n'y est jamais enregistrée.
+      </p>
+      <p>
+        L'état de l'envoi (expéditeur, adresse des alertes, e-mails en attente ou refusés) se lit dans{" "}
+        <Link href="/admin/security/reinitialisation-donnees" className="text-primary hover:underline" data-testid="api-com-lien-etat">
+          Sécurité → Données et sauvegarde
+        </Link>
+        , encadré « E-mails (Resend) ». L'envoi de SMS n'est pas proposé.
+      </p>
+    </div>
+  );
+}
+
 // ===================== URL API COM =====================
 
 function UrlApiComTab() {
@@ -461,7 +493,7 @@ function UrlApiComTab() {
     <div className="bg-card border border-border rounded-2xl p-5" style={{ boxShadow: "var(--shadow-sm)" }}>
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-semibold text-foreground uppercase tracking-wide">URL API COM</p>
-        {!editing && !modeSupabase && (
+        {!editing && (
           <button onClick={() => { setValue(url); setEditing(true); }} className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors" data-testid="api-com-modifier">
             <Pencil size={14} /> Mettre à jour
           </button>
@@ -483,9 +515,7 @@ function UrlApiComTab() {
         </div>
       )}
       <p className="text-xs text-muted-foreground mt-4" data-testid="api-com-note">
-        {modeSupabase
-          ? "Avec la base de données, la passerelle d'envoi (SMS, e-mail) se règlera sur le serveur, ses clés comprises, à la mise en production : elle ne se règle pas depuis un poste et n'y est jamais enregistrée."
-          : "Point d'intégration externe (passerelle SMS/email) — aucun envoi réel n'est déclenché par cette application, cette URL est conservée pour une future intégration."}
+        Point d'intégration externe (passerelle SMS/email) — aucun envoi réel n'est déclenché par cette application, cette URL est conservée pour une future intégration.
       </p>
     </div>
   );
