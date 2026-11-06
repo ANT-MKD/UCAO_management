@@ -143,24 +143,26 @@ describe("relevés de notes et procès-verbaux", () => {
     filiereNomComplet: "Informatique de gestion", niveauLabel: "Licence 3",
   } as unknown as BulletinResolu;
 
-  it("sans en-tête réglé : les sceaux et le pied d'origine", () => {
+  it("sans en-tête réglé : un cadre au nom de l'établissement, sans faux cachet", () => {
     const html = buildPrintHtml(releve, resolu);
-    expect(html).toContain(`<div class="header-box">`);
-    expect(html).toContain("<th>Le Directeur</th>");
+    expect(html).toContain(`<div class="cadre-defaut">`);
+    expect(html).toContain("Université Catholique de l&#39;Afrique de l&#39;Ouest");
+    expect(html).not.toContain("seal");
+    expect(html).toContain(`<th class="qualite" colspan="4">Le Directeur</th>`);
   });
 
   it("avec l'en-tête composé : les vrais logos remplacent les sceaux, la qualité du signataire titre la colonne", () => {
     installer({ enteteForme: "compose", logoDataUrl: LOGO_UCAO, logoDroitDataUrl: LOGO_ISAE, enteteLignes: LIGNES_ENTETE_EXEMPLE, piedLignes: PIED, ville: "Thiès" },
       { ...SIGNATAIRE, signataireQualite: "Le Directeur des études" });
     const html = buildPrintHtml(releve, resolu);
-    expect(html).not.toContain(`<div class="header-box">`);
-    expect(html).not.toContain("seal-main\">OK");
+    expect(html).not.toContain(`<div class="cadre-defaut">`);
+    expect(html).not.toContain("seal");
     expect(html).toContain(LOGO_ISAE);
-    expect(html).toContain("<th>Le Directeur des études</th>");
+    expect(html).toContain(`<th class="qualite" colspan="4">Le Directeur des études</th>`);
     expect(html).toContain("M. Laurent Dominique SAGNA");
     expect(html).toContain("Fait à Thiès, le");
     expect(html).toContain(PIED[1]);
-    expect(html).toContain("N° REL-S1-2025-0001");
+    expect(html).not.toContain("N° REL");
   });
 
   it("le procès-verbal prend l'en-tête réglé, sinon celui d'origine", () => {
