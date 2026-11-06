@@ -37,6 +37,16 @@ export function useRolesAdmin(): RoleRecord[] {
   return useRoles();
 }
 
+/** Vrai si le rôle du compte connecté ouvre l'une de ces pages (sans rôle : accès complet), comme
+ * private.acces_page_de dans la base. Sert à n'afficher un bouton qu'à ceux que la base laissera faire. */
+export function useAccesUnePage(roleId: string | undefined, pages: readonly string[]): boolean {
+  const roles = useRolesAdmin();
+  if (!roleId) return true;
+  const role = roles.find((r) => r.id === roleId);
+  if (!role) return true;
+  return pages.some((p) => role.accessibleItemIds.includes(p));
+}
+
 export function usePortailsAdmin(): PortailsVue {
   const locaux = usePortalAccess();
   const serveur = useSource(portailsServeur);

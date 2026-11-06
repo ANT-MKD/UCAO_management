@@ -14,6 +14,7 @@ import { getRelanceActivePour, relanceEstExpiree, relanceEstResolue } from "@/da
 import { useMotifsBlocage } from "@/hooks/useMotifBlocageStore";
 import { setEtudiantMotifBlocage, verifierPieceEtudiant, getAnneeActuelle } from "@/data/studentStore";
 import { MotifModal } from "@/components/admin/MotifModal";
+import { CodePinEtudiant } from "@/components/admin/CodePinEtudiant";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCFA, formatDate, cn } from "@/lib/utils";
 import { useEtudiant, useInscriptions, usePaiementsByEtudiant, useNotes, useCahiers, useCahiersAnnee, useNotesAnnees, useReleves, useStudentStore } from "@/hooks/useStudentStore";
@@ -192,7 +193,7 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
       {/* Banner */}
       <div className="bg-card border border-border rounded-2xl p-6 mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-5" style={{ boxShadow: "var(--shadow-sm)" }}>
         <UserAvatar name={`${student.prenom} ${student.nom}`} size="lg" src={student.photoDataUrl} />
-        <div className="flex-1">
+        <div className="flex-1 min-w-[240px]">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h1 className="text-2xl font-extrabold text-foreground" style={{ fontFamily: "Outfit, sans-serif" }}>
               {student.prenom} {student.nom}
@@ -256,10 +257,11 @@ export default function StudentDossierPage({ id }: StudentDossierPageProps) {
             </div>
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0 flex-wrap">
+        <div className="flex gap-2 flex-wrap sm:justify-end min-w-0">
           <button onClick={openBlocage} className={cn("flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-medium transition-colors", motifActif ? "border-amber-300 text-amber-700 hover:bg-amber-50" : "border-border hover:bg-muted")} data-testid="student-gerer-blocage">
             <ShieldOff size={13} /> {motifActif ? "Blocage actif" : "Motif de blocage"}
           </button>
+          <CodePinEtudiant etudiant={student} />
           <button onClick={() => setLocation(`/admin/students/card?id=${encodeURIComponent(student.id)}`)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-xl text-xs font-medium hover:bg-muted transition-colors">
             <IdCard size={13} /> Carte étudiant
           </button>

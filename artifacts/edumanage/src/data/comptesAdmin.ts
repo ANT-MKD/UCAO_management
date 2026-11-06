@@ -6,6 +6,7 @@ import {
   setUserAccountActif,
   updateUserAccountInfo,
   type CreerCompteStaffPayload,
+  type EtudiantRecord,
   type UpdateUserAccountInfoPayload,
   type UserAccountRecord,
   type UserRole,
@@ -107,19 +108,42 @@ export interface CodeEtudiant {
   motif?: string;
 }
 
+/** Validités proposées pour un code (la base accepte de 1 à 14 jours). */
+export const DUREES_CODE = [1, 3, 7, 14] as const;
+
+/** Pages qui donnent le droit de générer un code, comme dans la base (generer_codes_pin). */
+export const PAGES_CODES_PIN = ["sec-pin-activation", "sec-users"] as const;
+
 /** Comptes envoyés par appel au serveur (il en accepte 100). */
 export const CODES_PAR_ENVOI = 50;
 
-/** Codes de toute une classe, en une fois (démarrage, rentrée) : chaque étudiant (hors abandon)
- * reçoit un code valable « jours » jours, qui remplace le précédent. Avec Supabase, le compte d'un
- * étudiant qui n'en a pas encore est d'abord ouvert ; un compte désactivé, ou qui n'a pu être ouvert,
- * figure dans la liste sans code, avec le motif. Les codes ne sont montrés qu'ici, une fois. */
+/** Codes d'une classe, en une fois (démarrage, rentrée), ou de quelques-uns de ses étudiants
+ * (« choisis ») : chaque étudiant retenu (hors abandon) reçoit un code valable « jours » jours, qui
+ * remplace le précédent. Avec Supabase, le compte d'un étudiant qui n'en a pas encore est d'abord
+ * ouvert ; un compte désactivé, ou qui n'a pu être ouvert, figure dans la liste sans code, avec le
+ * motif. Les codes ne sont montrés qu'ici, une fois. */
 export async function genererCodesClasse(classeId: string, jours: number, acteur: { id: string; name: string },
-  progression: (fait: number, total: number) => void = () => {}): Promise<CodeEtudiant[]> {
+  progression: (fait: number, total: number) => void = () => {}, choisis?: readonly string[]): Promise<CodeEtudiant[]> {
+  const retenus = choisis ? new Set(choisis) : null;
   const etudiants = getEtudiants()
-    .filter((e) => e.classeId === classeId && e.statut !== "abandon")
+    .filter((e) => e.classeId === classeId && e.statut !== "abandon" && (!retenus || retenus.has(e.id)))
     .sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, "fr"));
-  if (etudiants.length === 0) throw new Error("Aucun étudiant dans cette classe.");
+  if (etudiants.length === 0) throw new Error(retenus ? "Choisissez au moins un étudiant de la classe." : "Aucun étudiant dans cette classe.");
+  return genererCodesEtudiants(etudiants, jours, acteur, progression);
+}
+
+/** Code d'un seul étudiant, depuis son dossier : mêmes règles que pour une classe (compte ouvert au
+ * besoin avec Supabase, compte désactivé refusé avec le motif). */
+export async function genererCodeEtudiant(etudiantId: string, jours: number, acteur: { id: string; name: string }): Promise<CodeEtudiant> {
+  const etudiant = getEtudiants().find((e) => e.id === etudiantId);
+  if (!etudiant) throw new Error("Étudiant introuvable.");
+  if (etudiant.statut === "abandon") throw new Error("Cet étudiant est en abandon : réintégrez-le avant de lui donner un code.");
+  const [ligne] = await genererCodesEtudiants([etudiant], jours, acteur);
+  return ligne;
+}
+
+async function genererCodesEtudiants(etudiants: EtudiantRecord[], jours: number, acteur: { id: string; name: string },
+  progression: (fait: number, total: number) => void = () => {}): Promise<CodeEtudiant[]> {
   const ligne = (e: (typeof etudiants)[number], code: string | null, expireLe: string | null, motif?: string): CodeEtudiant => ({
     etudiantId: e.id, matricule: e.matricule, nomComplet: `${e.nom} ${e.prenom}`, code, expireLe, ...(motif ? { motif } : {}),
   });
