@@ -247,6 +247,58 @@ describe("codes PIN pour toute une classe avec Supabase", () => {
   });
 });
 
+describe("codes PIN pour quelques étudiants choisis, avec Supabase", () => {
+  const classeL1 = () => [
+    fiche("et-awa", "Awa", "SECK", "2026-LQHSE-0001", "cl-l1"),
+    fiche("et-ousmane", "Ousmane", "DIALLO", "2026-LQHSE-0002", "cl-l1"),
+    fiche("et-fatou", "Fatou", "SOW", "2026-LQHSE-0003", "cl-l1", "abandon"),
+    fiche("et-ibrahima", "Ibrahima", "FALL", "2026-LQHSE-0004", "cl-l2"),
+  ];
+
+  it("seul Ousmane est coché : son compte est ouvert et lui seul reçoit un code, Awa garde le sien", async () => {
+    const { client, actions, etudiants } = await avecBase(codesDeLaBase);
+    client.functions.invoke.mockImplementation(async () => ({ data: { id: OUSMANE }, error: null }));
+    etudiants.remplacerEtudiants(classeL1());
+    const lignes = await actions.genererCodesClasse("cl-l1", 3, { id: ADMIN, name: "Fatou DIOP" }, undefined, ["et-ousmane"]);
+    expect(client.functions.invoke).toHaveBeenCalledTimes(1);
+    expect(client.rpc.mock.calls.filter(([nom]) => nom === "generer_codes_pin"))
+      .toEqual([["generer_codes_pin", { p_comptes: [OUSMANE], p_validite_jours: 3 }]]);
+    expect(lignes).toEqual([
+      { etudiantId: "et-ousmane", matricule: "2026-LQHSE-0002", nomComplet: "DIALLO Ousmane", code: "100000", expireLe: "2026-11-09T10:00:00Z" },
+    ]);
+  });
+
+  it("un étudiant coché hors de la classe ou en abandon est écarté ; aucun retenu : refus avant tout appel", async () => {
+    const { client, actions, etudiants } = await avecBase(codesDeLaBase);
+    etudiants.remplacerEtudiants(classeL1());
+    const lignes = await actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" }, undefined, ["et-awa", "et-fatou", "et-ibrahima"]);
+    expect(lignes.map((l) => l.etudiantId)).toEqual(["et-awa"]);
+    expect(client.rpc.mock.calls.filter(([nom]) => nom === "generer_codes_pin"))
+      .toEqual([["generer_codes_pin", { p_comptes: [AWA], p_validite_jours: 7 }]]);
+    client.rpc.mockClear();
+    await expect(actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" }, undefined, ["et-fatou", "et-ibrahima"]))
+      .rejects.toThrow("Choisissez au moins un étudiant de la classe.");
+    await expect(actions.genererCodesClasse("cl-l1", 7, { id: ADMIN, name: "Fatou DIOP" }, undefined, []))
+      .rejects.toThrow("Choisissez au moins un étudiant de la classe.");
+    expect(client.rpc).not.toHaveBeenCalledWith("generer_codes_pin", expect.anything());
+    expect(client.functions.invoke).not.toHaveBeenCalled();
+  });
+
+  it("depuis le dossier d'Awa : un code pour elle seule, à la validité choisie ; refus pour un abandon", async () => {
+    const { client, actions, etudiants, mails } = await avecBase(codesDeLaBase);
+    etudiants.remplacerEtudiants(classeL1());
+    const ligne = await actions.genererCodeEtudiant("et-awa", 1, { id: ADMIN, name: "Fatou DIOP" });
+    expect(ligne).toEqual({ etudiantId: "et-awa", matricule: "2026-LQHSE-0001", nomComplet: "SECK Awa", code: "100000", expireLe: "2026-11-09T10:00:00Z" });
+    expect(client.rpc.mock.calls.filter(([nom]) => nom === "generer_codes_pin"))
+      .toEqual([["generer_codes_pin", { p_comptes: [AWA], p_validite_jours: 1 }]]);
+    expect(mails.getMailsEnvoyes()).toHaveLength(0);
+    client.rpc.mockClear();
+    await expect(actions.genererCodeEtudiant("et-fatou", 1, { id: ADMIN, name: "Fatou DIOP" })).rejects.toThrow("en abandon");
+    await expect(actions.genererCodeEtudiant("et-inconnu", 1, { id: ADMIN, name: "Fatou DIOP" })).rejects.toThrow("Étudiant introuvable.");
+    expect(client.rpc).not.toHaveBeenCalledWith("generer_codes_pin", expect.anything());
+  });
+});
+
 describe("mêmes écrans sans Supabase (données du navigateur)", () => {
   it("créer, bloquer, code PIN et portail : comme avant", async () => {
     vi.resetModules();
@@ -294,6 +346,32 @@ describe("mêmes écrans sans Supabase (données du navigateur)", () => {
     const tous = pins.getPinsActivation();
     expect(pins.statutPin(tous.find((p) => p.pin === ancien.code && p.userId === compteDe(ousmane.id).id)!, tous)).toBe("remplace");
     expect(mails.getMailsEnvoyes()).toHaveLength(mailsAvant);
+  });
+
+  it("seule Awa est cochée : elle reçoit un code, celui d'Ousmane reste actif ; depuis le dossier, Ousmane a le sien pour 24 heures", async () => {
+    vi.resetModules();
+    const e = await preparerEtablissement();
+    const actions = await import("@/data/comptesAdmin");
+    const pins = await import("@/data/pinActivationStore");
+    const [awa, ousmane] = [e.inscrire("Awa", "SECK"), e.inscrire("Ousmane", "DIALLO")];
+    const compteDe = (id: string) => e.S.getUserAccounts().find((u) => u.linkedId === id)!;
+    const ancien = await actions.genererCodePin(compteDe(ousmane.id), { id: e.admin.id, name: "Administrateur" });
+
+    const lignes = await actions.genererCodesClasse(e.classe.id, 7, { id: e.admin.id, name: "Administrateur" }, undefined, [awa.id]);
+    expect(lignes.map((l) => l.nomComplet)).toEqual(["SECK Awa"]);
+    expect(lignes[0].code).toMatch(/^\d{6}$/);
+    let tous = pins.getPinsActivation();
+    expect(pins.statutPin(tous.find((p) => p.pin === ancien.code && p.userId === compteDe(ousmane.id).id)!, tous)).toBe("actif");
+
+    const ligne = await actions.genererCodeEtudiant(ousmane.id, 1, { id: e.admin.id, name: "Administrateur" });
+    expect(ligne).toMatchObject({ etudiantId: ousmane.id, nomComplet: "DIALLO Ousmane" });
+    expect(ligne.code).toMatch(/^\d{6}$/);
+    const heures = (new Date(ligne.expireLe!).getTime() - Date.now()) / 3_600_000;
+    expect(heures).toBeGreaterThan(23.9);
+    expect(heures).toBeLessThanOrEqual(24);
+    tous = pins.getPinsActivation();
+    expect(pins.statutPin(tous.find((p) => p.pin === ancien.code && p.userId === compteDe(ousmane.id).id)!, tous)).toBe("remplace");
+    expect(pins.statutPin(tous.find((p) => p.pin === lignes[0].code && p.userId === compteDe(awa.id).id)!, tous)).toBe("actif");
   });
 });
 

@@ -6,9 +6,10 @@ import { DataTable, type Column } from "@/components/admin/DataTable";
 import { UserAvatar } from "@/components/admin/UserAvatar";
 import { useCodesPin, useComptesAdmin, useDemandesAttente, type CodePinVue } from "@/hooks/useComptesAdmin";
 import type { StatutPin } from "@/data/pinActivationStore";
-import { genererCodePin, genererCodesClasse, revoquerCodePin, type CodeEtudiant } from "@/data/comptesAdmin";
+import { DUREES_CODE, genererCodePin, genererCodesClasse, revoquerCodePin, type CodeEtudiant } from "@/data/comptesAdmin";
 import { getAnneeActuelle } from "@/data/studentStore";
 import { useClasses } from "@/hooks/useStructureStore";
+import { useStudentStore } from "@/hooks/useStudentStore";
 import { imprimerCodesClasse } from "@/lib/impressionCodes";
 import { PORTAL_LABELS } from "@/data/portalAccessStore";
 import { modeSupabase } from "@/lib/supabase";
@@ -248,7 +249,6 @@ export default function PinActivationPage() {
   );
 }
 
-const DUREES = [1, 3, 7, 14];
 
 /** Codes pour toute une classe (partie 10, lot 1) : à la rentrée, une liste imprimée remise en
  * classe contre signature plutôt qu'un passage de chaque étudiant au bureau. */
@@ -261,16 +261,51 @@ function CodesClasse() {
   const [confirmer, setConfirmer] = useState(false);
   const [enCours, setEnCours] = useState<{ fait: number; total: number } | null>(null);
   const [resultat, setResultat] = useState<{ classe: string; lignes: CodeEtudiant[] } | null>(null);
+  // Étudiants cochés : seuls eux reçoivent un code (un seul, quelques-uns ou toute la classe).
+  const [choisis, setChoisis] = useState<Set<string>>(() => new Set());
+  const [filtre, setFiltre] = useState("");
   const classe = classes.find((c) => c.id === classeId);
+  const tous = useStudentStore();
+  const etudiants = useMemo(() => tous
+    .filter((e) => e.classeId === classeId && e.statut !== "abandon")
+    .sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, "fr")), [tous, classeId]);
+  const q = filtre.trim().toLowerCase();
+  const visibles = q ? etudiants.filter((e) => `${e.nom} ${e.prenom} ${e.matricule}`.toLowerCase().includes(q)) : etudiants;
+  const retenus = etudiants.filter((e) => choisis.has(e.id));
+  const toute = retenus.length > 0 && retenus.length === etudiants.length;
+
+  const choisirClasse = (id: string) => {
+    setClasseId(id);
+    setChoisis(new Set());
+    setFiltre("");
+    setConfirmer(false);
+  };
+  const cocher = (id: string, oui: boolean) => {
+    setConfirmer(false);
+    setChoisis((c) => {
+      const n = new Set(c);
+      if (oui) n.add(id); else n.delete(id);
+      return n;
+    });
+  };
+  const cocherVisibles = (oui: boolean) => {
+    setConfirmer(false);
+    setChoisis((c) => {
+      const n = new Set(c);
+      for (const e of visibles) if (oui) n.add(e.id); else n.delete(e.id);
+      return n;
+    });
+  };
 
   const lancer = async () => {
-    if (!currentUser || !classe) return;
+    if (!currentUser || !classe || retenus.length === 0) return;
     setConfirmer(false);
     setEnCours({ fait: 0, total: 0 });
     try {
       const lignes = await genererCodesClasse(classe.id, jours, { id: currentUser.id, name: currentUser.name },
-        (fait, total) => setEnCours({ fait, total }));
+        (fait, total) => setEnCours({ fait, total }), retenus.map((e) => e.id));
       setResultat({ classe: classe.nom, lignes });
+      setChoisis(new Set());
       const sans = lignes.filter((l) => !l.code).length;
       toast.success(`${lignes.length - sans} code(s) générés pour ${classe.nom}${sans ? `, ${sans} étudiant(s) sans code` : ""}.`);
     } catch (err) {
@@ -290,15 +325,16 @@ function CodesClasse() {
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 mb-6" style={{ boxShadow: "var(--shadow-sm)" }} data-testid="pin-classe">
-      <h3 className="font-bold text-foreground mb-1 flex items-center gap-2"><Users size={16} /> Codes pour toute une classe</h3>
+      <h3 className="font-bold text-foreground mb-1 flex items-center gap-2"><Users size={16} /> Codes pour une classe ou quelques étudiants</h3>
       <p className="text-xs text-muted-foreground mb-3">
-        Un code par étudiant de la classe, sur une liste à imprimer et à distribuer contre signature.
+        Choisissez la classe, puis cochez les étudiants qui ont besoin d&apos;un code : un seul, quelques-uns, ou toute la classe
+        avec « Tout cocher ». Seuls les étudiants cochés reçoivent un code, sur une liste à imprimer et à remettre en main propre.
         {modeSupabase && " Le compte d'un étudiant qui n'en a pas encore est ouvert au passage."}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs font-medium text-muted-foreground flex flex-col gap-1">
           Classe ({annee})
-          <select value={classeId} onChange={(e) => { setClasseId(e.target.value); setConfirmer(false); }} className={champ + " min-w-[220px]"}
+          <select value={classeId} onChange={(e) => choisirClasse(e.target.value)} className={champ + " min-w-[220px]"}
             disabled={!!enCours} data-testid="pin-classe-choix">
             <option value="">Choisir une classe…</option>
             {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
@@ -307,22 +343,67 @@ function CodesClasse() {
         <label className="text-xs font-medium text-muted-foreground flex flex-col gap-1">
           Validité
           <select value={jours} onChange={(e) => setJours(Number(e.target.value))} className={champ} disabled={!!enCours} data-testid="pin-classe-duree">
-            {DUREES.map((d) => <option key={d} value={d}>{d === 1 ? "1 jour" : `${d} jours`}</option>)}
+            {DUREES_CODE.map((d) => <option key={d} value={d}>{d === 1 ? "1 jour" : `${d} jours`}</option>)}
           </select>
         </label>
         {!confirmer && (
-          <button onClick={() => setConfirmer(true)} disabled={!classe || !!enCours}
+          <button onClick={() => setConfirmer(true)} disabled={!classe || retenus.length === 0 || !!enCours}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors"
             data-testid="pin-classe-generer">
-            <KeyRound size={14} /> Générer les codes
+            <KeyRound size={14} /> {retenus.length > 0 ? `Générer ${retenus.length === 1 ? "1 code" : `${retenus.length} codes`}` : "Générer les codes"}
           </button>
         )}
       </div>
 
+      {classe && (
+        <div className="mt-3 border border-border rounded-xl" data-testid="pin-classe-etudiants">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border bg-muted/40">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input value={filtre} onChange={(e) => setFiltre(e.target.value)} placeholder="Nom ou matricule…" aria-label="Chercher un étudiant de la classe"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                disabled={!!enCours} data-testid="pin-classe-filtre" />
+            </div>
+            <button onClick={() => cocherVisibles(true)} disabled={!!enCours || visibles.length === 0}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted disabled:opacity-40" data-testid="pin-classe-tout-cocher">
+              Tout cocher{q ? " (résultats)" : ""}
+            </button>
+            <button onClick={() => cocherVisibles(false)} disabled={!!enCours || choisis.size === 0}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted disabled:opacity-40" data-testid="pin-classe-tout-decocher">
+              Tout décocher{q ? " (résultats)" : ""}
+            </button>
+            <span className="text-xs text-muted-foreground" data-testid="pin-classe-compte">{retenus.length} / {etudiants.length} coché(s)</span>
+          </div>
+          {etudiants.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-muted-foreground">Aucun étudiant dans cette classe.</p>
+          ) : (
+            <ul className="max-h-60 overflow-auto divide-y divide-border">
+              {visibles.map((e) => (
+                <li key={e.id}>
+                  <label className="flex items-center gap-3 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
+                    <input type="checkbox" checked={choisis.has(e.id)} onChange={(ev) => cocher(e.id, ev.target.checked)} disabled={!!enCours}
+                      data-testid={`pin-classe-cocher-${e.id}`} />
+                    <span className="font-mono text-xs text-muted-foreground w-36 shrink-0">{e.matricule}</span>
+                    <span className="text-foreground">{e.nom} {e.prenom}</span>
+                  </label>
+                </li>
+              ))}
+              {visibles.length === 0 && <li className="px-3 py-3 text-xs text-muted-foreground">Aucun étudiant ne correspond.</li>}
+            </ul>
+          )}
+        </div>
+      )}
+
       {confirmer && classe && (
         <div className="mt-3 border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-3 flex flex-wrap items-center gap-3" data-testid="pin-classe-confirmation">
           <p className="flex-1 min-w-[240px] text-xs text-foreground">
-            Chaque étudiant de {classe.nom} reçoit un nouveau code, valable {jours === 1 ? "1 jour" : `${jours} jours`} ; le code qu&apos;il avait reçu avant ne servira plus.
+            {toute
+              ? `Chaque étudiant de ${classe.nom} reçoit un nouveau code`
+              : retenus.length === 1
+                ? `${retenus[0].nom} ${retenus[0].prenom} reçoit un nouveau code`
+                : `${retenus.length} étudiants de ${classe.nom} reçoivent un nouveau code`}
+            , valable {jours === 1 ? "1 jour" : `${jours} jours`} ; le code reçu avant ne servira plus.
+            {!toute && " Les autres étudiants de la classe gardent le leur."}
           </p>
           <button onClick={() => setConfirmer(false)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted">Annuler</button>
           <button onClick={() => void lancer()} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90" data-testid="pin-classe-confirmer">
