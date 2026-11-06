@@ -8,7 +8,11 @@ import { useReleves, useStudentStore, useAnneesAcademiques, useNotes, useNotesAn
 import { useClasses } from "@/hooks/useStructureStore";
 import { useEvaluations } from "@/hooks/useEvaluationStore";
 import type { ReleveRecord, EtudiantRecord } from "@/data/studentStore";
-import { computeBulletin, libelleResultatUe, ueAcquise, type UeMoyenne } from "@/data/bulletinEngine";
+import {
+  computeBulletin, computeCreditsCumulesParcours, computeMoyenneAnnuelle, computeMoyenneProgramme, libelleResultatUe, type UeMoyenne,
+} from "@/data/bulletinEngine";
+import { getUes } from "@/data/curriculumStore";
+import { getInscriptionsByEtudiant } from "@/data/studentStore";
 import { resoudreMention } from "@/data/mentionsStore";
 import { useMentions } from "@/hooks/useMentionsStore";
 import { useScolariteConfigs } from "@/hooks/useScolariteConfigStore";
@@ -20,7 +24,7 @@ import { getDeliberationForClasseSemestre, DECISION_LABELS, type DecisionJury } 
 import { useDeliberations } from "@/hooks/useDeliberationStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { getEtablissement, villeEtablissement } from "@/data/etablissementStore";
-import { echapperHtml, enteteScolaireHtml, piedScolaireHtml, signataireDe } from "@/lib/enteteDocuments";
+import { echapperHtml, enteteScolaireHtml, signataireDe } from "@/lib/enteteDocuments";
 import { getSignatureConfig } from "@/data/signatureConfigStore";
 import { estActionInterdite } from "@/data/motifBlocageStore";
 import { formatDate, cn } from "@/lib/utils";
@@ -48,6 +52,19 @@ export interface BulletinResolu {
   appreciation: string;
   filiereNomComplet: string;
   niveauLabel: string;
+  /** Spécialité de l'inscription de l'année du relevé (« PAS DE SPECIALITE » sinon). */
+  specialite?: string;
+  /** Nature de chaque UE (« Obligatoire », « Optionnelle »…), par id d'UE. */
+  naturesUe?: Record<string, string>;
+  /** Bas du relevé : crédits cumulés jusqu'à ce semestre, moyenne annuelle (dernier semestre de
+   * l'année) et moyenne programme (dernier semestre du cycle). */
+  recapitulatif?: { cumulCredits: number; moyenneAnnuelle?: number; moyenneProgramme?: number };
+}
+
+/** 6 pour « S6 » ; undefined pour un alias qui n'est pas de cette forme. */
+export function numeroSemestre(alias: string | undefined): number | undefined {
+  const m = /^S(\d+)$/i.exec(alias?.trim() ?? "");
+  return m ? Number(m[1]) : undefined;
 }
 
 const APPRECIATION_PAR_DECISION: Record<DecisionJury, string> = {
@@ -95,6 +112,34 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
   const decision = ligne?.decisionFinale;
   const niveauObj = NIVEAUX.find((n) => n.filiereId === filiereObj.id && n.alias === etudiant.niveau);
 
+  // Bas du relevé : crédits cumulés jusqu'à ce semestre (années précédentes + semestres de
+  // l'année jusqu'à celui-ci), moyenne annuelle au dernier semestre de l'année, moyenne
+  // programme au dernier semestre du cycle.
+  const numero = numeroSemestre(semestreObj.alias) ?? 0;
+  const semestresNiveau = SEMESTRES.filter((s) => s.niveauId === semestreObj.niveauId);
+  const finDAnnee = semestresNiveau.every((s) => (numeroSemestre(s.alias) ?? 0) <= numero);
+  const finDeCycle = SEMESTRES.filter((s) => s.filiere === filiereObj.code).every((s) => (numeroSemestre(s.alias) ?? 0) <= numero);
+  const creditsAnterieurs = computeCreditsCumulesParcours(etudiant.id, filiereObj.id).detail
+    .filter((d) => d.niveau !== etudiant.niveau)
+    .reduce((t, d) => t + d.creditsObtenus, 0);
+  const creditsAnnee = semestresNiveau
+    .filter((s) => (numeroSemestre(s.alias) ?? 0) <= numero)
+    .reduce((t, s) => t + (s.id === semestreObj.id
+      ? bulletin.creditsObtenus
+      : computeBulletin(etudiant.id, etudiant.classeId, filiereObj.id, etudiant.niveau, s.alias).creditsObtenus), 0);
+  const recapitulatif = {
+    cumulCredits: creditsAnterieurs + creditsAnnee,
+    ...(finDAnnee ? { moyenneAnnuelle: computeMoyenneAnnuelle(etudiant.id, etudiant.classeId, filiereObj.id, etudiant.niveau).moyenne } : {}),
+    ...(finDeCycle ? { moyenneProgramme: computeMoyenneProgramme(etudiant.id, filiereObj.id).moyenne } : {}),
+  };
+  const uesReferentiel = getUes();
+  const naturesUe = Object.fromEntries(bulletin.ues.map((u) => {
+    const ref = uesReferentiel.find((r) => r.id === u.id);
+    return [u.id, !ref || ref.obligatoire ? "Obligatoire" : (ref.type?.trim() || "Optionnelle")];
+  }));
+  const anneeReleve = entry.annee ?? etudiant.annee;
+  const specialite = getInscriptionsByEtudiant(etudiant.id).find((i) => i.annee === anneeReleve)?.specialite?.trim() || undefined;
+
   return {
     etudiant,
     ues: bulletin.ues,
@@ -112,171 +157,194 @@ export function resolveBulletin(entry: ReleverEntry, etudiants: EtudiantRecord[]
     appreciation: decision ? APPRECIATION_PAR_DECISION[decision] : "En attente de délibération",
     filiereNomComplet: filiereObj.nom,
     niveauLabel: niveauObj?.nom ?? etudiant.niveau,
+    specialite,
+    naturesUe,
+    recapitulatif,
   };
 }
 
-export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
-  const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+/** Couleurs du relevé officiel de l'ISAE : bandeaux prune, lignes d'UE bleu clair. */
+const RELEVE_PRUNE = "#6b2a5f";
+const RELEVE_BLEU = "#a9cbe9";
 
+/** « UE acquise » → « UE Acquise », comme sur le relevé officiel (le reste du libellé inchangé). */
+function resultatReleve(ue: UeMoyenne): string {
+  return libelleResultatUe(ue).replace(/^UE acquise/, "UE Acquise").replace(/^UE non acquise/, "UE Non Acquise");
+}
+
+/** 2003-05-23 → 23/05/2003, sans passer par Date (pas de décalage de fuseau). */
+function dateCourte(iso: string | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+
+const majuscules = (texte: string) => texte.toLocaleUpperCase("fr-FR");
+
+/** Relevé de notes d'un semestre, disposé comme le relevé officiel de l'ISAE : en-tête de
+ * l'établissement, titre encadré, identité, tableau Matières / Moyenne / Crédits puis Résultats,
+ * Appréciation du jury et cadre du Directeur, crédits cumulés et moyennes annuelle et programme,
+ * « Fait à », place du cachet, pied de page. Seul gabarit : aperçu et impression sont identiques. */
+export function buildPrintHtml(entry: ReleverEntry, resolved: BulletinResolu | undefined) {
   if (!resolved) {
     return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Relevé indisponible</title></head>
       <body style="font-family:sans-serif;padding:40px;text-align:center;color:#6b7280;">
-        <p>Bulletin indisponible pour ${entry.etudiant} — notes insuffisantes pour cette session.</p>
+        <p>Bulletin indisponible pour ${echapperHtml(entry.etudiant)} — notes insuffisantes pour cette session.</p>
       </body></html>`;
   }
-  const { moyenne: moy, creditsObtenus, creditsTotal } = resolved;
+  const { moyenne: moy, creditsObtenus, creditsTotal, etudiant } = resolved;
   // Année réelle DE CE SEMESTRE (pas l'année actuelle de l'étudiant, qui avance à chaque passage
   // de niveau) — repli sur l'année actuelle pour les relevés créés avant l'ajout du champ.
-  const anneeReleve = entry.annee ?? resolved.etudiant.annee;
-  const [prenomEtu, ...nomEtuParts] = entry.etudiant.split(" ");
-  const nomComplet = `${entry.matricule} - ${nomEtuParts.join(" ").toUpperCase()} ${prenomEtu}`;
+  const anneeReleve = entry.annee ?? etudiant.annee;
+  const numero = numeroSemestre(resolved.semestreAlias);
+  const semestre = numero !== undefined ? `Semestre ${numero}` : entry.semestre;
+  const nomAffiche = etudiant.prenom || etudiant.nom ? `${etudiant.prenom ?? ""} ${etudiant.nom ?? ""}`.trim() : entry.etudiant;
   const etab = getEtablissement();
-  const sceau = etab.nom.split(/\s+/).filter((w) => w.length > 2).map((w) => w[0]).join("").slice(0, 3).toUpperCase() || "EM";
   const sig = getSignatureConfig("bulletin");
-  // En-tête et pied de page des Documents officiels, quand l'établissement les a réglés.
-  const enteteOfficiel = enteteScolaireHtml(etab);
-  const piedOfficiel = piedScolaireHtml(etab);
   const signataire = signataireDe(sig);
+  const enteteOfficiel = enteteScolaireHtml(etab);
+  const piedLignes = (etab.piedLignes ?? []).map((l) => l.trim()).filter(Boolean);
+  const piedAffiche = piedLignes.length > 0
+    ? piedLignes
+    : [
+        [etab.nom, etab.adresse].filter(Boolean).join(" — "),
+        [etab.telephone && `Tél : ${etab.telephone}`, etab.email && `Email : ${etab.email}`, etab.siteWeb && `site web : ${etab.siteWeb}`].filter(Boolean).join(" - "),
+      ].filter(Boolean);
+  const naissance = [dateCourte(etudiant.dateNaissance), etudiant.lieuNaissance ? `à ${majuscules(etudiant.lieuNaissance)}` : ""].filter(Boolean).join(" ");
 
-  let tableRows = "";
+  let lignes = "";
   resolved.ues.forEach((ue) => {
-    const ueResultat = libelleResultatUe(ue);
-    tableRows += `
-      <tr class="ue-row">
-        <td>${ue.code} - ${ue.libelle}</td>
+    const nature = resolved.naturesUe?.[ue.id];
+    lignes += `
+      <tr class="ue">
+        <td class="mat">${echapperHtml(`${ue.code} - ${ue.libelle}`)}${nature ? ` (${echapperHtml(nature)})` : ""}</td>
+        <td class="esp"></td>
         <td class="c">${formatNote(ue.moyenne)}</td>
         <td class="c">${ue.credits}</td>
-        <td class="c" style="color:${ueAcquise(ue) ? "#166534" : "#991b1b"};">${ueResultat}</td>
+        <td class="esp"></td>
+        <td class="res">${echapperHtml(resultatReleve(ue))}</td>
       </tr>`;
     ue.ecs.forEach((ec) => {
-      tableRows += `
-        <tr>
-          <td class="ec-label">${ec.libelle}</td>
-          <td class="c">${formatNote(ec.moyenne)}</td>
-          <td class="c"></td>
-          <td class="c"></td>
-        </tr>`;
+      lignes += `
+      <tr class="ec">
+        <td class="mat">${echapperHtml(ec.libelle)}</td>
+        <td class="esp"></td>
+        <td class="c b">${formatNote(ec.moyenne)}</td>
+        <td class="c"></td>
+        <td class="esp"></td>
+        <td class="res"></td>
+      </tr>`;
     });
   });
+
+  const recap = resolved.recapitulatif;
+  const recapLignes = recap
+    ? [
+        ["Cumul Crédits", String(recap.cumulCredits)],
+        ...(recap.moyenneAnnuelle !== undefined ? [["Moyenne Annuelle", formatNote(recap.moyenneAnnuelle)]] : []),
+        ...(recap.moyenneProgramme !== undefined ? [["Moyenne Programme", formatNote(recap.moyenneProgramme)]] : []),
+      ]
+    : [];
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
-<title>Relevé de Notes — ${entry.etudiant}</title>
+<title>Relevé de notes — ${echapperHtml(entry.etudiant)}</title>
 <style>
-  @page { size: A4; margin: 16mm 18mm; }
+  @page { size: A4; margin: 10mm 13mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; color: #1f2937; background: #fff; }
-  .header-box { border: 2px solid #1f2937; border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-  .seal { width: 58px; height: 58px; border-radius: 50%; border: 2px solid #5b21b6; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #5b21b6; flex-shrink: 0; }
-  .seal-top { font-size: 6px; font-weight: 700; letter-spacing: 0.5px; }
-  .seal-main { font-size: 11px; font-weight: 900; }
-  .header-text { flex: 1; text-align: center; }
-  .header-text .l1 { font-size: 14px; font-weight: 800; color: #111827; }
-  .header-text .l2 { font-size: 11px; color: #374151; margin-top: 1px; }
-  .header-text .l3 { font-size: 9.5px; font-style: italic; color: #6b7280; margin-top: 1px; }
-  .header-text .l4 { font-size: 11.5px; font-weight: 800; color: #111827; text-transform: uppercase; margin-top: 4px; }
-  .title-pill { border: 1.5px solid #1f2937; border-radius: 999px; padding: 6px 20px; width: fit-content; margin: 0 auto 18px; text-align: center; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
-  .identity-lines { margin-bottom: 14px; line-height: 1.9; }
-  .identity-lines .id-label { display: inline-block; width: 150px; color: #111827; font-weight: 700; }
-  .identity-lines .id-value { color: #1f2937; }
-  .intro { margin-bottom: 8px; font-size: 11.5px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  thead tr { background: #5b21b6; color: white; }
-  thead th { padding: 7px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; text-align: center; border: 1px solid #4c1d95; }
-  thead th:first-child { text-align: left; }
-  td { border: 1px solid #d1d5db; padding: 5px 10px; font-size: 10.5px; }
-  td.c { text-align: center; }
-  tr.ue-row td { background: #ddd6fe; font-weight: 700; color: #111827; }
-  td.ec-label { padding-left: 10px; color: #374151; }
-  tfoot tr td { background: #111827; color: white; font-weight: 800; font-size: 11px; padding: 8px 10px; }
-  tfoot tr td:first-child { text-align: left; }
-  tfoot tr td.c { text-align: center; }
-  .jury-table { width: 100%; border-collapse: collapse; margin-top: 18px; }
-  .jury-table th { border: 1px solid #1f2937; background: #5b21b6; color: white; padding: 6px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
-  .jury-table td { border: 1px solid #1f2937; padding: 16px 10px; font-size: 11.5px; vertical-align: top; }
-  .jury-table td:first-child { font-weight: 700; }
-  .date-line { text-align: right; font-size: 10.5px; margin-top: 10px; }
-  .signature-block { display: flex; justify-content: flex-end; margin-top: 8px; }
-  .footer { margin-top: 30px; border-top: 1px solid #d1d5db; padding-top: 8px; text-align: center; font-size: 8.5px; color: #6b7280; line-height: 1.5; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111827; background: #fff; }
+  .edm-entete, .edm-entete * { font-family: Arial, Helvetica, sans-serif !important; }
+  .edm-entete[style*="border:"] { border: 2px solid #1f2937 !important; border-radius: 12px !important; }
+  .cadre-defaut { border: 2px solid #1f2937; border-radius: 12px; padding: 10px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .cadre-defaut .texte { flex: 1; text-align: center; }
+  .cadre-defaut .nom { font-size: 14px; font-weight: 700; text-transform: uppercase; }
+  .cadre-defaut .adresse { font-size: 11px; margin-top: 2px; }
+  .titre { width: 50%; margin: 4px auto 12px; border: 2px solid #1f2937; border-radius: 10px; padding: 6px 10px; text-align: center; font-size: 15px; font-weight: 700; }
+  .identite { display: grid; grid-template-columns: 160px 1fr; row-gap: 3px; column-gap: 8px; font-size: 11.5px; margin: 0 0 6px 4px; }
+  .identite .lib { text-transform: uppercase; }
+  .identite .val { font-weight: 700; }
+  .identite .val.petit { font-size: 10.5px; }
+  .identite .saut { margin-top: 10px; }
+  .intro { font-size: 12.5px; margin: 6px 0 6px 4px; }
+  table.notes { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.notes th { background: ${RELEVE_PRUNE}; color: #fff; font-size: 10px; font-weight: 700; padding: 5px 6px; border: 1px solid ${RELEVE_PRUNE}; }
+  table.notes th.mat { text-align: left; }
+  table.notes td { border: 1px solid #4b5563; padding: 3px 6px; font-size: 10.5px; height: 20px; }
+  table.notes td.esp, table.notes th.esp { border: none; background: none; padding: 0; }
+  table.notes td.c { text-align: center; }
+  table.notes td.b { font-weight: 700; }
+  table.notes td.res { text-align: center; font-weight: 700; font-size: 9.5px; }
+  table.notes tr.ue td:not(.esp) { background: ${RELEVE_BLEU}; height: 17px; padding-top: 1px; padding-bottom: 1px; }
+  table.notes tr.ue td.mat { font-weight: 700; font-size: 10px; }
+  table.notes tr.moyenne td.mat { text-align: right; font-weight: 700; font-size: 11px; }
+  table.notes tr.moyenne td.c { font-weight: 700; font-size: 11px; }
+  table.notes td.vide { border: none; }
+  table.notes tr.blanc td { border: none; height: 8px; padding: 0; }
+  table.notes tr.bandeau th { text-align: center; font-size: 10px; }
+  table.notes th.qualite { text-transform: uppercase; }
+  table.notes td.appreciation { text-align: center; font-size: 14px; height: 36px; }
+  table.notes td.directeur { text-align: center; height: 36px; }
+  table.notes tr.bas td { border: none; padding: 0; vertical-align: top; }
+  table.recap { border-collapse: collapse; width: 72%; margin-top: 1px; }
+  table.notes tr.bas table.recap td { border: 1px solid #4b5563; padding: 2px 5px; font-size: 10px; font-weight: 700; height: auto; }
+  table.notes tr.bas table.recap td + td { text-align: center; }
+  .fait { text-align: center; font-size: 11.5px; padding-top: 10px; }
+  .cachet { height: 64px; }
+  .pied { margin: 10px auto 0; width: 62%; border-top: 2px solid ${RELEVE_PRUNE}; padding-top: 6px; text-align: center; font-size: 9.5px; line-height: 1.45; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
 <body>
-  <!-- HEADER -->
-  ${enteteOfficiel ?? `<div class="header-box">
-    <div class="seal"><span class="seal-top">INSTITUT</span><span class="seal-main">${sceau}</span><span class="seal-top">&nbsp;</span></div>
-    <div class="header-text">
-      ${etab.logoDataUrl ? `<img src="${etab.logoDataUrl}" style="height:36px;object-fit:contain;margin-bottom:4px" />` : ""}
-      <div class="l4">${etab.nom}</div>
-      <div class="l2">${etab.adresse}</div>
-    </div>
-    <div class="seal"><span class="seal-top">OFFICIEL</span><span class="seal-main">${anneeReleve.split("-")[0]}</span><span class="seal-top">&nbsp;</span></div>
+  ${enteteOfficiel ?? `<div class="cadre-defaut">
+    ${etab.logoDataUrl ? `<img src="${echapperHtml(etab.logoDataUrl)}" alt="" style="height:64px;max-width:110px;object-fit:contain" />` : ""}
+    <div class="texte"><div class="nom">${echapperHtml(etab.nom)}</div>${etab.adresse ? `<div class="adresse">${echapperHtml(etab.adresse)}</div>` : ""}</div>
   </div>`}
 
-  <div class="title-pill">Relevé de Notes ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</div>
+  <div class="titre">RELEVÉ DE NOTES ${echapperHtml(semestre)}</div>
 
-  <!-- IDENTITY -->
-  <div class="identity-lines">
-    <div><span class="id-label">Prénom et Nom :</span><span class="id-value">${nomComplet}</span></div>
-    <div><span class="id-label">Date de naissance :</span><span class="id-value">${resolved.etudiant.dateNaissance ? formatDate(resolved.etudiant.dateNaissance) : "—"}${resolved.etudiant.lieuNaissance ? ` à ${resolved.etudiant.lieuNaissance}` : ""}</span></div>
-    <div><span class="id-label">Inscrit en :</span><span class="id-value">${resolved.filiereNomComplet} en ${resolved.niveauLabel} pour l'année académique ${anneeReleve}</span></div>
-    <div><span class="id-label">Classe :</span><span class="id-value">${entry.classe}</span></div>
+  <div class="identite">
+    <div class="lib">Prénom et nom :</div><div class="val">${echapperHtml(majuscules(`${entry.matricule} - ${nomAffiche}`))}</div>
+    <div class="lib">Date de naissance :</div><div class="val">${echapperHtml(naissance) || "—"}</div>
+    <div class="lib saut">Inscrit en :</div><div class="val petit saut">${echapperHtml(majuscules(resolved.filiereNomComplet))} en ${echapperHtml(resolved.niveauLabel)} pour l'année académique ${echapperHtml(anneeReleve)}</div>
+    <div class="lib saut">Spécialité :</div><div class="val saut">${echapperHtml(majuscules(resolved.specialite ?? "Pas de spécialité"))}</div>
+    <div class="lib">Classe :</div><div class="val">${echapperHtml(entry.classe)}</div>
   </div>
 
   <p class="intro">A obtenu les notes suivantes</p>
 
-  <table>
+  <table class="notes">
+    <colgroup><col style="width:55%"/><col style="width:1.6%"/><col style="width:9%"/><col style="width:9%"/><col style="width:1.6%"/><col style="width:23.8%"/></colgroup>
     <thead>
-      <tr>
-        <th style="text-align:left;">Matières</th>
-        <th>Moyenne</th>
-        <th>Crédits</th>
-        <th>Résultats</th>
-      </tr>
+      <tr><th class="mat">Matières</th><th class="esp"></th><th>Moyenne</th><th>Crédits</th><th class="esp"></th><th>Résultats</th></tr>
     </thead>
-    <tbody>${tableRows}</tbody>
-    <tfoot>
-      <tr>
-        <td>Moyenne ${resolved.semestreAlias === "S1" ? "Semestre 1" : resolved.semestreAlias === "S2" ? "Semestre 2" : entry.semestre}</td>
+    <tbody>${lignes}
+      <tr class="moyenne">
+        <td class="mat">Moyenne ${echapperHtml(semestre)}</td>
+        <td class="esp"></td>
         <td class="c">${formatNote(moy)}</td>
         <td class="c">${creditsObtenus}/${creditsTotal}</td>
-        <td class="c">${resolved.decision === "admis" && resolved.mention !== "—" ? `Mention ${resolved.mention}` : ""}</td>
+        <td class="esp"></td>
+        <td class="vide"></td>
       </tr>
-    </tfoot>
-  </table>
-
-  <!-- JURY / DIRECTEUR -->
-  <table class="jury-table">
-    <thead>
+      <tr class="blanc"><td colspan="6"></td></tr>
+      <tr class="bandeau"><th>Appréciation du Jury</th><th class="esp"></th><th class="qualite" colspan="4">${echapperHtml(signataire?.qualite || "Le Directeur")}</th></tr>
       <tr>
-        <th>Appréciation du Jury</th>
-        <th>${signataire?.qualite ? echapperHtml(signataire.qualite) : "Le Directeur"}</th>
+        <td class="appreciation">${echapperHtml(resolved.appreciation)}</td>
+        <td class="esp"></td>
+        <td class="directeur" colspan="4">${sig.actif && sig.imageDataUrl ? `<img src="${echapperHtml(sig.imageDataUrl)}" alt="" style="height:34px;object-fit:contain" />` : ""}${signataire ? `<div style="font-size:10px;font-weight:700;margin-top:2px">${echapperHtml(signataire.nom)}</div>` : ""}</td>
       </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>${resolved.appreciation}</td>
-        <td>${sig.actif && sig.imageDataUrl ? `<img src="${sig.imageDataUrl}" style="height:36px;object-fit:contain" />` : ""}${signataire ? `<div style="font-size:10px;font-weight:700;margin-top:2px;">${echapperHtml(signataire.nom)}</div>` : ""}</td>
+      <tr class="bas">
+        <td>${recapLignes.length > 0 ? `<table class="recap">${recapLignes.map(([l, v]) => `<tr><td>${l}</td><td>${v}</td></tr>`).join("")}</table>` : ""}</td>
+        <td></td>
+        <td colspan="4"><div class="fait">Fait à ${echapperHtml(villeEtablissement(etab))}, le ${new Date().toLocaleDateString("fr-FR")}</div><div class="cachet"></div></td>
       </tr>
     </tbody>
   </table>
 
-  <div class="date-line">Fait à ${echapperHtml(villeEtablissement(etab))}, le ${now}</div>
-  ${enteteOfficiel ? "" : `<div class="signature-block">
-    <div class="seal" style="border-color:#dc2626;color:#dc2626;"><span class="seal-top">${sceau}</span><span class="seal-main">OK</span><span class="seal-top">Officiel</span></div>
-  </div>`}
-
-  <!-- FOOTER -->
-  ${piedOfficiel ?? ""}
-  <div class="footer"${piedOfficiel ? ' style="border-top:none;margin-top:6px;padding-top:0"' : ""}>
-    ${piedOfficiel ? "" : `<div>${etab.nom}${etab.adresse ? ` — ${etab.adresse}` : ""}</div>
-    <div>${[etab.telephone && `Tél : ${etab.telephone}`, etab.email && `Email : ${etab.email}`, etab.siteWeb && `Site web : ${etab.siteWeb}`].filter(Boolean).join(" · ")}</div>`}
-    <div>N° REL-${resolved.semestreAlias}-${anneeReleve.split("-")[0]}-${entry.matricule.split("-").pop()?.padStart(4,"0")} — Ce document est officiel et certifié conforme aux registres de l'institution.</div>
-  </div>
+  ${piedAffiche.length > 0 ? `<div class="pied">${piedAffiche.map((l) => `<div>${echapperHtml(l)}</div>`).join("")}</div>` : ""}
 </body>
 </html>`;
 }
